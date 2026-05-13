@@ -1,0 +1,17 @@
+{
+  "name": "new-project",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "check": "node --check server.js && node --check app.js",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1"
+  }
+}

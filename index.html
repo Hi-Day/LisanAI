@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OralAI Assessment</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">OA</div>
+          <div>
+            <strong>OralAI</strong>
+            <span>Assessment lisan adaptif</span>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Navigasi utama">
+          <button class="nav-button active" data-view="teacherView">
+            <span aria-hidden="true">⌘</span>
+            Guru
+          </button>
+          <button class="nav-button" data-view="studentView">
+            <span aria-hidden="true">◉</span>
+            Siswa
+          </button>
+          <button class="nav-button" data-view="monitorView">
+            <span aria-hidden="true">▤</span>
+            Monitoring
+          </button>
+        </nav>
+
+        <div class="sidebar-panel">
+          <span class="panel-label">Status sistem</span>
+          <strong>OpenRouter Hy3 aktif</strong>
+          <p>Generate soal dan evaluasi memakai backend lokal agar API key tetap aman.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Platform evaluasi lisan siswa</p>
+            <h1>Assessment berbasis AI untuk jawaban spoken response</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="seedDemo" title="Isi contoh data" aria-label="Isi contoh data">+</button>
+            <button class="icon-button" id="resetData" title="Reset data" aria-label="Reset data">R</button>
+          </div>
+        </header>
+
+        <section id="teacherView" class="view active" aria-labelledby="teacherTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="teacherTitle">Buat assessment</h2>
+              <p>Tentukan konteks evaluasi, lalu sistem menyusun set soal yang relevan.</p>
+            </div>
+            <span class="metric-pill"><strong id="assessmentCount">0</strong> assessment aktif</span>
+          </div>
+
+          <div class="teacher-grid">
+            <form id="assessmentForm" class="form-panel">
+              <label>
+                Topik atau materi
+                <input id="topic" required placeholder="Contoh: fotosintesis, hukum Newton, teks argumentasi" />
+              </label>
+
+              <label>
+                Kompetensi / learning outcome
+                <textarea id="outcomes" required rows="4" placeholder="Tuliskan indikator kompetensi yang perlu terlihat dari jawaban siswa"></textarea>
+              </label>
+
+              <label>
+                Rubrik penilaian
+                <textarea id="rubric" required rows="5" placeholder="Contoh: ketepatan konsep 40%, kelengkapan alasan 30%, contoh relevan 20%, komunikasi 10%"></textarea>
+              </label>
+
+              <div class="form-row">
+                <label>
+                  Tingkat kesulitan
+                  <select id="difficulty">
+                    <option>Dasar</option>
+                    <option selected>Menengah</option>
+                    <option>Lanjutan</option>
+                  </select>
+                </label>
+                <label>
+                  Jumlah soal
+                  <input id="questionCount" type="number" min="3" max="8" value="5" />
+                </label>
+              </div>
+
+              <label>
+                Contoh soal opsional
+                <textarea id="examples" rows="3" placeholder="Masukkan contoh gaya soal jika ada"></textarea>
+              </label>
+
+              <button class="primary-button" type="submit">Generate assessment</button>
+            </form>
+
+            <div class="preview-panel">
+              <div class="visual-card">
+                <div class="voice-waves" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div>
+                  <strong>Alur evaluasi</strong>
+                  <p>Topik -> soal adaptif -> rekaman suara -> transkripsi -> skor rubrik -> feedback personal.</p>
+                </div>
+              </div>
+              <h3>Assessment terbaru</h3>
+              <div id="assessmentList" class="list-stack empty-state">Belum ada assessment. Buat konfigurasi pertama untuk mulai.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="studentView" class="view" aria-labelledby="studentTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="studentTitle">Kerjakan assessment</h2>
+              <p>Pilih sesi, jawab lisan satu per satu, lalu lihat feedback setelah selesai.</p>
+            </div>
+            <select id="studentAssessmentSelect" aria-label="Pilih assessment"></select>
+          </div>
+
+          <div id="studentEmpty" class="empty-state large">Belum ada assessment yang tersedia untuk siswa.</div>
+
+          <div id="studentWorkspace" class="student-workspace hidden">
+            <div class="question-card">
+              <div class="question-meta">
+                <span id="questionProgress">Soal 1 dari 5</span>
+                <span id="activeDifficulty">Menengah</span>
+              </div>
+              <h3 id="activeQuestion">Pertanyaan akan muncul di sini.</h3>
+              <p id="activeHint">Jawab dengan jelas, gunakan istilah kunci, dan berikan alasan.</p>
+
+              <div class="recorder">
+                <button id="recordButton" class="record-button" type="button" aria-label="Mulai rekam">
+                  <span></span>
+                </button>
+                <div>
+                  <strong id="recordStatus">Siap merekam</strong>
+                  <p>Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
+                </div>
+              </div>
+
+              <label>
+                Transkripsi jawaban
+                <textarea id="answerText" rows="7" placeholder="Transkripsi otomatis atau jawaban manual siswa akan muncul di sini"></textarea>
+              </label>
+
+              <div class="student-actions">
+                <button id="prevQuestion" class="secondary-button" type="button">Sebelumnya</button>
+                <button id="saveAnswer" class="primary-button" type="button">Simpan & lanjut</button>
+              </div>
+            </div>
+
+            <aside class="session-panel">
+              <h3>Ringkasan sesi</h3>
+              <label>
+                Nama siswa
+                <input id="studentName" placeholder="Contoh: Aisyah Putri" />
+              </label>
+              <div id="answerMap" class="answer-map"></div>
+              <button id="finishAssessment" class="primary-button full" type="button">Selesaikan assessment</button>
+            </aside>
+          </div>
+
+          <div id="resultPanel" class="result-panel hidden"></div>
+        </section>
+
+        <section id="monitorView" class="view" aria-labelledby="monitorTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="monitorTitle">Monitoring hasil</h2>
+              <p>Pantau skor, kualitas jawaban, dan perkembangan performa siswa.</p>
+            </div>
+            <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
+          </div>
+
+          <div class="monitor-grid">
+            <div class="analytics-panel">
+              <h3>Performa kelas</h3>
+              <div class="score-ring" id="classAverage">0</div>
+              <p>Rata-rata skor dari seluruh assessment yang sudah diselesaikan.</p>
+            </div>
+            <div class="analytics-panel">
+              <h3>Perkembangan siswa</h3>
+              <div id="trendList" class="trend-list empty-state">Belum ada tren skor.</div>
+            </div>
+            <div class="analytics-panel wide">
+              <h3>Riwayat submission</h3>
+              <div id="submissionList" class="list-stack empty-state">Belum ada hasil assessment.</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
