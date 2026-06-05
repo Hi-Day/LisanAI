@@ -89,25 +89,19 @@ Jika `data/oralai.db` dihapus, buat tenant baru dari halaman register.
 ## Demo dan Galeri
 
 ### Video Demonstrasi
-<video src="./videos/lisan.ai.mp4" controls width="100%">
-  Browser Anda tidak mendukung tag video.
-</video>
+https://github.com/Hi-Day/OralAIAssessment/raw/master/videos/lisan.ai.mp4
 
 ### Tangkapan Layar (Screenshots)
 
 Berikut adalah beberapa tampilan dari platform:
 
-<details>
-<summary>Lihat Screenshot 439</summary>
-<br>
+**Dashboard & Kelas**
 <img src="./pics/Screenshot%20(439).png" alt="Screenshot 439" width="100%">
-</details>
-
-<details>
-<summary>Lihat Screenshot 440</summary>
 <br>
+
+**Detail Assessment**
 <img src="./pics/Screenshot%20(440).png" alt="Screenshot 440" width="100%">
-</details>
+<br>
 
 <details>
 <summary>Lihat Screenshot 441</summary>
