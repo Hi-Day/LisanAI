@@ -4,13 +4,29 @@ const {
   SESSION_MAX_AGE_SECONDS,
   createSession,
   createTenantUser,
+  deleteTenantUser,
   deleteSession,
   getSessionUser,
   listTenantUsers,
   loginUser,
   registerTenantUser,
+  updateTenantUser,
 } = require("./auth-service");
-const { approveMembership, clearData, createClass, getState, requestJoinClass, saveAssessment, saveSubmission } = require("./database");
+const {
+  approveMembership,
+  clearData,
+  createClass,
+  deleteAssessment,
+  deleteClass,
+  deleteMembership,
+  getState,
+  requestJoinClass,
+  saveAssessment,
+  saveSubmission,
+  updateAssessment,
+  updateClass,
+  updateMembershipStatus,
+} = require("./database");
 const { parseCookies, readJson, sendJson, setCookie } = require("./http-utils");
 
 async function handleApiRequest(req, res, url) {
@@ -28,6 +44,14 @@ async function handleApiRequest(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/users") {
     requireRole(auth, ["admin"]);
     return sendJson(res, 200, { users: await listTenantUsers(auth.tenant.id) });
+  }
+
+  const resource = parseResourcePath(url.pathname);
+  if (resource && req.method === "PUT") {
+    return handleUpdateRequest(req, res, auth, resource);
+  }
+  if (resource && req.method === "DELETE") {
+    return handleDeleteRequest(res, auth, resource);
   }
 
   if (req.method === "DELETE" && url.pathname === "/api/data") {
@@ -119,6 +143,56 @@ async function handleApiRequest(req, res, url) {
   }
 
   return sendJson(res, 404, { error: "Not found" });
+}
+
+async function handleUpdateRequest(req, res, auth, resource) {
+  const body = await readJson(req);
+  if (resource.type === "classes") {
+    requireRole(auth, ["admin", "teacher"]);
+    return sendJson(res, 200, { class: await updateClass(auth, resource.id, body) });
+  }
+  if (resource.type === "assessments") {
+    requireRole(auth, ["admin", "teacher"]);
+    return sendJson(res, 200, { assessment: await updateAssessment(auth, resource.id, body) });
+  }
+  if (resource.type === "users") {
+    requireRole(auth, ["admin"]);
+    return sendJson(res, 200, { user: await updateTenantUser(auth.tenant.id, resource.id, body) });
+  }
+  if (resource.type === "memberships") {
+    requireRole(auth, ["teacher"]);
+    await updateMembershipStatus(auth, resource.id, body.status);
+    return sendJson(res, 200, { ok: true });
+  }
+  return sendJson(res, 404, { error: "Not found" });
+}
+
+async function handleDeleteRequest(res, auth, resource) {
+  if (resource.type === "classes") {
+    requireRole(auth, ["admin", "teacher"]);
+    await deleteClass(auth, resource.id);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (resource.type === "assessments") {
+    requireRole(auth, ["admin", "teacher"]);
+    await deleteAssessment(auth, resource.id);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (resource.type === "users") {
+    requireRole(auth, ["admin"]);
+    await deleteTenantUser(auth.tenant.id, resource.id, auth.user.id);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (resource.type === "memberships") {
+    await deleteMembership(auth, resource.id);
+    return sendJson(res, 200, { ok: true });
+  }
+  return sendJson(res, 404, { error: "Not found" });
+}
+
+function parseResourcePath(pathname) {
+  const match = pathname.match(/^\/api\/(classes|assessments|users|memberships)\/([^/]+)$/);
+  return match ? { type: match[1], id: decodeURIComponent(match[2]) } : null;
 }
 
 function cryptoRandom() {

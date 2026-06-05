@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OralAI Assessment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -67,23 +70,8 @@
           </div>
         </div>
 
-        <nav class="nav" aria-label="Navigasi utama">
-          <button class="nav-button active" data-view="teacherView">
-            <span aria-hidden="true">⌘</span>
-            Guru
-          </button>
-          <button class="nav-button" data-view="studentView">
-            <span aria-hidden="true">◉</span>
-            Siswa
-          </button>
-          <button class="nav-button" data-view="monitorView">
-            <span aria-hidden="true">▤</span>
-            Monitoring
-          </button>
-          <button class="nav-button" id="adminNav" data-view="accountView">
-            <span aria-hidden="true">ID</span>
-            Akun
-          </button>
+        <nav id="mainNav" class="nav" aria-label="Navigasi utama">
+          <!-- Navigasi akan di-render oleh JS berdasarkan role (security) -->
         </nav>
 
         <div class="sidebar-panel">
@@ -169,20 +157,7 @@
             </form>
 
             <div class="preview-panel">
-              <div id="classPanel" class="class-panel">
-                <h3>Kelas</h3>
-                <form id="classForm" class="mini-form">
-                  <input id="className" placeholder="Nama kelas baru" />
-                  <button class="secondary-button" type="submit">Buat kelas</button>
-                </form>
-                <form id="joinClassForm" class="mini-form hidden">
-                  <input id="joinCode" placeholder="Kode kelas" />
-                  <button class="secondary-button" type="submit">Join kelas</button>
-                </form>
-                <div id="classList" class="list-stack empty-state">Belum ada kelas.</div>
-                <h3>Request join</h3>
-                <div id="pendingJoinList" class="list-stack empty-state">Belum ada request join.</div>
-              </div>
+
 
               <div class="visual-card">
                 <div class="voice-waves" aria-hidden="true">
@@ -219,22 +194,35 @@
               <h2 id="studentTitle">Kerjakan assessment</h2>
               <p>Pilih sesi, jawab lisan satu per satu, lalu lihat feedback setelah selesai.</p>
             </div>
-            <select id="studentAssessmentSelect" aria-label="Pilih assessment"></select>
+            <select id="studentAssessmentSelect" aria-label="Pilih assessment" class="hidden"></select>
           </div>
 
-          <div id="studentClassPanel" class="preview-panel class-panel">
-            <h3>Kelas saya</h3>
-            <form id="studentJoinClassForm" class="mini-form">
-              <input id="studentJoinCode" placeholder="Masukkan kode kelas" />
-              <button class="secondary-button" type="submit">Request join</button>
-            </form>
-            <div id="studentClassList" class="list-stack empty-state">Belum join kelas.</div>
-          </div>
+          <div id="studentDashboard" class="student-dashboard">
+            <div class="student-dashboard-main">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0;">Assessment Tersedia</h3>
+                <select id="studentClassFilter" style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;">
+                  <option value="">Semua Kelas</option>
+                </select>
+              </div>
+              <div id="studentAssessmentGrid" class="assessment-grid feedback-grid"></div>
+              <div id="studentEmpty" class="empty-state large hidden">Belum ada assessment yang tersedia di kelas ini. Pastikan guru Anda sudah menugaskan assessment.</div>
+            </div>
 
-          <div id="studentEmpty" class="empty-state large">Belum ada assessment yang tersedia untuk siswa.</div>
+            <aside id="studentClassPanel" class="preview-panel class-panel">
+              <h3>Kelas saya</h3>
+              <form id="studentJoinClassForm" class="mini-form">
+                <input id="studentJoinCode" placeholder="Masukkan kode kelas" required />
+                <button class="secondary-button" type="submit">Join</button>
+              </form>
+              <div id="studentClassList" class="list-stack empty-state">Belum join kelas.</div>
+            </aside>
+          </div>
 
           <div id="studentWorkspace" class="student-workspace hidden">
-            <div class="question-card">
+            <div>
+              <button id="backToDashboard" class="secondary-button" style="margin-bottom: 20px;" type="button">&larr; Kembali ke Daftar Assessment</button>
+              <div class="question-card">
               <div class="question-meta">
                 <span id="questionProgress">Soal 1 dari 5</span>
                 <span id="activeDifficulty">Menengah</span>
@@ -274,7 +262,64 @@
             </aside>
           </div>
 
-          <div id="resultPanel" class="result-panel hidden"></div>
+        </section>
+
+        <section id="manageClassView" class="view" aria-labelledby="manageClassTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="manageClassTitle">Kelola kelas & siswa</h2>
+              <p>Kelola kelas, setujui request bergabung, dan pantau anggota kelas.</p>
+            </div>
+          </div>
+          
+          <div class="account-grid">
+            <div id="classPanel" class="form-panel class-panel">
+              <h3>Daftar Kelas</h3>
+              <form id="classForm" class="mini-form">
+                <input id="className" placeholder="Nama kelas baru" />
+                <button class="primary-button" type="submit">Buat kelas</button>
+              </form>
+              <form id="joinClassForm" class="mini-form hidden">
+                <input id="joinCode" placeholder="Kode kelas" />
+                <button class="secondary-button" type="submit">Join kelas</button>
+              </form>
+              <div id="classList" class="list-stack empty-state">Belum ada kelas.</div>
+            </div>
+
+            <div class="preview-panel">
+              <h3>Anggota kelas</h3>
+              <div id="approvedMemberList" class="list-stack empty-state" style="margin-bottom: 24px;">Belum ada anggota.</div>
+              <h3>Request join</h3>
+              <div id="pendingJoinList" class="list-stack empty-state">Belum ada request join.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="studentHistoryView" class="view" aria-labelledby="studentHistoryTitle">
+          <div class="section-heading">
+            <div>
+              <h2 id="studentHistoryTitle">Riwayat pengerjaan</h2>
+              <p>Daftar assessment yang sudah kamu selesaikan beserta skor dan ulasannya.</p>
+            </div>
+          </div>
+          
+          <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+            <div class="table-container" style="overflow-x: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Topik Assessment</th>
+                    <th>Tanggal</th>
+                    <th>Skor Akhir</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="studentHistoryList">
+                  <tr><td colspan="4" class="empty-state">Belum ada riwayat assessment.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <section id="monitorView" class="view" aria-labelledby="monitorTitle">
@@ -283,22 +328,44 @@
               <h2 id="monitorTitle">Monitoring hasil</h2>
               <p>Pantau skor, kualitas jawaban, dan perkembangan performa siswa.</p>
             </div>
-            <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
+            <div style="display: flex; gap: 16px; align-items: center;">
+              <select id="monitorClassFilter" style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;" aria-label="Filter berdasarkan kelas">
+                <option value="">Semua Kelas</option>
+              </select>
+              <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
+            </div>
           </div>
 
           <div class="monitor-grid">
-            <div class="analytics-panel">
-              <h3>Performa kelas</h3>
-              <div class="score-ring" id="classAverage">0</div>
-              <p>Rata-rata skor dari seluruh assessment yang sudah diselesaikan.</p>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+              <div class="analytics-panel" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                <h3 style="align-self: flex-start;">Performa kelas</h3>
+                <div class="score-ring" id="classAverage">0</div>
+                <p>Rata-rata skor dari seluruh assessment yang diselesaikan.</p>
+              </div>
+              <div class="analytics-panel">
+                <h3>Perkembangan siswa</h3>
+                <div id="trendList" class="trend-list empty-state">Belum ada tren skor.</div>
+              </div>
             </div>
-            <div class="analytics-panel">
-              <h3>Perkembangan siswa</h3>
-              <div id="trendList" class="trend-list empty-state">Belum ada tren skor.</div>
-            </div>
-            <div class="analytics-panel wide">
-              <h3>Riwayat submission</h3>
-              <div id="submissionList" class="list-stack empty-state">Belum ada hasil assessment.</div>
+            <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+              <h3 style="padding: 24px 24px 16px;">Riwayat Hasil Evaluasi Siswa</h3>
+              <div class="table-container" style="overflow-x: auto;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Siswa</th>
+                      <th>Topik Assessment</th>
+                      <th>Tanggal</th>
+                      <th>Skor AI</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="submissionList">
+                    <tr><td colspan="5" class="empty-state">Belum ada hasil assessment.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
@@ -342,6 +409,7 @@
           </div>
         </section>
       </main>
+      <div id="resultPanel" class="result-modal hidden"></div>
     </div>
 
     <script type="module" src="app.js"></script>

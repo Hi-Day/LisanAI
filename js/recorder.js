@@ -30,13 +30,16 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
         stopStream();
         return;
       }
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      // Start MediaRecorder for actual audio storage
+      startMediaRecorder("Merekam audio...", activeRunId);
 
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         startSpeechRecognition(SpeechRecognition, activeRunId);
-      } else {
-        startMediaRecorder("Merekam audio lokal. Ketik transkripsi setelah selesai.", activeRunId);
       }
+    } catch (err) {
+      recordStatus.textContent = err.message;
     } finally {
       setPreparing(false);
     }
@@ -46,7 +49,8 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     runId += 1;
     if (recognition && recognizing) recognition.stop();
     if (mediaRecorder?.state === "recording") mediaRecorder.stop();
-    stopStream();
+    // Do NOT stop stream here, wait for mediaRecorder to finish saving chunks.
+    // Stream will be stopped in onstop event of mediaRecorder.
     recognizing = false;
     transcriptDraft = "";
     setRecording(false);
@@ -56,11 +60,10 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     return recognizing || mediaRecorder?.state === "recording";
   }
 
-async function requestMicrophone() {
+  async function requestMicrophone() {
     if (!window.isSecureContext) {
-      throw new Error("Mikrofon hanya bisa dipakai di HTTPS atau localhost. Buka http://127.0.0.1:4173.");
+      throw new Error("Mikrofon hanya bisa dipakai di HTTPS atau localhost.");
     }
-
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("Browser tidak mendukung akses mikrofon. Ketik jawaban manual.");
     }
@@ -68,11 +71,7 @@ async function requestMicrophone() {
     recordStatus.textContent = "Meminta izin mikrofon...";
     try {
       return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
     } catch (error) {
       throw new Error(getMicrophoneErrorMessage(error));
@@ -80,7 +79,6 @@ async function requestMicrophone() {
   }
 
   function startSpeechRecognition(SpeechRecognition, activeRunId) {
-    stopStream();
     transcriptDraft = answerText.value.trim();
     recognition = new SpeechRecognition();
     recognition.lang = "id-ID";
@@ -90,8 +88,7 @@ async function requestMicrophone() {
     recognition.onstart = () => {
       if (activeRunId !== runId) return;
       recognizing = true;
-      setRecording(true);
-      recordStatus.textContent = "Mendengarkan jawaban dan membuat transkripsi...";
+      recordStatus.textContent = "Merekam suara dan membuat transkripsi...";
     };
 
     recognition.onresult = (event) => {
@@ -103,47 +100,20 @@ async function requestMicrophone() {
 
     recognition.onerror = (event) => {
       if (activeRunId !== runId) return;
-      const message = SPEECH_ERROR_MESSAGES[event.error] || `Transkripsi gagal: ${event.error}`;
-      recordStatus.textContent = message;
+      console.warn("Speech recognition error:", event.error);
       recognizing = false;
-      setRecording(false);
-
-      if (event.error === "network" || event.error === "service-not-allowed") {
-        startMediaRecorderAfterSpeechFailure(message, activeRunId);
-      }
     };
 
     recognition.onend = () => {
       if (activeRunId !== runId) return;
       recognizing = false;
-      setRecording(false);
-      if (recordStatus.textContent.includes("Mendengarkan")) {
-        recordStatus.textContent = answerText.value.trim()
-          ? "Transkripsi dihentikan. Jawaban siap disimpan."
-          : "Rekaman dihentikan. Belum ada transkripsi yang terbaca.";
-      }
     };
 
     try {
       recognition.start();
     } catch (error) {
       recognizing = false;
-      setRecording(false);
-      throw new Error(`Transkripsi tidak bisa dimulai: ${error.message}`);
-    }
-  }
-
-  async function startMediaRecorderAfterSpeechFailure(reason, activeRunId) {
-    try {
-      mediaStream = await requestMicrophone();
-      if (activeRunId !== runId) {
-        stopStream();
-        return;
-      }
-      startMediaRecorder(`${reason} Merekam audio lokal...`, activeRunId);
-    } catch (error) {
-      if (activeRunId !== runId) return;
-      recordStatus.textContent = `${reason} ${error.message}`;
+      console.warn("Transkripsi tidak bisa dimulai:", error.message);
     }
   }
 
@@ -169,7 +139,6 @@ async function requestMicrophone() {
   function collectSpeechText(event) {
     let finalText = "";
     let interimText = "";
-
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const transcript = event.results[index][0].transcript.trim();
       if (event.results[index].isFinal) {
@@ -178,7 +147,6 @@ async function requestMicrophone() {
         interimText = [interimText, transcript].filter(Boolean).join(" ");
       }
     }
-
     return { finalText, interimText };
   }
 
@@ -202,22 +170,36 @@ async function requestMicrophone() {
     mediaStream = null;
   }
 
-  return { resetStatus, stop, toggle };
+  function getAudioBase64() {
+    if (audioChunks.length === 0) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function clearAudio() {
+    audioChunks = [];
+  }
+
+  return { resetStatus, stop, toggle, getAudioBase64, clearAudio };
 }
 
 function getMicrophoneErrorMessage(error) {
   const name = error?.name || "";
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Izin mikrofon diblokir. Klik ikon izin di address bar untuk http://127.0.0.1:4173, pilih Allow microphone, lalu reload halaman.";
+    return "Izin mikrofon diblokir. Klik ikon izin di address bar, pilih Allow microphone, lalu reload halaman.";
   }
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
     return "Mikrofon tidak ditemukan. Sambungkan mikrofon atau pilih input audio di pengaturan browser.";
   }
   if (name === "NotReadableError" || name === "TrackStartError") {
-    return "Mikrofon sedang dipakai aplikasi lain atau tidak bisa dibaca. Tutup aplikasi meeting/rekaman lain lalu coba lagi.";
+    return "Mikrofon sedang dipakai aplikasi lain atau tidak bisa dibaca.";
   }
   if (name === "OverconstrainedError") {
-    return "Konfigurasi mikrofon tidak cocok. Coba ganti device input audio di browser.";
+    return "Konfigurasi mikrofon tidak cocok.";
   }
-  return error?.message || "Mikrofon belum bisa digunakan. Ketik jawaban manual.";
+  return error?.message || "Mikrofon belum bisa digunakan.";
 }

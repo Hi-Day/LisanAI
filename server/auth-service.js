@@ -98,6 +98,27 @@ async function listTenantUsers(tenantId) {
   return rows.map(mapUser);
 }
 
+async function updateTenantUser(tenantId, userId, patch) {
+  const existing = await getDb().get("SELECT * FROM users WHERE id = ? AND tenant_id = ?", userId, tenantId);
+  if (!existing) throw Object.assign(new Error("User tidak ditemukan"), { status: 404 });
+  const name = String(patch.name || existing.name).trim();
+  const role = patch.role ? normalizeRole(patch.role) : existing.role;
+  await getDb().run(
+    "UPDATE users SET name = ?, role = ? WHERE id = ? AND tenant_id = ?",
+    name,
+    role,
+    userId,
+    tenantId
+  );
+  return mapUser({ ...existing, name, role });
+}
+
+async function deleteTenantUser(tenantId, userId, currentUserId) {
+  if (userId === currentUserId) throw Object.assign(new Error("Tidak bisa menghapus akun sendiri"), { status: 400 });
+  const result = await getDb().run("DELETE FROM users WHERE id = ? AND tenant_id = ?", userId, tenantId);
+  if (!result.changes) throw Object.assign(new Error("User tidak ditemukan"), { status: 404 });
+}
+
 async function loginUser({ email, password }) {
   validateCredentials({ email, password });
   const database = getDb();
@@ -233,9 +254,11 @@ module.exports = {
   SESSION_MAX_AGE_SECONDS,
   createTenantUser,
   createSession,
+  deleteTenantUser,
   deleteSession,
   getSessionUser,
   listTenantUsers,
   loginUser,
   registerTenantUser,
+  updateTenantUser,
 };

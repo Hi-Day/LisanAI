@@ -111,6 +111,7 @@ async function initDatabase() {
   await ensureColumn("submissions", "tenant_id", "TEXT");
   await ensureColumn("submissions", "user_id", "TEXT");
   await recordMigration(1, "initial_schema_with_auth_classes");
+  await runFileMigrations();
 }
 
 function getDb() {
@@ -132,6 +133,22 @@ async function recordMigration(version, name) {
     name,
     new Date().toISOString()
   );
+}
+
+async function runFileMigrations() {
+  const migrationsDir = path.join(__dirname, "migrations");
+  if (!fs.existsSync(migrationsDir)) return;
+  const files = fs.readdirSync(migrationsDir)
+    .filter((file) => /^\d+_.+\.sql$/.test(file))
+    .sort();
+
+  for (const file of files) {
+    const version = Number(file.split("_")[0]);
+    const existing = await db.get("SELECT version FROM schema_migrations WHERE version = ?", version);
+    if (existing) continue;
+    await db.exec(fs.readFileSync(path.join(migrationsDir, file), "utf8"));
+    await recordMigration(version, file.replace(/\.sql$/, ""));
+  }
 }
 
 async function getState(auth) {
@@ -252,6 +269,45 @@ async function saveAssessment(auth, assessment) {
   return assessment;
 }
 
+async function updateAssessment(auth, assessmentId, patch) {
+  const existing = await getWritableAssessment(auth, assessmentId);
+  const payload = JSON.parse(existing.payload);
+  const next = {
+    ...payload,
+    ...patch,
+    id: payload.id,
+    updatedAt: new Date().toISOString(),
+  };
+  await assertCanWriteAssessment(auth, next);
+  await getDb().run(
+    `UPDATE assessments
+     SET class_id = ?, status = ?, topic = ?, difficulty = ?, payload = ?
+     WHERE id = ? AND tenant_id = ?`,
+    next.classId,
+    next.status || "published",
+    next.topic,
+    next.difficulty,
+    JSON.stringify(next),
+    assessmentId,
+    auth.tenant.id
+  );
+  return next;
+}
+
+async function deleteAssessment(auth, assessmentId) {
+  await getWritableAssessment(auth, assessmentId);
+  await getDb().run("DELETE FROM assessments WHERE id = ? AND tenant_id = ?", assessmentId, auth.tenant.id);
+}
+
+async function getWritableAssessment(auth, assessmentId) {
+  const assessment = await getDb().get("SELECT * FROM assessments WHERE id = ? AND tenant_id = ?", assessmentId, auth.tenant.id);
+  if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
+  if (auth.user.role === "teacher" && assessment.teacher_id !== auth.user.id) {
+    throw Object.assign(new Error("Guru hanya boleh mengubah assessment miliknya"), { status: 403 });
+  }
+  return assessment;
+}
+
 async function assertCanWriteAssessment(auth, assessment) {
   if (!assessment.classId) throw Object.assign(new Error("Assessment wajib punya kelas tujuan"), { status: 400 });
   const classroom = await getDb().get(
@@ -276,6 +332,28 @@ async function createClass(tenantId, teacherId, classroom) {
     classroom.joinCode,
     classroom.createdAt
   );
+  return classroom;
+}
+
+async function updateClass(auth, classId, patch) {
+  const classroom = await getWritableClass(auth, classId);
+  const name = String(patch.name || classroom.name).trim();
+  if (!name) throw Object.assign(new Error("Nama kelas wajib diisi"), { status: 400 });
+  await getDb().run("UPDATE classes SET name = ? WHERE id = ? AND tenant_id = ?", name, classId, auth.tenant.id);
+  return { ...classroom, name };
+}
+
+async function deleteClass(auth, classId) {
+  await getWritableClass(auth, classId);
+  await getDb().run("DELETE FROM classes WHERE id = ? AND tenant_id = ?", classId, auth.tenant.id);
+}
+
+async function getWritableClass(auth, classId) {
+  const classroom = await getDb().get("SELECT * FROM classes WHERE id = ? AND tenant_id = ?", classId, auth.tenant.id);
+  if (!classroom) throw Object.assign(new Error("Kelas tidak ditemukan"), { status: 404 });
+  if (auth.user.role === "teacher" && classroom.teacher_id !== auth.user.id) {
+    throw Object.assign(new Error("Guru hanya boleh mengubah kelas miliknya"), { status: 403 });
+  }
   return classroom;
 }
 
@@ -309,15 +387,46 @@ async function approveMembership(tenantId, teacherId, membershipId) {
   if (!result.changes) throw Object.assign(new Error("Request join tidak ditemukan"), { status: 404 });
 }
 
+async function updateMembershipStatus(auth, membershipId, status) {
+  if (!["approved", "rejected", "pending"].includes(status)) {
+    throw Object.assign(new Error("Status membership tidak valid"), { status: 400 });
+  }
+  const result = await getDb().run(
+    `UPDATE class_memberships
+     SET status = ?, approved_at = CASE WHEN ? = 'approved' THEN ? ELSE approved_at END
+     WHERE id = ?
+       AND tenant_id = ?
+       AND class_id IN (SELECT id FROM classes WHERE teacher_id = ?)`,
+    status,
+    status,
+    new Date().toISOString(),
+    membershipId,
+    auth.tenant.id,
+    auth.user.id
+  );
+  if (!result.changes) throw Object.assign(new Error("Membership tidak ditemukan"), { status: 404 });
+}
+
+async function deleteMembership(auth, membershipId) {
+  const result = await getDb().run(
+    `DELETE FROM class_memberships
+     WHERE id = ?
+       AND tenant_id = ?
+       AND (
+         student_id = ?
+         OR class_id IN (SELECT id FROM classes WHERE teacher_id = ?)
+       )`,
+    membershipId,
+    auth.tenant.id,
+    auth.user.id,
+    auth.user.id
+  );
+  if (!result.changes) throw Object.assign(new Error("Membership tidak ditemukan"), { status: 404 });
+}
+
 async function saveSubmission(tenantId, userId, submission) {
   if (userId) {
-    const existing = await getDb().get(
-      "SELECT id FROM submissions WHERE tenant_id = ? AND user_id = ? AND assessment_id = ?",
-      tenantId,
-      userId,
-      submission.assessmentId
-    );
-    if (existing) throw Object.assign(new Error("Assessment ini sudah pernah dikumpulkan"), { status: 409 });
+    // Membolehkan siswa submit berulang kali agar bisa melihat perkembangan skor (trend)
   }
   await getDb().run(
     `INSERT OR REPLACE INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
@@ -345,10 +454,16 @@ module.exports = {
   clearData,
   approveMembership,
   createClass,
+  deleteAssessment,
+  deleteClass,
+  deleteMembership,
   getDb,
   getState,
   initDatabase,
   requestJoinClass,
   saveAssessment,
   saveSubmission,
+  updateAssessment,
+  updateClass,
+  updateMembershipStatus,
 };

@@ -1,9 +1,14 @@
+import { showToast } from './toast.js';
 import { DEFAULT_QUESTION_COUNT } from "./config.js";
 import {
   clearDatabase,
   approveJoinRequest,
   createClassroom,
   createUser,
+  deleteAssessment,
+  deleteClassroom,
+  deleteMembership,
+  deleteUser,
   evaluateAssessmentWithAI,
   generateQuestionsWithAI,
   getCurrentUser,
@@ -16,12 +21,16 @@ import {
   registerTenant,
   saveAssessmentToDatabase,
   saveSubmissionToDatabase,
+  updateAssessment,
+  updateClassroom,
+  updateMembership,
+  updateUser,
 } from "./api.js";
 import { createAssessment, createDemoAssessment, createSubmission, readAssessmentForm } from "./assessment-factory.js";
 import { getElements, setButtonLoading } from "./dom.js";
 import { evaluateFallbackAssessment, generateFallbackQuestions, recommendFallbackConfig } from "./fallback-assessment.js";
 import { createRecorder } from "./recorder.js";
-import { renderApp, renderMonitoring, renderQuestion, showResult } from "./render.js";
+import { renderApp, renderMonitoring, renderStudentHistory, renderQuestion, showResult } from "./render.js";
 import { createSession } from "./session.js";
 import { loadState } from "./storage.js";
 
@@ -66,8 +75,15 @@ export async function initApp() {
   }
 
   function renderCurrentState() {
-    session.ensureAssessmentSelected();
+    if (auth.user?.role !== "student") {
+      session.ensureAssessmentSelected();
+    } else {
+      if (session.currentAssessmentId && !state.assessments.some((a) => a.id === session.currentAssessmentId)) {
+        session.currentAssessmentId = null;
+      }
+    }
     renderApp(els, state, session);
+    if (auth.user) renderStudentHistory(els, state.submissions, auth.user.name);
     renderClasses();
     renderQuestionEditor();
     if (auth.user?.role === "student") {
@@ -82,7 +98,7 @@ export async function initApp() {
     try {
       return await listUsers();
     } catch (error) {
-      alert(`Gagal memuat user tenant: ${error.message}`);
+      showToast(`Gagal memuat user tenant: ${error.message}`);
       return [];
     }
   }
@@ -98,10 +114,14 @@ export async function initApp() {
 
     els.userList.className = "list-stack";
     els.userList.innerHTML = extraUsers.map((user) => `
-      <article class="submission-item">
-        <div>
+      <article class="submission-item" data-id="${user.id}">
+        <div style="flex: 1; min-width: 0;">
           <strong>${user.name}</strong>
           <p>${user.email}</p>
+          <div class="item-actions">
+            <button type="button" class="action-button edit-user">Ubah Role</button>
+            <button type="button" class="action-button danger-button delete-user">Hapus</button>
+          </div>
         </div>
         <span class="user-role">${roleLabel(user.role)}</span>
       </article>
@@ -119,37 +139,66 @@ export async function initApp() {
       ? usableClasses.map((item) => `<option value="${item.id}">${item.name}</option>`).join("")
       : `<option value="">Belum ada kelas</option>`;
 
+    if (els.monitorClassFilter && !isStudent) {
+      const currentVal = els.monitorClassFilter.value;
+      els.monitorClassFilter.innerHTML = `<option value="">Semua Kelas</option>` +
+        state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+      if (currentVal && state.classes.some(c => c.id === currentVal)) {
+        els.monitorClassFilter.value = currentVal;
+      }
+    }
+
+
     if (!state.classes.length) {
       els.classList.className = "list-stack empty-state";
       els.classList.textContent = isStudent ? "Belum join kelas." : "Belum ada kelas.";
     } else {
       els.classList.className = "list-stack";
       els.classList.innerHTML = state.classes.map((item) => `
-        <article class="submission-item">
-          <div>
+        <article class="submission-item" data-id="${item.id}">
+          <div style="flex: 1; min-width: 0;">
             <strong>${item.name}</strong>
             <p>Kode: ${item.join_code || item.joinCode || "-"} - ${item.status}</p>
+            ${!isStudent ? `
+              <div class="item-actions">
+                <button type="button" class="action-button edit-class">Edit</button>
+                <button type="button" class="action-button danger-button delete-class">Hapus</button>
+              </div>
+            ` : ""}
           </div>
         </article>
       `).join("");
     }
 
     if (isStudent) {
-      if (!state.classes.length) {
+      const activeClasses = state.classes.filter(c => c.status === "approved" || c.status === "pending");
+      if (!activeClasses.length) {
         els.studentClassList.className = "list-stack empty-state";
         els.studentClassList.textContent = "Belum join kelas.";
       } else {
         els.studentClassList.className = "list-stack";
-        els.studentClassList.innerHTML = state.classes.map((item) => `
+        els.studentClassList.innerHTML = activeClasses.map((item) => `
           <article class="submission-item">
             <div>
               <strong>${item.name}</strong>
-              <p>Status: ${item.status}</p>
+              <p>Status: ${item.status === 'approved' ? 'Disetujui' : 'Menunggu'}</p>
             </div>
           </article>
         `).join("");
       }
+
+      if (els.studentClassFilter) {
+        const approvedClasses = activeClasses.filter(c => c.status === "approved");
+        const currentVal = els.studentClassFilter.value;
+        els.studentClassFilter.innerHTML = `<option value="">Semua Kelas</option>` +
+          approvedClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+        if (currentVal && approvedClasses.some(c => c.id === currentVal)) {
+          els.studentClassFilter.value = currentVal;
+        }
+      }
     }
+
+    if (els.approvedMemberList) els.approvedMemberList.classList.toggle("hidden", isStudent);
 
     const pending = state.memberships.filter((item) => item.status === "pending");
     if (!pending.length) {
@@ -163,25 +212,82 @@ export async function initApp() {
             <strong>${item.student_name}</strong>
             <p>${item.student_email} - ${item.class_name}</p>
           </div>
-          <button class="secondary-button approve-join" data-id="${item.id}" type="button">Approve</button>
+          <div class="item-actions">
+            <button class="secondary-button approve-join" data-id="${item.id}" type="button">Approve</button>
+            <button class="action-button danger-button reject-join" data-id="${item.id}" type="button">Tolak</button>
+          </div>
         </article>
       `).join("");
+    }
+
+    if (els.approvedMemberList) {
+      const approved = state.memberships.filter((item) => item.status === "approved");
+      if (!approved.length) {
+        els.approvedMemberList.className = "list-stack empty-state";
+        els.approvedMemberList.textContent = "Belum ada anggota.";
+      } else {
+        els.approvedMemberList.className = "list-stack";
+        els.approvedMemberList.innerHTML = approved.map((item) => `
+          <article class="submission-item">
+            <div>
+              <strong>${item.student_name}</strong>
+              <p>${item.student_email} - ${item.class_name}</p>
+              <div class="item-actions">
+                <button class="action-button danger-button remove-member" data-id="${item.id}" type="button">Keluarkan</button>
+              </div>
+            </div>
+          </article>
+        `).join("");
+      }
     }
   }
 
   function applyRoleAccess() {
     const role = auth.user.role;
-    setNavVisibility("teacherView", role !== "student");
-    setNavVisibility("monitorView", role !== "student");
-    els.adminNav.classList.toggle("hidden", role !== "admin");
     els.resetData.classList.toggle("hidden", role === "student");
     els.seedDemo.classList.toggle("hidden", role === "student");
 
+    document.body.classList.remove("teacher-mode", "student-mode", "admin-mode");
+
+    // Securely render nav based on role
+    let navHtml = "";
+    if (role === "teacher") {
+      navHtml = `
+        <button class="nav-button" data-view="teacherView"><span aria-hidden="true">⌘</span> Assessment</button>
+        <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
+        <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
+      `;
+    } else if (role === "student") {
+      navHtml = `
+        <button class="nav-button" data-view="studentView"><span aria-hidden="true">◉</span> Kerjakan</button>
+        <button class="nav-button" data-view="studentHistoryView"><span aria-hidden="true">🕒</span> Riwayat</button>
+      `;
+    } else if (role === "admin") {
+      navHtml = `
+        <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">ID</span> Akun</button>
+      `;
+    }
+    els.mainNav.innerHTML = navHtml;
+
     if (role === "student") {
+      document.body.classList.add("student-mode");
       switchView("studentView");
+    } else if (role === "admin") {
+      document.body.classList.add("admin-mode");
+      switchView("accountView");
     } else {
+      document.body.classList.add("teacher-mode");
       switchView("teacherView");
     }
+  }
+
+  function canAccessView(viewId) {
+    if (!auth.user) return false;
+    const role = auth.user.role;
+    if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView";
+    if (role === "admin") return viewId === "accountView" || viewId === "monitorView";
+    if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView";
+    return false;
   }
 
   function setNavVisibility(viewId, visible) {
@@ -189,15 +295,17 @@ export async function initApp() {
     if (button) button.classList.toggle("hidden", !visible);
   }
 
-  function saveCurrentAnswer() {
-    session.saveAnswer(els.answerText.value);
+  async function saveCurrentAnswer() {
+    const audio = await recorder.getAudioBase64();
+    session.saveAnswer(els.answerText.value, audio);
+    recorder.clearAudio();
   }
 
   async function handleAssessmentSubmit(event) {
     event.preventDefault();
     const config = readAssessmentForm(els);
     if (!config.classId) {
-      alert("Pilih kelas tujuan terlebih dahulu.");
+      showToast("Pilih kelas tujuan terlebih dahulu.");
       return;
     }
 
@@ -216,8 +324,17 @@ export async function initApp() {
     if (!pendingAssessmentConfig) return;
     syncQuestionsFromEditor();
     const assessment = createAssessment(pendingAssessmentConfig, pendingQuestions);
-    await saveAssessmentToDatabase(assessment);
-    state.assessments.unshift(assessment);
+    
+    // Check if updating existing or saving new
+    const existingIndex = state.assessments.findIndex(a => a.id === assessment.id);
+    if (existingIndex >= 0) {
+      await updateAssessment(assessment.id, assessment);
+      state.assessments[existingIndex] = assessment;
+    } else {
+      await saveAssessmentToDatabase(assessment);
+      state.assessments.unshift(assessment);
+    }
+    
     session.selectAssessment(assessment.id);
     pendingAssessmentConfig = null;
     pendingQuestions = [];
@@ -234,7 +351,7 @@ export async function initApp() {
       pendingQuestions = await improveQuestionsWithAI(pendingAssessmentConfig, pendingQuestions);
       renderQuestionEditor();
     } catch (error) {
-      alert(error.message);
+      showToast(error.message);
     } finally {
       setButtonLoading(els.improveQuestionSet, false, "Memperbaiki...", "Perbaiki dengan AI");
     }
@@ -273,7 +390,7 @@ export async function initApp() {
   async function fillRecommendedFields(target) {
     const topic = els.topic.value.trim();
     if (!topic) {
-      alert("Isi topik atau materi terlebih dahulu.");
+      showToast("Isi topik atau materi terlebih dahulu.");
       els.topic.focus();
       return;
     }
@@ -294,7 +411,7 @@ export async function initApp() {
     try {
       return await recommendAssessmentConfig(topic, difficulty);
     } catch (error) {
-      alert(`AI belum tersedia, memakai rekomendasi lokal. Detail: ${error.message}`);
+      showToast(`AI belum tersedia, memakai rekomendasi lokal. Detail: ${error.message}`);
       return recommendFallbackConfig(topic, difficulty);
     }
   }
@@ -303,7 +420,7 @@ export async function initApp() {
     try {
       return await generateQuestionsWithAI(config);
     } catch (error) {
-      alert(`AI belum tersedia, memakai generator lokal. Detail: ${error.message}`);
+      showToast(`AI belum tersedia, memakai generator lokal. Detail: ${error.message}`);
       return generateFallbackQuestions(config);
     }
   }
@@ -312,7 +429,7 @@ export async function initApp() {
     const assessment = session.getCurrentAssessment();
     if (!assessment) return;
 
-    saveCurrentAnswer();
+    await saveCurrentAnswer();
     const studentName = auth.user.role === "student"
       ? auth.user.name
       : els.studentName.value.trim() || "Siswa tanpa nama";
@@ -323,7 +440,14 @@ export async function initApp() {
       await saveSubmissionToDatabase(submission);
       state.submissions.push(submission);
       renderMonitoring(els, state);
-      showResult(els, submission);
+      renderStudentHistory(els, state.submissions, auth.user.name);
+      showResult(els, submission, auth);
+      if (auth.user.role === "student") {
+        session.currentAssessmentId = null;
+        renderCurrentState();
+      }
+    } catch (error) {
+      import('./toast.js').then(({ showToast }) => showToast(`Gagal menyimpan hasil: ${error.message}`));
     } finally {
       setButtonLoading(els.finishAssessment, false, "Menilai dengan AI...", "Selesaikan assessment");
     }
@@ -333,23 +457,19 @@ export async function initApp() {
     try {
       return await evaluateAssessmentWithAI(assessment, session.currentAnswers, studentName, createSubmission);
     } catch (error) {
-      alert(`AI belum tersedia, memakai penilaian lokal. Detail: ${error.message}`);
+      showToast(`AI belum tersedia, memakai penilaian lokal. Detail: ${error.message}`);
       return evaluateFallbackAssessment(assessment, session.currentAnswers, studentName, createSubmission);
     }
   }
 
   function switchView(viewId) {
     if (!canAccessView(viewId)) return;
-    els.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
+    const navBtns = els.mainNav.querySelectorAll(".nav-button");
+    navBtns.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
     els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
   }
 
-  function canAccessView(viewId) {
-    if (!auth.user) return false;
-    if (auth.user.role === "student") return viewId === "studentView";
-    if (viewId === "accountView") return auth.user.role === "admin";
-    return true;
-  }
+
 
   async function handleCreateUser(event) {
     event.preventDefault();
@@ -365,7 +485,7 @@ export async function initApp() {
       els.userForm.reset();
       renderUsers();
     } catch (error) {
-      alert(error.message);
+      showToast(error.message);
     } finally {
       setButtonLoading(event.submitter, false, "Membuat akun...", "Buat akun");
     }
@@ -382,7 +502,7 @@ export async function initApp() {
         });
         await bootstrapAuthenticatedApp(nextAuth);
       } catch (error) {
-        alert(error.message);
+        showToast(error.message);
       } finally {
         setButtonLoading(event.submitter, false, "Login...", "Login");
       }
@@ -400,7 +520,7 @@ export async function initApp() {
         });
         await bootstrapAuthenticatedApp(nextAuth);
       } catch (error) {
-        alert(error.message);
+        showToast(error.message);
       } finally {
         setButtonLoading(event.submitter, false, "Membuat tenant...", "Buat tenant");
       }
@@ -416,9 +536,22 @@ export async function initApp() {
       showAuth();
     });
 
-    els.navButtons.forEach((button) => {
-      button.addEventListener("click", () => switchView(button.dataset.view));
+    els.mainNav.addEventListener("click", (e) => {
+      const btn = e.target.closest(".nav-button");
+      if (btn) switchView(btn.dataset.view);
     });
+
+    if (els.studentClassFilter) {
+      els.studentClassFilter.addEventListener("change", () => {
+        renderCurrentState();
+      });
+    }
+
+    if (els.monitorClassFilter) {
+      els.monitorClassFilter.addEventListener("change", () => {
+        renderCurrentState();
+      });
+    }
 
     els.form.addEventListener("submit", handleAssessmentSubmit);
     els.saveQuestionSet.addEventListener("click", savePendingQuestionSet);
@@ -448,7 +581,7 @@ export async function initApp() {
       state.memberships = nextState.memberships;
       els.joinClassForm.reset();
       renderCurrentState();
-      alert("Request join terkirim. Tunggu approval guru.");
+      showToast("Request join terkirim. Tunggu approval guru.");
     });
 
     els.studentJoinClassForm.addEventListener("submit", async (event) => {
@@ -462,13 +595,18 @@ export async function initApp() {
       state.memberships = nextState.memberships;
       els.studentJoinClassForm.reset();
       renderCurrentState();
-      alert("Request join terkirim. Tunggu approval guru.");
+      showToast("Request join terkirim. Tunggu approval guru.");
     });
 
     els.pendingJoinList.addEventListener("click", async (event) => {
-      const button = event.target.closest(".approve-join");
-      if (!button) return;
-      await approveJoinRequest(button.dataset.id);
+      const id = event.target.dataset.id;
+      if (!id) return;
+      if (event.target.classList.contains("approve-join")) {
+        await approveJoinRequest(id);
+      } else if (event.target.classList.contains("reject-join")) {
+        await updateMembership(id, "rejected");
+      } else return;
+      
       const nextState = await loadState();
       state.classes = nextState.classes;
       state.memberships = nextState.memberships;
@@ -476,13 +614,124 @@ export async function initApp() {
       renderCurrentState();
     });
 
-    els.studentSelect.addEventListener("change", (event) => {
-      recorder.stop();
-      session.selectAssessment(event.target.value);
-      els.resultPanel.classList.add("hidden");
-      renderQuestion(els, session.getCurrentAssessment(), session);
-      recorder.resetStatus();
+    if (els.approvedMemberList) {
+      els.approvedMemberList.addEventListener("click", async (event) => {
+        const id = event.target.dataset.id;
+        if (!id || !event.target.classList.contains("remove-member")) return;
+        if (!confirm("Keluarkan siswa dari kelas ini?")) return;
+        
+        await deleteMembership(id);
+        const nextState = await loadState();
+        state.classes = nextState.classes;
+        state.memberships = nextState.memberships;
+        state.assessments = nextState.assessments;
+        renderCurrentState();
+      });
+    }
+
+    els.classList.addEventListener("click", async (event) => {
+      const article = event.target.closest("article");
+      if (!article) return;
+      const id = article.dataset.id;
+      
+      if (event.target.classList.contains("edit-class")) {
+        const currentName = state.classes.find(c => c.id === id)?.name || "";
+        const newName = prompt("Nama kelas baru:", currentName);
+        if (newName && newName !== currentName) {
+          await updateClassroom(id, { name: newName });
+          const nextState = await loadState();
+          state.classes = nextState.classes;
+          renderCurrentState();
+        }
+      } else if (event.target.classList.contains("delete-class")) {
+        if (!confirm("Hapus kelas beserta semua datanya?")) return;
+        await deleteClassroom(id);
+        const nextState = await loadState();
+        state.classes = nextState.classes;
+        state.memberships = nextState.memberships;
+        state.assessments = nextState.assessments;
+        renderCurrentState();
+      }
     });
+
+    els.userList.addEventListener("click", async (event) => {
+      const article = event.target.closest("article");
+      if (!article) return;
+      const id = article.dataset.id;
+      
+      if (event.target.classList.contains("edit-user")) {
+        const currentUser = users.find(u => u.id === id);
+        if (!currentUser) return;
+        const newRole = prompt(`Ubah role untuk ${currentUser.name} (student/teacher/admin):`, currentUser.role);
+        if (newRole && ["student", "teacher", "admin"].includes(newRole) && newRole !== currentUser.role) {
+          await updateUser(id, { role: newRole });
+          users = await loadUsers();
+          renderUsers();
+        } else if (newRole) {
+          showToast("Role tidak valid. Harus student, teacher, atau admin.");
+        }
+      } else if (event.target.classList.contains("delete-user")) {
+        if (!confirm("Hapus user ini?")) return;
+        await deleteUser(id);
+        users = await loadUsers();
+        renderUsers();
+      }
+    });
+
+    els.assessmentList.addEventListener("click", async (event) => {
+      const article = event.target.closest("article");
+      if (!article) return;
+      const id = article.dataset.id;
+      const assessment = state.assessments.find(a => a.id === id);
+      if (!assessment) return;
+
+      if (event.target.classList.contains("toggle-status-assessment")) {
+        const nextStatus = assessment.status === "published" ? "closed" : "published";
+        await updateAssessment(id, { status: nextStatus });
+        assessment.status = nextStatus;
+        renderCurrentState();
+      } else if (event.target.classList.contains("delete-assessment")) {
+        if (!confirm("Hapus assessment beserta semua submission?")) return;
+        await deleteAssessment(id);
+        const nextState = await loadState();
+        state.assessments = nextState.assessments;
+        state.submissions = nextState.submissions;
+        renderCurrentState();
+      } else if (event.target.classList.contains("edit-assessment")) {
+        pendingAssessmentConfig = {
+          id: assessment.id,
+          topic: assessment.topic,
+          difficulty: assessment.difficulty,
+          classId: assessment.classId,
+          outcomes: assessment.outcomes,
+          rubric: assessment.rubric
+        };
+        pendingQuestions = assessment.questions;
+        renderQuestionEditor();
+        els.questionEditor.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+
+    if (els.studentAssessmentGrid) {
+      els.studentAssessmentGrid.addEventListener("click", (e) => {
+        const btn = e.target.closest(".start-assessment-btn") || e.target.closest(".assessment-card");
+        if (btn) {
+          recorder.stop();
+          session.selectAssessment(btn.dataset.id);
+          els.resultPanel.classList.add("hidden");
+          renderCurrentState(); // This will trigger the toggle to workspace
+          recorder.resetStatus();
+        }
+      });
+    }
+
+    if (els.backToDashboard) {
+      els.backToDashboard.addEventListener("click", () => {
+        recorder.stop();
+        session.currentAssessmentId = null;
+        renderCurrentState(); // Will hide workspace, show dashboard
+      });
+    }
 
     els.recordButton.addEventListener("click", () => {
       recorder.toggle().catch((error) => {
@@ -492,17 +741,17 @@ export async function initApp() {
       });
     });
 
-    els.prevQuestion.addEventListener("click", () => {
+    els.prevQuestion.addEventListener("click", async () => {
       recorder.stop();
-      saveCurrentAnswer();
+      await saveCurrentAnswer();
       session.goPrevious();
       renderQuestion(els, session.getCurrentAssessment(), session);
       recorder.resetStatus();
     });
 
-    els.saveAnswer.addEventListener("click", () => {
+    els.saveAnswer.addEventListener("click", async () => {
       recorder.stop();
-      saveCurrentAnswer();
+      await saveCurrentAnswer();
       session.goNext();
       renderQuestion(els, session.getCurrentAssessment(), session);
       recorder.resetStatus();
@@ -518,7 +767,7 @@ export async function initApp() {
           state.assessments.push(assessment);
           renderCurrentState();
         })
-        .catch((error) => alert(`Gagal menyimpan contoh data: ${error.message}`));
+        .catch((error) => showToast(`Gagal menyimpan contoh data: ${error.message}`));
     });
 
     els.resetData.addEventListener("click", async () => {
@@ -531,7 +780,69 @@ export async function initApp() {
     });
   }
 
+  function setupAdditionalEvents() {
+    els.submissionList.addEventListener('click', (e) => {
+      const viewBtn = e.target.closest('.view-submission-btn');
+      if (!viewBtn) return;
+      const item = viewBtn.closest('.submission-row');
+      const submissionId = item.dataset.id;
+      const submission = state.submissions.find(s => s.id === submissionId);
+      if (submission) {
+        showResult(els, submission, auth);
+      }
+    });
+
+    els.studentHistoryList.addEventListener('click', (e) => {
+      const viewBtn = e.target.closest('.view-submission-btn');
+      if (!viewBtn) return;
+      const item = viewBtn.closest('.submission-row');
+      const submissionId = item.dataset.id;
+      const submission = state.submissions.find(s => s.id === submissionId);
+      if (submission) {
+        showResult(els, submission, auth);
+      }
+    });
+
+    els.resultPanel.addEventListener('click', async (e) => {
+      const editBtn = e.target.closest('.edit-override-btn');
+      if (!editBtn) return;
+      const idx = parseInt(editBtn.dataset.index, 10);
+      const submissionId = els.resultPanel.dataset.submissionId;
+      const submission = state.submissions.find(s => s.id === submissionId);
+      if (!submission) return;
+
+      const qs = submission.questionScores[idx];
+      const newScoreStr = prompt('Masukkan skor baru (0-100):', qs.score);
+      if (newScoreStr === null) return;
+      
+      const scoreVal = parseInt(newScoreStr, 10);
+      if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
+        showToast('Skor tidak valid. Harus angka 0-100', 'error');
+        return;
+      }
+
+      const newFeedback = prompt('Tambahkan / ubah catatan kelemahan (opsional):', qs.gaps?.join(' ') || '');
+      if (newFeedback !== null) {
+        qs.gaps = [newFeedback];
+      }
+      qs.score = scoreVal;
+      
+      submission.finalScore = Math.round(submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length);
+      
+      try {
+        await saveSubmissionToDatabase(submission);
+        showToast('Koreksi berhasil disimpan', 'success');
+        showResult(els, submission, auth);
+        renderMonitoring(els, state);
+      renderStudentHistory(els, state.submissions, auth.user.name);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
   bindEvents();
+  setupAdditionalEvents();
   if (auth.authenticated) {
     await bootstrapAuthenticatedApp(auth);
   } else {

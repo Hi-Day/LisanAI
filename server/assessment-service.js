@@ -48,15 +48,22 @@ async function recommendAssessmentConfig(payload) {
 }
 
 async function evaluateAnswers(payload) {
+  const qa_pairs = payload.assessment.questions.map((q, i) => ({
+    question: q.prompt,
+    ideal_answer: q.ideal,
+    student_answer: payload.answers[i] || "(Tidak ada jawaban)"
+  }));
+
   const result = await callOpenRouter(
     [
       {
         role: "user",
         content: JSON.stringify({
           tugas: "Nilai jawaban lisan siswa berdasarkan rubrik guru. Berikan skor objektif dan feedback personal.",
-          assessment: payload.assessment,
+          rubrik_penilaian: payload.assessment.rubric,
+          topik: payload.assessment.topic,
           studentName: payload.studentName,
-          answers: payload.answers,
+          qa_pairs: qa_pairs,
         }),
       },
     ],
