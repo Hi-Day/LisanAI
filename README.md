@@ -85,3 +85,80 @@ Jika `data/oralai.db` dihapus, buat tenant baru dari halaman register.
 - Tambahkan billing/plan quota per tenant.
 - Tambahkan export report CSV/PDF.
 - Tambahkan test suite otomatis.
+
+## Demo dan Galeri
+
+### Video Demonstrasi
+<video src="./videos/lisan.ai.mp4" controls width="100%">
+  Browser Anda tidak mendukung tag video.
+</video>
+
+### Tangkapan Layar (Screenshots)
+
+Berikut adalah beberapa tampilan dari platform:
+
+<details>
+<summary>Lihat Screenshot 439</summary>
+<br>
+<img src="./pics/Screenshot%20(439).png" alt="Screenshot 439" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 440</summary>
+<br>
+<img src="./pics/Screenshot%20(440).png" alt="Screenshot 440" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 441</summary>
+<br>
+<img src="./pics/Screenshot%20(441).png" alt="Screenshot 441" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 442</summary>
+<br>
+<img src="./pics/Screenshot%20(442).png" alt="Screenshot 442" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 443</summary>
+<br>
+<img src="./pics/Screenshot%20(443).png" alt="Screenshot 443" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 444</summary>
+<br>
+<img src="./pics/Screenshot%20(444).png" alt="Screenshot 444" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 445</summary>
+<br>
+<img src="./pics/Screenshot%20(445).png" alt="Screenshot 445" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 446</summary>
+<br>
+<img src="./pics/Screenshot%20(446).png" alt="Screenshot 446" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 447</summary>
+<br>
+<img src="./pics/Screenshot%20(447).png" alt="Screenshot 447" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 448</summary>
+<br>
+<img src="./pics/Screenshot%20(448).png" alt="Screenshot 448" width="100%">
+</details>
+
+<details>
+<summary>Lihat Screenshot 449</summary>
+<br>
+<img src="./pics/Screenshot%20(449).png" alt="Screenshot 449" width="100%">
+</details>
