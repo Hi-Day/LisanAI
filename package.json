@@ -2,10 +2,9 @@
   "name": "new-project",
   "version": "1.0.0",
   "main": "server.js",
-  "scripts": {
     "check": "node --check server.js && node --check app.js",
     "dev": "node server.js",
-    "start": "node server.js"
+    "start-local": "node server.js"
   },
   "keywords": [],
   "author": "",

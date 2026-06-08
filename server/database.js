@@ -10,6 +10,10 @@ let libsqlClient;
 
 async function initDatabase() {
   if (process.env.TURSO_DATABASE_URL.startsWith("file:")) {
+    if (process.env.VERCEL) {
+      console.error("CRITICAL ERROR: Anda menjalankan Vercel tetapi belum mengatur TURSO_DATABASE_URL di Environment Variables!");
+      throw new Error("Missing Turso configuration on Vercel");
+    }
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
