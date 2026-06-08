@@ -7,8 +7,14 @@ const { serveStaticFile } = require("./server/static");
 
 loadEnv();
 
-const server = http.createServer(async (req, res) => {
+let isDbInitialized = false;
+
+const requestHandler = async (req, res) => {
   try {
+    if (!isDbInitialized) {
+      await initDatabase();
+      isDbInitialized = true;
+    }
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname.startsWith("/api/")) {
@@ -24,16 +30,21 @@ const server = http.createServer(async (req, res) => {
     console.error(error);
     return sendJson(res, error.status || 500, { error: error.message || "Server error" });
   }
-});
+};
 
-initDatabase()
-  .then(() => {
-    server.listen(PORT, "127.0.0.1", () => {
-      console.log(`OralAI running at http://127.0.0.1:${PORT}`);
-      console.log(`Using OpenRouter model: ${process.env.OPENROUTER_MODEL}`);
+if (process.env.VERCEL) {
+  module.exports = requestHandler;
+} else {
+  const server = http.createServer(requestHandler);
+  initDatabase()
+    .then(() => {
+      server.listen(PORT, "127.0.0.1", () => {
+        console.log(`OralAI running at http://127.0.0.1:${PORT}`);
+        console.log(`Using OpenRouter model: ${process.env.OPENROUTER_MODEL}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Gagal menyiapkan database:", error);
+      process.exit(1);
     });
-  })
-  .catch((error) => {
-    console.error("Gagal menyiapkan database:", error);
-    process.exit(1);
-  });
+}
