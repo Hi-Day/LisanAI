@@ -113,6 +113,7 @@ async function seedTestAccounts() {
       status: "published",
       outcomes: "Siswa mampu memperkenalkan diri dalam bahasa Inggris dasar.",
       rubric: "Kejelasan: 50%, Kosa Kata: 50%",
+      timeLimit: 60,
       createdAt: new Date().toISOString(),
       questions: [
         { id: uid("q"), prompt: "What is your name and where do you live?", focus: "identity", ideal: "I am [Name] and I live in [City]." },
@@ -137,6 +138,7 @@ async function seedTestAccounts() {
       status: "published",
       outcomes: "Siswa mampu menceritakan pengalaman masa lalu menggunakan past tense.",
       rubric: "Past Tense: 40%, Kelancaran: 40%, Kosa Kata: 20%",
+      timeLimit: 0,
       createdAt: new Date().toISOString(),
       questions: [
         { id: uid("q"), prompt: "Where did you go for your last holiday?", focus: "destination", ideal: "I went to [Place]." },

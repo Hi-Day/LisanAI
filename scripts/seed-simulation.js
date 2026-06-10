@@ -1,3 +1,5 @@
+const { loadEnv } = require("../server/config");
+loadEnv();
 const crypto = require("node:crypto");
 const { getDb, initDatabase, createClass, requestJoinClass, approveMembership, saveAssessment, saveSubmission } = require("../server/database");
 
@@ -73,6 +75,7 @@ async function seedSimulationData() {
     examples: "Tell me about yourself. Why do you want to work here?",
     classId: class1.id,
     status: "published",
+    timeLimit: 120,
     createdAt: new Date().toISOString(),
     questions: [
       {
@@ -100,6 +103,7 @@ async function seedSimulationData() {
     examples: "The house believes that AI should be regulated.",
     classId: class1.id,
     status: "draft",
+    timeLimit: 180,
     createdAt: new Date().toISOString(),
     questions: [
       {
@@ -121,6 +125,7 @@ async function seedSimulationData() {
     examples: "Hello, good morning.",
     classId: class2.id,
     status: "closed",
+    timeLimit: 30,
     createdAt: new Date().toISOString(),
     questions: [
       {
