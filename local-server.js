@@ -32,9 +32,9 @@ const requestHandler = async (req, res) => {
   }
 };
 
-if (process.env.VERCEL) {
-  module.exports = requestHandler;
-} else {
+module.exports = requestHandler;
+
+if (require.main === module) {
   const server = http.createServer(requestHandler);
   initDatabase()
     .then(() => {
