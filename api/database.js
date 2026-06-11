@@ -20,6 +20,7 @@ const {
   listTenantUsers,
   updateTenantUser,
   createTenantUsersBatch,
+  SESSION_COOKIE,
 } = require("../server/auth-service");
 const { initDatabase } = require("../server/database");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
@@ -38,7 +39,7 @@ module.exports = async (req, res) => {
       isDbInitialized = true;
     }
 
-    const auth = await getSessionUser(parseCookies(req)["session"]);
+    const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
 
     if (req.method === "GET") {

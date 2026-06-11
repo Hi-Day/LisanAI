@@ -4,7 +4,7 @@ const {
   improveQuestionSet,
   recommendAssessmentConfig,
 } = require("../server/assessment-service");
-const { getSessionUser } = require("../server/auth-service");
+const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { initDatabase } = require("../server/database");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 
@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
       return sendJson(res, 405, { error: "Method not allowed" });
     }
 
-    const auth = await getSessionUser(parseCookies(req)["session"]);
+    const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
 
     const body = await readJson(req);
