@@ -12,6 +12,8 @@ export function readAssessmentForm(els) {
     status: "published",
     count: Number(els.questionCount.value),
     timeLimit: Number(els.timeLimit.value || 0),
+    disableManualTyping: els.disableManualTyping.checked,
+    allowRetakes: els.allowRetakes.checked,
     createdAt: new Date().toISOString(),
   };
 }
@@ -33,6 +35,8 @@ export function createDemoAssessment(generateQuestions) {
     difficulty: "Menengah",
     examples: "Mengapa cahaya penting dalam proses fotosintesis?",
     count: 5,
+    disableManualTyping: false,
+    allowRetakes: false,
     createdAt: new Date().toISOString(),
   };
 

@@ -42,101 +42,19 @@ async function initDatabase() {
 
   await db.exec("PRAGMA foreign_keys = ON");
   await db.exec(`
-    CREATE TABLE IF NOT EXISTS tenants (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      plan TEXT NOT NULL DEFAULT 'starter',
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token_hash TEXT NOT NULL UNIQUE,
-      expires_at TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS assessments (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT,
-      class_id TEXT,
-      teacher_id TEXT,
-      status TEXT DEFAULT 'published',
-      topic TEXT NOT NULL,
-      difficulty TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
-      FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE SET NULL
-    );
-
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       applied_at TEXT NOT NULL
     );
-
-    CREATE TABLE IF NOT EXISTS classes (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT NOT NULL,
-      teacher_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      join_code TEXT NOT NULL UNIQUE,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS class_memberships (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT NOT NULL,
-      class_id TEXT NOT NULL,
-      student_id TEXT NOT NULL,
-      status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-      requested_at TEXT NOT NULL,
-      approved_at TEXT,
-      UNIQUE (class_id, student_id),
-      FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
-      FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS submissions (
-      id TEXT PRIMARY KEY,
-      tenant_id TEXT,
-      assessment_id TEXT NOT NULL,
-      student_name TEXT NOT NULL,
-      user_id TEXT,
-      final_score INTEGER NOT NULL,
-      payload TEXT NOT NULL,
-      submitted_at TEXT NOT NULL,
-      FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-      FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
-    );
   `);
+  await runFileMigrations();
   await ensureColumn("assessments", "tenant_id", "TEXT");
   await ensureColumn("assessments", "class_id", "TEXT");
   await ensureColumn("assessments", "teacher_id", "TEXT");
   await ensureColumn("assessments", "status", "TEXT DEFAULT 'published'");
   await ensureColumn("submissions", "tenant_id", "TEXT");
   await ensureColumn("submissions", "user_id", "TEXT");
-  await recordMigration(1, "initial_schema_with_auth_classes");
-  await runFileMigrations();
 }
 
 function getDb() {
@@ -449,9 +367,9 @@ async function deleteMembership(auth, membershipId) {
   if (!result.changes) throw Object.assign(new Error("Membership tidak ditemukan"), { status: 404 });
 }
 
-async function saveSubmission(tenantId, userId, submission) {
-  if (userId) {
-    // Membolehkan siswa submit berulang kali agar bisa melihat perkembangan skor (trend)
+async function saveSubmission(tenantId, userId, submission, bypassCheck = false) {
+  if (userId && !bypassCheck) {
+    await assertCanSubmitAssessment(tenantId, userId, submission.assessmentId);
   }
   await getDb().run(
     `INSERT OR REPLACE INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
@@ -466,6 +384,45 @@ async function saveSubmission(tenantId, userId, submission) {
     submission.submittedAt
   );
   return submission;
+}
+
+async function assertCanSubmitAssessment(tenantId, userId, assessmentId) {
+  const assessment = await getDb().get(
+    "SELECT id, class_id, status, payload FROM assessments WHERE id = ? AND tenant_id = ?",
+    assessmentId,
+    tenantId
+  );
+  if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
+  if (assessment.status !== "published") {
+    throw Object.assign(new Error("Assessment belum tersedia untuk dikerjakan"), { status: 403 });
+  }
+
+  const membership = await getDb().get(
+    `SELECT id FROM class_memberships
+     WHERE tenant_id = ?
+       AND class_id = ?
+       AND student_id = ?
+       AND status = 'approved'`,
+    tenantId,
+    assessment.class_id,
+    userId
+  );
+  if (!membership) {
+    throw Object.assign(new Error("Siswa belum disetujui di kelas assessment ini"), { status: 403 });
+  }
+
+  const payload = JSON.parse(assessment.payload);
+  if (payload.allowRetakes === true) return;
+
+  const existing = await getDb().get(
+    "SELECT id FROM submissions WHERE tenant_id = ? AND assessment_id = ? AND user_id = ? LIMIT 1",
+    tenantId,
+    assessmentId,
+    userId
+  );
+  if (existing) {
+    throw Object.assign(new Error("Assessment ini sudah pernah dikumpulkan"), { status: 409 });
+  }
 }
 
 async function clearData(tenantId) {
@@ -490,4 +447,5 @@ module.exports = {
   updateAssessment,
   updateClass,
   updateMembershipStatus,
+  assertCanSubmitAssessment,
 };

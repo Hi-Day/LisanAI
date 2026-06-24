@@ -15,11 +15,8 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
   let transcriptDraft = "";
   let runId = 0;
 
-  async function toggle() {
-    if (isRecording()) {
-      stop();
-      return;
-    }
+  async function start() {
+    if (isRecording()) return;
 
     const activeRunId = runId + 1;
     runId = activeRunId;
@@ -40,8 +37,17 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
       }
     } catch (err) {
       recordStatus.textContent = err.message;
+      throw err;
     } finally {
       setPreparing(false);
+    }
+  }
+
+  async function toggle() {
+    if (isRecording()) {
+      stop();
+    } else {
+      await start();
     }
   }
 
@@ -128,7 +134,9 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
       if (activeRunId !== runId) return;
       stopStream();
       recordStatus.textContent = audioChunks.length
-        ? "Audio berhasil direkam. Ketik atau koreksi transkripsi agar bisa dinilai."
+        ? (answerText.readOnly
+            ? "Audio berhasil direkam. Jawaban hanya menggunakan transkripsi otomatis."
+            : "Audio berhasil direkam. Ketik atau koreksi transkripsi agar bisa dinilai.")
         : "Rekaman berhenti, tetapi tidak ada audio yang tersimpan.";
     };
     mediaRecorder.start();
@@ -184,7 +192,7 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     audioChunks = [];
   }
 
-  return { resetStatus, stop, toggle, getAudioBase64, clearAudio };
+  return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio };
 }
 
 function getMicrophoneErrorMessage(error) {

@@ -25,6 +25,8 @@ import {
   updateClassroom,
   updateMembership,
   updateUser,
+  getSimulationData,
+  simulateLogin,
 } from "./api.js";
 import { createAssessment, createDemoAssessment, createSubmission, readAssessmentForm } from "./assessment-factory.js";
 import { getElements, setButtonLoading } from "./dom.js";
@@ -33,6 +35,7 @@ import { createRecorder } from "./recorder.js";
 import { renderApp, renderMonitoring, renderStudentHistory, renderQuestion, showResult } from "./render.js";
 import { createSession } from "./session.js";
 import { loadState } from "./storage.js";
+import { escapeHtml } from "./utils.js";
 
 export async function initApp() {
   const els = getElements();
@@ -54,6 +57,7 @@ export async function initApp() {
     applyRoleAccess();
     renderCurrentState();
     renderUsers();
+    refreshSimulatorIfEnabled();
   }
 
   function showAuth() {
@@ -116,14 +120,14 @@ export async function initApp() {
     els.userList.innerHTML = extraUsers.map((user) => `
       <article class="submission-item" data-id="${user.id}">
         <div style="flex: 1; min-width: 0;">
-          <strong>${user.name}</strong>
-          <p>${user.email}</p>
+          <strong>${escapeHtml(user.name)}</strong>
+          <p>${escapeHtml(user.email)}</p>
           <div class="item-actions">
             <button type="button" class="action-button edit-user">Ubah Role</button>
             <button type="button" class="action-button danger-button delete-user">Hapus</button>
           </div>
         </div>
-        <span class="user-role">${roleLabel(user.role)}</span>
+        <span class="user-role">${escapeHtml(roleLabel(user.role))}</span>
       </article>
     `).join("");
   }
@@ -136,13 +140,13 @@ export async function initApp() {
 
     const usableClasses = state.classes.filter((item) => !isStudent || item.status === "approved");
     els.classSelect.innerHTML = usableClasses.length
-      ? usableClasses.map((item) => `<option value="${item.id}">${item.name}</option>`).join("")
+      ? usableClasses.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")
       : `<option value="">Belum ada kelas</option>`;
 
     if (els.monitorClassFilter && !isStudent) {
       const currentVal = els.monitorClassFilter.value;
       els.monitorClassFilter.innerHTML = `<option value="">Semua Kelas</option>` +
-        state.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+        state.classes.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
       if (currentVal && state.classes.some(c => c.id === currentVal)) {
         els.monitorClassFilter.value = currentVal;
       }
@@ -155,10 +159,10 @@ export async function initApp() {
     } else {
       els.classList.className = "list-stack";
       els.classList.innerHTML = state.classes.map((item) => `
-        <article class="submission-item" data-id="${item.id}">
+      <article class="submission-item" data-id="${escapeHtml(item.id)}">
           <div style="flex: 1; min-width: 0;">
-            <strong>${item.name}</strong>
-            <p>Kode: <b>${item.join_code || item.joinCode || "-"}</b></p>
+            <strong>${escapeHtml(item.name)}</strong>
+            <p>Kode: <b>${escapeHtml(item.join_code || item.joinCode || "-")}</b></p>
             ${!isStudent ? `
               <div class="item-actions">
                 <button type="button" class="action-button edit-class">Edit</button>
@@ -180,7 +184,7 @@ export async function initApp() {
         els.studentClassList.innerHTML = activeClasses.map((item) => `
           <article class="submission-item">
             <div>
-              <strong>${item.name}</strong>
+              <strong>${escapeHtml(item.name)}</strong>
               <p>Status: ${item.status === 'approved' ? 'Disetujui' : 'Menunggu'}</p>
             </div>
           </article>
@@ -191,7 +195,7 @@ export async function initApp() {
         const approvedClasses = activeClasses.filter(c => c.status === "approved");
         const currentVal = els.studentClassFilter.value;
         els.studentClassFilter.innerHTML = `<option value="">Semua Kelas</option>` +
-          approvedClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+          approvedClasses.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
         if (currentVal && approvedClasses.some(c => c.id === currentVal)) {
           els.studentClassFilter.value = currentVal;
         }
@@ -209,12 +213,12 @@ export async function initApp() {
       els.pendingJoinList.innerHTML = pending.map((item) => `
         <article class="submission-item">
           <div>
-            <strong>${item.student_name}</strong>
-            <p>${item.student_email} - ${item.class_name}</p>
+            <strong>${escapeHtml(item.student_name)}</strong>
+            <p>${escapeHtml(item.student_email)} - ${escapeHtml(item.class_name)}</p>
           </div>
           <div class="item-actions">
-            <button class="secondary-button approve-join" data-id="${item.id}" type="button">Approve</button>
-            <button class="action-button danger-button reject-join" data-id="${item.id}" type="button">Tolak</button>
+            <button class="secondary-button approve-join" data-id="${escapeHtml(item.id)}" type="button">Approve</button>
+            <button class="action-button danger-button reject-join" data-id="${escapeHtml(item.id)}" type="button">Tolak</button>
           </div>
         </article>
       `).join("");
@@ -230,10 +234,10 @@ export async function initApp() {
         els.approvedMemberList.innerHTML = approved.map((item) => `
           <article class="submission-item">
             <div>
-              <strong>${item.student_name}</strong>
-              <p>${item.student_email} - ${item.class_name}</p>
+              <strong>${escapeHtml(item.student_name)}</strong>
+              <p>${escapeHtml(item.student_email)} - ${escapeHtml(item.class_name)}</p>
               <div class="item-actions">
-                <button class="action-button danger-button remove-member" data-id="${item.id}" type="button">Keluarkan</button>
+                <button class="action-button danger-button remove-member" data-id="${escapeHtml(item.id)}" type="button">Keluarkan</button>
               </div>
             </div>
           </article>
@@ -374,12 +378,18 @@ export async function initApp() {
       return;
     }
     els.questionEditor.classList.remove("hidden");
+    if (els.editDisableManualTyping) {
+      els.editDisableManualTyping.checked = !!pendingAssessmentConfig.disableManualTyping;
+    }
+    if (els.editAllowRetakes) {
+      els.editAllowRetakes.checked = !!pendingAssessmentConfig.allowRetakes;
+    }
     els.editableQuestionList.innerHTML = pendingQuestions.map((question, index) => `
       <article class="feedback-card editable-question">
         <strong>Soal ${index + 1}</strong>
-        <label>Pertanyaan<textarea data-field="prompt" rows="3">${question.prompt}</textarea></label>
-        <label>Fokus<input data-field="focus" value="${question.focus || ""}" /></label>
-        <label>Jawaban ideal<textarea data-field="ideal" rows="3">${question.ideal || ""}</textarea></label>
+        <label>Pertanyaan<textarea data-field="prompt" rows="3">${escapeHtml(question.prompt)}</textarea></label>
+        <label>Fokus<input data-field="focus" value="${escapeHtml(question.focus || "")}" /></label>
+        <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
       </article>
     `).join("");
   }
@@ -563,6 +573,11 @@ export async function initApp() {
       session.goNext();
       renderQuestion(els, assessment, session);
       recorder.resetStatus();
+      try {
+        await recorder.start();
+      } catch (err) {
+        console.warn("Could not start recorder:", err);
+      }
       startQuestionTimer();
       questionStartTime = Date.now();
     }
@@ -587,6 +602,7 @@ export async function initApp() {
       users.unshift(user);
       els.userForm.reset();
       renderUsers();
+      refreshSimulatorIfEnabled();
     } catch (error) {
       showToast(error.message, "error");
     } finally {
@@ -619,6 +635,7 @@ export async function initApp() {
       if (response.success && response.success.length > 0) {
         users.unshift(...response.success);
         renderUsers();
+        refreshSimulatorIfEnabled();
       }
       
       const successCount = response.success ? response.success.length : 0;
@@ -682,6 +699,7 @@ export async function initApp() {
       session = createSession(state);
       clearAuthForms();
       showAuth();
+      refreshSimulatorIfEnabled();
     });
 
     els.mainNav.addEventListener("click", (e) => {
@@ -704,6 +722,20 @@ export async function initApp() {
     els.form.addEventListener("submit", handleAssessmentSubmit);
     els.saveQuestionSet.addEventListener("click", savePendingQuestionSet);
     els.improveQuestionSet.addEventListener("click", improvePendingQuestionSet);
+    if (els.editDisableManualTyping) {
+      els.editDisableManualTyping.addEventListener("change", (e) => {
+        if (pendingAssessmentConfig) {
+          pendingAssessmentConfig.disableManualTyping = e.target.checked;
+        }
+      });
+    }
+    if (els.editAllowRetakes) {
+      els.editAllowRetakes.addEventListener("change", (e) => {
+        if (pendingAssessmentConfig) {
+          pendingAssessmentConfig.allowRetakes = e.target.checked;
+        }
+      });
+    }
     els.userForm.addEventListener("submit", handleCreateUser);
     els.csvForm.addEventListener("submit", handleCsvUpload);
     els.recommendOutcomes.addEventListener("click", () => fillRecommendedFields("outcomes"));
@@ -853,16 +885,80 @@ export async function initApp() {
           difficulty: assessment.difficulty,
           classId: assessment.classId,
           outcomes: assessment.outcomes,
-          rubric: assessment.rubric
+          rubric: assessment.rubric,
+          disableManualTyping: !!assessment.disableManualTyping,
+          allowRetakes: !!assessment.allowRetakes
         };
         pendingQuestions = assessment.questions;
         renderQuestionEditor();
         els.questionEditor.scrollIntoView({ behavior: 'smooth' });
+      } else if (event.target.classList.contains("download-grades-assessment")) {
+        const assessmentSubmissions = state.submissions.filter(s => s.assessmentId === id);
+        if (!assessmentSubmissions.length) {
+          showToast('Belum ada nilai/submission untuk assessment ini.', 'error');
+          return;
+        }
+
+        const latestSubmissionsMap = new Map();
+        assessmentSubmissions.forEach(sub => {
+          const key = sub.studentName;
+          const existing = latestSubmissionsMap.get(key);
+          if (!existing || new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
+            latestSubmissionsMap.set(key, sub);
+          }
+        });
+
+        const latestSubmissions = Array.from(latestSubmissionsMap.values());
+        latestSubmissions.sort((a, b) => a.studentName.localeCompare(b.studentName));
+
+        const escapeCsv = (val) => {
+          if (val === null || val === undefined) return '';
+          const str = String(val);
+          if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+
+        const csvRows = [];
+        csvRows.push(['Nama Siswa', 'Email', 'Skor Akhir', 'Tanggal Pengerjaan'].map(escapeCsv).join(','));
+
+        latestSubmissions.forEach(sub => {
+          const membership = state.memberships.find(m => m.student_name === sub.studentName && m.class_id === assessment.classId);
+          const email = membership ? (membership.student_email || '-') : '-';
+          
+          const formattedDate = sub.submittedAt 
+            ? new Date(sub.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : '-';
+
+          csvRows.push([
+            sub.studentName,
+            email,
+            sub.finalScore,
+            formattedDate
+          ].map(escapeCsv).join(','));
+        });
+
+        const csvContent = '\uFEFF' + 'sep=,\n' + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        
+        const safeTopicName = assessment.topic
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        link.setAttribute("download", `nilai_${safeTopicName}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('CSV Nilai Assessment berhasil didownload.', 'success');
       }
     });
 
     if (els.studentAssessmentGrid) {
-      els.studentAssessmentGrid.addEventListener("click", (e) => {
+      els.studentAssessmentGrid.addEventListener("click", async (e) => {
         const btn = e.target.closest(".start-assessment-btn") || e.target.closest(".assessment-card");
         if (btn) {
           recorder.stop();
@@ -870,6 +966,11 @@ export async function initApp() {
           els.resultPanel.classList.add("hidden");
           renderCurrentState(); // This will trigger the toggle to workspace
           recorder.resetStatus();
+          try {
+            await recorder.start();
+          } catch (err) {
+            console.warn("Could not start recorder:", err);
+          }
           startQuestionTimer();
           questionStartTime = Date.now();
         }
@@ -899,6 +1000,11 @@ export async function initApp() {
       session.goPrevious();
       renderQuestion(els, session.getCurrentAssessment(), session);
       recorder.resetStatus();
+      try {
+        await recorder.start();
+      } catch (err) {
+        console.warn("Could not start recorder:", err);
+      }
       startQuestionTimer();
       questionStartTime = Date.now();
     });
@@ -909,6 +1015,11 @@ export async function initApp() {
       session.goNext();
       renderQuestion(els, session.getCurrentAssessment(), session);
       recorder.resetStatus();
+      try {
+        await recorder.start();
+      } catch (err) {
+        console.warn("Could not start recorder:", err);
+      }
       startQuestionTimer();
       questionStartTime = Date.now();
     });
@@ -936,7 +1047,51 @@ export async function initApp() {
       state.submissions = [];
       session.ensureAssessmentSelected();
       renderCurrentState();
+      await refreshSimulatorIfEnabled();
     });
+
+    // Simulator Panel toggle & close
+    if (els.simulatorToggle) {
+      els.simulatorToggle.addEventListener("click", () => {
+        const isHidden = els.simulatorPanel.classList.toggle("hidden");
+        els.simulatorToggle.setAttribute("aria-expanded", !isHidden);
+        if (!isHidden) {
+          refreshSimulatorIfEnabled();
+        }
+      });
+    }
+
+    if (els.simulatorClose) {
+      els.simulatorClose.addEventListener("click", () => {
+        els.simulatorPanel.classList.add("hidden");
+        els.simulatorToggle.setAttribute("aria-expanded", "false");
+      });
+    }
+
+    // Simulator Login Trigger
+    if (els.simulatorTenantList) {
+      els.simulatorTenantList.addEventListener("click", async (e) => {
+        const loginBtn = e.target.closest(".simulator-login-btn:not(.active)");
+        if (!loginBtn) return;
+        const targetUserId = loginBtn.dataset.userId;
+        if (!targetUserId) return;
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = "Loading...";
+
+        try {
+          const nextAuth = await simulateLogin(targetUserId);
+          showToast(`Berhasil masuk sebagai ${nextAuth.user.name} (${nextAuth.tenant.name})`, "success");
+          
+          // Re-bootstrap application
+          await bootstrapAuthenticatedApp(nextAuth);
+        } catch (error) {
+          showToast(error.message, "error");
+          loginBtn.disabled = false;
+          loginBtn.textContent = "Masuk";
+        }
+      });
+    }
   }
 
   function setupAdditionalEvents() {
@@ -998,7 +1153,160 @@ export async function initApp() {
         showToast(err.message, 'error');
       }
     });
+
+    if (els.downloadClassCsvBtn) {
+      els.downloadClassCsvBtn.addEventListener('click', () => {
+        const classId = els.monitorClassFilter?.value;
+        if (!classId) {
+          showToast('Pilih kelas terlebih dahulu untuk download nilai.', 'error');
+          return;
+        }
+
+        const selectedClass = state.classes.find(c => c.id === classId);
+        const className = selectedClass ? selectedClass.name : 'Kelas';
+
+        const classSubmissions = state.submissions.filter(s => s.classId === classId);
+        if (!classSubmissions.length) {
+          showToast('Belum ada nilai/submission di kelas ini.', 'error');
+          return;
+        }
+
+        const latestSubmissionsMap = new Map();
+        classSubmissions.forEach(sub => {
+          const key = `${sub.studentName}_${sub.assessmentId}`;
+          const existing = latestSubmissionsMap.get(key);
+          if (!existing || new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
+            latestSubmissionsMap.set(key, sub);
+          }
+        });
+
+        const latestSubmissions = Array.from(latestSubmissionsMap.values());
+
+        latestSubmissions.sort((a, b) => {
+          const nameCompare = a.studentName.localeCompare(b.studentName);
+          if (nameCompare !== 0) return nameCompare;
+          return a.assessmentTitle.localeCompare(b.assessmentTitle);
+        });
+
+        const escapeCsv = (val) => {
+          if (val === null || val === undefined) return '';
+          const str = String(val);
+          if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+
+        const csvRows = [];
+        csvRows.push(['Nama Siswa', 'Email', 'Topik Assessment', 'Skor Akhir', 'Tanggal Pengerjaan'].map(escapeCsv).join(','));
+
+        latestSubmissions.forEach(sub => {
+          const membership = state.memberships.find(m => m.student_name === sub.studentName && m.class_id === classId);
+          const email = membership ? (membership.student_email || '-') : '-';
+          
+          const formattedDate = sub.submittedAt 
+            ? new Date(sub.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : '-';
+
+          csvRows.push([
+            sub.studentName,
+            email,
+            sub.assessmentTitle,
+            sub.finalScore,
+            formattedDate
+          ].map(escapeCsv).join(','));
+        });
+
+        const csvContent = '\uFEFF' + 'sep=,\n' + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        
+        const safeClassName = className
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        link.setAttribute("download", `nilai_${safeClassName}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('CSV berhasil didownload.', 'success');
+      });
+    }
   }
+
+  async function refreshSimulatorIfEnabled() {
+    if (!els.simulatorWidget) return;
+    try {
+      const data = await getSimulationData();
+      els.simulatorWidget.classList.remove("hidden");
+      renderSimulator(data);
+    } catch (error) {
+      els.simulatorWidget.classList.add("hidden");
+    }
+  }
+
+  async function refreshSimulator() {
+    try {
+      const data = await getSimulationData();
+      renderSimulator(data);
+    } catch (error) {
+      console.error("Gagal memuat data simulator:", error);
+      if (els.simulatorTenantList) {
+        els.simulatorTenantList.innerHTML = `<div class="empty-state">Gagal memuat tenant: ${escapeHtml(error.message)}</div>`;
+      }
+    }
+  }
+
+  function renderSimulator(data) {
+    if (!els.simulatorTenantList) return;
+    const { tenants, users: allUsers } = data;
+    if (!tenants || !tenants.length) {
+      els.simulatorTenantList.innerHTML = `<div class="empty-state">Belum ada tenant.</div>`;
+      return;
+    }
+
+    // Group users by tenant_id
+    const usersByTenant = {};
+    allUsers.forEach(u => {
+      const tId = u.tenantId || u.tenant_id;
+      if (!usersByTenant[tId]) usersByTenant[tId] = [];
+      usersByTenant[tId].push(u);
+    });
+
+    els.simulatorTenantList.innerHTML = tenants.map(t => {
+      const tUsers = usersByTenant[t.id] || [];
+      const userRows = tUsers.map(u => {
+        const isActive = auth && auth.authenticated && auth.user && auth.user.id === u.id;
+        const roleClass = `simulator-role-${u.role}`;
+        return `
+          <div class="simulator-user-row ${isActive ? 'active' : ''}">
+            <div class="simulator-user-info">
+              <span class="simulator-user-name">${escapeHtml(u.name)}</span>
+              <span class="simulator-user-detail">${escapeHtml(u.email)}</span>
+              <span class="simulator-user-role-badge ${roleClass}">${escapeHtml(roleLabel(u.role))}</span>
+            </div>
+            ${isActive 
+              ? `<span class="simulator-login-btn active" style="background: var(--emerald); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Aktif</span>` 
+              : `<button class="simulator-login-btn" data-user-id="${escapeHtml(u.id)}" type="button">Masuk</button>`
+            }
+          </div>
+        `;
+      }).join("");
+
+      return `
+        <div class="simulator-tenant-group">
+          <div class="simulator-tenant-name">${escapeHtml(t.name)}</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${userRows.length ? userRows : '<p style="font-size: 0.75rem; color: var(--muted); margin: 0;">Tidak ada akun</p>'}
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  refreshSimulatorIfEnabled();
 
   bindEvents();
   setupAdditionalEvents();

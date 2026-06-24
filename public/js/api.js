@@ -1,10 +1,19 @@
+let clientCsrfToken = null;
+
 async function postJson(url, payload, fallbackMessage) {
+  const headers = { "Content-Type": "application/json" };
+  if (clientCsrfToken) {
+    headers["X-CSRF-Token"] = clientCsrfToken;
+  }
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
   });
   const data = await response.json();
+  if (data.csrfToken) {
+    clientCsrfToken = data.csrfToken;
+  }
   if (!response.ok) throw new Error(data.error || fallbackMessage);
   return data;
 }
@@ -12,6 +21,9 @@ async function postJson(url, payload, fallbackMessage) {
 export async function getCurrentUser() {
   const response = await fetch("/api/auth?action=me");
   const data = await response.json();
+  if (data.csrfToken) {
+    clientCsrfToken = data.csrfToken;
+  }
   if (!response.ok) throw new Error(data.error || "Gagal memeriksa session");
   return data;
 }
@@ -167,4 +179,15 @@ export async function evaluateAssessmentWithAI(assessment, answers, studentName,
     questionScores: questionScoresWithMetadata,
     feedback: data.evaluation.feedback,
   });
+}
+
+export async function getSimulationData() {
+  const response = await fetch("/api/auth?action=simulation");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal memuat data simulasi");
+  return data;
+}
+
+export async function simulateLogin(userId) {
+  return postJson("/api/auth", { action: "simulate-login", payload: { userId } }, "Gagal simulasi login");
 }

@@ -1,4 +1,4 @@
-import { average, compactText } from "./utils.js";
+import { average, compactText, escapeHtml } from "./utils.js";
 import { showEmpty } from "./dom.js";
 
 const EMPTY_ASSESSMENTS = "Belum ada assessment. Buat konfigurasi pertama untuk mulai.";
@@ -46,17 +46,22 @@ export function renderStudentArea(els, state, session) {
         if (hasSubmitted) {
           const latestSubmission = studentSubmissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
           scoreHtml = `<p style="margin: 8px 0 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai sebelumnya: ${latestSubmission.finalScore}</p>`;
-          buttonText = 'Kerjakan Ulang';
-          buttonClass = 'secondary-button start-assessment-btn';
+          if (assessment.allowRetakes) {
+            buttonText = 'Kerjakan Ulang';
+            buttonClass = 'secondary-button start-assessment-btn';
+          } else {
+            buttonText = 'Sudah Dikumpulkan';
+            buttonClass = 'secondary-button';
+          }
         }
         
         return `
           <div class="assessment-card" data-id="${assessment.id}">
-            <h4>${assessment.topic}</h4>
-            <span class="tag badge-published" style="width: fit-content;">${assessment.difficulty}</span>
+            <h4>${escapeHtml(assessment.topic)}</h4>
+            <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
             <p style="margin: 0; font-size: 0.9rem; color: var(--muted);">${assessment.questions.length} Soal</p>
             ${scoreHtml}
-            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;">${buttonText}</button>
+            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${hasSubmitted && !assessment.allowRetakes ? "disabled" : ""}>${buttonText}</button>
           </div>
         `;
       }).join("");
@@ -81,6 +86,21 @@ export function renderQuestion(els, assessment, session) {
   els.activeDifficulty.textContent = assessment.difficulty;
   els.activeQuestion.textContent = question.prompt;
   els.activeHint.textContent = question.ideal;
+  
+  if (assessment.disableManualTyping) {
+    els.answerText.placeholder = "Jawaban manual dimatikan untuk assessment ini. Silakan menjawab menggunakan rekaman suara.";
+    els.answerText.readOnly = true;
+    if (els.recordInstructions) {
+      els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).";
+    }
+  } else {
+    els.answerText.placeholder = "Transkripsi otomatis atau jawaban manual siswa akan muncul di sini";
+    els.answerText.readOnly = false;
+    if (els.recordInstructions) {
+      els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.";
+    }
+  }
+
   els.answerText.value = session.currentAnswers[session.currentQuestionIndex]?.text || "";
   els.prevQuestion.disabled = session.currentQuestionIndex === 0;
   renderAnswerMap(els, assessment, session.currentAnswers);
@@ -95,15 +115,22 @@ export function renderMonitoring(els, state) {
 
   els.submissionCount.textContent = visibleSubmissions.length;
 
+  if (els.downloadClassCsvBtn) {
+    els.downloadClassCsvBtn.style.display = selectedClassId ? "inline-flex" : "none";
+  }
+
   if (!visibleSubmissions.length) {
     els.classAverage.textContent = "0";
+    els.classAverage.style.setProperty('--score', '0');
     showEmpty(els.trendList, "trend-list empty-state", EMPTY_TRENDS);
     els.submissionList.className = "";
     els.submissionList.innerHTML = `<tr><td colspan="5" class="empty-state">${EMPTY_SUBMISSIONS}</td></tr>`;
     return;
   }
 
-  els.classAverage.textContent = average(visibleSubmissions, (submission) => submission.finalScore);
+  const avg = average(visibleSubmissions, (submission) => submission.finalScore);
+  els.classAverage.textContent = avg;
+  els.classAverage.style.setProperty('--score', avg);
   renderTrend(els, visibleSubmissions);
   renderSubmissions(els, visibleSubmissions);
 }
@@ -113,18 +140,19 @@ export function showResult(els, submission, auth = null) {
   els.resultPanel.dataset.submissionId = submission.id; // Store ID for override
   els.resultPanel.innerHTML = `
     <div class="result-modal-content">
+      <button class="result-close-btn" type="button" aria-label="Tutup Hasil" onclick="document.getElementById('resultPanel').classList.add('hidden')">&times;</button>
       <div class="result-header">
         <div style="flex: 1; min-width: 0;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>Hasil assessment: ${submission.assessmentTitle}</h3>
-            <button class="secondary-button" type="button" onclick="document.getElementById('resultPanel').classList.add('hidden')">Tutup</button>
-          </div>
-          <p>${submission.feedback}</p>
+          <h3 style="margin-right: 40px;">Hasil assessment: ${escapeHtml(submission.assessmentTitle)}</h3>
+          <p>${formatRichText(submission.feedback)}</p>
         </div>
         <div class="score-badge">${submission.finalScore}</div>
       </div>
       <div class="feedback-grid">
         ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth)).join("")}
+      </div>
+      <div class="result-footer">
+        <button class="primary-button" type="button" onclick="document.getElementById('resultPanel').classList.add('hidden')">Tutup</button>
       </div>
     </div>
   `;
@@ -138,23 +166,20 @@ function renderAssessmentItem(assessment) {
     <article class="assessment-item" data-id="${assessment.id}">
       <div style="flex: 1; min-width: 0;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-          <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${assessment.topic}</strong>
+          <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(assessment.topic)}</strong>
           <span class="tag ${statusBadgeClass}" style="padding: 2px 6px; font-size: 0.65rem;">${statusLabel}</span>
         </div>
-        <p>${compactText(assessment.outcomes)}</p>
+        <p>${escapeHtml(compactText(assessment.outcomes))}</p>
         <div class="item-actions">
           <button type="button" class="action-button edit-assessment">Edit Soal</button>
           <button type="button" class="action-button toggle-status-assessment">${assessment.status === 'published' ? 'Close' : 'Publish'}</button>
+          <button type="button" class="action-button download-grades-assessment">Download Nilai</button>
           <button type="button" class="action-button danger-button delete-assessment">Hapus</button>
         </div>
       </div>
       <span>${assessment.questions.length} soal</span>
     </article>
   `;
-}
-
-function renderAssessmentOption(assessment) {
-  return `<option value="${assessment.id}">${assessment.topic}</option>`;
 }
 
 function renderAnswerMap(els, assessment, answers) {
@@ -181,8 +206,8 @@ function renderSubmissionItem(submission) {
   const date = submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "-";
   return `
     <tr class="submission-row" data-id="${submission.id}">
-      <td><strong>${submission.studentName}</strong></td>
-      <td>${submission.assessmentTitle}</td>
+      <td><strong>${escapeHtml(submission.studentName)}</strong></td>
+      <td>${escapeHtml(submission.assessmentTitle)}</td>
       <td>${date}</td>
       <td><span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span></td>
       <td>
@@ -197,7 +222,7 @@ function renderTrendItem(trend) {
   return `
     <div class="trend-item">
       <header>
-        <strong>${trend.studentName}</strong>
+        <strong>${escapeHtml(trend.studentName)}</strong>
         <span>${trend.latest} (${deltaLabel})</span>
       </header>
       <div class="trend-track"><div class="trend-fill" style="width: ${trend.latest}%"></div></div>
@@ -216,10 +241,7 @@ function formatDuration(seconds) {
 }
 
 function renderFeedbackCard(item, index, auth) {
-  const audioHtml = item.audio ? `<div style="margin-top: 12px; margin-bottom: 12px;"><audio controls src="${item.audio}" style="width: 100%; height: 36px;"></audio></div>` : '';
-  
-  // Basic markdown for bold and lists
-  const formatText = (text) => text ? text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>') : '';
+  const audioHtml = item.audio ? `<div style="margin-top: 12px; margin-bottom: 12px;"><audio controls src="${escapeHtml(item.audio)}" style="width: 100%; height: 36px;"></audio></div>` : '';
   
   const isTeacher = auth && auth.user && auth.user.role === 'teacher';
   const durationText = item.duration !== undefined ? ` | ⏱️ ${formatDuration(item.duration)}` : '';
@@ -230,16 +252,22 @@ function renderFeedbackCard(item, index, auth) {
         <strong>Soal ${index + 1} - Skor <span class="qs-score">${item.score}</span>${durationText}</strong>
         <button type="button" class="action-button edit-override-btn ${isTeacher ? '' : 'hidden'}" data-index="${index}">Koreksi</button>
       </div>
-      <p>${formatText(item.question)}</p>
+      <p>${formatRichText(item.question)}</p>
       ${audioHtml}
-      <p><b>Jawaban:</b> <i>"${item.answer || (item.audio ? 'Hanya audio' : 'Tidak ada jawaban')}"</i></p>
-      <p><b>Kelebihan:</b> <span class="qs-strengths">${formatText(item.strengths?.join(" ") || "")}</span></p>
-      <p><b>Masih kurang:</b> <span class="qs-gaps">${formatText(item.gaps?.join(" ") || "")}</span></p>
+      <p><b>Jawaban:</b> <i>"${escapeHtml(item.answer || (item.audio ? 'Hanya audio' : 'Tidak ada jawaban'))}"</i></p>
+      <p><b>Kelebihan:</b> <span class="qs-strengths">${formatRichText(item.strengths?.join(" ") || "")}</span></p>
+      <p><b>Masih kurang:</b> <span class="qs-gaps">${formatRichText(item.gaps?.join(" ") || "")}</span></p>
       <div class="tag-row">
-        ${(item.matched || []).slice(0, 5).map((keyword) => `<span class="tag">${keyword}</span>`).join("")}
+        ${(item.matched || []).slice(0, 5).map((keyword) => `<span class="tag">${escapeHtml(keyword)}</span>`).join("")}
       </div>
     </article>
   `;
+}
+
+function formatRichText(text) {
+  return escapeHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+    .replace(/\n/g, "<br>");
 }
 
 function buildTrends(submissions) {
@@ -274,7 +302,7 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
     const date = sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "-";
     return `
       <tr class="submission-row" data-id="${sub.id}">
-        <td><strong>${sub.assessmentTitle}</strong></td>
+        <td><strong>${escapeHtml(sub.assessmentTitle)}</strong></td>
         <td>${date}</td>
         <td><span class="metric-pill" style="padding: 4px 12px;">${sub.finalScore}</span></td>
         <td>

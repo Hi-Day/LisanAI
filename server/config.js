@@ -5,7 +5,7 @@ const ROOT = path.join(__dirname, "..");
 const ENV_PATH = path.join(ROOT, ".env");
 const PORT = Number(process.env.PORT || 4173);
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "tencent/hy3-preview:free";
+const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 
 function loadEnv() {
   if (fs.existsSync(ENV_PATH)) {

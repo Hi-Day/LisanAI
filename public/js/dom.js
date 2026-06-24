@@ -34,6 +34,7 @@ export function getElements() {
     studentAssessmentGrid: document.querySelector("#studentAssessmentGrid"),
     studentClassFilter: document.querySelector("#studentClassFilter"),
     monitorClassFilter: document.querySelector("#monitorClassFilter"),
+    downloadClassCsvBtn: document.getElementById("downloadClassCsvBtn"),
     backToDashboard: document.querySelector("#backToDashboard"),
     studentEmpty: document.querySelector("#studentEmpty"),
     studentWorkspace: document.querySelector("#studentWorkspace"),
@@ -83,6 +84,16 @@ export function getElements() {
     editableQuestionList: document.querySelector("#editableQuestionList"),
     saveQuestionSet: document.querySelector("#saveQuestionSet"),
     improveQuestionSet: document.querySelector("#improveQuestionSet"),
+    simulatorWidget: document.querySelector("#simulatorWidget"),
+    simulatorToggle: document.querySelector("#simulatorToggle"),
+    simulatorPanel: document.querySelector("#simulatorPanel"),
+    simulatorClose: document.querySelector("#simulatorClose"),
+    simulatorTenantList: document.querySelector("#simulatorTenantList"),
+    disableManualTyping: document.querySelector("#disableManualTyping"),
+    editDisableManualTyping: document.querySelector("#editDisableManualTyping"),
+    allowRetakes: document.querySelector("#allowRetakes"),
+    editAllowRetakes: document.querySelector("#editAllowRetakes"),
+    recordInstructions: document.querySelector("#recordInstructions"),
   };
 }
 

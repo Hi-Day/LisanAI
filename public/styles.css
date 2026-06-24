@@ -355,6 +355,21 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 3px var(--accent-light);
 }
 
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+textarea[readonly] {
+  background-color: var(--paper);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr 140px;
@@ -565,14 +580,32 @@ input:focus, textarea:focus, select:focus {
 .monitor-grid { grid-template-columns: 1fr; }
 .analytics-panel.wide { min-width: 0; }
 
+@property --score {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
 .score-ring {
+  position: relative;
+  z-index: 1;
   display: grid; place-items: center;
   width: 150px; height: 150px; margin: 20px auto;
-  border: 12px solid var(--line);
-  border-top-color: var(--emerald);
-  border-right-color: var(--emerald);
-  border-radius: 50%;
   color: var(--ink); font-size: 2.8rem; font-weight: 800;
+  border-radius: 50%;
+  --score: 0;
+}
+
+.score-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--emerald) calc(var(--score, 0) * 1%), var(--line) 0);
+  -webkit-mask: radial-gradient(circle, transparent 58%, black 58.5%);
+  mask: radial-gradient(circle, transparent 58%, black 58.5%);
+  z-index: -1;
+  transition: --score 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .trend-list { display: grid; gap: 16px; }
@@ -616,6 +649,42 @@ input:focus, textarea:focus, select:focus {
   border-radius: 16px;
   padding: 30px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  position: relative;
+}
+.result-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 1.6rem;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.25s ease;
+  padding: 0;
+  z-index: 10;
+}
+.result-close-btn:hover {
+  background: var(--line);
+  color: var(--rose);
+  transform: rotate(90deg);
+  border-color: rgba(225, 29, 72, 0.2);
+}
+.result-footer {
+  margin-top: 32px;
+  display: flex;
+  justify-content: center;
+}
+.result-footer button {
+  min-width: 160px;
 }
 .result-header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; align-items: center; }
 
@@ -659,6 +728,7 @@ input:focus, textarea:focus, select:focus {
   background: #ecfdf5; /* emerald-50 */
   border: 2px solid var(--emerald);
   color: var(--emerald); font-size: 2.2rem; font-weight: 800;
+  margin-right: 32px;
 }
 
 .feedback-grid { display: grid; gap: 16px; }
@@ -815,3 +885,207 @@ body.student-mode .admin-only { display: none !important; }
 
 body.admin-mode .teacher-only,
 body.admin-mode .student-only { display: none !important; }
+
+/* Simulator Panel Styles */
+.simulator-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  font-family: inherit;
+}
+
+#toastContainer {
+  bottom: 88px;
+}
+
+.simulator-toggle {
+  background: var(--ink);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.simulator-toggle:hover {
+  transform: translateY(-2px);
+  background: #334155;
+}
+
+.simulator-panel {
+  position: absolute;
+  bottom: 60px;
+  right: 0;
+  width: 380px;
+  max-height: 500px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  color: var(--ink);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.simulator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.simulator-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.simulator-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.simulator-header .close-btn:hover {
+  color: var(--rose);
+}
+
+.simulator-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.simulator-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.simulator-tenant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.simulator-tenant-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.simulator-tenant-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent-dark);
+  margin-bottom: 4px;
+}
+
+.simulator-user-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.simulator-user-row:hover {
+  border-color: var(--accent-light);
+}
+
+.simulator-user-row.active {
+  border-color: var(--emerald);
+  background: #f0fdf4;
+}
+
+.simulator-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.simulator-user-name {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.simulator-user-detail {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.simulator-user-role-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+  align-self: flex-start;
+}
+
+.simulator-role-admin { background: #fee2e2; color: #991b1b; }
+.simulator-role-teacher { background: #e0f2fe; color: #075985; }
+.simulator-role-student { background: #d1fae5; color: #065f46; }
+
+.simulator-login-btn {
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.simulator-login-btn:hover {
+  background: var(--accent-dark);
+}
+
+.simulator-login-btn.active {
+  background: var(--emerald);
+  cursor: default;
+}

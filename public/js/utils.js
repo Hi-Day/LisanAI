@@ -9,6 +9,15 @@ export function compactText(value, max = 130) {
   return text.length > max ? `${text.slice(0, max - 1)}...` : text;
 }
 
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function getKeywords(...values) {
   const words = values
     .join(" ")

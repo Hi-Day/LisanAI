@@ -160,6 +160,16 @@
                 </label>
               </div>
 
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
+                <input type="checkbox" id="disableManualTyping" />
+                <span>Matikan fungsi typing manual siswa</span>
+              </label>
+
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
+                <input type="checkbox" id="allowRetakes" />
+                <span>Izinkan retake assessment untuk siswa</span>
+              </label>
+
               <label>
                 Contoh soal opsional
                 <textarea id="examples" rows="3" placeholder="Masukkan contoh gaya soal jika ada"></textarea>
@@ -190,6 +200,14 @@
               <div>
                 <h3>Kustomisasi question set</h3>
                 <p>Edit manual setiap soal atau minta AI memperbaiki seluruh question set sebelum disimpan ke kelas.</p>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
+                  <input type="checkbox" id="editDisableManualTyping" />
+                  <span>Matikan fungsi typing manual siswa</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
+                  <input type="checkbox" id="editAllowRetakes" />
+                  <span>Izinkan retake assessment untuk siswa</span>
+                </label>
               </div>
               <div class="student-actions">
                 <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
@@ -251,7 +269,7 @@
                 </button>
                 <div>
                   <strong id="recordStatus">Siap merekam</strong>
-                  <p>Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
+                  <p id="recordInstructions">Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
                 </div>
               </div>
 
@@ -347,6 +365,9 @@
               <select id="monitorClassFilter" style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;" aria-label="Filter berdasarkan kelas">
                 <option value="">Semua Kelas</option>
               </select>
+              <button id="downloadClassCsvBtn" class="secondary-button" style="display: none; align-items: center; gap: 8px; min-height: 38px; height: 38px; padding: 0 16px; border-radius: 8px; font-size: 0.9rem;" type="button">
+                <span>📥</span> Download CSV
+              </button>
               <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
             </div>
           </div>
@@ -435,6 +456,25 @@
         </section>
       </main>
       <div id="resultPanel" class="result-modal hidden"></div>
+    </div>
+
+    <!-- Panel Simulasi Multi-Tenant -->
+    <div id="simulatorWidget" class="simulator-widget hidden">
+      <button id="simulatorToggle" class="simulator-toggle" type="button" aria-expanded="false" aria-controls="simulatorPanel">
+        <span class="icon">🏢</span> Simulasi Tenant
+      </button>
+      <div id="simulatorPanel" class="simulator-panel hidden">
+        <div class="simulator-header">
+          <h3>Simulasi Multi-Tenant</h3>
+          <button id="simulatorClose" class="close-btn" type="button" aria-label="Tutup simulator">&times;</button>
+        </div>
+        <div class="simulator-body">
+          <p class="simulator-desc">Beralih instan antar tenant dan role di bawah ini untuk melihat isolasi data.</p>
+          <div id="simulatorTenantList" class="simulator-tenant-list">
+            <div class="empty-state">Loading data tenant...</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="js/app.js"></script>

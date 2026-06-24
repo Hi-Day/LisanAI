@@ -142,19 +142,20 @@ async function loginUser({ email, password }) {
 async function createSession(userId) {
   const token = crypto.randomBytes(32).toString("base64url");
   const tokenHash = hashToken(token);
+  const sessionId = uid("session");
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
 
   await getDb().run(
     "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
-    uid("session"),
+    sessionId,
     userId,
     tokenHash,
     expiresAt,
     now.toISOString()
   );
 
-  return { token, expiresAt };
+  return { token, sessionId, expiresAt };
 }
 
 async function getSessionUser(token) {
@@ -182,6 +183,19 @@ async function getSessionUser(token) {
 async function deleteSession(token) {
   if (!token) return;
   await getDb().run("DELETE FROM sessions WHERE token_hash = ?", hashToken(token));
+}
+
+function createCsrfToken(auth) {
+  if (!auth?.sessionId) return null;
+  return hashToken(`csrf:${auth.sessionId}:${process.env.CSRF_SECRET || "local-dev-secret"}`);
+}
+
+function assertCsrfToken(req, auth) {
+  const expected = createCsrfToken(auth);
+  const actual = req.headers["x-csrf-token"];
+  if (!expected || actual !== expected) {
+    throw Object.assign(new Error("CSRF token tidak valid"), { status: 403 });
+  }
 }
 
 async function hashPassword(password) {
@@ -275,9 +289,11 @@ module.exports = {
   createTenantUser,
   createTenantUsersBatch,
   createSession,
+  createCsrfToken,
   deleteTenantUser,
   deleteSession,
   getSessionUser,
+  assertCsrfToken,
   listTenantUsers,
   loginUser,
   registerTenantUser,

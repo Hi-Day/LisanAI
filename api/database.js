@@ -59,6 +59,13 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
+      const { assertCsrfToken } = require("../server/auth-service");
+      try {
+        assertCsrfToken(req, auth);
+      } catch (csrfError) {
+        return sendJson(res, 403, { error: csrfError.message });
+      }
+
       const body = await readJson(req);
       const { action, payload, id } = body;
 
@@ -93,9 +100,45 @@ module.exports = async (req, res) => {
 
       // Submissions
       if (action === "save-submission") {
-        const submissionUserId = auth.user.role === "student" ? auth.user.id : null;
-        await saveSubmission(auth.tenant.id, submissionUserId, payload);
-        return sendJson(res, 201, { submission: payload });
+        if (isStudent) {
+          await saveSubmission(auth.tenant.id, auth.user.id, payload);
+          return sendJson(res, 201, { submission: payload });
+        } else if (isTeacherOrAdmin) {
+          const { getDb } = require("../server/database");
+          const database = getDb();
+          const existing = await database.get(
+            "SELECT * FROM submissions WHERE id = ? AND tenant_id = ?",
+            payload.id,
+            auth.tenant.id
+          );
+          if (!existing) {
+            return sendJson(res, 404, { error: "Submission tidak ditemukan" });
+          }
+
+          if (auth.user.role === "teacher") {
+            const assessment = await database.get(
+              "SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?",
+              existing.assessment_id,
+              auth.tenant.id
+            );
+            if (!assessment) {
+              return sendJson(res, 404, { error: "Assessment tidak ditemukan" });
+            }
+            const classroom = await database.get(
+              "SELECT teacher_id FROM classes WHERE id = ? AND tenant_id = ?",
+              assessment.class_id,
+              auth.tenant.id
+            );
+            if (!classroom || classroom.teacher_id !== auth.user.id) {
+              return sendJson(res, 403, { error: "Guru hanya boleh mengoreksi kelas miliknya" });
+            }
+          }
+
+          await saveSubmission(auth.tenant.id, existing.user_id, payload, true);
+          return sendJson(res, 200, { submission: payload });
+        } else {
+          return sendJson(res, 403, { error: "Forbidden" });
+        }
       }
 
       // Classes

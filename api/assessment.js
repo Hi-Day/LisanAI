@@ -24,10 +24,26 @@ module.exports = async (req, res) => {
     const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
 
+    // CSRF Check
+    const { assertCsrfToken } = require("../server/auth-service");
+    try {
+      assertCsrfToken(req, auth);
+    } catch (csrfError) {
+      return sendJson(res, 403, { error: csrfError.message });
+    }
+
     const body = await readJson(req);
     const { action, payload } = body;
 
     if (action === "evaluate") {
+      if (auth.user.role === "student") {
+        const { assertCanSubmitAssessment } = require("../server/database");
+        try {
+          await assertCanSubmitAssessment(auth.tenant.id, auth.user.id, payload.assessment.id);
+        } catch (authError) {
+          return sendJson(res, authError.status || 403, { error: authError.message });
+        }
+      }
       const evaluation = await evaluateAnswers(payload);
       return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL });
     }

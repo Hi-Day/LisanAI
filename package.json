@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "scripts": {
     "build": "node scripts/seed-accounts.js && echo \"Static build ready\"",
-    "check": "node --check local-server.js && node --check public/js/app.js",
+    "check": "node scripts/check-js.js && npm test",
     "dev": "node local-server.js",
-    "start-local": "node local-server.js"
+    "start-local": "node local-server.js",
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [],
   "author": "",

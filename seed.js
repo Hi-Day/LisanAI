@@ -1,3 +1,5 @@
+const { loadEnv } = require('./server/config');
+loadEnv();
 const { getDb, initDatabase } = require('./server/database.js');
 const crypto = require('crypto');
 
@@ -188,6 +190,112 @@ async function seed() {
   };
   await runQuery("INSERT INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
     sub3Id, tenantId, assessment2Id, "Siswa Budi", student1Id, 75, JSON.stringify(sub3Payload), sub3Payload.submittedAt
+  ]);
+
+  // 6. Siswa Tambahan
+  const student3Id = uuid();
+  await runQuery("INSERT INTO users (id, tenant_id, role, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    student3Id, tenantId, "student", "Kevin Sanjaya", "kevin@demo.com", passwordHash, new Date().toISOString()
+  ]);
+
+  const student4Id = uuid();
+  await runQuery("INSERT INTO users (id, tenant_id, role, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    student4Id, tenantId, "student", "Natasha Wilona", "natasha@demo.com", passwordHash, new Date().toISOString()
+  ]);
+
+  const student5Id = uuid();
+  await runQuery("INSERT INTO users (id, tenant_id, role, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    student5Id, tenantId, "student", "Dian Sastrowardoyo", "dian@demo.com", passwordHash, new Date().toISOString()
+  ]);
+
+  // Memberships Siswa Tambahan
+  await runQuery("INSERT INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    uuid(), tenantId, classId, student3Id, "approved", new Date().toISOString(), new Date().toISOString()
+  ]);
+  await runQuery("INSERT INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    uuid(), tenantId, classId, student4Id, "approved", new Date().toISOString(), new Date().toISOString()
+  ]);
+  await runQuery("INSERT INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    uuid(), tenantId, classId, student5Id, "approved", new Date().toISOString(), new Date().toISOString()
+  ]);
+
+  // Submissions Siswa Tambahan
+  const sub4Id = uuid();
+  const sub4Payload = {
+    id: sub4Id,
+    tenantId,
+    classId,
+    assessmentId: assessment1Id,
+    studentName: "Kevin Sanjaya",
+    assessmentTitle: "Perkenalan Diri (Introduction)",
+    finalScore: 88,
+    feedback: "Jawaban yang sangat baik dan lancar.",
+    questionScores: [
+      { question: "Siapa nama lengkap Anda?", answer: "Nama saya Kevin Sanjaya", score: 90, strengths: ["Lancar"], gaps: [], matched: [] },
+      { question: "Berasal dari mana Anda?", answer: "Saya dari Jakarta", score: 86, strengths: ["Jelas"], gaps: [], matched: [] }
+    ],
+    submittedAt: new Date(Date.now() - 7200000).toISOString()
+  };
+  await runQuery("INSERT INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    sub4Id, tenantId, assessment1Id, "Kevin Sanjaya", student3Id, 88, JSON.stringify(sub4Payload), sub4Payload.submittedAt
+  ]);
+
+  const sub5Id = uuid();
+  const sub5Payload = {
+    id: sub5Id,
+    tenantId,
+    classId,
+    assessmentId: assessment2Id,
+    studentName: "Kevin Sanjaya",
+    assessmentTitle: "Mendeskripsikan Gambar",
+    finalScore: 92,
+    feedback: "Luar biasa! Deskripsi sangat mendetail.",
+    questionScores: [
+      { question: "Apa yang Anda lihat di gambar ini?", answer: "Saya melihat dua orang anak sedang bermain sepak bola di lapangan", score: 92, strengths: ["Sangat detail", "Grammar tepat"], gaps: [], matched: [] }
+    ],
+    submittedAt: new Date(Date.now() - 3600000).toISOString()
+  };
+  await runQuery("INSERT INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    sub5Id, tenantId, assessment2Id, "Kevin Sanjaya", student3Id, 92, JSON.stringify(sub5Payload), sub5Payload.submittedAt
+  ]);
+
+  const sub6Id = uuid();
+  const sub6Payload = {
+    id: sub6Id,
+    tenantId,
+    classId,
+    assessmentId: assessment1Id,
+    studentName: "Natasha Wilona",
+    assessmentTitle: "Perkenalan Diri (Introduction)",
+    finalScore: 79,
+    feedback: "Sudah baik, coba tingkatkan intonasi dan kelancaran.",
+    questionScores: [
+      { question: "Siapa nama lengkap Anda?", answer: "Nama saya Natasha Wilona", score: 80, strengths: ["Jelas"], gaps: [], matched: [] },
+      { question: "Berasal dari mana Anda?", answer: "Saya dari Bandung", score: 78, strengths: ["Cukup jelas"], gaps: [], matched: [] }
+    ],
+    submittedAt: new Date(Date.now() - 10800000).toISOString()
+  };
+  await runQuery("INSERT INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    sub6Id, tenantId, assessment1Id, "Natasha Wilona", student4Id, 79, JSON.stringify(sub6Payload), sub6Payload.submittedAt
+  ]);
+
+  const sub7Id = uuid();
+  const sub7Payload = {
+    id: sub7Id,
+    tenantId,
+    classId,
+    assessmentId: assessment2Id,
+    studentName: "Dian Sastrowardoyo",
+    assessmentTitle: "Mendeskripsikan Gambar",
+    finalScore: 85,
+    feedback: "Deskripsi baik dan menggunakan intonasi yang sangat tepat.",
+    questionScores: [
+      { question: "Apa yang Anda lihat di gambar ini?", answer: "Saya melihat pemandangan gunung dengan sawah hijau di depannya", score: 85, strengths: ["Intonasi bagus", "Diksi tepat"], gaps: [], matched: [] }
+    ],
+    submittedAt: new Date(Date.now() - 14400000).toISOString()
+  };
+  await runQuery("INSERT INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    sub7Id, tenantId, assessment2Id, "Dian Sastrowardoyo", student5Id, 85, JSON.stringify(sub7Payload), sub7Payload.submittedAt
   ]);
 
   console.log("Seeding selesai!");
