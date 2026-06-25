@@ -71,6 +71,11 @@ async function seed() {
     student2Id, tenantId, "student", "Siswa Siti", "siti@demo.com", passwordHash, new Date().toISOString()
   ]);
 
+  const adminId = uuid();
+  await runQuery("INSERT INTO users (id, tenant_id, role, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+    adminId, tenantId, "admin", "Admin Observabilitas", "admin@demo.com", passwordHash, new Date().toISOString()
+  ]);
+
   // 3. Buat Kelas
   const classId = uuid();
   const joinCode = "DEMO123";
@@ -298,8 +303,60 @@ async function seed() {
     sub7Id, tenantId, assessment2Id, "Dian Sastrowardoyo", student5Id, 85, JSON.stringify(sub7Payload), sub7Payload.submittedAt
   ]);
 
+  // 7. Seed Observability AI Logs
+  const logId1 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId1, tenantId, teacherId, "recommend_assessment_config", "meta-llama/llama-3.1-8b-instruct", 320, 150, 470, 850, "success", 0, new Date(Date.now() - 3600000 * 24).toISOString()
+  ]);
+
+  const logId2 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId2, tenantId, teacherId, "generate_questions_with_ai", "google/gemini-2.5-pro", 850, 620, 1470, 2450, "success", 0, new Date(Date.now() - 3600000 * 20).toISOString()
+  ]);
+
+  const logId3 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId3, tenantId, teacherId, "improve_questions_with_ai", "google/gemini-2.5-pro", 1470, 580, 2050, 1850, "success", 955, new Date(Date.now() - 3600000 * 18).toISOString()
+  ]);
+
+  const logId4 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId4, tenantId, student1Id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 2100, 450, 2550, 3100, "success", 1365, new Date(Date.now() - 3600000 * 12).toISOString()
+  ]);
+
+  const logId5 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId5, tenantId, student2Id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 2100, 480, 2580, 2900, "success", 1365, new Date(Date.now() - 3600000 * 8).toISOString()
+  ]);
+
+  const logId6 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId6, tenantId, teacherId, "generate_questions_with_ai", "google/gemini-2.5-pro", 0, 0, 0, 520, "error", 0, "OpenRouter API error: Rate limit reached", new Date(Date.now() - 3600000 * 6).toISOString()
+  ]);
+
+  const logId7 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId7, tenantId, teacherId, "generate_questions_with_ai", "google/gemini-2.5-pro", 850, 590, 1440, 1920, "success", 0, new Date(Date.now() - 3600000 * 5.8).toISOString()
+  ]);
+
+  const logId8 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId8, tenantId, student3Id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 2100, 460, 2560, 2750, "success", 1365, new Date(Date.now() - 3600000 * 3).toISOString()
+  ]);
+
+  const logId9 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId9, tenantId, student4Id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 2100, 440, 2540, 3350, "success", 1365, new Date(Date.now() - 3600000 * 2.5).toISOString()
+  ]);
+
+  const logId10 = uuid();
+  await runQuery("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+    logId10, tenantId, student5Id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 1200, 410, 1610, 2600, "success", 780, new Date(Date.now() - 3600000 * 1).toISOString()
+  ]);
+
   console.log("Seeding selesai!");
   console.log("Gunakan kredensial berikut untuk mencoba:");
+  console.log("  Admin : admin@demo.com / password123");
   console.log("  Guru  : guru@demo.com / password123");
   console.log("  Siswa : budi@demo.com / password123");
 }

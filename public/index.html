@@ -1,262 +1,277 @@
 <!doctype html>
 <html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lisan.ai Assessment</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <section id="authView" class="auth-view">
-      <div class="auth-copy">
-        <div class="brand auth-brand">
-          <div class="brand-mark" aria-hidden="true">OA</div>
-          <div>
-            <strong>Lisan.ai</strong>
-            <span>Assessment lisan multi-tenant</span>
-          </div>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lisan.ai Assessment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <section id="authView" class="auth-view">
+    <div class="auth-copy">
+      <div class="brand auth-brand">
+        <div class="brand-mark" aria-hidden="true">OA</div>
+        <div>
+          <strong>Lisan.ai</strong>
+          <span>Assessment lisan multi-tenant</span>
         </div>
-        <h1>Masuk untuk mengelola assessment tenant kamu</h1>
-        <p>Setiap sekolah, lembaga, atau organisasi punya ruang data terpisah dengan sesi login aman.</p>
+      </div>
+      <h1>Masuk untuk mengelola assessment tenant kamu</h1>
+      <p>Setiap sekolah, lembaga, atau organisasi punya ruang data terpisah dengan sesi login aman.</p>
+    </div>
+
+    <div class="auth-panel">
+      <form id="loginForm" class="auth-form">
+        <h2>Login</h2>
+        <label>
+          Email
+          <input id="loginEmail" type="text" inputmode="email" autocomplete="email" required />
+        </label>
+        <label>
+          Password
+          <input id="loginPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="primary-button" type="submit">Login</button>
+      </form>
+
+      <form id="registerForm" class="auth-form">
+        <h2>Daftar tenant</h2>
+        <label>
+          Nama tenant
+          <input id="registerTenant" required placeholder="Contoh: SMA Nusantara" />
+        </label>
+        <label>
+          Nama admin
+          <input id="registerName" autocomplete="name" required />
+        </label>
+        <label>
+          Email admin
+          <input id="registerEmail" type="text" inputmode="email" autocomplete="email" required />
+        </label>
+        <label>
+          Password
+          <input id="registerPassword" type="password" autocomplete="new-password" minlength="8" required />
+        </label>
+        <button class="secondary-button" type="submit">Buat tenant</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">OA</div>
+        <div>
+          <strong>Lisan.ai</strong>
+          <span>Assessment lisan adaptif</span>
+        </div>
       </div>
 
-      <div class="auth-panel">
-        <form id="loginForm" class="auth-form">
-          <h2>Login</h2>
-          <label>
-            Email
-            <input id="loginEmail" type="text" inputmode="email" autocomplete="email" required />
-          </label>
-          <label>
-            Password
-            <input id="loginPassword" type="password" autocomplete="current-password" required />
-          </label>
-          <button class="primary-button" type="submit">Login</button>
-        </form>
+      <nav id="mainNav" class="nav" aria-label="Navigasi utama">
+        <!-- Navigasi akan di-render oleh JS berdasarkan role (security) -->
+      </nav>
 
-        <form id="registerForm" class="auth-form">
-          <h2>Daftar tenant</h2>
-          <label>
-            Nama tenant
-            <input id="registerTenant" required placeholder="Contoh: SMA Nusantara" />
-          </label>
-          <label>
-            Nama admin
-            <input id="registerName" autocomplete="name" required />
-          </label>
-          <label>
-            Email admin
-            <input id="registerEmail" type="text" inputmode="email" autocomplete="email" required />
-          </label>
-          <label>
-            Password
-            <input id="registerPassword" type="password" autocomplete="new-password" minlength="8" required />
-          </label>
-          <button class="secondary-button" type="submit">Buat tenant</button>
-        </form>
+      <div class="sidebar-panel">
+        <span class="panel-label">Status sistem</span>
+        <strong>OpenRouter AI aktif</strong>
+        <p>Generate soal dan evaluasi memakai backend lokal agar API key tetap aman.</p>
       </div>
-    </section>
+    </aside>
 
-    <div id="appShell" class="app-shell hidden">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">OA</div>
-          <div>
-            <strong>Lisan.ai</strong>
-            <span>Assessment lisan adaptif</span>
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Platform evaluasi lisan siswa</p>
+          <h1>Assessment berbasis AI untuk jawaban spoken response</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="account-chip">
+            <strong id="accountName">-</strong>
+            <span id="tenantName">-</span>
+            <span id="accountRole">-</span>
           </div>
+          <button class="secondary-button" id="logoutButton" type="button">Logout</button>
+          <button class="icon-button" id="seedDemo" title="Isi contoh data" aria-label="Isi contoh data">+</button>
+          <button class="icon-button" id="resetData" title="Reset data" aria-label="Reset data">R</button>
+        </div>
+      </header>
+
+      <section id="teacherView" class="view active" aria-labelledby="teacherTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="teacherTitle">Buat assessment</h2>
+            <p>Tentukan konteks evaluasi, lalu sistem menyusun set soal yang relevan.</p>
+          </div>
+          <span class="metric-pill"><strong id="assessmentCount">0</strong> assessment aktif</span>
         </div>
 
-        <nav id="mainNav" class="nav" aria-label="Navigasi utama">
-          <!-- Navigasi akan di-render oleh JS berdasarkan role (security) -->
-        </nav>
-
-        <div class="sidebar-panel">
-          <span class="panel-label">Status sistem</span>
-          <strong>OpenRouter AI aktif</strong>
-          <p>Generate soal dan evaluasi memakai backend lokal agar API key tetap aman.</p>
-        </div>
-      </aside>
-
-      <main class="main">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Platform evaluasi lisan siswa</p>
-            <h1>Assessment berbasis AI untuk jawaban spoken response</h1>
-          </div>
-          <div class="topbar-actions">
-            <div class="account-chip">
-              <strong id="accountName">-</strong>
-              <span id="tenantName">-</span>
-              <span id="accountRole">-</span>
+        <div class="teacher-grid">
+          <form id="assessmentForm" class="form-panel">
+            <label>
+              Topik atau materi
+              <input id="topic" required placeholder="Contoh: fotosintesis, hukum Newton, teks argumentasi" />
+            </label>
+            <div class="inline-actions">
+              <button class="secondary-button" id="recommendOutcomes" type="button">Rekomendasikan kompetensi</button>
+              <button class="secondary-button" id="recommendRubric" type="button">Rekomendasikan rubrik</button>
             </div>
-            <button class="secondary-button" id="logoutButton" type="button">Logout</button>
-            <button class="icon-button" id="seedDemo" title="Isi contoh data" aria-label="Isi contoh data">+</button>
-            <button class="icon-button" id="resetData" title="Reset data" aria-label="Reset data">R</button>
-          </div>
-        </header>
 
-        <section id="teacherView" class="view active" aria-labelledby="teacherTitle">
-          <div class="section-heading">
+            <label>
+              Kompetensi / learning outcome
+              <textarea id="outcomes" required rows="4"
+                placeholder="Tuliskan indikator kompetensi yang perlu terlihat dari jawaban siswa"></textarea>
+            </label>
+
+            <label>
+              Rubrik penilaian
+              <textarea id="rubric" required rows="5"
+                placeholder="Contoh: ketepatan konsep 40%, kelengkapan alasan 30%, contoh relevan 20%, komunikasi 10%"></textarea>
+            </label>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <label>
+                Kelas tujuan
+                <select id="classSelect" required></select>
+              </label>
+              <label>
+                Tingkat kesulitan
+                <select id="difficulty">
+                  <option>Dasar</option>
+                  <option selected>Menengah</option>
+                  <option>Lanjutan</option>
+                </select>
+              </label>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <label>
+                Jumlah soal
+                <input id="questionCount" type="number" min="1" max="10" value="5" />
+              </label>
+              <label>
+                Batas waktu per soal
+                <select id="timeLimit">
+                  <option value="0">Tanpa batas waktu</option>
+                  <option value="30">30 Detik</option>
+                  <option value="60">1 Menit</option>
+                  <option value="120">2 Menit</option>
+                  <option value="180">3 Menit</option>
+                </select>
+              </label>
+            </div>
+
+            <label
+              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
+              <input type="checkbox" id="disableManualTyping" />
+              <span>Matikan fungsi typing manual siswa</span>
+            </label>
+
+            <label
+              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
+              <input type="checkbox" id="allowRetakes" />
+              <span>Izinkan retake assessment untuk siswa</span>
+            </label>
+
+            <label>
+              Contoh soal opsional
+              <textarea id="examples" rows="3" placeholder="Masukkan contoh gaya soal jika ada"></textarea>
+            </label>
+
+            <button class="primary-button" type="submit">Generate assessment</button>
+          </form>
+
+          <div class="preview-panel">
+
+
+            <div class="visual-card">
+              <div class="voice-waves" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <div>
+                <strong>Alur evaluasi</strong>
+                <p>Topik -> soal adaptif -> rekaman suara -> transkripsi -> skor rubrik -> feedback personal.</p>
+              </div>
+            </div>
+            <h3>Assessment terbaru</h3>
+            <div id="assessmentList" class="list-stack empty-state">Belum ada assessment. Buat konfigurasi pertama untuk
+              mulai.</div>
+          </div>
+        </div>
+
+        <div id="questionEditor" class="result-panel hidden">
+          <div class="result-header">
             <div>
-              <h2 id="teacherTitle">Buat assessment</h2>
-              <p>Tentukan konteks evaluasi, lalu sistem menyusun set soal yang relevan.</p>
-            </div>
-            <span class="metric-pill"><strong id="assessmentCount">0</strong> assessment aktif</span>
-          </div>
-
-          <div class="teacher-grid">
-            <form id="assessmentForm" class="form-panel">
-              <label>
-                Topik atau materi
-                <input id="topic" required placeholder="Contoh: fotosintesis, hukum Newton, teks argumentasi" />
-              </label>
-              <div class="inline-actions">
-                <button class="secondary-button" id="recommendOutcomes" type="button">Rekomendasikan kompetensi</button>
-                <button class="secondary-button" id="recommendRubric" type="button">Rekomendasikan rubrik</button>
-              </div>
-
-              <label>
-                Kompetensi / learning outcome
-                <textarea id="outcomes" required rows="4" placeholder="Tuliskan indikator kompetensi yang perlu terlihat dari jawaban siswa"></textarea>
-              </label>
-
-              <label>
-                Rubrik penilaian
-                <textarea id="rubric" required rows="5" placeholder="Contoh: ketepatan konsep 40%, kelengkapan alasan 30%, contoh relevan 20%, komunikasi 10%"></textarea>
-              </label>
-
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <label>
-                  Kelas tujuan
-                  <select id="classSelect" required></select>
-                </label>
-                <label>
-                  Tingkat kesulitan
-                  <select id="difficulty">
-                    <option>Dasar</option>
-                    <option selected>Menengah</option>
-                    <option>Lanjutan</option>
-                  </select>
-                </label>
-              </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <label>
-                  Jumlah soal
-                  <input id="questionCount" type="number" min="1" max="10" value="5" />
-                </label>
-                <label>
-                  Batas waktu per soal
-                  <select id="timeLimit">
-                    <option value="0">Tanpa batas waktu</option>
-                    <option value="30">30 Detik</option>
-                    <option value="60">1 Menit</option>
-                    <option value="120">2 Menit</option>
-                    <option value="180">3 Menit</option>
-                  </select>
-                </label>
-              </div>
-
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
-                <input type="checkbox" id="disableManualTyping" />
+              <h3>Kustomisasi question set</h3>
+              <p>Edit manual setiap soal atau minta AI memperbaiki seluruh question set sebelum disimpan ke kelas.</p>
+              <label
+                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
+                <input type="checkbox" id="editDisableManualTyping" />
                 <span>Matikan fungsi typing manual siswa</span>
               </label>
-
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
-                <input type="checkbox" id="allowRetakes" />
+              <label
+                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
+                <input type="checkbox" id="editAllowRetakes" />
                 <span>Izinkan retake assessment untuk siswa</span>
               </label>
+            </div>
+            <div class="student-actions">
+              <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
+              <button id="saveQuestionSet" class="primary-button" type="button">Simpan assessment</button>
+            </div>
+          </div>
+          <div id="editableQuestionList" class="feedback-grid"></div>
+        </div>
+      </section>
 
-              <label>
-                Contoh soal opsional
-                <textarea id="examples" rows="3" placeholder="Masukkan contoh gaya soal jika ada"></textarea>
-              </label>
+      <section id="studentView" class="view" aria-labelledby="studentTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="studentTitle">Kerjakan assessment</h2>
+            <p>Pilih sesi, jawab lisan satu per satu, lalu lihat feedback setelah selesai.</p>
+          </div>
+          <select id="studentAssessmentSelect" aria-label="Pilih assessment" class="hidden"></select>
+        </div>
 
-              <button class="primary-button" type="submit">Generate assessment</button>
+        <div id="studentDashboard" class="student-dashboard">
+          <div class="student-dashboard-main">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="margin: 0;">Assessment Tersedia</h3>
+              <select id="studentClassFilter"
+                style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;">
+                <option value="">Semua Kelas</option>
+              </select>
+            </div>
+            <div id="studentAssessmentGrid" class="assessment-grid feedback-grid"></div>
+            <div id="studentEmpty" class="empty-state large hidden">Belum ada assessment yang tersedia di kelas ini.
+              Pastikan guru Anda sudah menugaskan assessment.</div>
+          </div>
+
+          <aside id="studentClassPanel" class="preview-panel class-panel">
+            <h3>Kelas saya</h3>
+            <form id="studentJoinClassForm" class="mini-form">
+              <input id="studentJoinCode" placeholder="Masukkan kode kelas" required />
+              <button class="secondary-button" type="submit">Join</button>
             </form>
+            <div id="studentClassList" class="list-stack empty-state">Belum join kelas.</div>
+          </aside>
+        </div>
 
-            <div class="preview-panel">
-
-
-              <div class="visual-card">
-                <div class="voice-waves" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span><span></span>
-                </div>
-                <div>
-                  <strong>Alur evaluasi</strong>
-                  <p>Topik -> soal adaptif -> rekaman suara -> transkripsi -> skor rubrik -> feedback personal.</p>
-                </div>
-              </div>
-              <h3>Assessment terbaru</h3>
-              <div id="assessmentList" class="list-stack empty-state">Belum ada assessment. Buat konfigurasi pertama untuk mulai.</div>
-            </div>
-          </div>
-
-          <div id="questionEditor" class="result-panel hidden">
-            <div class="result-header">
-              <div>
-                <h3>Kustomisasi question set</h3>
-                <p>Edit manual setiap soal atau minta AI memperbaiki seluruh question set sebelum disimpan ke kelas.</p>
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
-                  <input type="checkbox" id="editDisableManualTyping" />
-                  <span>Matikan fungsi typing manual siswa</span>
-                </label>
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
-                  <input type="checkbox" id="editAllowRetakes" />
-                  <span>Izinkan retake assessment untuk siswa</span>
-                </label>
-              </div>
-              <div class="student-actions">
-                <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
-                <button id="saveQuestionSet" class="primary-button" type="button">Simpan assessment</button>
-              </div>
-            </div>
-            <div id="editableQuestionList" class="feedback-grid"></div>
-          </div>
-        </section>
-
-        <section id="studentView" class="view" aria-labelledby="studentTitle">
-          <div class="section-heading">
-            <div>
-              <h2 id="studentTitle">Kerjakan assessment</h2>
-              <p>Pilih sesi, jawab lisan satu per satu, lalu lihat feedback setelah selesai.</p>
-            </div>
-            <select id="studentAssessmentSelect" aria-label="Pilih assessment" class="hidden"></select>
-          </div>
-
-          <div id="studentDashboard" class="student-dashboard">
-            <div class="student-dashboard-main">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="margin: 0;">Assessment Tersedia</h3>
-                <select id="studentClassFilter" style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;">
-                  <option value="">Semua Kelas</option>
-                </select>
-              </div>
-              <div id="studentAssessmentGrid" class="assessment-grid feedback-grid"></div>
-              <div id="studentEmpty" class="empty-state large hidden">Belum ada assessment yang tersedia di kelas ini. Pastikan guru Anda sudah menugaskan assessment.</div>
-            </div>
-
-            <aside id="studentClassPanel" class="preview-panel class-panel">
-              <h3>Kelas saya</h3>
-              <form id="studentJoinClassForm" class="mini-form">
-                <input id="studentJoinCode" placeholder="Masukkan kode kelas" required />
-                <button class="secondary-button" type="submit">Join</button>
-              </form>
-              <div id="studentClassList" class="list-stack empty-state">Belum join kelas.</div>
-            </aside>
-          </div>
-
-          <div id="studentWorkspace" class="student-workspace hidden">
-            <div>
-              <button id="backToDashboard" class="secondary-button" style="margin-bottom: 20px;" type="button">&larr; Kembali ke Daftar Assessment</button>
-              <div class="question-card">
+        <div id="studentWorkspace" class="student-workspace hidden">
+          <div>
+            <button id="backToDashboard" class="secondary-button" style="margin-bottom: 20px;" type="button">&larr;
+              Kembali ke Daftar Assessment</button>
+            <div class="question-card">
               <div class="question-meta">
                 <span id="questionProgress">Soal 1 dari 5</span>
                 <div style="display: flex; gap: 12px; align-items: center;">
-                  <span id="timerDisplay" class="metric-pill" style="display: none; color: var(--rose); border-color: var(--rose); background: #fff1f2; animation: none;"><strong>00:00</strong> tersisa</span>
+                  <span id="timerDisplay" class="metric-pill"
+                    style="display: none; color: var(--rose); border-color: var(--rose); background: #fff1f2; animation: none;"><strong>00:00</strong>
+                    tersisa</span>
                   <span id="activeDifficulty">Menengah</span>
                 </div>
               </div>
@@ -269,13 +284,15 @@
                 </button>
                 <div>
                   <strong id="recordStatus">Siap merekam</strong>
-                  <p id="recordInstructions">Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
+                  <p id="recordInstructions">Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika
+                    transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
                 </div>
               </div>
 
               <label>
                 Transkripsi jawaban
-                <textarea id="answerText" rows="7" placeholder="Transkripsi otomatis atau jawaban manual siswa akan muncul di sini"></textarea>
+                <textarea id="answerText" rows="7"
+                  placeholder="Transkripsi otomatis atau jawaban manual siswa akan muncul di sini"></textarea>
               </label>
 
               <div class="student-actions">
@@ -295,188 +312,338 @@
             </aside>
           </div>
 
-        </section>
+      </section>
 
-        <section id="manageClassView" class="view" aria-labelledby="manageClassTitle">
-          <div class="section-heading">
-            <div>
-              <h2 id="manageClassTitle">Kelola kelas & siswa</h2>
-              <p>Kelola kelas, setujui request bergabung, dan pantau anggota kelas.</p>
+      <section id="manageClassView" class="view" aria-labelledby="manageClassTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="manageClassTitle">Kelola kelas & siswa</h2>
+            <p>Kelola kelas, setujui request bergabung, dan pantau anggota kelas.</p>
+          </div>
+        </div>
+
+        <div class="account-grid">
+          <div id="classPanel" class="form-panel class-panel">
+            <h3>Daftar Kelas</h3>
+            <form id="classForm" class="mini-form">
+              <input id="className" placeholder="Nama kelas baru" />
+              <button class="primary-button" type="submit">Buat kelas</button>
+            </form>
+            <form id="joinClassForm" class="mini-form hidden">
+              <input id="joinCode" placeholder="Kode kelas" />
+              <button class="secondary-button" type="submit">Join kelas</button>
+            </form>
+            <div id="classList" class="list-stack empty-state">Belum ada kelas.</div>
+          </div>
+
+          <div class="preview-panel">
+            <h3>Anggota kelas</h3>
+            <div id="approvedMemberList" class="list-stack empty-state" style="margin-bottom: 24px;">Belum ada anggota.
+            </div>
+            <h3>Request join</h3>
+            <div id="pendingJoinList" class="list-stack empty-state">Belum ada request join.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="studentHistoryView" class="view" aria-labelledby="studentHistoryTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="studentHistoryTitle">Riwayat pengerjaan</h2>
+            <p>Daftar assessment yang sudah kamu selesaikan beserta skor dan ulasannya.</p>
+          </div>
+        </div>
+
+        <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+          <div class="table-container" style="overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Topik Assessment</th>
+                  <th>Tanggal</th>
+                  <th>Skor Akhir</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="studentHistoryList">
+                <tr>
+                  <td colspan="4" class="empty-state">Belum ada riwayat assessment.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="monitorView" class="view" aria-labelledby="monitorTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="monitorTitle">Monitoring hasil</h2>
+            <p>Pantau skor, kualitas jawaban, dan perkembangan performa siswa.</p>
+          </div>
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <select id="monitorClassFilter"
+              style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;"
+              aria-label="Filter berdasarkan kelas">
+              <option value="">Semua Kelas</option>
+            </select>
+            <button id="downloadClassCsvBtn" class="secondary-button"
+              style="display: none; align-items: center; gap: 8px; min-height: 38px; height: 38px; padding: 0 16px; border-radius: 8px; font-size: 0.9rem;"
+              type="button">
+              <span>📥</span> Download CSV
+            </button>
+            <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
+          </div>
+        </div>
+
+        <div class="monitor-grid">
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+            <div class="analytics-panel"
+              style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+              <h3 style="align-self: flex-start;">Performa kelas</h3>
+              <div class="score-ring" id="classAverage">0</div>
+              <p>Rata-rata skor dari seluruh assessment yang diselesaikan.</p>
+            </div>
+            <div class="analytics-panel">
+              <h3>Perkembangan siswa</h3>
+              <div id="trendList" class="trend-list empty-state">Belum ada tren skor.</div>
             </div>
           </div>
-          
-          <div class="account-grid">
-            <div id="classPanel" class="form-panel class-panel">
-              <h3>Daftar Kelas</h3>
-              <form id="classForm" class="mini-form">
-                <input id="className" placeholder="Nama kelas baru" />
-                <button class="primary-button" type="submit">Buat kelas</button>
-              </form>
-              <form id="joinClassForm" class="mini-form hidden">
-                <input id="joinCode" placeholder="Kode kelas" />
-                <button class="secondary-button" type="submit">Join kelas</button>
-              </form>
-              <div id="classList" class="list-stack empty-state">Belum ada kelas.</div>
-            </div>
-
-            <div class="preview-panel">
-              <h3>Anggota kelas</h3>
-              <div id="approvedMemberList" class="list-stack empty-state" style="margin-bottom: 24px;">Belum ada anggota.</div>
-              <h3>Request join</h3>
-              <div id="pendingJoinList" class="list-stack empty-state">Belum ada request join.</div>
-            </div>
-          </div>
-        </section>
-
-        <section id="studentHistoryView" class="view" aria-labelledby="studentHistoryTitle">
-          <div class="section-heading">
-            <div>
-              <h2 id="studentHistoryTitle">Riwayat pengerjaan</h2>
-              <p>Daftar assessment yang sudah kamu selesaikan beserta skor dan ulasannya.</p>
-            </div>
-          </div>
-          
           <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+            <h3 style="padding: 24px 24px 16px;">Riwayat Hasil Evaluasi Siswa</h3>
             <div class="table-container" style="overflow-x: auto;">
               <table class="data-table">
                 <thead>
                   <tr>
+                    <th>Siswa</th>
                     <th>Topik Assessment</th>
                     <th>Tanggal</th>
-                    <th>Skor Akhir</th>
+                    <th>Skor AI</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
-                <tbody id="studentHistoryList">
-                  <tr><td colspan="4" class="empty-state">Belum ada riwayat assessment.</td></tr>
+                <tbody id="submissionList">
+                  <tr>
+                    <td colspan="5" class="empty-state">Belum ada hasil assessment.</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
-        </section>
-
-        <section id="monitorView" class="view" aria-labelledby="monitorTitle">
-          <div class="section-heading">
-            <div>
-              <h2 id="monitorTitle">Monitoring hasil</h2>
-              <p>Pantau skor, kualitas jawaban, dan perkembangan performa siswa.</p>
-            </div>
-            <div style="display: flex; gap: 16px; align-items: center;">
-              <select id="monitorClassFilter" style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;" aria-label="Filter berdasarkan kelas">
-                <option value="">Semua Kelas</option>
-              </select>
-              <button id="downloadClassCsvBtn" class="secondary-button" style="display: none; align-items: center; gap: 8px; min-height: 38px; height: 38px; padding: 0 16px; border-radius: 8px; font-size: 0.9rem;" type="button">
-                <span>📥</span> Download CSV
-              </button>
-              <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
-            </div>
-          </div>
-
-          <div class="monitor-grid">
-            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
-              <div class="analytics-panel" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                <h3 style="align-self: flex-start;">Performa kelas</h3>
-                <div class="score-ring" id="classAverage">0</div>
-                <p>Rata-rata skor dari seluruh assessment yang diselesaikan.</p>
-              </div>
-              <div class="analytics-panel">
-                <h3>Perkembangan siswa</h3>
-                <div id="trendList" class="trend-list empty-state">Belum ada tren skor.</div>
-              </div>
-            </div>
-            <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
-              <h3 style="padding: 24px 24px 16px;">Riwayat Hasil Evaluasi Siswa</h3>
-              <div class="table-container" style="overflow-x: auto;">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Siswa</th>
-                      <th>Topik Assessment</th>
-                      <th>Tanggal</th>
-                      <th>Skor AI</th>
-                      <th>Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody id="submissionList">
-                    <tr><td colspan="5" class="empty-state">Belum ada hasil assessment.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="accountView" class="view" aria-labelledby="accountTitle">
-          <div class="section-heading">
-            <div>
-              <h2 id="accountTitle">Kelola akun</h2>
-              <p>Buat akun guru dan siswa dalam tenant yang sama.</p>
-            </div>
-          </div>
-
-          <div class="account-grid">
-            <div style="display: flex; flex-direction: column; gap: 24px;">
-              <form id="userForm" class="form-panel">
-                <h3>Buat akun tunggal</h3>
-                <label>
-                  Nama
-                  <input id="userName" required placeholder="Contoh: Budi Santoso" />
-                </label>
-                <label>
-                  Email
-                  <input id="userEmail" type="text" inputmode="email" required placeholder="nama@sekolah.sch.id" />
-                </label>
-                <label>
-                  Password
-                  <input id="userPassword" type="password" minlength="8" required placeholder="Minimal 8 karakter" />
-                </label>
-                <label>
-                  Role
-                  <select id="userRole">
-                    <option value="teacher">Guru</option>
-                    <option value="student">Siswa</option>
-                  </select>
-                </label>
-                <button class="primary-button" type="submit">Buat akun</button>
-              </form>
-
-              <form id="csvForm" class="form-panel">
-                <h3>Buat banyak akun (CSV)</h3>
-                <p style="color: var(--muted); font-size: 0.9rem; margin-top: -12px;">Format (tanpa header): <strong>nama, email, role (teacher/student), password</strong></p>
-                <input type="file" id="csvFile" accept=".csv" required style="padding: 8px;" />
-                <button class="secondary-button" type="submit">Upload & Proses CSV</button>
-              </form>
-            </div>
-
-            <div class="preview-panel">
-              <h3>Daftar akun tenant</h3>
-              <div id="userList" class="list-stack empty-state">Belum ada akun tambahan.</div>
-            </div>
-          </div>
-        </section>
-      </main>
-      <div id="resultPanel" class="result-modal hidden"></div>
-    </div>
-
-    <!-- Panel Simulasi Multi-Tenant -->
-    <div id="simulatorWidget" class="simulator-widget hidden">
-      <button id="simulatorToggle" class="simulator-toggle" type="button" aria-expanded="false" aria-controls="simulatorPanel">
-        <span class="icon">🏢</span> Simulasi Tenant
-      </button>
-      <div id="simulatorPanel" class="simulator-panel hidden">
-        <div class="simulator-header">
-          <h3>Simulasi Multi-Tenant</h3>
-          <button id="simulatorClose" class="close-btn" type="button" aria-label="Tutup simulator">&times;</button>
         </div>
-        <div class="simulator-body">
-          <p class="simulator-desc">Beralih instan antar tenant dan role di bawah ini untuk melihat isolasi data.</p>
-          <div id="simulatorTenantList" class="simulator-tenant-list">
-            <div class="empty-state">Loading data tenant...</div>
+      </section>
+
+      <section id="observabilityView" class="view" aria-labelledby="observabilityTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="observabilityTitle">Observabilitas Sistem</h2>
+            <p>Pantau metrik penggunaan AI, performa latency, token, estimasi biaya, dan efisiensi Prefix KV Cache.</p>
           </div>
+          <button class="secondary-button" id="refreshTelemetryBtn" type="button"
+            style="display: flex; align-items: center; gap: 8px;">
+            <span>🔄</span> Refresh Telemetry
+          </button>
+        </div>
+
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          <div class="analytics-panel metric-card"
+            style="display: flex; flex-direction: column; justify-content: space-between;">
+            <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Total API Calls</span>
+            <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0;" id="telemetryTotalCalls">0</strong>
+            <span style="font-size: 0.75rem; color: var(--muted);" id="telemetryErrorRate">Error Rate: 0%</span>
+          </div>
+          <div class="analytics-panel metric-card"
+            style="display: flex; flex-direction: column; justify-content: space-between;">
+            <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Rata-rata Latensi</span>
+            <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0;" id="telemetryLatency">0 ms</strong>
+            <span style="font-size: 0.75rem; color: var(--muted);">Waktu respons AI</span>
+          </div>
+          <div class="analytics-panel metric-card"
+            style="display: flex; flex-direction: column; justify-content: space-between;">
+            <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Total Token</span>
+            <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0;" id="telemetryTokens">0</strong>
+            <span style="font-size: 0.75rem; color: var(--muted);" id="telemetryTokenBreakdown">Prompt: 0 | Comp:
+              0</span>
+          </div>
+          <div class="analytics-panel metric-card"
+            style="display: flex; flex-direction: column; justify-content: space-between;">
+            <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Estimasi Biaya API</span>
+            <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0; color: var(--rose);"
+              id="telemetryCost">$0.00</strong>
+            <span style="font-size: 0.75rem; color: var(--muted);">Total pengeluaran USD</span>
+          </div>
+          <div class="analytics-panel metric-card"
+            style="display: flex; flex-direction: column; justify-content: space-between;">
+            <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Efisiensi KV Cache</span>
+            <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0; color: var(--emerald);"
+              id="telemetryCacheEfficiency">0%</strong>
+            <span style="font-size: 0.75rem; color: var(--emerald); font-weight: 500;" id="telemetryCacheSavings">Saved:
+              0 tokens</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+          <div class="analytics-panel"
+            style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <h3 style="align-self: flex-start; margin-bottom: 12px;">Prefix KV Cache Optimization</h3>
+            <div class="score-ring" id="cacheSavingsPercentRing" style="margin: 12px auto; --score: 0;">0%</div>
+            <p style="font-weight: 600; margin: 8px 0 4px; font-size: 1rem;">Rasio Penghematan Token Input</p>
+            <p style="color: var(--muted); font-size: 0.85rem; max-width: 320px; margin: 0 0 16px;">Sistem menyimpan
+              (caching) prompt statis seperti rubrik & instruksi adaptif untuk menghemat latensi dan biaya.</p>
+
+            <div
+              style="display: flex; width: 100%; justify-content: space-around; border-top: 1px solid var(--line); padding-top: 16px; margin-top: auto;">
+              <div>
+                <span style="font-size: 0.8rem; color: var(--muted);">Token Dihemat</span>
+                <div style="font-size: 1.2rem; font-weight: 700; color: var(--emerald);" id="cacheSavedTokensVal">0
+                </div>
+              </div>
+              <div>
+                <span style="font-size: 0.8rem; color: var(--muted);">Biaya Dihemat</span>
+                <div style="font-size: 1.2rem; font-weight: 700; color: var(--emerald);" id="cacheSavedCostVal">$0.00
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="analytics-panel">
+            <h3 style="margin-bottom: 16px;">Kesehatan & Status Server</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div
+                style="background: var(--bg); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--line);">
+                <span style="font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 4px;">Memory Heap
+                  Used</span>
+                <strong style="font-size: 1.25rem; font-weight: 700;" id="sysMemoryHeap">- MB</strong>
+                <span style="font-size: 0.75rem; color: var(--muted); display: block; margin-top: 2px;"
+                  id="sysMemoryTotal">Allocated: - MB</span>
+              </div>
+              <div
+                style="background: var(--bg); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--line);">
+                <span style="font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 4px;">CPU Time
+                  (Process)</span>
+                <strong style="font-size: 1.25rem; font-weight: 700;" id="sysCpuUsage">- ms</strong>
+                <span style="font-size: 0.75rem; color: var(--muted); display: block; margin-top: 2px;"
+                  id="sysCpuSystem">Kernel: - ms</span>
+              </div>
+              <div
+                style="background: var(--bg); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--line);">
+                <span style="font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 4px;">Server
+                  Uptime</span>
+                <strong style="font-size: 1.15rem; font-weight: 700;" id="sysUptime">-</strong>
+                <span style="font-size: 0.75rem; color: var(--muted); display: block; margin-top: 2px;">Waktu hidup
+                  proses</span>
+              </div>
+              <div
+                style="background: var(--bg); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--line);">
+                <span style="font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 4px;">Runtime
+                  Node.js</span>
+                <strong style="font-size: 1.25rem; font-weight: 700;" id="sysNodeVersion">-</strong>
+                <span style="font-size: 0.75rem; color: var(--muted); display: block; margin-top: 2px;">Versi node
+                  engine</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+          <h3 style="padding: 24px 24px 16px; margin: 0;">Log Aktivitas Panggilan AI</h3>
+          <div class="table-container" style="overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Aksi / Modul</th>
+                  <th>Model AI</th>
+                  <th>Latensi</th>
+                  <th>Tokens (Prompt/Comp)</th>
+                  <th>Status</th>
+                  <th>Waktu Call</th>
+                </tr>
+              </thead>
+              <tbody id="telemetryLogList">
+                <tr>
+                  <td colspan="6" class="empty-state">Belum ada log panggilan AI.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="accountView" class="view" aria-labelledby="accountTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="accountTitle">Kelola akun</h2>
+            <p>Buat akun guru dan siswa dalam tenant yang sama.</p>
+          </div>
+        </div>
+
+        <div class="account-grid">
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <form id="userForm" class="form-panel">
+              <h3>Buat akun tunggal</h3>
+              <label>
+                Nama
+                <input id="userName" required placeholder="Contoh: Budi Santoso" />
+              </label>
+              <label>
+                Email
+                <input id="userEmail" type="text" inputmode="email" required placeholder="nama@sekolah.sch.id" />
+              </label>
+              <label>
+                Password
+                <input id="userPassword" type="password" minlength="8" required placeholder="Minimal 8 karakter" />
+              </label>
+              <label>
+                Role
+                <select id="userRole">
+                  <option value="teacher">Guru</option>
+                  <option value="student">Siswa</option>
+                </select>
+              </label>
+              <button class="primary-button" type="submit">Buat akun</button>
+            </form>
+
+            <form id="csvForm" class="form-panel">
+              <h3>Buat banyak akun (CSV)</h3>
+              <p style="color: var(--muted); font-size: 0.9rem; margin-top: -12px;">Format (tanpa header): <strong>nama,
+                  email, role (teacher/student), password</strong></p>
+              <input type="file" id="csvFile" accept=".csv" required style="padding: 8px;" />
+              <button class="secondary-button" type="submit">Upload & Proses CSV</button>
+            </form>
+          </div>
+
+          <div class="preview-panel">
+            <h3>Daftar akun tenant</h3>
+            <div id="userList" class="list-stack empty-state">Belum ada akun tambahan.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <div id="resultPanel" class="result-modal hidden"></div>
+  </div>
+
+  <!-- Panel Simulasi Multi-Tenant -->
+  <div id="simulatorWidget" class="simulator-widget hidden">
+    <button id="simulatorToggle" class="simulator-toggle" type="button" aria-expanded="false"
+      aria-controls="simulatorPanel">
+      <span class="icon">🏢</span> Simulasi Tenant
+    </button>
+    <div id="simulatorPanel" class="simulator-panel hidden">
+      <div class="simulator-header">
+        <h3>Simulasi Multi-Tenant</h3>
+        <button id="simulatorClose" class="close-btn" type="button" aria-label="Tutup simulator">&times;</button>
+      </div>
+      <div class="simulator-body">
+        <p class="simulator-desc">Beralih instan antar tenant dan role di bawah ini untuk melihat isolasi data.</p>
+        <div id="simulatorTenantList" class="simulator-tenant-list">
+          <div class="empty-state">Loading data tenant...</div>
         </div>
       </div>
     </div>
+  </div>
 
-    <script type="module" src="js/app.js"></script>
-  </body>
+  <script type="module" src="js/app.js"></script>
+</body>
+
 </html>

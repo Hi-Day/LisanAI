@@ -11,6 +11,7 @@ process.env.ENABLE_DEMO_SIMULATION = "false";
 const authApi = require("../api/auth");
 const databaseApi = require("../api/database");
 const assessmentApi = require("../api/assessment");
+const observabilityApi = require("../api/observability");
 const {
   approveMembership,
   createClass,
@@ -152,10 +153,15 @@ test("assessment evaluate endpoint enforces student authorization checks", async
 
 test("teacher can correct submissions in their class but not in other classes", async () => {
   const { tenant, student, teacher, publishedAssessment } = context;
+  const teacherAuth = { tenant, user: teacher };
 
-  // 1. Create a submission by the student for the published assessment (approved class)
+  // Create a specific assessment for the correction test so it doesn't conflict with existing submissions
+  const correctionAssessment = createAssessment("assessment-correction", publishedAssessment.classId);
+  await saveAssessment(teacherAuth, correctionAssessment);
+
+  // 1. Create a submission by the student for the correction assessment
   const submissionId = "sub-to-correct-1";
-  await saveSubmission(tenant.id, student.id, createSubmission(publishedAssessment.id, submissionId));
+  await saveSubmission(tenant.id, student.id, createSubmission(correctionAssessment.id, submissionId));
 
   // Create another teacher and another class/assessment/submission
   const otherTeacher = await createTenantUser(tenant.id, {
@@ -183,13 +189,13 @@ test("teacher can correct submissions in their class but not in other classes", 
   await approveMembership(tenant.id, otherTeacher.id, "member-other");
   await saveSubmission(tenant.id, student.id, createSubmission(otherAssessment.id, otherSubmissionId));
 
-  // 2. Now let's try to update (correct) submissionId as the teacher (who teaches publishedAssessment's class).
+  // 2. Now let's try to update (correct) submissionId as the teacher (who teaches correctionAssessment's class).
   const teacherSession = await createSession(teacher.id);
   const teacherHeaders = { cookie: `${SESSION_COOKIE}=${teacherSession.token}` };
   const teacherAuthContext = { sessionId: teacherSession.sessionId, tenant, user: teacher };
   const teacherCsrfToken = createCsrfToken(teacherAuthContext);
 
-  const correctPayload = createSubmission(publishedAssessment.id, submissionId);
+  const correctPayload = createSubmission(correctionAssessment.id, submissionId);
   correctPayload.finalScore = 95; // change score
 
   const resCorrectionSuccess = await callHandler(databaseApi, {
@@ -214,6 +220,42 @@ test("teacher can correct submissions in their class but not in other classes", 
   assert.equal(resCorrectionForbidden.statusCode, 403);
   assert.match(resCorrectionForbidden.body.error, /Guru hanya boleh mengoreksi kelas miliknya/);
 });
+
+test("observability API endpoints enforce proper role-based authorization", async () => {
+  const { admin, student } = context;
+
+  // 1. Unauthenticated request - should return 401
+  const resUnauth = await callHandler(observabilityApi, {
+    method: "GET",
+    url: "/api/observability",
+  });
+  assert.equal(resUnauth.statusCode, 401);
+
+  // 2. Student request - should return 403
+  const studentSession = await createSession(student.id);
+  const studentHeaders = { cookie: `${SESSION_COOKIE}=${studentSession.token}` };
+  const resStudent = await callHandler(observabilityApi, {
+    method: "GET",
+    url: "/api/observability",
+    headers: studentHeaders,
+  });
+  assert.equal(resStudent.statusCode, 403);
+
+  // 3. Admin request - should return 200 with metrics, system health, and logs
+  const adminSession = await createSession(admin.id);
+  const adminHeaders = { cookie: `${SESSION_COOKIE}=${adminSession.token}` };
+  const resAdmin = await callHandler(observabilityApi, {
+    method: "GET",
+    url: "/api/observability",
+    headers: adminHeaders,
+  });
+  assert.equal(resAdmin.statusCode, 200);
+  assert.ok(resAdmin.body.metrics);
+  assert.ok(resAdmin.body.system);
+  assert.ok(Array.isArray(resAdmin.body.logs));
+});
+
+
 
 
 async function seedTenantScenario() {

@@ -17,7 +17,12 @@ async function generateQuestions(payload) {
         }),
       },
     ],
-    'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah questions harus sesuai jumlah_soal.'
+    'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah questions harus sesuai jumlah_soal.',
+    {
+      tenantId: payload.tenantId,
+      userId: payload.userId,
+      action: "generate-questions"
+    }
   );
 
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
@@ -38,7 +43,12 @@ async function recommendAssessmentConfig(payload) {
         }),
       },
     ],
-    'Format: {"outcomes":"3-5 learning outcome dalam baris terpisah","rubric":"rubrik berbobot total 100% dalam baris terpisah"}'
+    'Format: {"outcomes":"3-5 learning outcome dalam baris terpisah","rubric":"rubrik berbobot total 100% dalam baris terpisah"}',
+    {
+      tenantId: payload.tenantId,
+      userId: payload.userId,
+      action: "recommend-assessment-config"
+    }
   );
 
   return {
@@ -67,7 +77,12 @@ async function evaluateAnswers(payload) {
         }),
       },
     ],
-    'Format: {"finalScore":0-100,"feedback":"...","questionScores":[{"question":"...","answer":"...","score":0-100,"matched":["..."],"strengths":["..."],"gaps":["..."]}]}'
+    'Format: {"finalScore":0-100,"feedback":"...","questionScores":[{"question":"...","answer":"...","score":0-100,"matched":["..."],"strengths":["..."],"gaps":["..."]}]}',
+    {
+      tenantId: payload.tenantId,
+      userId: payload.userId,
+      action: "evaluate"
+    }
   );
 
   if (!Array.isArray(result.questionScores)) throw new Error("Model tidak mengembalikan penilaian per soal");
@@ -94,7 +109,12 @@ async function improveQuestionSet(payload) {
         }),
       },
     ],
-    'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah dan urutan questions harus sama dengan input.'
+    'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah dan urutan questions harus sama dengan input.',
+    {
+      tenantId: payload.config?.tenantId || payload.tenantId,
+      userId: payload.config?.userId || payload.userId,
+      action: "improve-questions"
+    }
   );
 
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");

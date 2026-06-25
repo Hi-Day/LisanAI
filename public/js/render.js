@@ -312,3 +312,79 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
     `;
   }).join('');
 }
+
+export function renderObservability(els, data) {
+  // 1. Metric Cards
+  if (els.telemetryTotalCalls) els.telemetryTotalCalls.textContent = data.metrics.totalCalls;
+  if (els.telemetryErrorRate) els.telemetryErrorRate.textContent = `Error Rate: ${data.metrics.errorRate}%`;
+  if (els.telemetryLatency) els.telemetryLatency.textContent = `${data.metrics.avgLatencyMs} ms`;
+  if (els.telemetryTokens) els.telemetryTokens.textContent = data.metrics.totalTokens.toLocaleString("id-ID");
+  if (els.telemetryTokenBreakdown) {
+    els.telemetryTokenBreakdown.textContent = `Prompt: ${data.metrics.promptTokens.toLocaleString("id-ID")} | Comp: ${data.metrics.completionTokens.toLocaleString("id-ID")}`;
+  }
+  if (els.telemetryCost) els.telemetryCost.textContent = `$${data.metrics.actualCostUSD.toFixed(5)}`;
+  if (els.telemetryCacheEfficiency) els.telemetryCacheEfficiency.textContent = `${data.metrics.cacheEfficiencyPercent}%`;
+  if (els.telemetryCacheSavings) {
+    els.telemetryCacheSavings.textContent = `Saved: ${data.metrics.cacheSavingsTokens.toLocaleString("id-ID")} tokens`;
+  }
+
+  // 2. Cache Ring & ROI
+  if (els.cacheSavingsPercentRing) {
+    els.cacheSavingsPercentRing.textContent = `${data.metrics.cacheEfficiencyPercent}%`;
+    els.cacheSavingsPercentRing.style.setProperty("--score", data.metrics.cacheEfficiencyPercent);
+  }
+  if (els.cacheSavedTokensVal) els.cacheSavedTokensVal.textContent = data.metrics.cacheSavingsTokens.toLocaleString("id-ID");
+  if (els.cacheSavedCostVal) els.cacheSavedCostVal.textContent = `$${data.metrics.savedCostUSD.toFixed(5)}`;
+
+  // 3. Server System Status
+  if (els.sysMemoryHeap) els.sysMemoryHeap.textContent = `${data.system.memoryHeapUsedMB} MB`;
+  if (els.sysMemoryTotal) els.sysMemoryTotal.textContent = `Allocated: ${data.system.memoryHeapTotalMB} MB`;
+  if (els.sysCpuUsage) els.sysCpuUsage.textContent = `${data.system.cpuUserMs} ms`;
+  if (els.sysCpuSystem) els.sysCpuSystem.textContent = `Kernel: ${data.system.cpuSystemMs} ms`;
+  if (els.sysUptime) els.sysUptime.textContent = formatDuration(data.system.uptimeSeconds);
+  if (els.sysNodeVersion) els.sysNodeVersion.textContent = data.system.nodeVersion;
+
+  // 4. API Logs Table
+  if (els.telemetryLogList) {
+    if (!data.logs || !data.logs.length) {
+      els.telemetryLogList.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada log panggilan AI.</td></tr>';
+    } else {
+      els.telemetryLogList.innerHTML = data.logs.map(log => {
+        const statusClass = log.status === "success" ? "success" : "error";
+        const statusLabel = log.status === "success" ? "SUCCESS" : "ERROR";
+        
+        const date = log.created_at 
+          ? new Date(log.created_at).toLocaleString("id-ID", { 
+              day: "numeric", 
+              month: "short", 
+              hour: "2-digit", 
+              minute: "2-digit", 
+              second: "2-digit" 
+            }) 
+          : "-";
+          
+        const savingsText = log.cache_savings_tokens > 0 
+          ? ` <span style="color: var(--emerald); font-weight: 600; font-size: 0.75rem;">(saved ${log.cache_savings_tokens})</span>` 
+          : "";
+
+        return `
+          <tr>
+            <td>
+              <strong>${escapeHtml(log.action)}</strong>
+              ${log.error_message ? `<div style="font-size: 0.75rem; color: var(--rose); margin-top: 4px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.error_message)}">${escapeHtml(log.error_message)}</div>` : ""}
+            </td>
+            <td><span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(log.model)}</span></td>
+            <td>${log.latency_ms} ms</td>
+            <td>
+              ${log.total_tokens}
+              <div style="font-size: 0.75rem; color: var(--muted);">${log.prompt_tokens} prompt / ${log.completion_tokens} comp${savingsText}</div>
+            </td>
+            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+            <td><span style="font-size: 0.85rem; color: var(--muted);">${date}</span></td>
+          </tr>
+        `;
+      }).join("");
+    }
+  }
+}
+

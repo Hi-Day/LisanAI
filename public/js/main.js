@@ -32,7 +32,7 @@ import { createAssessment, createDemoAssessment, createSubmission, readAssessmen
 import { getElements, setButtonLoading } from "./dom.js";
 import { evaluateFallbackAssessment, generateFallbackQuestions, recommendFallbackConfig } from "./fallback-assessment.js";
 import { createRecorder } from "./recorder.js";
-import { renderApp, renderMonitoring, renderStudentHistory, renderQuestion, showResult } from "./render.js";
+import { renderApp, renderMonitoring, renderStudentHistory, renderQuestion, showResult, renderObservability } from "./render.js";
 import { createSession } from "./session.js";
 import { loadState } from "./storage.js";
 import { escapeHtml } from "./utils.js";
@@ -268,6 +268,7 @@ export async function initApp() {
       `;
     } else if (role === "admin") {
       navHtml = `
+        <button class="nav-button" data-view="observabilityView"><span aria-hidden="true">📈</span> Observabilitas</button>
         <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">ID</span> Akun</button>
       `;
     }
@@ -278,7 +279,7 @@ export async function initApp() {
       switchView("studentView");
     } else if (role === "admin") {
       document.body.classList.add("admin-mode");
-      switchView("accountView");
+      switchView("observabilityView");
     } else {
       document.body.classList.add("teacher-mode");
       switchView("teacherView");
@@ -289,7 +290,7 @@ export async function initApp() {
     if (!auth.user) return false;
     const role = auth.user.role;
     if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView";
-    if (role === "admin") return viewId === "accountView" || viewId === "monitorView";
+    if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView";
     if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView";
     return false;
   }
@@ -473,11 +474,28 @@ export async function initApp() {
     }
   }
 
+  async function fetchAndRenderTelemetry() {
+    try {
+      const response = await fetch("/api/observability");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Gagal memuat data telemetry");
+      }
+      const data = await response.json();
+      renderObservability(els, data);
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
   function switchView(viewId) {
     if (!canAccessView(viewId)) return;
     const navBtns = els.mainNav.querySelectorAll(".nav-button");
     navBtns.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
     els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
+    if (viewId === "observabilityView") {
+      fetchAndRenderTelemetry();
+    }
   }
 
 
@@ -738,6 +756,12 @@ export async function initApp() {
     }
     els.userForm.addEventListener("submit", handleCreateUser);
     els.csvForm.addEventListener("submit", handleCsvUpload);
+    if (els.refreshTelemetryBtn) {
+      els.refreshTelemetryBtn.addEventListener("click", () => {
+        fetchAndRenderTelemetry();
+        showToast("Telemetry data diperbarui", "success");
+      });
+    }
     els.recommendOutcomes.addEventListener("click", () => fillRecommendedFields("outcomes"));
     els.recommendRubric.addEventListener("click", () => fillRecommendedFields("rubric"));
 

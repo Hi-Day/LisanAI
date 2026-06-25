@@ -102,6 +102,42 @@ async function seedTenantData(db, config) {
       }
     }
   }
+
+  // 5. Seed Observability AI Logs
+  const logCheck = await db.get("SELECT COUNT(*) as count FROM ai_logs WHERE tenant_id = ?", tenantId);
+  if (logCheck.count === 0) {
+    const logId1 = uid("log");
+    await db.run("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      logId1, tenantId, teacher.id, "recommend_assessment_config", "meta-llama/llama-3.1-8b-instruct", 320, 150, 470, 850, "success", 0, new Date(Date.now() - 3600000 * 24).toISOString()
+    ]);
+
+    const logId2 = uid("log");
+    await db.run("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      logId2, tenantId, teacher.id, "generate_questions_with_ai", "google/gemini-2.5-pro", 850, 620, 1470, 2450, "success", 0, new Date(Date.now() - 3600000 * 20).toISOString()
+    ]);
+
+    const logId3 = uid("log");
+    await db.run("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      logId3, tenantId, teacher.id, "improve_questions_with_ai", "google/gemini-2.5-pro", 1470, 580, 2050, 1850, "success", 955, new Date(Date.now() - 3600000 * 18).toISOString()
+    ]);
+
+    const logId4 = uid("log");
+    await db.run("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      logId4, tenantId, student.id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 2100, 450, 2550, 3100, "success", 1365, new Date(Date.now() - 3600000 * 12).toISOString()
+    ]);
+
+    const logId5 = uid("log");
+    await db.run("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      logId5, tenantId, student.id, "evaluate_assessment_with_ai", "meta-llama/llama-3.1-70b-instruct", 2100, 480, 2580, 2900, "success", 1365, new Date(Date.now() - 3600000 * 8).toISOString()
+    ]);
+
+    const logId6 = uid("log");
+    await db.run("INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, cache_savings_tokens, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      logId6, tenantId, teacher.id, "generate_questions_with_ai", "google/gemini-2.5-pro", 0, 0, 0, 520, "error", 0, "OpenRouter API error: Rate limit reached", new Date(Date.now() - 3600000 * 6).toISOString()
+    ]);
+
+    console.log(`[${tenantName}] Seeded Observability Logs`);
+  }
 }
 
 async function seedTestAccounts() {

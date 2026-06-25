@@ -1089,3 +1089,43 @@ body.admin-mode .student-only { display: none !important; }
   background: var(--emerald);
   cursor: default;
 }
+
+/* Observability Dashboard Premium Styles */
+#observabilityView .metric-card {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  border: 1px solid var(--line);
+}
+#observabilityView .metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.08);
+  border-color: var(--accent);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+.status-badge.success {
+  background-color: #ecfdf5;
+  color: var(--emerald);
+  border: 1px solid #a7f3d0;
+}
+.status-badge.error {
+  background-color: #fff1f2;
+  color: var(--rose);
+  border: 1px solid #fecdd3;
+}
+
+#observabilityView .score-ring {
+  width: 130px;
+  height: 130px;
+  font-size: 2.2rem;
+  margin: 10px auto;
+}
+

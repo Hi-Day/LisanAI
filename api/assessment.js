@@ -35,6 +35,12 @@ module.exports = async (req, res) => {
     const body = await readJson(req);
     const { action, payload } = body;
 
+    // Attach authentication context for telemetry logging
+    if (payload) {
+      payload.tenantId = auth.tenant.id;
+      payload.userId = auth.user.id;
+    }
+
     if (action === "evaluate") {
       if (auth.user.role === "student") {
         const { assertCanSubmitAssessment } = require("../server/database");
