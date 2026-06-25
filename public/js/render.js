@@ -314,42 +314,46 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
 }
 
 export function renderObservability(els, data) {
+  const metrics = data?.metrics || {};
+  const system = data?.system || {};
+  const logs = Array.isArray(data?.logs) ? data.logs : [];
+
   // 1. Metric Cards
-  if (els.telemetryTotalCalls) els.telemetryTotalCalls.textContent = data.metrics.totalCalls;
-  if (els.telemetryErrorRate) els.telemetryErrorRate.textContent = `Error Rate: ${data.metrics.errorRate}%`;
-  if (els.telemetryLatency) els.telemetryLatency.textContent = `${data.metrics.avgLatencyMs} ms`;
-  if (els.telemetryTokens) els.telemetryTokens.textContent = data.metrics.totalTokens.toLocaleString("id-ID");
+  if (els.telemetryTotalCalls) els.telemetryTotalCalls.textContent = metrics.totalCalls ?? 0;
+  if (els.telemetryErrorRate) els.telemetryErrorRate.textContent = `Error Rate: ${metrics.errorRate ?? 0}%`;
+  if (els.telemetryLatency) els.telemetryLatency.textContent = `${metrics.avgLatencyMs ?? 0} ms`;
+  if (els.telemetryTokens) els.telemetryTokens.textContent = (metrics.totalTokens ?? 0).toLocaleString("id-ID");
   if (els.telemetryTokenBreakdown) {
-    els.telemetryTokenBreakdown.textContent = `Prompt: ${data.metrics.promptTokens.toLocaleString("id-ID")} | Comp: ${data.metrics.completionTokens.toLocaleString("id-ID")}`;
+    els.telemetryTokenBreakdown.textContent = `Prompt: ${(metrics.promptTokens ?? 0).toLocaleString("id-ID")} | Comp: ${(metrics.completionTokens ?? 0).toLocaleString("id-ID")}`;
   }
-  if (els.telemetryCost) els.telemetryCost.textContent = `$${data.metrics.actualCostUSD.toFixed(5)}`;
-  if (els.telemetryCacheEfficiency) els.telemetryCacheEfficiency.textContent = `${data.metrics.cacheEfficiencyPercent}%`;
+  if (els.telemetryCost) els.telemetryCost.textContent = `$${(metrics.actualCostUSD ?? 0).toFixed(5)}`;
+  if (els.telemetryCacheEfficiency) els.telemetryCacheEfficiency.textContent = `${metrics.cacheEfficiencyPercent ?? 0}%`;
   if (els.telemetryCacheSavings) {
-    els.telemetryCacheSavings.textContent = `Saved: ${data.metrics.cacheSavingsTokens.toLocaleString("id-ID")} tokens`;
+    els.telemetryCacheSavings.textContent = `Saved: ${(metrics.cacheSavingsTokens ?? 0).toLocaleString("id-ID")} tokens`;
   }
 
   // 2. Cache Ring & ROI
   if (els.cacheSavingsPercentRing) {
-    els.cacheSavingsPercentRing.textContent = `${data.metrics.cacheEfficiencyPercent}%`;
-    els.cacheSavingsPercentRing.style.setProperty("--score", data.metrics.cacheEfficiencyPercent);
+    els.cacheSavingsPercentRing.textContent = `${metrics.cacheEfficiencyPercent ?? 0}%`;
+    els.cacheSavingsPercentRing.style.setProperty("--score", metrics.cacheEfficiencyPercent ?? 0);
   }
-  if (els.cacheSavedTokensVal) els.cacheSavedTokensVal.textContent = data.metrics.cacheSavingsTokens.toLocaleString("id-ID");
-  if (els.cacheSavedCostVal) els.cacheSavedCostVal.textContent = `$${data.metrics.savedCostUSD.toFixed(5)}`;
+  if (els.cacheSavedTokensVal) els.cacheSavedTokensVal.textContent = (metrics.cacheSavingsTokens ?? 0).toLocaleString("id-ID");
+  if (els.cacheSavedCostVal) els.cacheSavedCostVal.textContent = `$${(metrics.savedCostUSD ?? 0).toFixed(5)}`;
 
   // 3. Server System Status
-  if (els.sysMemoryHeap) els.sysMemoryHeap.textContent = `${data.system.memoryHeapUsedMB} MB`;
-  if (els.sysMemoryTotal) els.sysMemoryTotal.textContent = `Allocated: ${data.system.memoryHeapTotalMB} MB`;
-  if (els.sysCpuUsage) els.sysCpuUsage.textContent = `${data.system.cpuUserMs} ms`;
-  if (els.sysCpuSystem) els.sysCpuSystem.textContent = `Kernel: ${data.system.cpuSystemMs} ms`;
-  if (els.sysUptime) els.sysUptime.textContent = formatDuration(data.system.uptimeSeconds);
-  if (els.sysNodeVersion) els.sysNodeVersion.textContent = data.system.nodeVersion;
+  if (els.sysMemoryHeap) els.sysMemoryHeap.textContent = `${system.memoryHeapUsedMB ?? 0} MB`;
+  if (els.sysMemoryTotal) els.sysMemoryTotal.textContent = `Allocated: ${system.memoryHeapTotalMB ?? 0} MB`;
+  if (els.sysCpuUsage) els.sysCpuUsage.textContent = `${system.cpuUserMs ?? 0} ms`;
+  if (els.sysCpuSystem) els.sysCpuSystem.textContent = `Kernel: ${system.cpuSystemMs ?? 0} ms`;
+  if (els.sysUptime) els.sysUptime.textContent = formatDuration(system.uptimeSeconds ?? 0);
+  if (els.sysNodeVersion) els.sysNodeVersion.textContent = system.nodeVersion || "-";
 
   // 4. API Logs Table
   if (els.telemetryLogList) {
-    if (!data.logs || !data.logs.length) {
-      els.telemetryLogList.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada log panggilan AI.</td></tr>';
+    if (!logs.length) {
+      els.telemetryLogList.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada log panggilan AI. Data akan muncul setelah AI dipakai pertama kali.</td></tr>';
     } else {
-      els.telemetryLogList.innerHTML = data.logs.map(log => {
+      els.telemetryLogList.innerHTML = logs.map(log => {
         const statusClass = log.status === "success" ? "success" : "error";
         const statusLabel = log.status === "success" ? "SUCCESS" : "ERROR";
         
