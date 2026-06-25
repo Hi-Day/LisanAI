@@ -30,6 +30,7 @@ const {
   createCsrfToken,
 } = require("../server/auth-service");
 const { resetRateLimits } = require("../server/rate-limit");
+const { ensureLegacyDemoAccounts } = require("../scripts/seed-accounts");
 
 let context;
 
@@ -49,6 +50,22 @@ test("database helpers accept array parameters passed as a single array", async 
   const row = await db.get("SELECT ? AS first, ? AS second, ? AS third", ["alpha", "beta", "gamma"]);
 
   assert.deepEqual(row, { first: "alpha", second: "beta", third: "gamma" });
+});
+
+test("legacy demo accounts are created for compatibility with Vercel seed runs", async () => {
+  await ensureLegacyDemoAccounts("password123");
+
+  const db = getDb();
+  const admin = await db.get("SELECT email, role FROM users WHERE email = ?", "admin@demo.com");
+  const teacher = await db.get("SELECT email, role FROM users WHERE email = ?", "guru@demo.com");
+  const student = await db.get("SELECT email, role FROM users WHERE email = ?", "budi@demo.com");
+
+  assert.ok(admin);
+  assert.equal(admin.role, "admin");
+  assert.ok(teacher);
+  assert.equal(teacher.role, "teacher");
+  assert.ok(student);
+  assert.equal(student.role, "student");
 });
 
 test("demo simulation endpoint is disabled by default", async () => {

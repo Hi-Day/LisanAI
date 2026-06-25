@@ -4,6 +4,30 @@ const crypto = require("node:crypto");
 const { getDb, initDatabase, createClass, requestJoinClass, approveMembership, saveAssessment, saveSubmission } = require("../server/database");
 const { createTenantUser, registerTenantUser } = require("../server/auth-service");
 
+async function ensureLegacyDemoAccounts(password = "password123") {
+  const database = getDb();
+  const legacyAccounts = [
+    { name: "Admin Demo", email: "admin@demo.com", role: "admin" },
+    { name: "Guru Demo", email: "guru@demo.com", role: "teacher" },
+    { name: "Budi Demo", email: "budi@demo.com", role: "student" },
+  ];
+
+  const tenant = await database.get("SELECT id FROM tenants LIMIT 1");
+  if (!tenant) {
+    const tenantId = uid("tenant");
+    await database.run("INSERT INTO tenants (id, name, plan, created_at) VALUES (?, ?, ?, ?)", tenantId, "Sekolah Demo", "starter", new Date().toISOString());
+  }
+
+  const existingTenant = await database.get("SELECT id FROM tenants LIMIT 1");
+  const tenantId = existingTenant.id;
+
+  for (const account of legacyAccounts) {
+    const existing = await database.get("SELECT id FROM users WHERE email = ?", account.email);
+    if (existing) continue;
+    await createTenantUser(tenantId, { name: account.name, email: account.email, password, role: account.role });
+  }
+}
+
 function uid(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -291,7 +315,14 @@ async function seedTestAccounts() {
     ]
   });
 
+  await ensureLegacyDemoAccounts(testPassword);
   console.log("Done seeding multi-tenant demo data!");
 }
 
-seedTestAccounts();
+if (require.main === module) {
+  seedTestAccounts();
+}
+
+module.exports = {
+  ensureLegacyDemoAccounts,
+};
