@@ -8,6 +8,13 @@ const DATA_DIR = path.join(ROOT, "data");
 let db;
 let libsqlClient;
 
+function normalizeParams(params) {
+  if (params.length === 1 && Array.isArray(params[0])) {
+    return params[0];
+  }
+  return params;
+}
+
 async function initDatabase() {
   if (process.env.TURSO_DATABASE_URL.startsWith("file:")) {
     if (process.env.VERCEL) {
@@ -24,16 +31,16 @@ async function initDatabase() {
 
   db = {
     async all(sql, ...params) {
-      const rs = await libsqlClient.execute({ sql, args: params });
+      const rs = await libsqlClient.execute({ sql, args: normalizeParams(params) });
       return rs.rows;
     },
     async get(sql, ...params) {
-      const rs = await libsqlClient.execute({ sql, args: params });
+      const rs = await libsqlClient.execute({ sql, args: normalizeParams(params) });
       return rs.rows[0];
     },
     async run(sql, ...params) {
-      const rs = await libsqlClient.execute({ sql, args: params });
-      return { changes: rs.rowsAffected, lastID: rs.lastInsertRowid };
+      const rs = await libsqlClient.execute({ sql, args: normalizeParams(params) });
+      return { changes: rs.rowsAffected, lastInsertRowid: rs.lastInsertRowid };
     },
     async exec(sql) {
       await libsqlClient.executeMultiple(sql);

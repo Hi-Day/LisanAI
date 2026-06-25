@@ -15,6 +15,7 @@ const observabilityApi = require("../api/observability");
 const {
   approveMembership,
   createClass,
+  getDb,
   initDatabase,
   requestJoinClass,
   saveAssessment,
@@ -41,6 +42,13 @@ test.before(async () => {
 
 test.beforeEach(() => {
   resetRateLimits();
+});
+
+test("database helpers accept array parameters passed as a single array", async () => {
+  const db = getDb();
+  const row = await db.get("SELECT ? AS first, ? AS second, ? AS third", ["alpha", "beta", "gamma"]);
+
+  assert.deepEqual(row, { first: "alpha", second: "beta", third: "gamma" });
 });
 
 test("demo simulation endpoint is disabled by default", async () => {
