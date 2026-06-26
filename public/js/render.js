@@ -43,6 +43,7 @@ export function renderStudentArea(els, state, session) {
         let buttonText = 'Mulai Kerjakan';
         let buttonClass = 'primary-button start-assessment-btn';
         
+        const isLocked = hasSubmitted && !assessment.allowRetakes;
         if (hasSubmitted) {
           const latestSubmission = studentSubmissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
           scoreHtml = `<p style="margin: 8px 0 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai sebelumnya: ${latestSubmission.finalScore}</p>`;
@@ -61,7 +62,7 @@ export function renderStudentArea(els, state, session) {
             <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
             <p style="margin: 0; font-size: 0.9rem; color: var(--muted);">${assessment.questions.length} Soal</p>
             ${scoreHtml}
-            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${hasSubmitted && !assessment.allowRetakes ? "disabled" : ""}>${buttonText}</button>
+            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
           </div>
         `;
       }).join("");

@@ -78,12 +78,25 @@ export async function initApp() {
     els.registerForm.reset();
   }
 
+  function isAssessmentLocked(assessment) {
+    if (!assessment) return false;
+    const studentSubmissions = state.submissions.filter((submission) => submission.assessmentId === assessment.id);
+    return studentSubmissions.length > 0 && !assessment.allowRetakes;
+  }
+
   function renderCurrentState() {
     if (auth.user?.role !== "student") {
       session.ensureAssessmentSelected();
     } else {
       if (session.currentAssessmentId && !state.assessments.some((a) => a.id === session.currentAssessmentId)) {
         session.currentAssessmentId = null;
+      }
+
+      const currentAssessment = session.getCurrentAssessment();
+      if (currentAssessment && isAssessmentLocked(currentAssessment)) {
+        session.currentAssessmentId = null;
+        session.currentAnswers = [];
+        session.currentQuestionIndex = 0;
       }
     }
     renderApp(els, state, session);
@@ -985,6 +998,12 @@ export async function initApp() {
       els.studentAssessmentGrid.addEventListener("click", async (e) => {
         const btn = e.target.closest(".start-assessment-btn") || e.target.closest(".assessment-card");
         if (btn) {
+          const assessment = state.assessments.find((item) => item.id === btn.dataset.id);
+          if (assessment && isAssessmentLocked(assessment)) {
+            showToast("Assessment ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
+            return;
+          }
+
           recorder.stop();
           session.selectAssessment(btn.dataset.id);
           els.resultPanel.classList.add("hidden");
