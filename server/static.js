@@ -25,8 +25,17 @@ function serveStaticFile(res, root, pathname) {
 
 function resolveStaticPath(root, pathname) {
   const safePath = pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
-  const requested = path.normalize(path.join(root, safePath));
+  let requested = path.normalize(path.join(root, safePath));
   if (!requested.startsWith(root)) return null;
+
+  // Clean URL support: if file doesn't exist and has no extension, try appending .html
+  if (!fs.existsSync(requested) && !path.extname(requested)) {
+    const htmlPath = requested + ".html";
+    if (fs.existsSync(htmlPath)) {
+      requested = htmlPath;
+    }
+  }
+
   if (!fs.existsSync(requested) || fs.statSync(requested).isDirectory()) return null;
   return requested;
 }

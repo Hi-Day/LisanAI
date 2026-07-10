@@ -190,6 +190,45 @@ test("assessment evaluate endpoint enforces student authorization checks", async
   assert.equal(resEvaluate.body.error, "Siswa belum disetujui di kelas assessment ini");
 });
 
+test("teacher can bulk create students and add them to their class", async () => {
+  const { tenant, teacher } = context;
+  const teacherSession = await createSession(teacher.id);
+  const headers = { cookie: `${SESSION_COOKIE}=${teacherSession.token}` };
+  const authContext = { sessionId: teacherSession.sessionId, tenant, user: teacher };
+  const csrfToken = createCsrfToken(authContext);
+
+  const response = await callHandler(databaseApi, {
+    method: "POST",
+    url: "/api/database",
+    body: {
+      action: "create-students-batch",
+      payload: {
+        classId: "class-approved",
+        users: [
+          { name: "CSV Student 1", email: "csv.student1@example.com", password: "password123" },
+          { name: "CSV Student 2", email: "csv.student2@example.com", password: "password123" },
+        ],
+      },
+    },
+    headers: { ...headers, "x-csrf-token": csrfToken },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.added.length, 2);
+  assert.ok(Array.isArray(response.body.errors));
+  assert.equal(response.body.errors.length, 0);
+
+  const db = getDb();
+  const student1 = await db.get("SELECT id, email FROM users WHERE email = ?", "csv.student1@example.com");
+  assert.ok(student1);
+  const membership = await db.get(
+    "SELECT id FROM class_memberships WHERE student_id = ? AND class_id = ?",
+    student1.id,
+    "class-approved"
+  );
+  assert.ok(membership);
+});
+
 test("teacher can correct submissions in their class but not in other classes", async () => {
   const { tenant, student, teacher, publishedAssessment } = context;
   const teacherAuth = { tenant, user: teacher };

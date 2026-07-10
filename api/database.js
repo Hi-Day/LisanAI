@@ -6,6 +6,7 @@ const {
   deleteClass,
   deleteMembership,
   getState,
+  getDb,
   requestJoinClass,
   saveAssessment,
   saveSubmission,
