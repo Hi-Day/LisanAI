@@ -29,6 +29,8 @@ export function getElements() {
     userPassword: document.querySelector("#userPassword"),
     userRole: document.querySelector("#userRole"),
     userList: document.querySelector("#userList"),
+    selectAllUsers: document.querySelector("#selectAllUsers"),
+    deleteSelectedUsers: document.querySelector("#deleteSelectedUsers"),
     form: document.querySelector("#assessmentForm"),
     assessmentList: document.querySelector("#assessmentList"),
     assessmentCount: document.querySelector("#assessmentCount"),

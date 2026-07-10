@@ -148,9 +148,12 @@ export async function initApp() {
     els.userList.className = "list-stack";
     els.userList.innerHTML = extraUsers.map((user) => `
       <article class="submission-item" data-id="${user.id}">
-        <div style="flex: 1; min-width: 0;">
-          <strong>${escapeHtml(user.name)}</strong>
-          <p>${escapeHtml(user.email)}</p>
+        <div style="flex: 1; min-width: 0; display:flex; gap:12px; align-items:center;">
+          <input type="checkbox" class="select-user" data-id="${user.id}" aria-label="Pilih user" />
+          <div style="flex:1; min-width:0;">
+            <strong>${escapeHtml(user.name)}</strong>
+            <p>${escapeHtml(user.email)}</p>
+          </div>
           <div class="item-actions">
             <button type="button" class="action-button edit-user">Ubah Role</button>
             <button type="button" class="action-button danger-button delete-user">Hapus</button>
@@ -160,6 +163,15 @@ export async function initApp() {
       </article>
     `).join("");
   }
+
+    // Wire up select-all checkbox state
+    if (els.selectAllUsers) {
+      els.selectAllUsers.checked = false;
+      els.selectAllUsers.addEventListener('change', () => {
+        const checked = els.selectAllUsers.checked;
+        [...els.userList.querySelectorAll('.select-user')].forEach(cb => cb.checked = checked);
+      });
+    }
 
   function renderClasses() {
     const isStudent = auth.user?.role === "student";
@@ -677,13 +689,8 @@ export async function initApp() {
         throw new Error("File CSV kosong atau format tidak valid");
       }
 
-      let response;
-      if (typeof createUsersBatch === "function") {
-        response = await createUsersBatch(payload);
-      } else {
-        const api = await import("./api.js");
-        response = await api.createUsersBatch(payload);
-      }
+      const api = await import("./api.js");
+      const response = await api.createUsersBatch(payload);
       
       if (response.success && response.success.length > 0) {
         users.unshift(...response.success);
@@ -938,6 +945,46 @@ export async function initApp() {
         renderUsers();
       }
     });
+
+    // Batch delete selected users
+    if (els.deleteSelectedUsers) {
+      els.deleteSelectedUsers.addEventListener('click', async () => {
+        const selected = [...els.userList.querySelectorAll('.select-user:checked')].map(cb => cb.dataset.id);
+        if (!selected.length) {
+          showToast('Pilih akun terlebih dahulu', 'error');
+          return;
+        }
+        if (!confirm(`Hapus ${selected.length} akun terpilih? Tindakan ini tidak bisa dibatalkan.`)) return;
+
+        const api = await import('./api.js');
+        els.deleteSelectedUsers.disabled = true;
+        try {
+          const results = { success: [], errors: [] };
+          for (const id of selected) {
+            try {
+              await api.deleteUser(id);
+              results.success.push(id);
+            } catch (err) {
+              results.errors.push({ id, message: err.message || String(err) });
+            }
+          }
+
+          if (results.success.length) {
+            users = await loadUsers();
+            renderUsers();
+            refreshSimulatorIfEnabled();
+          }
+
+          if (results.errors.length) {
+            showToast(`Selesai. Berhasil: ${results.success.length}. Gagal: ${results.errors.length}`, 'error');
+          } else {
+            showToast(`Berhasil menghapus ${results.success.length} akun.`, 'success');
+          }
+        } finally {
+          els.deleteSelectedUsers.disabled = false;
+        }
+      });
+    }
 
     els.assessmentList.addEventListener("click", async (event) => {
       const article = event.target.closest("article");

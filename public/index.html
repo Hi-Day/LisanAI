@@ -621,6 +621,13 @@
 
           <div class="preview-panel">
             <h3>Daftar akun tenant</h3>
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+              <label style="display:flex; align-items:center; gap:8px; margin:0;">
+                <input type="checkbox" id="selectAllUsers" />
+                <span style="font-size:0.9rem; color:var(--muted);">Pilih semua</span>
+              </label>
+              <button id="deleteSelectedUsers" class="secondary-button danger-button" type="button">Hapus terpilih</button>
+            </div>
             <div id="userList" class="list-stack empty-state">Belum ada akun tambahan.</div>
           </div>
         </div>
