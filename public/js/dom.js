@@ -85,6 +85,7 @@ export function getElements() {
     bulkAddClear: document.querySelector("#bulkAddClear"),
     bulkAddCsvFile: document.querySelector("#bulkAddCsvFile"),
     bulkAddCsvUpload: document.querySelector("#bulkAddCsvUpload"),
+    bulkAddCsvTemplate: document.querySelector("#bulkAddCsvTemplate"),
     joinClassForm: document.querySelector("#joinClassForm"),
     joinCode: document.querySelector("#joinCode"),
     pendingJoinList: document.querySelector("#pendingJoinList"),

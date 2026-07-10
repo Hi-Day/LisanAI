@@ -64,11 +64,13 @@ export async function initApp() {
   function showAuth() {
     els.authView.classList.remove("hidden");
     els.appShell.classList.add("hidden");
+    closeRegisterModal();
   }
 
   function showApp() {
     els.authView.classList.add("hidden");
     els.appShell.classList.remove("hidden");
+    closeRegisterModal();
     els.accountName.textContent = auth.user.name;
     els.tenantName.textContent = auth.tenant.name;
     els.accountRole.textContent = roleLabel(auth.user.role);
@@ -776,7 +778,8 @@ export async function initApp() {
         });
         await bootstrapAuthenticatedApp(nextAuth);
       } catch (error) {
-        showToast(error.message);
+        console.error("Login error:", error);
+        showToast(error.message || "Login gagal");
       } finally {
         setButtonLoading(event.submitter, false, "Login...", "Login");
       }
@@ -1014,6 +1017,67 @@ export async function initApp() {
           els.bulkAddClear.addEventListener('click', () => { if (els.bulkAddEmails) els.bulkAddEmails.value = ''; });
         }
       }
+
+      // Teacher CSV upload handler (placed near bulk-add controls)
+      if (els.bulkAddCsvUpload) {
+        els.bulkAddCsvUpload.addEventListener('click', async () => {
+          const file = els.bulkAddCsvFile.files[0];
+          if (!file) return showToast('Pilih file CSV terlebih dahulu', 'error');
+          setButtonLoading(els.bulkAddCsvUpload, true, 'Mengunggah...', 'Upload CSV');
+          try {
+            const text = await file.text();
+            const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+            const parsed = lines.map((line, idx) => {
+              const parts = line.split(',').map(item => item.trim());
+              return { name: parts[0] || '', email: parts[1] || '', password: parts[2] || '', row: idx + 1 };
+            });
+
+            // Client-side validation
+            const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const valid = [];
+            const invalid = [];
+            for (const p of parsed) {
+              const errs = [];
+              if (!p.name) errs.push('Nama kosong');
+              if (!emailRe.test(p.email)) errs.push('Email tidak valid');
+              if (!p.password || p.password.length < 8) errs.push('Password minimal 8 karakter');
+              if (errs.length) invalid.push({ row: p.row, email: p.email, errors: errs });
+              else valid.push(p);
+            }
+
+            if (invalid.length) {
+              const sample = invalid.slice(0, 5).map(i => `Baris ${i.row}: ${i.email} (${i.errors.join('; ')})`).join('\n');
+              const proceed = confirm(`Ditemukan ${invalid.length} baris bermasalah. Contoh:\n${sample}\n\nLanjutkan dan lewati baris bermasalah?`);
+              if (!proceed) {
+                setButtonLoading(els.bulkAddCsvUpload, false, 'Mengunggah...', 'Upload CSV');
+                return;
+              }
+            }
+
+            const payload = valid.map(({ name, email, password }) => ({ name, email, password }));
+            const classId = els.bulkAddClassSelect?.value;
+            if (!classId) return showToast('Pilih kelas terlebih dahulu', 'error');
+            const api = await import('./api.js');
+            const resp = await api.createStudentsBatch({ classId, users: payload });
+            const added = resp.added ? resp.added.length : 0;
+            const errors = resp.errors ? resp.errors.length : 0;
+            if (added) {
+              showToast(`Berhasil menambahkan ${added} siswa.`, 'success');
+              const nextState = await loadState();
+              state.classes = nextState.classes;
+              state.memberships = nextState.memberships;
+              renderCurrentState();
+            }
+            if (errors) showToast(`Selesai. Gagal: ${errors}`, 'error');
+            els.bulkAddCsvFile.value = null;
+          } catch (err) {
+            showToast(err.message || 'Gagal mengunggah CSV', 'error');
+          } finally {
+            setButtonLoading(els.bulkAddCsvUpload, false, 'Mengunggah...', 'Upload CSV');
+          }
+        });
+      }
+
     if (els.deleteSelectedUsers) {
       els.deleteSelectedUsers.addEventListener('click', async () => {
         const selected = [...els.userList.querySelectorAll('.select-user:checked')].map(cb => cb.dataset.id);
@@ -1178,41 +1242,14 @@ export async function initApp() {
     }
 
     if (els.backToDashboard) {
-      els.bulkAddCsvUpload.addEventListener('click', async () => {
-        const file = els.bulkAddCsvFile.files[0];
-        if (!file) return showToast('Pilih file CSV terlebih dahulu', 'error');
-        setButtonLoading(els.bulkAddCsvUpload, true, 'Mengunggah...', 'Upload CSV');
-        try {
-          const text = await file.text();
-          const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-          const payload = lines.map((line, idx) => {
-            const parts = line.split(',').map(item => item.trim());
-            const name = parts[0] || '';
-            const email = parts[1] || '';
-            const password = parts[2] || '';
-            return { name, email, password };
-          });
-          const classId = els.bulkAddClassSelect?.value;
-          if (!classId) return showToast('Pilih kelas terlebih dahulu', 'error');
-          const api = await import('./api.js');
-          const resp = await api.createStudentsBatch({ classId, users: payload });
-          const added = resp.added ? resp.added.length : 0;
-          const errors = resp.errors ? resp.errors.length : 0;
-          if (added) {
-            showToast(`Berhasil menambahkan ${added} siswa.`, 'success');
-            const nextState = await loadState();
-            state.classes = nextState.classes;
-            state.memberships = nextState.memberships;
-            renderCurrentState();
-          }
-          if (errors) showToast(`Selesai. Gagal: ${errors}`, 'error');
-          els.bulkAddCsvFile.value = null;
-        } catch (err) {
-          showToast(err.message || 'Gagal mengunggah CSV', 'error');
-        } finally {
-          setButtonLoading(els.bulkAddCsvUpload, false, 'Mengunggah...', 'Upload CSV');
-        }
+      els.backToDashboard.addEventListener("click", () => {
+        recorder.stop();
+        stopQuestionTimer();
+        session.currentAssessmentId = null;
+        renderCurrentState(); // Will hide workspace, show dashboard
       });
+    }
+
     els.saveAnswer.addEventListener("click", async () => {
       recorder.stop();
       await saveCurrentAnswer();

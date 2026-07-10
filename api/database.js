@@ -251,7 +251,10 @@ module.exports = async (req, res) => {
             const name = String(u.name || '').trim();
             const email = String(u.email || '').trim().toLowerCase();
             const password = String(u.password || '');
-            if (!name || !email || password.length < 8) throw new Error('Data user tidak valid');
+            const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!name) throw new Error('Nama kosong');
+            if (!emailRe.test(email)) throw new Error('Email tidak valid');
+            if (password.length < 8) throw new Error('Password minimal 8 karakter');
 
             const user = await createTenantUser(auth.tenant.id, { name, email, password, role: 'student' });
 
