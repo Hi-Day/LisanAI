@@ -799,6 +799,18 @@ textarea[readonly] {
 .danger-button { color: var(--rose); border-color: #fecdd3; background: #fff1f2; }
 .danger-button:hover { background: #ffe4e6; border-color: #fda4af; }
 
+/* Disabled button state */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondary-button:disabled {
+  background: var(--paper);
+  border-color: #e2e8f0;
+  color: var(--muted);
+}
+
 .item-actions { display: flex; gap: 8px; margin-top: 14px; }
 
 /* Assessment Status Badges */

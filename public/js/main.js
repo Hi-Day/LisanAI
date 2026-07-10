@@ -47,6 +47,11 @@ export async function initApp() {
   let pendingQuestions = [];
   let session = createSession(state);
   const recorder = createRecorder(els);
+  
+  // Pagination state for members
+  let memberSearchQuery = "";
+  let memberCurrentPage = 1;
+  const MEMBERS_PER_PAGE = 10;
 
   async function bootstrapAuthenticatedApp(nextAuth = auth) {
     auth = nextAuth;
@@ -269,22 +274,68 @@ export async function initApp() {
 
     if (els.approvedMemberList) {
       const approved = state.memberships.filter((item) => item.status === "approved");
-      if (!approved.length) {
+      
+      // Filter based on search query
+      const filtered = memberSearchQuery.trim() === "" 
+        ? approved 
+        : approved.filter((item) => {
+            const searchLower = memberSearchQuery.toLowerCase();
+            return (
+              item.student_name.toLowerCase().includes(searchLower) ||
+              item.student_email.toLowerCase().includes(searchLower)
+            );
+          });
+      
+      // Update member count
+      if (els.memberCountText) {
+        els.memberCountText.textContent = `${filtered.length} anggota`;
+      }
+      
+      if (!filtered.length) {
         els.approvedMemberList.className = "list-stack empty-state";
-        els.approvedMemberList.textContent = "Belum ada anggota.";
+        els.approvedMemberList.textContent = memberSearchQuery.trim() === "" 
+          ? "Belum ada anggota." 
+          : "Tidak ada hasil pencarian.";
+        if (els.memberPaginationContainer) {
+          els.memberPaginationContainer.style.display = "none";
+        }
       } else {
+        // Calculate pagination
+        const totalPages = Math.ceil(filtered.length / MEMBERS_PER_PAGE);
+        if (memberCurrentPage > totalPages) {
+          memberCurrentPage = Math.max(1, totalPages);
+        }
+        
+        const startIdx = (memberCurrentPage - 1) * MEMBERS_PER_PAGE;
+        const endIdx = startIdx + MEMBERS_PER_PAGE;
+        const pageItems = filtered.slice(startIdx, endIdx);
+        
+        // Render page items
         els.approvedMemberList.className = "list-stack";
-        els.approvedMemberList.innerHTML = approved.map((item) => `
+        els.approvedMemberList.innerHTML = pageItems.map((item) => `
           <article class="submission-item">
             <div>
               <strong>${escapeHtml(item.student_name)}</strong>
-              <p>${escapeHtml(item.student_email)} - ${escapeHtml(item.class_name)}</p>
+              <p>${escapeHtml(item.student_email)}</p>
+              <p style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">${escapeHtml(item.class_name)}</p>
               <div class="item-actions">
                 <button class="action-button danger-button remove-member" data-id="${escapeHtml(item.id)}" type="button">Keluarkan</button>
               </div>
             </div>
           </article>
         `).join("");
+        
+        // Update pagination controls
+        if (els.memberPaginationContainer) {
+          if (totalPages <= 1) {
+            els.memberPaginationContainer.style.display = "none";
+          } else {
+            els.memberPaginationContainer.style.display = "flex";
+            els.memberPrevBtn.disabled = memberCurrentPage === 1;
+            els.memberNextBtn.disabled = memberCurrentPage === totalPages;
+            els.memberPageInfo.textContent = `Halaman ${memberCurrentPage} dari ${totalPages}`;
+          }
+        }
       }
     }
 
@@ -928,6 +979,50 @@ export async function initApp() {
         state.memberships = nextState.memberships;
         state.assessments = nextState.assessments;
         renderCurrentState();
+      });
+    }
+
+    // Member search input listener
+    if (els.memberSearchInput) {
+      els.memberSearchInput.addEventListener("input", (event) => {
+        memberSearchQuery = event.target.value;
+        memberCurrentPage = 1; // Reset to first page when searching
+        renderClasses();
+      });
+    }
+
+    // Member pagination buttons
+    if (els.memberPrevBtn) {
+      els.memberPrevBtn.addEventListener("click", () => {
+        if (memberCurrentPage > 1) {
+          memberCurrentPage--;
+          renderClasses();
+          // Scroll to members section
+          els.approvedMemberList.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    }
+
+    if (els.memberNextBtn) {
+      els.memberNextBtn.addEventListener("click", () => {
+        const approved = state.memberships.filter((item) => item.status === "approved");
+        const filtered = memberSearchQuery.trim() === "" 
+          ? approved 
+          : approved.filter((item) => {
+              const searchLower = memberSearchQuery.toLowerCase();
+              return (
+                item.student_name.toLowerCase().includes(searchLower) ||
+                item.student_email.toLowerCase().includes(searchLower)
+              );
+            });
+        const totalPages = Math.ceil(filtered.length / MEMBERS_PER_PAGE);
+        
+        if (memberCurrentPage < totalPages) {
+          memberCurrentPage++;
+          renderClasses();
+          // Scroll to members section
+          els.approvedMemberList.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       });
     }
 

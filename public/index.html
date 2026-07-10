@@ -368,9 +368,31 @@
           </div>
 
           <div class="preview-panel">
-            <h3>Anggota kelas</h3>
-            <div id="approvedMemberList" class="list-stack empty-state" style="margin-bottom: 24px;">Belum ada anggota.
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div>
+                <h3 style="margin: 0 0 4px 0;">Anggota kelas</h3>
+                <p id="memberCountText" style="margin: 0; font-size: 0.9rem; color: var(--muted);">0 anggota</p>
+              </div>
             </div>
+            
+            <div style="margin-bottom: 16px;">
+              <input 
+                id="memberSearchInput" 
+                type="text" 
+                placeholder="Cari siswa (nama/email)..." 
+                style="width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.9rem;"
+              />
+            </div>
+
+            <div id="approvedMemberList" class="list-stack empty-state" style="margin-bottom: 16px;">Belum ada anggota.
+            </div>
+
+            <div id="memberPaginationContainer" style="display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; align-items: center;">
+              <button id="memberPrevBtn" class="secondary-button" type="button" style="padding: 6px 12px; font-size: 0.85rem;">← Sebelumnya</button>
+              <span id="memberPageInfo" style="font-size: 0.9rem; color: var(--muted); min-width: 80px; text-align: center;">Halaman 1</span>
+              <button id="memberNextBtn" class="secondary-button" type="button" style="padding: 6px 12px; font-size: 0.85rem;">Berikutnya →</button>
+            </div>
+
             <h3>Request join</h3>
             <div id="pendingJoinList" class="list-stack empty-state">Belum ada request join.</div>
           </div>
