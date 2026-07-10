@@ -79,6 +79,21 @@ export async function initApp() {
     els.registerForm.reset();
   }
 
+  function openRegisterModal() {
+    if (els.registerModal) {
+      els.registerModal.classList.remove("hidden");
+      if (els.registerTenant) {
+        els.registerTenant.focus();
+      }
+    }
+  }
+
+  function closeRegisterModal() {
+    if (els.registerModal) {
+      els.registerModal.classList.add("hidden");
+    }
+  }
+
   function isAssessmentLocked(assessment) {
     if (!assessment) return false;
     const studentSubmissions = state.submissions.filter((submission) => submission.assessmentId === assessment.id);
@@ -662,7 +677,13 @@ export async function initApp() {
         throw new Error("File CSV kosong atau format tidak valid");
       }
 
-      const response = await createUsersBatch(payload);
+      let response;
+      if (typeof createUsersBatch === "function") {
+        response = await createUsersBatch(payload);
+      } else {
+        const api = await import("./api.js");
+        response = await api.createUsersBatch(payload);
+      }
       
       if (response.success && response.success.length > 0) {
         users.unshift(...response.success);
@@ -689,6 +710,26 @@ export async function initApp() {
   }
 
   function bindEvents() {
+    if (els.openRegisterModalBtn) {
+      els.openRegisterModalBtn.addEventListener("click", () => {
+        openRegisterModal();
+      });
+    }
+
+    if (els.closeRegisterModalBtn) {
+      els.closeRegisterModalBtn.addEventListener("click", () => {
+        closeRegisterModal();
+      });
+    }
+
+    if (els.registerModal) {
+      els.registerModal.addEventListener("click", (event) => {
+        if (event.target === els.registerModal) {
+          closeRegisterModal();
+        }
+      });
+    }
+
     els.loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       setButtonLoading(event.submitter, true, "Login...", "Login");
@@ -715,6 +756,7 @@ export async function initApp() {
           email: els.registerEmail.value,
           password: els.registerPassword.value,
         });
+        closeRegisterModal();
         await bootstrapAuthenticatedApp(nextAuth);
       } catch (error) {
         showToast(error.message);

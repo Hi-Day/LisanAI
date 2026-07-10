@@ -58,6 +58,14 @@ test("frontend bulk user creation imports the batch helper from the API module",
   assert.match(source, /import\s+\{[^}]*createUsersBatch[^}]*\}\s+from\s+["']\.\/api\.js["'];/);
 });
 
+test("tenant registration is exposed through a modal trigger from the auth landing view", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
+
+  assert.match(html, /id="registerModal"/);
+  assert.match(html, /id="openRegisterModalBtn"/);
+  assert.match(html, /id="registerForm"/);
+});
+
 test("legacy demo accounts are created for compatibility with Vercel seed runs", async () => {
   await ensureLegacyDemoAccounts("password123");
 

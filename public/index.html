@@ -26,7 +26,7 @@
       <p>Setiap sekolah, lembaga, atau organisasi punya ruang data terpisah dengan sesi login aman.</p>
     </div>
 
-    <div class="auth-panel">
+    <div class="auth-panel single-panel">
       <form id="loginForm" class="auth-form">
         <h2>Login</h2>
         <label>
@@ -38,10 +38,16 @@
           <input id="loginPassword" type="password" autocomplete="current-password" required />
         </label>
         <button class="primary-button" type="submit">Login</button>
+        <button class="secondary-button" id="openRegisterModalBtn" type="button">Daftar tenant</button>
       </form>
+    </div>
+  </section>
 
-      <form id="registerForm" class="auth-form">
-        <h2>Daftar tenant</h2>
+  <div id="registerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
+    <div class="modal-card">
+      <button class="modal-close" id="closeRegisterModalBtn" type="button" aria-label="Tutup">×</button>
+      <form id="registerForm" class="auth-form modal-form">
+        <h2 id="registerModalTitle">Daftar tenant</h2>
         <label>
           Nama tenant
           <input id="registerTenant" required placeholder="Contoh: SMA Nusantara" />
@@ -61,7 +67,7 @@
         <button class="secondary-button" type="submit">Buat tenant</button>
       </form>
     </div>
-  </section>
+  </div>
 
   <div id="appShell" class="app-shell hidden">
     <aside class="sidebar">
