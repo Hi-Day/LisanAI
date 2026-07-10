@@ -340,6 +340,23 @@
               <button class="secondary-button" type="submit">Join kelas</button>
             </form>
             <div id="classList" class="list-stack empty-state">Belum ada kelas.</div>
+            <hr style="margin:12px 0;" />
+            <div style="margin-top:8px;">
+              <h4>Tambah banyak akun siswa ke kelas</h4>
+              <p style="font-size:0.85rem; color:var(--muted); margin-top:4px;">Masukkan email siswa (satu per baris) dan pilih kelas untuk menambahkan mereka langsung sebagai anggota terverifikasi.</p>
+              <label style="display:block; margin-top:8px;">
+                Pilih Kelas
+                <select id="bulkAddClassSelect" style="width:100%; margin-top:6px;"></select>
+              </label>
+              <label style="display:block; margin-top:8px;">
+                Emails (satu per baris)
+                <textarea id="bulkAddEmails" rows="4" style="width:100%; margin-top:6px;"></textarea>
+              </label>
+              <div style="display:flex; gap:8px; margin-top:8px;">
+                <button id="bulkAddButton" class="primary-button" type="button">Tambahkan ke Kelas</button>
+                <button id="bulkAddClear" class="secondary-button" type="button">Bersihkan</button>
+              </div>
+            </div>
           </div>
 
           <div class="preview-panel">

@@ -127,6 +127,11 @@ export async function joinClass(joinCode) {
   return data.class;
 }
 
+export async function addStudentsToClass(payload) {
+  const data = await postJson("/api/database", { action: "add-students-to-class", payload }, "Gagal menambahkan siswa ke kelas");
+  return data;
+}
+
 export async function approveJoinRequest(membershipId) {
   return postJson("/api/database", { action: "approve-membership", payload: { membershipId } }, "Gagal approve siswa");
 }

@@ -285,6 +285,13 @@ export async function initApp() {
         `).join("");
       }
     }
+
+    // Populate bulk-add class dropdown (for teachers)
+    if (els.bulkAddClassSelect) {
+      const classOptions = state.classes.map(c => ({ id: c.id, name: c.name }));
+      els.bulkAddClassSelect.innerHTML = `<option value="">Pilih kelas</option>` +
+        classOptions.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+    }
   }
 
   function applyRoleAccess() {
@@ -946,7 +953,43 @@ export async function initApp() {
       }
     });
 
-    // Batch delete selected users
+      if (els.bulkAddButton) {
+        els.bulkAddButton.addEventListener('click', async () => {
+          const classId = els.bulkAddClassSelect?.value;
+          const raw = els.bulkAddEmails?.value || '';
+          const emails = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+          if (!classId) return showToast('Pilih kelas tujuan terlebih dahulu', 'error');
+          if (!emails.length) return showToast('Masukkan minimal 1 email', 'error');
+
+          setButtonLoading(els.bulkAddButton, true, 'Menambahkan...', 'Tambahkan ke Kelas');
+          try {
+            const api = await import('./api.js');
+            const resp = await api.addStudentsToClass({ classId, emails });
+            const addedCount = resp.added ? resp.added.length : 0;
+            const errorCount = resp.errors ? resp.errors.length : 0;
+            if (addedCount) {
+              showToast(`Berhasil menambahkan ${addedCount} siswa.`, 'success');
+              const nextState = await loadState();
+              state.classes = nextState.classes;
+              state.memberships = nextState.memberships;
+              renderCurrentState();
+            }
+            if (errorCount) {
+              showToast(`Beberapa email gagal ditambahkan: ${errorCount}`, 'error');
+              console.warn('Bulk add errors', resp.errors);
+            }
+            els.bulkAddEmails.value = '';
+          } catch (err) {
+            showToast(err.message || 'Gagal menambahkan siswa', 'error');
+          } finally {
+            setButtonLoading(els.bulkAddButton, false, 'Menambahkan...', 'Tambahkan ke Kelas');
+          }
+        });
+
+        if (els.bulkAddClear) {
+          els.bulkAddClear.addEventListener('click', () => { if (els.bulkAddEmails) els.bulkAddEmails.value = ''; });
+        }
+      }
     if (els.deleteSelectedUsers) {
       els.deleteSelectedUsers.addEventListener('click', async () => {
         const selected = [...els.userList.querySelectorAll('.select-user:checked')].map(cb => cb.dataset.id);

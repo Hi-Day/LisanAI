@@ -200,6 +200,41 @@ module.exports = async (req, res) => {
         const result = await createTenantUsersBatch(auth.tenant.id, payload);
         return sendJson(res, 201, result);
       }
+      if (action === "add-students-to-class") {
+        if (!isTeacher) return sendJson(res, 403, { error: "Forbidden" });
+        const { classId, emails } = payload || {};
+        if (!classId || !Array.isArray(emails)) return sendJson(res, 400, { error: "Payload tidak valid" });
+
+        const added = [];
+        const errors = [];
+        for (const email of emails) {
+          try {
+            const normalized = String(email || "").trim().toLowerCase();
+            if (!normalized) throw new Error("Email kosong");
+            const user = await listTenantUsers(auth.tenant.id).then(list => list.find(u => u.email === normalized));
+            if (!user) throw new Error("User tidak ditemukan");
+
+            const membershipId = `member-${cryptoRandom()}`;
+            const now = new Date().toISOString();
+            await getState; // noop to keep flow (no-op)
+            await getDb().run(
+              `INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at)
+               VALUES (?, ?, ?, ?, 'approved', ?, ?)`,
+              membershipId,
+              auth.tenant.id,
+              classId,
+              user.id,
+              now,
+              now
+            );
+            added.push({ id: user.id, email: user.email });
+          } catch (err) {
+            errors.push({ email, message: err.message });
+          }
+        }
+
+        return sendJson(res, 200, { added, errors });
+      }
       if (action === "update-user") {
         if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
         const user = await updateTenantUser(auth.tenant.id, id, payload);
