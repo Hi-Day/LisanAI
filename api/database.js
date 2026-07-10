@@ -235,6 +235,47 @@ module.exports = async (req, res) => {
 
         return sendJson(res, 200, { added, errors });
       }
+      if (action === "create-students-batch") {
+        if (!isTeacher) return sendJson(res, 403, { error: "Forbidden" });
+        const { classId, users } = payload || {};
+        if (!classId || !Array.isArray(users)) return sendJson(res, 400, { error: "Payload tidak valid" });
+
+        // Verify class belongs to teacher
+        const classroom = await getDb().get("SELECT id FROM classes WHERE id = ? AND tenant_id = ? AND teacher_id = ?", classId, auth.tenant.id, auth.user.id);
+        if (!classroom) return sendJson(res, 404, { error: "Kelas tidak ditemukan atau tidak milik Anda" });
+
+        const added = [];
+        const errors = [];
+        for (const [index, u] of users.entries()) {
+          try {
+            const name = String(u.name || '').trim();
+            const email = String(u.email || '').trim().toLowerCase();
+            const password = String(u.password || '');
+            if (!name || !email || password.length < 8) throw new Error('Data user tidak valid');
+
+            const user = await createTenantUser(auth.tenant.id, { name, email, password, role: 'student' });
+
+            const membershipId = `member-${cryptoRandom()}`;
+            const now = new Date().toISOString();
+            await getDb().run(
+              `INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at)
+               VALUES (?, ?, ?, ?, 'approved', ?, ?)`,
+              membershipId,
+              auth.tenant.id,
+              classId,
+              user.id,
+              now,
+              now
+            );
+
+            added.push({ id: user.id, email: user.email });
+          } catch (err) {
+            errors.push({ row: index + 1, email: u.email, message: err.message });
+          }
+        }
+
+        return sendJson(res, 201, { added, errors });
+      }
       if (action === "update-user") {
         if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
         const user = await updateTenantUser(auth.tenant.id, id, payload);

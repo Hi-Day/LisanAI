@@ -189,6 +189,7 @@
             </label>
 
             <button class="primary-button" type="submit">Generate assessment</button>
+            <button class="secondary-button" id="createManualAssessment" type="button" style="margin-left:8px;">Buat manual</button>
           </form>
 
           <div class="preview-panel">
@@ -226,8 +227,9 @@
               </label>
             </div>
             <div class="student-actions">
-              <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
-              <button id="saveQuestionSet" class="primary-button" type="button">Simpan assessment</button>
+                <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
+                <button id="addManualQuestion" class="secondary-button" type="button">Tambah soal</button>
+                <button id="saveQuestionSet" class="primary-button" type="button">Simpan assessment</button>
             </div>
           </div>
           <div id="editableQuestionList" class="feedback-grid"></div>
@@ -355,6 +357,11 @@
               <div style="display:flex; gap:8px; margin-top:8px;">
                 <button id="bulkAddButton" class="primary-button" type="button">Tambahkan ke Kelas</button>
                 <button id="bulkAddClear" class="secondary-button" type="button">Bersihkan</button>
+              </div>
+              <div style="margin-top:12px;">
+                <label style="display:block; font-weight:600; margin-bottom:6px;">Atau upload CSV (nama,email,password)</label>
+                <input id="bulkAddCsvFile" type="file" accept=".csv" />
+                <button id="bulkAddCsvUpload" class="secondary-button" type="button" style="margin-left:8px;">Upload CSV</button>
               </div>
             </div>
           </div>

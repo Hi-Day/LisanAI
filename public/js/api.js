@@ -132,6 +132,11 @@ export async function addStudentsToClass(payload) {
   return data;
 }
 
+export async function createStudentsBatch(payload) {
+  const data = await postJson("/api/database", { action: "create-students-batch", payload }, "Gagal membuat siswa batch");
+  return data;
+}
+
 export async function approveJoinRequest(membershipId) {
   return postJson("/api/database", { action: "approve-membership", payload: { membershipId } }, "Gagal approve siswa");
 }

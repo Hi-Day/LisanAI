@@ -374,6 +374,28 @@ export async function initApp() {
     }
   }
 
+  function handleCreateManualAssessment(event) {
+    const config = readAssessmentForm(els);
+    if (!config.classId) {
+      showToast("Pilih kelas tujuan terlebih dahulu.");
+      return;
+    }
+    pendingAssessmentConfig = config;
+    const count = Math.max(1, Number(config.count) || 1);
+    pendingQuestions = Array.from({ length: count }).map((_, i) => ({ id: `q-${i}`, prompt: "", focus: "", ideal: "" }));
+    renderQuestionEditor();
+  }
+
+  function handleAddManualQuestion() {
+    if (!pendingAssessmentConfig) {
+      showToast("Buat atau buka assessment dulu sebelum menambah soal.");
+      return;
+    }
+    const idx = pendingQuestions.length;
+    pendingQuestions.push({ id: `q-${idx}`, prompt: "", focus: "", ideal: "" });
+    renderQuestionEditor();
+  }
+
   async function savePendingQuestionSet() {
     if (!pendingAssessmentConfig) return;
     syncQuestionsFromEditor();
@@ -808,8 +830,10 @@ export async function initApp() {
     }
 
     els.form.addEventListener("submit", handleAssessmentSubmit);
+    if (els.createManualAssessment) els.createManualAssessment.addEventListener("click", handleCreateManualAssessment);
     els.saveQuestionSet.addEventListener("click", savePendingQuestionSet);
     els.improveQuestionSet.addEventListener("click", improvePendingQuestionSet);
+    if (els.addManualQuestion) els.addManualQuestion.addEventListener("click", handleAddManualQuestion);
     if (els.editDisableManualTyping) {
       els.editDisableManualTyping.addEventListener("change", (e) => {
         if (pendingAssessmentConfig) {
@@ -1154,37 +1178,41 @@ export async function initApp() {
     }
 
     if (els.backToDashboard) {
-      els.backToDashboard.addEventListener("click", () => {
-        recorder.stop();
-        stopQuestionTimer();
-        session.currentAssessmentId = null;
-        renderCurrentState(); // Will hide workspace, show dashboard
+      els.bulkAddCsvUpload.addEventListener('click', async () => {
+        const file = els.bulkAddCsvFile.files[0];
+        if (!file) return showToast('Pilih file CSV terlebih dahulu', 'error');
+        setButtonLoading(els.bulkAddCsvUpload, true, 'Mengunggah...', 'Upload CSV');
+        try {
+          const text = await file.text();
+          const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+          const payload = lines.map((line, idx) => {
+            const parts = line.split(',').map(item => item.trim());
+            const name = parts[0] || '';
+            const email = parts[1] || '';
+            const password = parts[2] || '';
+            return { name, email, password };
+          });
+          const classId = els.bulkAddClassSelect?.value;
+          if (!classId) return showToast('Pilih kelas terlebih dahulu', 'error');
+          const api = await import('./api.js');
+          const resp = await api.createStudentsBatch({ classId, users: payload });
+          const added = resp.added ? resp.added.length : 0;
+          const errors = resp.errors ? resp.errors.length : 0;
+          if (added) {
+            showToast(`Berhasil menambahkan ${added} siswa.`, 'success');
+            const nextState = await loadState();
+            state.classes = nextState.classes;
+            state.memberships = nextState.memberships;
+            renderCurrentState();
+          }
+          if (errors) showToast(`Selesai. Gagal: ${errors}`, 'error');
+          els.bulkAddCsvFile.value = null;
+        } catch (err) {
+          showToast(err.message || 'Gagal mengunggah CSV', 'error');
+        } finally {
+          setButtonLoading(els.bulkAddCsvUpload, false, 'Mengunggah...', 'Upload CSV');
+        }
       });
-    }
-
-    els.recordButton.addEventListener("click", () => {
-      recorder.toggle().catch((error) => {
-        els.recordStatus.textContent = error.message || "Mikrofon belum bisa digunakan. Ketik jawaban manual.";
-        els.recordButton.classList.remove("recording");
-        els.recordButton.disabled = false;
-      });
-    });
-
-    els.prevQuestion.addEventListener("click", async () => {
-      recorder.stop();
-      await saveCurrentAnswer();
-      session.goPrevious();
-      renderQuestion(els, session.getCurrentAssessment(), session);
-      recorder.resetStatus();
-      try {
-        await recorder.start();
-      } catch (err) {
-        console.warn("Could not start recorder:", err);
-      }
-      startQuestionTimer();
-      questionStartTime = Date.now();
-    });
-
     els.saveAnswer.addEventListener("click", async () => {
       recorder.stop();
       await saveCurrentAnswer();
