@@ -52,6 +52,12 @@ test("database helpers accept array parameters passed as a single array", async 
   assert.deepEqual(row, { first: "alpha", second: "beta", third: "gamma" });
 });
 
+test("frontend bulk user creation imports the batch helper from the API module", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../public/js/main.js"), "utf8");
+
+  assert.match(source, /import\s+\{[^}]*createUsersBatch[^}]*\}\s+from\s+["']\.\/api\.js["'];/);
+});
+
 test("legacy demo accounts are created for compatibility with Vercel seed runs", async () => {
   await ensureLegacyDemoAccounts("password123");
 

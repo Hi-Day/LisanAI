@@ -5,6 +5,7 @@ import {
   approveJoinRequest,
   createClassroom,
   createUser,
+  createUsersBatch,
   deleteAssessment,
   deleteClassroom,
   deleteMembership,
