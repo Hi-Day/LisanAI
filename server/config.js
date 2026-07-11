@@ -5,7 +5,8 @@ const ROOT = path.join(__dirname, "..");
 const ENV_PATH = path.join(ROOT, ".env");
 const PORT = Number(process.env.PORT || 4173);
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
+const DEFAULT_FALLBACK_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 
 function loadEnv() {
   if (fs.existsSync(ENV_PATH)) {
@@ -18,6 +19,7 @@ function loadEnv() {
   }
 
   process.env.OPENROUTER_MODEL ||= DEFAULT_MODEL;
+  process.env.OPENROUTER_FALLBACK_MODEL ||= DEFAULT_FALLBACK_MODEL;
   process.env.TURSO_DATABASE_URL ||= `file:${path.join(ROOT, "data", "lisan_ai.db")}`;
 }
 

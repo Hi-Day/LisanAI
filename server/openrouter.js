@@ -7,7 +7,9 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
   const tenantId = context.tenantId || "system";
   const userId = context.userId || "system";
   const action = context.action || "unknown";
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+  const primaryModel = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+  const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
+  let model = primaryModel;
 
   let promptTokens = 0;
   let completionTokens = 0;
@@ -78,45 +80,62 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
       promptTokens = 350 + Math.floor(Math.random() * 200);
       completionTokens = 180 + Math.floor(Math.random() * 150);
     } else {
-      // Real API Call
-      const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "http://127.0.0.1:4173",
-          "X-Title": "Lisan.ai",
-        },
-        body: JSON.stringify({
-          model: model,
-          temperature: 0.25,
-          max_tokens: 4000,
-          reasoning: {
-            effort: "none",
-            exclude: true,
-          },
-          messages: [
-            {
-              role: "system",
-              content:
-                "Anda adalah evaluator pendidikan berbahasa Indonesia. Balas hanya JSON valid tanpa markdown. " +
-                schemaHint,
-            },
-            ...messages,
-          ],
-        }),
-      });
+      const candidateModels = [primaryModel, fallbackModel].filter((value, index, array) => array.indexOf(value) === index);
+      let lastError = null;
 
-      responseData = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(responseData.error?.message || `OpenRouter error ${response.status}`);
+      for (const candidateModel of candidateModels) {
+        model = candidateModel;
+
+        try {
+          const response = await fetch(OPENROUTER_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "http://127.0.0.1:4173",
+              "X-Title": "Lisan.ai",
+            },
+            body: JSON.stringify({
+              model: candidateModel,
+              temperature: 0.25,
+              max_tokens: 4000,
+              reasoning: {
+                effort: "none",
+                exclude: true,
+              },
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "Anda adalah evaluator pendidikan berbahasa Indonesia. Balas hanya JSON valid tanpa markdown. " +
+                    schemaHint,
+                },
+                ...messages,
+              ],
+            }),
+          });
+
+          responseData = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(responseData.error?.message || `OpenRouter error ${response.status}`);
+          }
+
+          content = responseData.choices?.[0]?.message?.content;
+          if (!content) throw new Error("Respons model kosong");
+
+          promptTokens = responseData.usage?.prompt_tokens || 0;
+          completionTokens = responseData.usage?.completion_tokens || 0;
+          break;
+        } catch (err) {
+          lastError = err;
+          errorMsg = err.message;
+          continue;
+        }
       }
 
-      content = responseData.choices?.[0]?.message?.content;
-      if (!content) throw new Error("Respons model kosong");
-
-      promptTokens = responseData.usage?.prompt_tokens || 0;
-      completionTokens = responseData.usage?.completion_tokens || 0;
+      if (!content) {
+        throw lastError || new Error("OpenRouter request gagal");
+      }
     }
 
     return parseJsonContent(content);

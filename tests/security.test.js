@@ -89,6 +89,55 @@ test("demo simulation endpoint is disabled by default", async () => {
   assert.equal(response.body.error, "Action not found");
 });
 
+test("openrouter retries with the configured fallback model when the primary model fails", async () => {
+  const { callOpenRouter } = require("../server/openrouter");
+  const originalFetch = global.fetch;
+  const originalPrimary = process.env.OPENROUTER_MODEL;
+  const originalFallback = process.env.OPENROUTER_FALLBACK_MODEL;
+  const originalApiKey = process.env.OPENROUTER_API_KEY;
+
+  process.env.OPENROUTER_MODEL = "google/gemini-2.5-flash";
+  process.env.OPENROUTER_FALLBACK_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+  process.env.OPENROUTER_API_KEY = "test-key";
+
+  const attempts = [];
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    attempts.push(body.model);
+
+    if (body.model === "google/gemini-2.5-flash") {
+      return {
+        ok: false,
+        json: async () => ({ error: { message: "primary model unavailable" } }),
+      };
+    }
+
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"ok":true}' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+    };
+  };
+
+  try {
+    const result = await callOpenRouter(
+      [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI","learning_outcome":true}' }],
+      "return valid JSON",
+      { tenantId: "tenant-fallback", userId: "user-fallback", action: "generate-questions" }
+    );
+
+    assert.deepEqual(attempts, ["google/gemini-2.5-flash", "nvidia/nemotron-3-super-120b-a12b:free"]);
+    assert.deepEqual(result, { ok: true });
+  } finally {
+    global.fetch = originalFetch;
+    process.env.OPENROUTER_MODEL = originalPrimary;
+    process.env.OPENROUTER_FALLBACK_MODEL = originalFallback;
+    process.env.OPENROUTER_API_KEY = originalApiKey;
+  }
+});
+
 test("login is rate limited after repeated failures", async () => {
   const payload = {
     action: "login",
