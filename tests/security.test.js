@@ -184,6 +184,25 @@ test("student cannot submit the same assessment twice unless retakes are enabled
   await saveSubmission(tenant.id, student.id, createSubmission(retakeAssessment.id, "sub-retake-2"));
 });
 
+test("student-facing state API omits ideal answers from assessment questions", async () => {
+  const { student, tenant, publishedAssessment } = context;
+  const session = await createSession(student.id);
+  const headers = { cookie: `${SESSION_COOKIE}=${session.token}` };
+
+  const response = await callHandler(databaseApi, {
+    method: "GET",
+    url: "/api/database?action=state",
+    headers,
+  });
+
+  assert.equal(response.statusCode, 200);
+  const assessment = response.body.assessments.find((item) => item.id === publishedAssessment.id);
+  assert.ok(assessment);
+  assert.ok(Array.isArray(assessment.questions));
+  assert.equal(assessment.questions[0].prompt, "Jelaskan konsep utama.");
+  assert.equal(assessment.questions[0].ideal, undefined);
+});
+
 test("API endpoints require valid CSRF token for POST requests", async () => {
   const { student, tenant, retakeAssessment } = context;
   const session = await createSession(student.id);

@@ -60,7 +60,6 @@ async function recommendAssessmentConfig(payload) {
 async function evaluateAnswers(payload) {
   const qa_pairs = payload.assessment.questions.map((q, i) => ({
     question: q.prompt,
-    ideal_answer: q.ideal,
     student_answer: payload.answers[i] || "(Tidak ada jawaban)"
   }));
 

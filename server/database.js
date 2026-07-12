@@ -107,11 +107,25 @@ async function getState(auth) {
   const submissions = await getVisibleSubmissions(database, auth);
   const classes = await getVisibleClasses(database, auth);
   const memberships = await getVisibleMemberships(database, auth);
+  const studentView = auth.user.role === "student";
+
   return {
-    assessments: assessments.map((row) => JSON.parse(row.payload)),
+    assessments: assessments.map((row) => sanitizeAssessmentForRole(JSON.parse(row.payload), studentView)),
     submissions: submissions.map((row) => JSON.parse(row.payload)),
     classes,
     memberships,
+  };
+}
+
+function sanitizeAssessmentForRole(assessment, isStudentView) {
+  if (!isStudentView || !Array.isArray(assessment.questions)) return assessment;
+
+  return {
+    ...assessment,
+    questions: assessment.questions.map((question) => {
+      const { ideal, ...rest } = question || {};
+      return rest;
+    }),
   };
 }
 

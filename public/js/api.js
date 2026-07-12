@@ -167,12 +167,25 @@ export async function recommendAssessmentConfig(topic, difficulty) {
   return data.recommendation;
 }
 
+function sanitizeAssessmentForEvaluation(assessment) {
+  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
+
+  return {
+    ...assessment,
+    questions: assessment.questions.map((question) => ({
+      prompt: question?.prompt || "",
+      focus: question?.focus || "",
+    })),
+  };
+}
+
 export async function evaluateAssessmentWithAI(assessment, answers, studentName, makeSubmission) {
   const textAnswers = answers.map(a => a.text || "");
+  const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
   
   const data = await postJson(
     "/api/assessment",
-    { action: "evaluate", payload: { assessment, answers: textAnswers, studentName } },
+    { action: "evaluate", payload: { assessment: safeAssessment, answers: textAnswers, studentName } },
     "Gagal menilai jawaban dengan AI"
   );
 

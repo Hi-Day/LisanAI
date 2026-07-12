@@ -86,7 +86,8 @@ export function renderQuestion(els, assessment, session) {
   els.questionProgress.textContent = `Soal ${session.currentQuestionIndex + 1} dari ${assessment.questions.length}`;
   els.activeDifficulty.textContent = assessment.difficulty;
   els.activeQuestion.textContent = question.prompt;
-  els.activeHint.textContent = question.ideal;
+  els.activeHint.textContent = "";
+  els.activeHint.classList.add("hidden");
   
   if (assessment.disableManualTyping) {
     els.answerText.placeholder = "Jawaban manual dimatikan untuk assessment ini. Silakan menjawab menggunakan rekaman suara.";
