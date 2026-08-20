@@ -606,6 +606,27 @@ textarea[readonly] {
 
 #activeHint { color: var(--muted); margin-bottom: 24px; font-size: 1.05rem; }
 
+.question-outcome, .question-rubric {
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.question-outcome {
+  background: #eff6ff; /* blue-50 */
+  border: 1px solid #bfdbfe; /* blue-200 */
+  color: #1e3a8a; /* blue-900 */
+}
+.question-rubric {
+  background: #f5f3ff; /* violet-50 */
+  border: 1px solid #ddd6fe; /* violet-200 */
+  color: #4c1d95; /* violet-900 */
+}
+.question-outcome::before { content: "🎯 Kompetensi: "; font-weight: 700; }
+.question-rubric::before { content: "📋 Rubrik: "; font-weight: 700; }
+
 .recorder {
   gap: 16px; padding: 20px;
   border: 1px solid #fecdd3; /* rose-200 */

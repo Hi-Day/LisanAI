@@ -48,6 +48,8 @@ export function getElements() {
     activeDifficulty: document.querySelector("#activeDifficulty"),
     activeQuestion: document.querySelector("#activeQuestion"),
     activeHint: document.querySelector("#activeHint"),
+    activeOutcome: document.querySelector("#activeOutcome"),
+    activeRubric: document.querySelector("#activeRubric"),
     recordButton: document.querySelector("#recordButton"),
     recorderPanel: document.querySelector("#recorderPanel"),
     recordStatus: document.querySelector("#recordStatus"),

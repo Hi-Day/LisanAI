@@ -60,6 +60,8 @@ async function recommendAssessmentConfig(payload) {
 async function evaluateAnswers(payload) {
   const qa_pairs = payload.assessment.questions.map((q, i) => ({
     question: q.prompt,
+    learning_outcome: q.outcome || payload.assessment.outcomes || "",
+    rubrik: q.rubric || payload.assessment.rubric || "",
     student_answer: payload.answers[i] || "(Tidak ada jawaban)"
   }));
 
@@ -125,6 +127,8 @@ function normalizeQuestion(payload) {
     id: `q-ai-${Date.now()}-${index}`,
     prompt: String(question.prompt || "").trim(),
     focus: String(question.focus || payload.topic || "konsep").trim(),
+    outcome: String(question.outcome || payload.outcomes || "").trim(),
+    rubric: String(question.rubric || payload.rubric || "").trim(),
     ideal: String(question.ideal || "Jawaban kuat sesuai rubrik guru.").trim(),
   });
 }

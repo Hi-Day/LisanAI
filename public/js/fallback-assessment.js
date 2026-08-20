@@ -16,6 +16,8 @@ export function generateFallbackQuestions({ topic, outcomes, rubric, difficulty,
       id: uid("q"),
       prompt,
       focus: keyword,
+      outcome: `Siswa mampu menjelaskan konsep ${keyword} pada materi ${topic} dengan bahasa sendiri.`,
+      rubric: `Ketepatan konsep ${keyword}: 40%, penalaran sebab-akibat: 25%, contoh relevan: 20%, kejelasan komunikasi: 15%.`,
       ideal: `Jawaban kuat menyebut konsep ${keyword}, memberi alasan, memakai contoh relevan, dan mengaitkannya dengan ${topic}.`,
     };
   });
@@ -38,12 +40,14 @@ export function recommendFallbackConfig(topic, difficulty = "Menengah") {
 }
 
 export function evaluateFallbackAssessment(assessment, answers, studentName, makeSubmission) {
-  const rubricKeywords = getKeywords(assessment.rubric, assessment.outcomes, assessment.topic);
   const questionScores = assessment.questions.map((question, index) => {
     const answerObj = answers[index];
     const rawAnswer = typeof answerObj === 'string' ? answerObj : (answerObj?.text || "");
     const answer = rawAnswer.toLowerCase();
     const words = answer.split(/\s+/).filter(Boolean);
+    const questionRubric = question.rubric || assessment.rubric;
+    const questionOutcome = question.outcome || assessment.outcomes;
+    const rubricKeywords = getKeywords(questionRubric, questionOutcome, assessment.topic);
     const matched = rubricKeywords.filter((keyword) => answer.includes(keyword.toLowerCase()));
     const focusMatched = answer.includes(question.focus.toLowerCase());
     const lengthScore = Math.min(words.length / 55, 1) * 32;

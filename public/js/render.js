@@ -88,6 +88,15 @@ export function renderQuestion(els, assessment, session) {
   els.activeQuestion.textContent = question.prompt;
   els.activeHint.textContent = "";
   els.activeHint.classList.add("hidden");
+
+  if (els.activeOutcome) {
+    els.activeOutcome.textContent = question.outcome || assessment.outcomes || "";
+    els.activeOutcome.classList.toggle("hidden", !els.activeOutcome.textContent);
+  }
+  if (els.activeRubric) {
+    els.activeRubric.textContent = question.rubric || assessment.rubric || "";
+    els.activeRubric.classList.toggle("hidden", !els.activeRubric.textContent);
+  }
   
   const isOralExam = assessment.oralExamEnabled !== false;
   if (!isOralExam) {

@@ -498,7 +498,7 @@ export async function initApp() {
     }
     pendingAssessmentConfig = config;
     const count = Math.max(1, Number(config.count) || 1);
-    pendingQuestions = Array.from({ length: count }).map((_, i) => ({ id: `q-${i}`, prompt: "", focus: "", ideal: "" }));
+    pendingQuestions = Array.from({ length: count }).map((_, i) => ({ id: `q-${i}`, prompt: "", focus: "", outcome: "", rubric: "", ideal: "" }));
     renderQuestionEditor();
   }
 
@@ -508,7 +508,7 @@ export async function initApp() {
       return;
     }
     const idx = pendingQuestions.length;
-    pendingQuestions.push({ id: `q-${idx}`, prompt: "", focus: "", ideal: "" });
+    pendingQuestions.push({ id: `q-${idx}`, prompt: "", focus: "", outcome: "", rubric: "", ideal: "" });
     renderQuestionEditor();
   }
 
@@ -554,6 +554,8 @@ export async function initApp() {
       id: pendingQuestions[index]?.id || `q-${index}`,
       prompt: item.querySelector("[data-field='prompt']").value.trim(),
       focus: item.querySelector("[data-field='focus']").value.trim(),
+      outcome: item.querySelector("[data-field='outcome']").value.trim(),
+      rubric: item.querySelector("[data-field='rubric']").value.trim(),
       ideal: item.querySelector("[data-field='ideal']").value.trim(),
     }));
   }
@@ -580,6 +582,8 @@ export async function initApp() {
         <strong>Soal ${index + 1}</strong>
         <label>Pertanyaan<textarea data-field="prompt" rows="3">${escapeHtml(question.prompt)}</textarea></label>
         <label>Fokus<input data-field="focus" value="${escapeHtml(question.focus || "")}" /></label>
+        <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
+        <label>Rubrik penilaian soal ini<textarea data-field="rubric" rows="3">${escapeHtml(question.rubric || "")}</textarea></label>
         <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
       </article>
     `).join("");
