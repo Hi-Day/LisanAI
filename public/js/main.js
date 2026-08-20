@@ -129,6 +129,9 @@ export async function initApp() {
     if (auth.user?.role === "student") {
       els.studentName.value = auth.user.name;
       els.studentName.readOnly = true;
+      if (session.getCurrentAssessment()?.oralExamEnabled === false) {
+        recorder.setEnabled(false);
+      }
     } else {
       els.studentName.readOnly = false;
     }
