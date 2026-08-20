@@ -89,15 +89,25 @@ export function renderQuestion(els, assessment, session) {
   els.activeHint.textContent = "";
   els.activeHint.classList.add("hidden");
   
-  if (assessment.disableManualTyping) {
+  const isOralExam = assessment.oralExamEnabled !== false;
+  if (!isOralExam) {
+    els.answerText.placeholder = "Tulis jawaban Anda di sini.";
+    els.answerText.readOnly = false;
+    els.recordButton?.classList.add("hidden");
+    if (els.recordInstructions) {
+      els.recordInstructions.textContent = "Mode tulisan aktif. Jawab setiap soal dengan mengetik jawaban Anda.";
+    }
+  } else if (assessment.disableManualTyping) {
     els.answerText.placeholder = "Jawaban manual dimatikan untuk assessment ini. Silakan menjawab menggunakan rekaman suara.";
     els.answerText.readOnly = true;
+    els.recordButton?.classList.remove("hidden");
     if (els.recordInstructions) {
       els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).";
     }
   } else {
     els.answerText.placeholder = "Transkripsi otomatis atau jawaban manual siswa akan muncul di sini";
     els.answerText.readOnly = false;
+    els.recordButton?.classList.remove("hidden");
     if (els.recordInstructions) {
       els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.";
     }
@@ -161,20 +171,18 @@ export function showResult(els, submission, auth = null) {
 }
 
 function renderAssessmentItem(assessment) {
-  const statusBadgeClass = `badge-${assessment.status || 'published'}`;
-  const statusLabel = assessment.status === 'draft' ? 'Draft' : (assessment.status === 'closed' ? 'Closed' : 'Published');
+  const isOralExam = assessment.oralExamEnabled !== false;
   
   return `
     <article class="assessment-item" data-id="${assessment.id}">
       <div style="flex: 1; min-width: 0;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
           <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(assessment.topic)}</strong>
-          <span class="tag ${statusBadgeClass}" style="padding: 2px 6px; font-size: 0.65rem;">${statusLabel}</span>
+          <span class="tag badge-published" style="padding: 2px 6px; font-size: 0.65rem;">${isOralExam ? "Lisan" : "Tulisan"}</span>
         </div>
         <p>${escapeHtml(compactText(assessment.outcomes))}</p>
         <div class="item-actions">
           <button type="button" class="action-button edit-assessment">Edit Soal</button>
-          <button type="button" class="action-button toggle-status-assessment">${assessment.status === 'published' ? 'Close' : 'Publish'}</button>
           <button type="button" class="action-button download-grades-assessment">Download Nilai</button>
           <button type="button" class="action-button danger-button delete-assessment">Hapus</button>
         </div>
@@ -393,4 +401,3 @@ export function renderObservability(els, data) {
     }
   }
 }
-

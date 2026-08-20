@@ -505,6 +505,10 @@ export async function initApp() {
     if (els.editDisableManualTyping) {
       els.editDisableManualTyping.checked = !!pendingAssessmentConfig.disableManualTyping;
     }
+
+    if (els.editOralExamEnabled) {
+      els.editOralExamEnabled.checked = pendingAssessmentConfig.oralExamEnabled !== false;
+    }
     if (els.editAllowRetakes) {
       els.editAllowRetakes.checked = !!pendingAssessmentConfig.allowRetakes;
     }
@@ -895,6 +899,14 @@ export async function initApp() {
         }
       });
     }
+
+    if (els.editOralExamEnabled) {
+      els.editOralExamEnabled.addEventListener("change", (e) => {
+        if (pendingAssessmentConfig) {
+          pendingAssessmentConfig.oralExamEnabled = e.target.checked;
+        }
+      });
+    }
     if (els.editAllowRetakes) {
       els.editAllowRetakes.addEventListener("change", (e) => {
         if (pendingAssessmentConfig) {
@@ -1219,12 +1231,7 @@ export async function initApp() {
       const assessment = state.assessments.find(a => a.id === id);
       if (!assessment) return;
 
-      if (event.target.classList.contains("toggle-status-assessment")) {
-        const nextStatus = assessment.status === "published" ? "closed" : "published";
-        await updateAssessment(id, { status: nextStatus });
-        assessment.status = nextStatus;
-        renderCurrentState();
-      } else if (event.target.classList.contains("delete-assessment")) {
+      if (event.target.classList.contains("delete-assessment")) {
         if (!confirm("Hapus assessment beserta semua submission?")) return;
         await deleteAssessment(id);
         const nextState = await loadState();
@@ -1239,6 +1246,7 @@ export async function initApp() {
           classId: assessment.classId,
           outcomes: assessment.outcomes,
           rubric: assessment.rubric,
+          oralExamEnabled: assessment.oralExamEnabled !== false,
           disableManualTyping: !!assessment.disableManualTyping,
           allowRetakes: !!assessment.allowRetakes
         };
