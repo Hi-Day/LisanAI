@@ -11,10 +11,11 @@ export function showToast(message, type = 'info') {
   
   const icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
   
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
   toast.innerHTML = `
     <span class="toast-icon">${icon}</span>
     <span class="toast-message" style="flex: 1;">${message}</span>
-    <button class="toast-close" aria-label="Close" title="Tutup">&times;</button>
+    <button class="toast-close" aria-label="Tutup notifikasi" title="Tutup">&times;</button>
   `;
 
   container.appendChild(toast);

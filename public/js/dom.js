@@ -143,10 +143,19 @@ export function getElements() {
 
 export function setButtonLoading(button, loading, loadingText, defaultText) {
   button.disabled = loading;
+  button.classList.toggle("is-loading", loading);
+  button.setAttribute("aria-busy", String(loading));
   button.textContent = loading ? loadingText : defaultText;
 }
 
 export function showEmpty(container, className, message) {
   container.className = className;
-  container.textContent = message;
+  container.setAttribute("role", "status");
+  container.innerHTML = `
+    <span class="empty-state-icon" aria-hidden="true">○</span>
+    <div>
+      <strong>Belum ada data</strong>
+      <p>${message}</p>
+    </div>
+  `;
 }

@@ -1,9 +1,9 @@
 import { average, compactText, escapeHtml } from "./utils.js";
 import { showEmpty } from "./dom.js";
 
-const EMPTY_ASSESSMENTS = "Belum ada assessment. Buat konfigurasi pertama untuk mulai.";
-const EMPTY_STUDENT = "Belum ada assessment yang tersedia untuk siswa.";
-const EMPTY_SUBMISSIONS = "Belum ada hasil assessment.";
+const EMPTY_ASSESSMENTS = "Buat penilaian pertama agar soal dapat ditinjau dan dibagikan ke kelas.";
+const EMPTY_STUDENT = "Guru belum menugaskan penilaian untuk kelas ini.";
+const EMPTY_SUBMISSIONS = "Hasil akan muncul setelah siswa menyelesaikan penilaian.";
 const EMPTY_TRENDS = "Belum ada tren skor.";
 
 export function renderApp(els, state, session) {
@@ -60,9 +60,9 @@ export function renderStudentArea(els, state, session) {
           <div class="assessment-card" data-id="${assessment.id}">
             <h4>${escapeHtml(assessment.topic)}</h4>
             <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
-            <p style="margin: 0; font-size: 0.9rem; color: var(--muted);">${assessment.questions.length} Soal</p>
+            <p style="margin: 0; font-size: 0.9rem; color: var(--muted);">${assessment.questions.length} soal</p>
             ${scoreHtml}
-            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
+          <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
           </div>
         `;
       }).join("");
@@ -99,7 +99,7 @@ export function renderQuestion(els, assessment, session) {
       els.recordInstructions.textContent = "Mode tulisan aktif. Jawab setiap soal dengan mengetik jawaban Anda.";
     }
   } else if (assessment.disableManualTyping) {
-    els.answerText.placeholder = "Jawaban manual dimatikan untuk assessment ini. Silakan menjawab menggunakan rekaman suara.";
+    els.answerText.placeholder = "Jawaban manual dimatikan untuk penilaian ini. Silakan menjawab menggunakan rekaman suara.";
     els.answerText.readOnly = true;
     els.recordButton.disabled = false;
     els.recorderPanel?.classList.remove("hidden");
@@ -151,14 +151,15 @@ export function renderMonitoring(els, state) {
 }
 
 export function showResult(els, submission, auth = null) {
+  els.resultPanel._returnFocus = document.activeElement;
   els.resultPanel.classList.remove("hidden");
   els.resultPanel.dataset.submissionId = submission.id; // Store ID for override
   els.resultPanel.innerHTML = `
     <div class="result-modal-content">
-      <button class="result-close-btn" type="button" aria-label="Tutup Hasil" onclick="document.getElementById('resultPanel').classList.add('hidden')">&times;</button>
+      <button class="result-close-btn close-result-btn" type="button" aria-label="Tutup hasil penilaian">&times;</button>
       <div class="result-header">
         <div style="flex: 1; min-width: 0;">
-          <h3 style="margin-right: 40px;">Hasil assessment: ${escapeHtml(submission.assessmentTitle)}</h3>
+          <h3 style="margin-right: 40px;">Hasil penilaian: ${escapeHtml(submission.assessmentTitle)}</h3>
           <p>${formatRichText(submission.feedback)}</p>
         </div>
         <div class="score-badge">${submission.finalScore}</div>
@@ -167,10 +168,11 @@ export function showResult(els, submission, auth = null) {
         ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth)).join("")}
       </div>
       <div class="result-footer">
-        <button class="primary-button" type="button" onclick="document.getElementById('resultPanel').classList.add('hidden')">Tutup</button>
+        <button class="primary-button close-result-btn" type="button">Tutup hasil</button>
       </div>
     </div>
   `;
+  requestAnimationFrame(() => els.resultPanel.querySelector(".result-close-btn")?.focus());
 }
 
 function renderAssessmentItem(assessment) {
@@ -307,7 +309,7 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
   const studentSubmissions = submissions.filter(s => s.studentName === currentStudentName);
   
   if (!studentSubmissions.length) {
-    els.studentHistoryList.innerHTML = '<tr><td colspan="4" class="empty-state">Belum ada riwayat assessment.</td></tr>';
+    els.studentHistoryList.innerHTML = '<tr><td colspan="4" class="empty-state">Belum ada riwayat penilaian.</td></tr>';
     return;
   }
   

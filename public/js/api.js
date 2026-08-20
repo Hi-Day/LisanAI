@@ -82,7 +82,7 @@ export async function loadStateFromDatabase() {
 }
 
 export async function saveAssessmentToDatabase(assessment) {
-  await postJson("/api/database", { action: "save-assessment", payload: assessment }, "Gagal menyimpan assessment");
+  await postJson("/api/database", { action: "save-assessment", payload: assessment }, "Gagal menyimpan penilaian");
 }
 
 export async function saveSubmissionToDatabase(submission) {
@@ -153,12 +153,12 @@ export async function deleteMembership(membershipId) {
 }
 
 export async function updateAssessment(assessmentId, payload) {
-  const data = await postJson("/api/database", { action: "update-assessment", id: assessmentId, payload }, "Gagal mengubah assessment");
+  const data = await postJson("/api/database", { action: "update-assessment", id: assessmentId, payload }, "Gagal mengubah penilaian");
   return data.assessment;
 }
 
 export async function deleteAssessment(assessmentId) {
-  return postJson("/api/database", { action: "delete-assessment", id: assessmentId }, "Gagal menghapus assessment");
+  return postJson("/api/database", { action: "delete-assessment", id: assessmentId }, "Gagal menghapus penilaian");
 }
 
 export async function recommendAssessmentConfig(topic, difficulty) {

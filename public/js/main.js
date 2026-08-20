@@ -46,6 +46,7 @@ export async function initApp() {
   let pendingAssessmentConfig = null;
   let pendingQuestions = [];
   let isEvaluating = false;
+  let lastModalTrigger = null;
   let session = createSession(state);
   const recorder = createRecorder(els);
   
@@ -71,6 +72,7 @@ export async function initApp() {
     els.authView.classList.remove("hidden");
     els.appShell.classList.add("hidden");
     closeRegisterModal();
+    closeResultModal();
   }
 
   function showApp() {
@@ -89,6 +91,7 @@ export async function initApp() {
 
   function openRegisterModal() {
     if (els.registerModal) {
+      lastModalTrigger = document.activeElement;
       els.registerModal.classList.remove("hidden");
       if (els.registerTenant) {
         els.registerTenant.focus();
@@ -99,7 +102,49 @@ export async function initApp() {
   function closeRegisterModal() {
     if (els.registerModal) {
       els.registerModal.classList.add("hidden");
+      if (lastModalTrigger instanceof HTMLElement && document.contains(lastModalTrigger)) {
+        lastModalTrigger.focus();
+      }
+      lastModalTrigger = null;
     }
+  }
+
+  function closeResultModal() {
+    if (!els.resultPanel || els.resultPanel.classList.contains("hidden")) return;
+    els.resultPanel.classList.add("hidden");
+    const returnFocus = els.resultPanel._returnFocus;
+    if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) {
+      returnFocus.focus();
+    }
+  }
+
+  function trapFocus(event, modal) {
+    const focusable = [...modal.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )].filter((element) => !element.closest(".hidden"));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleModalKeyboard(event) {
+    const registerOpen = els.registerModal && !els.registerModal.classList.contains("hidden");
+    const resultOpen = els.resultPanel && !els.resultPanel.classList.contains("hidden");
+    if (!registerOpen && !resultOpen) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (resultOpen) closeResultModal();
+      else closeRegisterModal();
+      return;
+    }
+    if (event.key === "Tab") trapFocus(event, resultOpen ? els.resultPanel : els.registerModal);
   }
 
   function isAssessmentLocked(assessment) {
@@ -362,7 +407,7 @@ export async function initApp() {
     let navHtml = "";
     if (role === "teacher") {
       navHtml = `
-        <button class="nav-button" data-view="teacherView"><span aria-hidden="true">⌘</span> Assessment</button>
+        <button class="nav-button" data-view="teacherView"><span aria-hidden="true">⌘</span> Penilaian</button>
         <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
         <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
       `;
@@ -374,7 +419,7 @@ export async function initApp() {
     } else if (role === "admin") {
       navHtml = `
         <button class="nav-button" data-view="observabilityView"><span aria-hidden="true">📈</span> Observabilitas</button>
-        <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">ID</span> Akun</button>
+        <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">👤</span> Akun</button>
       `;
     }
     els.mainNav.innerHTML = navHtml;
@@ -434,14 +479,14 @@ export async function initApp() {
       return;
     }
 
-    setButtonLoading(event.submitter, true, "Menghubungi AI...", "Generate assessment");
+    setButtonLoading(event.submitter, true, "Menghubungi AI...", "Buat soal dengan AI");
     try {
       const questions = await generateQuestionsWithFallback(config);
       pendingAssessmentConfig = config;
       pendingQuestions = questions;
       renderQuestionEditor();
     } finally {
-      setButtonLoading(event.submitter, false, "Menghubungi AI...", "Generate assessment");
+      setButtonLoading(event.submitter, false, "Menghubungi AI...", "Buat soal dengan AI");
     }
   }
 
@@ -459,7 +504,7 @@ export async function initApp() {
 
   function handleAddManualQuestion() {
     if (!pendingAssessmentConfig) {
-      showToast("Buat atau buka assessment dulu sebelum menambah soal.");
+      showToast("Buat atau buka penilaian dulu sebelum menambah soal.");
       return;
     }
     const idx = pendingQuestions.length;
@@ -589,7 +634,7 @@ export async function initApp() {
 
     isEvaluating = true;
     els.evaluationLoadingModal?.classList.remove("hidden");
-    setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan assessment");
+    setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan penilaian");
 
     try {
       await saveCurrentAnswer();
@@ -611,7 +656,7 @@ export async function initApp() {
     } finally {
       isEvaluating = false;
       els.evaluationLoadingModal?.classList.add("hidden");
-      setButtonLoading(els.finishAssessment, false, "Menilai dengan AI...", "Selesaikan assessment");
+      setButtonLoading(els.finishAssessment, false, "Menilai dengan AI...", "Selesaikan penilaian");
     }
   }
 
@@ -821,6 +866,7 @@ export async function initApp() {
   }
 
   function bindEvents() {
+    document.addEventListener("keydown", handleModalKeyboard);
     if (els.openRegisterModalBtn) {
       els.openRegisterModalBtn.addEventListener("click", () => {
         openRegisterModal();
@@ -1250,7 +1296,7 @@ export async function initApp() {
       if (!assessment) return;
 
       if (event.target.classList.contains("delete-assessment")) {
-        if (!confirm("Hapus assessment beserta semua submission?")) return;
+        if (!confirm("Hapus penilaian beserta semua submission?")) return;
         await deleteAssessment(id);
         const nextState = await loadState();
         state.assessments = nextState.assessments;
@@ -1342,7 +1388,7 @@ export async function initApp() {
         if (btn) {
           const assessment = state.assessments.find((item) => item.id === btn.dataset.id);
           if (assessment && isAssessmentLocked(assessment)) {
-            showToast("Assessment ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
+            showToast("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
             return;
           }
 
@@ -1393,7 +1439,7 @@ export async function initApp() {
     });
 
     els.resetData.addEventListener("click", async () => {
-      if (!confirm("Reset semua assessment dan hasil?")) return;
+      if (!confirm("Reset semua penilaian dan hasil?")) return;
       await clearDatabase();
       state.assessments = [];
       state.submissions = [];
@@ -1470,6 +1516,10 @@ export async function initApp() {
     });
 
     els.resultPanel.addEventListener('click', async (e) => {
+      if (e.target.closest('.close-result-btn') || e.target === els.resultPanel) {
+        closeResultModal();
+        return;
+      }
       const editBtn = e.target.closest('.edit-override-btn');
       if (!editBtn) return;
       const idx = parseInt(editBtn.dataset.index, 10);
