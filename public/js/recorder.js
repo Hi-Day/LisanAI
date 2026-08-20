@@ -6,7 +6,7 @@ const SPEECH_ERROR_MESSAGES = {
   "no-speech": "Belum terdengar suara. Coba bicara lebih dekat ke mikrofon.",
 };
 
-export function createRecorder({ recordButton, recordStatus, answerText }) {
+export function createRecorder({ recordButton, recordStatus, answerText, recordTimer, volumeIndicator }) {
   let mediaRecorder = null;
   let recognition = null;
   let mediaStream = null;
@@ -15,6 +15,11 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
   let transcriptDraft = "";
   let runId = 0;
   let enabled = true;
+  let timerInterval = null;
+  let recordingStartedAt = 0;
+  let audioContext = null;
+  let analyser = null;
+  let volumeRaf = null;
 
   async function start() {
     if (!enabled) return;
@@ -29,7 +34,7 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
         stopStream();
         return;
       }
-      
+
       // Start MediaRecorder for actual audio storage
       startMediaRecorder("Merekam audio...", activeRunId);
 
@@ -39,6 +44,7 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
       }
     } catch (err) {
       recordStatus.textContent = err.message;
+      setRecording(false);
       throw err;
     } finally {
       setPreparing(false);
@@ -135,6 +141,8 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     mediaRecorder.onstop = () => {
       if (activeRunId !== runId) return;
       stopStream();
+      stopTimer();
+      stopVolumeMeter();
       recordStatus.textContent = audioChunks.length
         ? (answerText.readOnly
             ? "Audio berhasil direkam. Jawaban hanya menggunakan transkripsi otomatis."
@@ -144,6 +152,8 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     mediaRecorder.start();
     setRecording(true);
     recordStatus.textContent = status;
+    startTimer();
+    startVolumeMeter();
   }
 
   function collectSpeechText(event) {
@@ -162,16 +172,99 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
 
   function setPreparing(preparing) {
     recordButton.disabled = preparing;
+    recordButton.setAttribute("aria-label", preparing ? "Menyiapkan mikrofon..." : "Mulai rekam");
   }
 
   function setRecording(recording) {
     recordButton.classList.toggle("recording", recording);
-    recordButton.setAttribute("aria-label", recording ? "Hentikan rekam" : "Mulai rekam");
+    recordButton.setAttribute("aria-label", recording ? "Berhenti rekam" : "Mulai rekam");
+    const label = recordButton.querySelector(".record-label");
+    if (label) label.textContent = recording ? "Berhenti" : "Mulai rekam";
   }
 
   function resetStatus() {
     if (isRecording()) return;
     recordStatus.textContent = "Siap merekam";
+    resetTimer();
+    resetVolumeMeter();
+  }
+
+  function startTimer() {
+    stopTimer();
+    recordingStartedAt = Date.now();
+    updateTimerDisplay();
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function updateTimerDisplay() {
+    if (!recordTimer) return;
+    const elapsed = Math.floor((Date.now() - recordingStartedAt) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, "0");
+    const s = (elapsed % 60).toString().padStart(2, "0");
+    recordTimer.textContent = `${m}:${s}`;
+  }
+
+  function resetTimer() {
+    stopTimer();
+    if (recordTimer) recordTimer.textContent = "00:00";
+  }
+
+  function startVolumeMeter() {
+    stopVolumeMeter();
+    if (!volumeIndicator) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(mediaStream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const bars = volumeIndicator.querySelectorAll(".volume-bar");
+
+      const tick = () => {
+        if (!analyser) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i += 1) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        const level = Math.min(1, avg / 128);
+        const activeBars = Math.round(level * bars.length);
+        bars.forEach((bar, index) => {
+          bar.classList.toggle("active", index < activeBars);
+        });
+        volumeRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (error) {
+      console.warn("Volume meter tidak tersedia:", error.message);
+    }
+  }
+
+  function stopVolumeMeter() {
+    if (volumeRaf) {
+      cancelAnimationFrame(volumeRaf);
+      volumeRaf = null;
+    }
+    if (audioContext) {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+      analyser = null;
+    }
+    resetVolumeMeter();
+  }
+
+  function resetVolumeMeter() {
+    if (!volumeIndicator) return;
+    volumeIndicator.querySelectorAll(".volume-bar").forEach((bar) => bar.classList.remove("active"));
   }
 
   function stopStream() {
@@ -202,7 +295,37 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     }
   }
 
-  return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio, setEnabled };
+  async function testMicrophone() {
+    if (isRecording()) {
+      return { ok: false, message: "Rekaman sedang berjalan. Hentikan dulu sebelum tes mikrofon." };
+    }
+    if (!window.isSecureContext) {
+      return { ok: false, message: "Mikrofon hanya bisa dipakai di HTTPS atau localhost." };
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return { ok: false, message: "Browser tidak mendukung akses mikrofon. Ketik jawaban manual." };
+    }
+
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      const tracks = stream.getAudioTracks();
+      if (!tracks.length) {
+        return { ok: false, message: "Mikrofon terdeteksi tetapi tidak ada track audio aktif." };
+      }
+      const label = tracks[0].label || "Mikrofon bawaan";
+      const enabled = tracks[0].enabled;
+      return { ok: true, message: `Mikrofon siap: ${label}`, label, enabled };
+    } catch (error) {
+      return { ok: false, message: getMicrophoneErrorMessage(error), name: error?.name || "" };
+    } finally {
+      if (stream) stream.getTracks().forEach((track) => track.stop());
+    }
+  }
+
+  return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio, setEnabled, testMicrophone };
 }
 
 function getMicrophoneErrorMessage(error) {

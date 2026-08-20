@@ -169,7 +169,7 @@ export function showResult(els, submission, auth = null) {
       <div class="result-header">
         <div style="flex: 1; min-width: 0;">
           <h3 style="margin-right: 40px;">Hasil penilaian: ${escapeHtml(submission.assessmentTitle)}</h3>
-          <p>${formatRichText(submission.feedback)}</p>
+          <div class="rich-text">${formatRichText(submission.feedback)}</div>
         </div>
         <div class="score-badge">${submission.finalScore}</div>
       </div>
@@ -208,7 +208,15 @@ function renderAssessmentItem(assessment) {
 
 function renderAnswerMap(els, assessment, answers) {
   els.answerMap.innerHTML = assessment.questions
-    .map((_, index) => `<div class="answer-dot ${answers[index]?.text ? "done" : ""}">${index + 1}</div>`)
+    .map((_, index) => {
+      const answer = answers[index];
+      const hasText = (answer?.text || "").trim().length > 0;
+      const hasAudio = Boolean(answer?.audio);
+      const done = hasText || hasAudio;
+      const cls = done ? "done" : "unanswered";
+      const title = done ? `Soal ${index + 1} sudah dijawab` : `Soal ${index + 1} belum dijawab`;
+      return `<div class="answer-dot ${cls}" title="${title}" aria-label="${title}">${index + 1}</div>`;
+    })
     .join("");
 }
 
@@ -276,11 +284,11 @@ function renderFeedbackCard(item, index, auth) {
         <strong>Soal ${index + 1} - Skor <span class="qs-score">${item.score}</span>${durationText}</strong>
         <button type="button" class="action-button edit-override-btn ${isTeacher ? '' : 'hidden'}" data-index="${index}">Koreksi</button>
       </div>
-      <p>${formatRichText(item.question)}</p>
+      <div class="rich-text">${formatRichText(item.question)}</div>
       ${audioHtml}
       <p><b>Jawaban:</b> <i>"${escapeHtml(item.answer || (item.audio ? 'Hanya audio' : 'Tidak ada jawaban'))}"</i></p>
-      <p><b>Kelebihan:</b> <span class="qs-strengths">${formatRichText(item.strengths?.join(" ") || "")}</span></p>
-      <p><b>Masih kurang:</b> <span class="qs-gaps">${formatRichText(item.gaps?.join(" ") || "")}</span></p>
+      <p><b>Kelebihan:</b> <span class="qs-strengths rich-text">${formatRichText(item.strengths?.join(" ") || "")}</span></p>
+      <p><b>Masih kurang:</b> <span class="qs-gaps rich-text">${formatRichText(item.gaps?.join(" ") || "")}</span></p>
       <div class="tag-row">
         ${(item.matched || []).slice(0, 5).map((keyword) => `<span class="tag">${escapeHtml(keyword)}</span>`).join("")}
       </div>
@@ -289,9 +297,88 @@ function renderFeedbackCard(item, index, auth) {
 }
 
 function formatRichText(text) {
-  return escapeHtml(text)
-    .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
-    .replace(/\n/g, "<br>");
+  if (!text) return "";
+  const escaped = escapeHtml(text);
+  const lines = escaped.split(/\r?\n/);
+  const html = [];
+  let inList = null;
+
+  const closeList = () => {
+    if (inList) {
+      html.push(`</${inList}>`);
+      inList = null;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+
+    // Headings (## / ### / #)
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length, 6);
+      html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    // Unordered list
+    const ulItem = line.match(/^[-*•]\s+(.*)$/);
+    if (ulItem) {
+      if (inList !== "ul") {
+        closeList();
+        html.push("<ul>");
+        inList = "ul";
+      }
+      html.push(`<li>${inlineMarkdown(ulItem[1])}</li>`);
+      continue;
+    }
+
+    // Ordered list
+    const olItem = line.match(/^\d+[.)]\s+(.*)$/);
+    if (olItem) {
+      if (inList !== "ol") {
+        closeList();
+        html.push("<ol>");
+        inList = "ol";
+      }
+      html.push(`<li>${inlineMarkdown(olItem[1])}</li>`);
+      continue;
+    }
+
+    // Blockquote
+    const quote = line.match(/^>\s?(.*)$/);
+    if (quote) {
+      closeList();
+      html.push(`<blockquote>${inlineMarkdown(quote[1])}</blockquote>`);
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
+      closeList();
+      html.push("<hr>");
+      continue;
+    }
+
+    // Regular paragraph
+    closeList();
+    html.push(`<p>${inlineMarkdown(line)}</p>`);
+  }
+
+  closeList();
+  return html.join("");
+}
+
+function inlineMarkdown(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
 function buildTrends(submissions) {

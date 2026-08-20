@@ -48,7 +48,13 @@ export async function initApp() {
   let isEvaluating = false;
   let lastModalTrigger = null;
   let session = createSession(state);
-  const recorder = createRecorder(els);
+  const recorder = createRecorder({
+    recordButton: els.recordButton,
+    recordStatus: els.recordStatus,
+    answerText: els.answerText,
+    recordTimer: els.recordTimer,
+    volumeIndicator: els.volumeIndicator,
+  });
   
   // Pagination state for members
   let memberSearchQuery = "";
@@ -629,6 +635,104 @@ export async function initApp() {
       showToast(`AI belum tersedia, memakai generator lokal. Detail: ${error.message}`);
       return generateFallbackQuestions(config);
     }
+  }
+
+  function getUnansweredCount() {
+    const assessment = session.getCurrentAssessment();
+    if (!assessment) return 0;
+    return assessment.questions.reduce((count, _, index) => {
+      const answer = session.currentAnswers[index];
+      const hasText = (answer?.text || "").trim().length > 0;
+      const hasAudio = Boolean(answer?.audio);
+      return hasText || hasAudio ? count : count + 1;
+    }, 0);
+  }
+
+  function renderMicDiagnostics(result) {
+    if (!els.micStatus || !els.micDiagnostics) return;
+    els.micDiagnostics.classList.remove("hidden");
+    els.micDiagnostics.classList.toggle("ok", result.ok);
+    els.micDiagnostics.classList.toggle("error", !result.ok);
+
+    if (result.ok) {
+      els.micStatus.textContent = "✓ Mikrofon siap";
+      els.micStatus.className = "mic-status ok";
+      els.micDiagnostics.innerHTML = `
+        <strong>Mikrofon siap digunakan.</strong>
+        <p>${escapeHtml(result.message)}</p>
+      `;
+      return;
+    }
+
+    els.micStatus.textContent = "✕ Mikrofon bermasalah";
+    els.micStatus.className = "mic-status error";
+    els.micDiagnostics.innerHTML = `
+      <strong>Mikrofon belum bisa dipakai.</strong>
+      <p>${escapeHtml(result.message)}</p>
+      ${buildMicHelp(result.name)}
+      <p style="margin-top: 8px;"><b>Alternatif:</b> Anda tetap bisa menjawab dengan mengetik jawaban di kolom transkripsi di bawah, lalu klik <b>Simpan & lanjut</b>.</p>
+    `;
+  }
+
+  function buildMicHelp(errorName) {
+    if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+      return `
+        <ul>
+          <li>Klik ikon gembok 🔒 di address bar browser.</li>
+          <li>Ubah izin mikrofon menjadi <b>Allow</b> / <b>Izinkan</b>.</li>
+          <li>Muat ulang halaman (F5) lalu coba lagi.</li>
+        </ul>
+      `;
+    }
+    if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+      return `
+        <ul>
+          <li>Pastikan mikrofon tersambung dan tidak dimatikan.</li>
+          <li>Pilih perangkat input yang benar di pengaturan suara sistem.</li>
+          <li>Di browser, buka <b>Settings &gt; Privacy &gt; Microphone</b> dan pilih perangkat.</li>
+        </ul>
+      `;
+    }
+    if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+      return `
+        <ul>
+          <li>Mikrofon mungkin sedang dipakai aplikasi lain (Zoom, Meet, dsb).</li>
+          <li>Tutup aplikasi lain yang memakai mikrofon, lalu coba lagi.</li>
+        </ul>
+      `;
+    }
+    return `
+      <ul>
+        <li>Pastikan halaman dibuka di HTTPS atau localhost.</li>
+        <li>Gunakan browser terbaru (Chrome/Edge) dan izinkan akses mikrofon.</li>
+      </ul>
+    `;
+  }
+
+  function confirmAndFinishAssessment(event) {
+    const assessment = session.getCurrentAssessment();
+    if (!assessment) return;
+
+    const unanswered = getUnansweredCount();
+    const total = assessment.questions.length;
+
+    // Save the current answer first so the summary reflects the latest input.
+    saveCurrentAnswer().then(() => {
+      const unansweredAfterSave = getUnansweredCount();
+
+      if (unansweredAfterSave > 0) {
+        const message = unansweredAfterSave === total
+          ? "Belum ada satu pun soal yang dijawab. Anda akan mengumpulkan penilaian tanpa jawaban."
+          : `${unansweredAfterSave} dari ${total} soal belum dijawab. Soal kosong akan dinilai 0.`;
+        const proceed = confirm(`${message}\n\nYakin ingin menyelesaikan dan mengumpulkan penilaian sekarang?`);
+        if (!proceed) return;
+      } else {
+        const proceed = confirm(`Semua ${total} soal sudah dijawab. Yakin ingin menyelesaikan dan mengumpulkan penilaian?`);
+        if (!proceed) return;
+      }
+
+      handleFinishAssessment(event);
+    });
   }
 
   async function handleFinishAssessment() {
@@ -1424,7 +1528,7 @@ export async function initApp() {
       if (isLastQuestion) {
         // On the last question, "Simpan & lanjut" is equivalent to finishing the assessment.
         stopQuestionTimer();
-        await handleFinishAssessment();
+        confirmAndFinishAssessment();
         return;
       }
       session.goNext();
@@ -1436,8 +1540,15 @@ export async function initApp() {
 
     els.finishAssessment.addEventListener("click", (e) => {
       stopQuestionTimer();
-      handleFinishAssessment(e);
+      confirmAndFinishAssessment(e);
     });
+
+    if (els.testMicButton) {
+      els.testMicButton.addEventListener("click", async () => {
+        const result = await recorder.testMicrophone();
+        renderMicDiagnostics(result);
+      });
+    }
 
     els.seedDemo.addEventListener("click", () => {
       if (state.assessments.length) return;
