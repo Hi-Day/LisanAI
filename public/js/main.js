@@ -463,6 +463,9 @@ export async function initApp() {
     const elapsed = Math.round((Date.now() - questionStartTime) / 1000);
     session.saveAnswer(els.answerText.value, audio, elapsed);
     recorder.clearAudio();
+    // Reset the start time so repeated saves (e.g. last-question finish flow)
+    // don't double/triple-count the same elapsed time into the duration.
+    questionStartTime = Date.now();
   }
 
   async function startRecorderForCurrentAssessment() {
