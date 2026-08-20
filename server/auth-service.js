@@ -180,6 +180,17 @@ async function getSessionUser(token) {
   };
 }
 
+async function extendSession(token) {
+  if (!token) return null;
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+  const result = await getDb().run(
+    "UPDATE sessions SET expires_at = ? WHERE token_hash = ?",
+    expiresAt,
+    hashToken(token)
+  );
+  return result.changes ? expiresAt : null;
+}
+
 async function deleteSession(token) {
   if (!token) return;
   await getDb().run("DELETE FROM sessions WHERE token_hash = ?", hashToken(token));
@@ -292,6 +303,7 @@ module.exports = {
   createCsrfToken,
   deleteTenantUser,
   deleteSession,
+  extendSession,
   getSessionUser,
   assertCsrfToken,
   listTenantUsers,

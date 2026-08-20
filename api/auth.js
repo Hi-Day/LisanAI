@@ -3,6 +3,7 @@ const {
   SESSION_MAX_AGE_SECONDS,
   createSession,
   deleteSession,
+  extendSession,
   getSessionUser,
   loginUser,
   registerTenantUser,
@@ -25,7 +26,11 @@ module.exports = async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const action = url.searchParams.get("action");
       if (action === "me") {
-        const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
+        const token = parseCookies(req)[SESSION_COOKIE];
+        const auth = await getSessionUser(token);
+        // A session stays alive while the user is active. This prevents a user
+        // who regularly refreshes the app from being unexpectedly logged out.
+        if (auth && await extendSession(token)) setSessionCookie(res, token, req);
         return sendJson(res, 200, {
           authenticated: Boolean(auth),
           tenant: auth?.tenant || null,
@@ -52,7 +57,7 @@ module.exports = async (req, res) => {
         assertRateLimit(rateLimitKey(req, "register"), { limit: 3, windowMs: 10 * 60_000 });
         const auth = await registerTenantUser(payload);
         const session = await createSession(auth.user.id);
-        setSessionCookie(res, session.token);
+        setSessionCookie(res, session.token, req);
         const authContext = { sessionId: session.sessionId, tenant: auth.tenant, user: auth.user };
         return sendJson(res, 201, { authenticated: true, tenant: auth.tenant, user: auth.user, csrfToken: createCsrfToken(authContext) });
       }
@@ -61,7 +66,7 @@ module.exports = async (req, res) => {
         assertRateLimit(rateLimitKey(req, `login:${payload?.email || ""}`), { limit: 5, windowMs: 60_000 });
         const auth = await loginUser(payload);
         const session = await createSession(auth.user.id);
-        setSessionCookie(res, session.token);
+        setSessionCookie(res, session.token, req);
         const authContext = { sessionId: session.sessionId, tenant: auth.tenant, user: auth.user };
         return sendJson(res, 200, { authenticated: true, tenant: auth.tenant, user: auth.user, csrfToken: createCsrfToken(authContext) });
       }
@@ -81,7 +86,7 @@ module.exports = async (req, res) => {
         if (!userRow) throw Object.assign(new Error("User tidak ditemukan"), { status: 404 });
 
         const session = await createSession(userRow.id);
-        setSessionCookie(res, session.token);
+        setSessionCookie(res, session.token, req);
         const authContext = {
           sessionId: session.sessionId,
           tenant: { id: userRow.tenant_id, name: userRow.tenant_name, plan: userRow.tenant_plan },
@@ -107,7 +112,7 @@ module.exports = async (req, res) => {
           }
           await deleteSession(token);
         }
-        setCookie(res, SESSION_COOKIE, "", { maxAge: 0, sameSite: "Lax" });
+        setCookie(res, SESSION_COOKIE, "", cookieOptions(req, { maxAge: 0 }));
         return sendJson(res, 200, { ok: true });
       }
 
@@ -121,11 +126,16 @@ module.exports = async (req, res) => {
   }
 };
 
-function setSessionCookie(res, token) {
-  setCookie(res, SESSION_COOKIE, token, {
+function setSessionCookie(res, token, req) {
+  setCookie(res, SESSION_COOKIE, token, cookieOptions(req, {
     maxAge: SESSION_MAX_AGE_SECONDS,
-    sameSite: "Lax",
-  });
+  }));
+}
+
+function cookieOptions(req, options = {}) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const isSecure = forwardedProto === "https" || Boolean(req.socket?.encrypted);
+  return { ...options, sameSite: "Lax", secure: isSecure };
 }
 
 function isDemoSimulationEnabled() {

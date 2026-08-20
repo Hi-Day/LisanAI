@@ -153,6 +153,22 @@ test("login is rate limited after repeated failures", async () => {
   assert.equal(limited.statusCode, 429);
 });
 
+test("valid session is restored and renewed when the page reloads", async () => {
+  const session = await createSession(context.student.id);
+  const response = await callHandler(authApi, {
+    method: "GET",
+    url: "/api/auth?action=me",
+    headers: { cookie: `${SESSION_COOKIE}=${session.token}` },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.authenticated, true);
+  assert.equal(response.body.user.id, context.student.id);
+  assert.match(response.headers["set-cookie"], new RegExp(`^${SESSION_COOKIE}=`));
+  assert.match(response.headers["set-cookie"], /Max-Age=604800/);
+  assert.match(response.headers["set-cookie"], /HttpOnly/);
+});
+
 test("student cannot submit an assessment before class membership is approved", async () => {
   const { tenant, student, pendingAssessment } = context;
 

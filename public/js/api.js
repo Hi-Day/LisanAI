@@ -7,6 +7,9 @@ async function postJson(url, payload, fallbackMessage) {
   }
   const response = await fetch(url, {
     method: "POST",
+    // Keep the HttpOnly session cookie attached even when the app is served
+    // through a production proxy or a different subdomain.
+    credentials: "include",
     headers,
     body: JSON.stringify(payload),
   });
@@ -19,7 +22,7 @@ async function postJson(url, payload, fallbackMessage) {
 }
 
 export async function getCurrentUser() {
-  const response = await fetch("/api/auth?action=me");
+  const response = await fetch("/api/auth?action=me", { credentials: "include" });
   const data = await response.json();
   if (data.csrfToken) {
     clientCsrfToken = data.csrfToken;
