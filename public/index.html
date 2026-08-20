@@ -521,11 +521,19 @@
             <h2 id="monitorTitle">Monitoring hasil</h2>
             <p>Pantau skor, kualitas jawaban, dan perkembangan performa siswa.</p>
           </div>
-          <div style="display: flex; gap: 16px; align-items: center;">
+          <div class="monitor-filters">
             <select id="monitorClassFilter"
               style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;"
               aria-label="Filter berdasarkan kelas">
               <option value="">Semua Kelas</option>
+            </select>
+            <select id="monitorRangeFilter"
+              style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;"
+              aria-label="Filter rentang waktu">
+              <option value="all">Semua waktu</option>
+              <option value="7">7 hari terakhir</option>
+              <option value="30">30 hari terakhir</option>
+              <option value="90">90 hari terakhir</option>
             </select>
             <button id="downloadClassCsvBtn" class="secondary-button"
               style="display: none; align-items: center; gap: 8px; min-height: 38px; height: 38px; padding: 0 16px; border-radius: 8px; font-size: 0.9rem;"
@@ -537,7 +545,7 @@
         </div>
 
         <div class="monitor-grid">
-          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+          <div class="monitor-top-grid">
             <div class="analytics-panel"
               style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
               <h3 style="align-self: flex-start;">Performa kelas</h3>
@@ -545,7 +553,10 @@
               <p>Rata-rata skor dari seluruh penilaian yang diselesaikan.</p>
             </div>
             <div class="analytics-panel">
-              <h3>Perkembangan siswa</h3>
+              <div class="trend-head">
+                <h3 style="margin:0;">Perkembangan siswa</h3>
+                <span class="metric-pill" id="trendAssessmentCount" title="Jumlah penilaian yang menjadi dasar nilai">0 penilaian</span>
+              </div>
               <div id="trendList" class="trend-list empty-state">Belum ada tren skor.</div>
             </div>
           </div>

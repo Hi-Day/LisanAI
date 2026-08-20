@@ -240,6 +240,8 @@ async function updateAssessment(auth, assessmentId, patch) {
     ...payload,
     ...patch,
     id: payload.id,
+    // Fall back to the DB row's class_id when the payload predates classId
+    classId: patch.classId || payload.classId || existing.class_id,
     updatedAt: new Date().toISOString(),
   };
   await assertCanWriteAssessment(auth, next);

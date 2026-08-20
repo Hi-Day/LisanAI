@@ -25,9 +25,9 @@ export function renderAssessments(els, state) {
 
 export function renderStudentArea(els, state, session) {
   const selectedClassId = els.studentClassFilter?.value;
-  let visibleAssessments = state.assessments;
+  let visibleAssessments = state.assessments.filter(a => a.status !== "closed");
   if (selectedClassId) {
-    visibleAssessments = state.assessments.filter(a => a.classId === selectedClassId);
+    visibleAssessments = visibleAssessments.filter(a => a.classId === selectedClassId);
   }
 
   if (!visibleAssessments.length) {
@@ -39,30 +39,63 @@ export function renderStudentArea(els, state, session) {
       els.studentAssessmentGrid.innerHTML = visibleAssessments.map(assessment => {
         const studentSubmissions = state.submissions.filter(s => s.assessmentId === assessment.id);
         const hasSubmitted = studentSubmissions.length > 0;
-        let scoreHtml = '';
         let buttonText = 'Mulai Kerjakan';
         let buttonClass = 'primary-button start-assessment-btn';
         
         const isLocked = hasSubmitted && !assessment.allowRetakes;
-        if (hasSubmitted) {
-          const latestSubmission = studentSubmissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
-          scoreHtml = `<p style="margin: 8px 0 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai sebelumnya: ${latestSubmission.finalScore}</p>`;
-          if (assessment.allowRetakes) {
-            buttonText = 'Kerjakan Ulang';
-            buttonClass = 'secondary-button start-assessment-btn';
-          } else {
-            buttonText = 'Sudah Dikumpulkan';
-            buttonClass = 'secondary-button';
-          }
+        const latestSubmission = hasSubmitted
+          ? studentSubmissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0]
+          : null;
+
+        // Attempts remaining
+        let attemptsText = '1 percobaan';
+        if (assessment.allowRetakes) {
+          const used = studentSubmissions.length;
+          attemptsText = used > 0 ? `Sisa ${Math.max(0, 3 - used)} percobaan` : '3 percobaan';
+        } else if (hasSubmitted) {
+          attemptsText = 'Percobaan habis';
         }
-        
+
+        // Time limit
+        const timeLimit = Number(assessment.timeLimit) || 0;
+        const timeText = timeLimit > 0 ? `⏱ ${formatDuration(timeLimit)} / soal` : '⏱ Tanpa batas waktu';
+
+        // Status
+        let statusHtml = '';
+        if (hasSubmitted) {
+          const statusClass = isLocked ? 'badge-closed' : 'badge-published';
+          const statusLabel = isLocked ? 'Selesai' : 'Dikerjakan';
+          statusHtml = `<span class="tag ${statusClass}" style="width: fit-content;">${statusLabel}</span>`;
+        } else {
+          statusHtml = `<span class="tag badge-published" style="width: fit-content;">Belum dikerjakan</span>`;
+        }
+
+        const scoreHtml = latestSubmission
+          ? `<p style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai terakhir: ${latestSubmission.finalScore}</p>`
+          : '';
+
+        if (hasSubmitted && assessment.allowRetakes) {
+          buttonText = 'Kerjakan Ulang';
+          buttonClass = 'secondary-button start-assessment-btn';
+        } else if (hasSubmitted && !assessment.allowRetakes) {
+          buttonText = 'Sudah Dikumpulkan';
+          buttonClass = 'secondary-button';
+        }
+
         return `
           <div class="assessment-card" data-id="${assessment.id}">
-            <h4>${escapeHtml(assessment.topic)}</h4>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+              <h4>${escapeHtml(assessment.topic)}</h4>
+              ${statusHtml}
+            </div>
             <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
-            <p style="margin: 0; font-size: 0.9rem; color: var(--muted);">${assessment.questions.length} soal</p>
+            <div class="assessment-meta">
+              <span>📝 ${assessment.questions.length} soal</span>
+              <span>${timeText}</span>
+              <span>🔄 ${attemptsText}</span>
+            </div>
             ${scoreHtml}
-          <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
+            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
           </div>
         `;
       }).join("");
@@ -132,9 +165,14 @@ export function renderQuestion(els, assessment, session) {
 
 export function renderMonitoring(els, state) {
   const selectedClassId = els.monitorClassFilter?.value;
+  const rangeDays = Number(els.monitorRangeFilter?.value) || 0;
   let visibleSubmissions = state.submissions;
   if (selectedClassId) {
     visibleSubmissions = state.submissions.filter(s => s.classId === selectedClassId);
+  }
+  if (rangeDays > 0) {
+    const cutoff = Date.now() - rangeDays * 24 * 60 * 60 * 1000;
+    visibleSubmissions = visibleSubmissions.filter(s => new Date(s.submittedAt).getTime() >= cutoff);
   }
 
   els.submissionCount.textContent = visibleSubmissions.length;
@@ -146,6 +184,7 @@ export function renderMonitoring(els, state) {
   if (!visibleSubmissions.length) {
     els.classAverage.textContent = "0";
     els.classAverage.style.setProperty('--score', '0');
+    if (els.trendAssessmentCount) els.trendAssessmentCount.textContent = "0 penilaian";
     showEmpty(els.trendList, "trend-list empty-state", EMPTY_TRENDS);
     els.submissionList.className = "";
     els.submissionList.innerHTML = `<tr><td colspan="5" class="empty-state">${EMPTY_SUBMISSIONS}</td></tr>`;
@@ -163,6 +202,7 @@ export function showResult(els, submission, auth = null) {
   els.resultPanel._returnFocus = document.activeElement;
   els.resultPanel.classList.remove("hidden");
   els.resultPanel.dataset.submissionId = submission.id; // Store ID for override
+  const summary = buildResultSummary(submission);
   els.resultPanel.innerHTML = `
     <div class="result-modal-content">
       <button class="result-close-btn close-result-btn" type="button" aria-label="Tutup hasil penilaian">&times;</button>
@@ -173,32 +213,96 @@ export function showResult(els, submission, auth = null) {
         </div>
         <div class="score-badge">${submission.finalScore}</div>
       </div>
-      <div class="feedback-grid">
-        ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth)).join("")}
+
+      <div class="result-summary">
+        <div class="summary-score">
+          <span class="summary-score-label">Skor akhir</span>
+          <strong>${submission.finalScore}</strong>
+          <span class="summary-score-sub">dari 100</span>
+        </div>
+        <div class="summary-columns">
+          <div class="summary-col summary-strengths">
+            <h4>💪 Kekuatan</h4>
+            ${summary.strengths.length
+              ? `<ul>${summary.strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>`
+              : `<p class="summary-empty">Belum ada catatan kekuatan.</p>`}
+          </div>
+          <div class="summary-col summary-gaps">
+            <h4>🎯 Fokus perbaikan</h4>
+            ${summary.gaps.length
+              ? `<ul>${summary.gaps.map((g) => `<li>${escapeHtml(g)}</li>`).join("")}</ul>`
+              : `<p class="summary-empty">Tidak ada catatan perbaikan.</p>`}
+          </div>
+        </div>
       </div>
+
+      <div class="result-details">
+        <button type="button" class="result-details-toggle" aria-expanded="false">
+          <span>Detail per soal</span>
+          <span class="result-details-caret">▾</span>
+        </button>
+        <div class="result-details-body hidden">
+          <div class="feedback-grid">
+            ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth)).join("")}
+          </div>
+        </div>
+      </div>
+
       <div class="result-footer">
         <button class="primary-button close-result-btn" type="button">Tutup hasil</button>
       </div>
     </div>
   `;
+  const toggle = els.resultPanel.querySelector(".result-details-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      const body = els.resultPanel.querySelector(".result-details-body");
+      const expanded = body.classList.toggle("hidden");
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      toggle.querySelector(".result-details-caret").textContent = expanded ? "▸" : "▾";
+    });
+  }
   requestAnimationFrame(() => els.resultPanel.querySelector(".result-close-btn")?.focus());
+}
+
+function buildResultSummary(submission) {
+  const strengths = [];
+  const gaps = [];
+  (submission.questionScores || []).forEach((item) => {
+    (item.strengths || []).forEach((s) => strengths.push(s));
+    (item.gaps || []).forEach((g) => gaps.push(g));
+  });
+  return {
+    strengths: [...new Set(strengths)].slice(0, 2),
+    gaps: [...new Set(gaps)].slice(0, 2),
+  };
 }
 
 function renderAssessmentItem(assessment) {
   const isOralExam = assessment.oralExamEnabled !== false;
-  
+  const isClosed = assessment.status === "closed";
+  const statusBadge = isClosed
+    ? `<span class="tag badge-closed" style="padding: 2px 6px; font-size: 0.65rem;">Akses ditutup</span>`
+    : `<span class="tag badge-published" style="padding: 2px 6px; font-size: 0.65rem;">${isOralExam ? "Lisan" : "Tulisan"}</span>`;
+
   return `
     <article class="assessment-item" data-id="${assessment.id}">
       <div style="flex: 1; min-width: 0;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
           <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(assessment.topic)}</strong>
-          <span class="tag badge-published" style="padding: 2px 6px; font-size: 0.65rem;">${isOralExam ? "Lisan" : "Tulisan"}</span>
+          ${statusBadge}
         </div>
         <p>${escapeHtml(compactText(assessment.outcomes))}</p>
         <div class="item-actions">
           <button type="button" class="action-button edit-assessment">Edit Soal</button>
           <button type="button" class="action-button download-grades-assessment">Download Nilai</button>
-          <button type="button" class="action-button danger-button delete-assessment">Hapus</button>
+          <button type="button" class="action-button ${isClosed ? "reopen-assessment" : "close-assessment"}">${isClosed ? "Buka akses siswa" : "Tutup akses siswa"}</button>
+          <div class="more-menu">
+            <button type="button" class="action-button more-menu-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Menu lainnya">⋯</button>
+            <div class="more-menu-dropdown hidden">
+              <button type="button" class="more-menu-item danger-button delete-assessment">Hapus penilaian</button>
+            </div>
+          </div>
         </div>
       </div>
       <span>${assessment.questions.length} soal</span>
@@ -222,6 +326,10 @@ function renderAnswerMap(els, assessment, answers) {
 
 function renderTrend(els, submissions) {
   const trends = buildTrends(submissions);
+  const assessmentCount = new Set(submissions.map((s) => s.assessmentId)).size;
+  if (els.trendAssessmentCount) {
+    els.trendAssessmentCount.textContent = `${assessmentCount} penilaian`;
+  }
 
   els.trendList.className = trends.length ? "trend-list" : "trend-list empty-state";
   els.trendList.innerHTML = trends.length
@@ -238,11 +346,11 @@ function renderSubmissionItem(submission) {
   const date = submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "-";
   return `
     <tr class="submission-row" data-id="${submission.id}">
-      <td><strong>${escapeHtml(submission.studentName)}</strong></td>
-      <td>${escapeHtml(submission.assessmentTitle)}</td>
-      <td>${date}</td>
-      <td><span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span></td>
-      <td>
+      <td data-label="Siswa"><strong>${escapeHtml(submission.studentName)}</strong></td>
+      <td data-label="Topik">${escapeHtml(submission.assessmentTitle)}</td>
+      <td data-label="Tanggal">${date}</td>
+      <td data-label="Skor AI"><span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span></td>
+      <td data-label="Aksi">
         <button type="button" class="secondary-button view-submission-btn" style="min-height: 36px; font-size: 0.9rem;">Lihat Detail</button>
       </td>
     </tr>
@@ -251,13 +359,21 @@ function renderSubmissionItem(submission) {
 
 function renderTrendItem(trend) {
   const deltaLabel = `${trend.delta >= 0 ? "+" : ""}${trend.delta}`;
+  const deltaClass = trend.delta > 0 ? "trend-up" : trend.delta < 0 ? "trend-down" : "trend-flat";
+  const history = trend.history.slice(-5).map((h) => `
+    <span class="trend-point" title="${escapeHtml(h.date)}: ${h.score}">
+      <span class="trend-point-bar" style="height: ${Math.max(4, h.score)}%"></span>
+      <span class="trend-point-score">${h.score}</span>
+    </span>
+  `).join("");
   return `
     <div class="trend-item">
       <header>
         <strong>${escapeHtml(trend.studentName)}</strong>
-        <span>${trend.latest} (${deltaLabel})</span>
+        <span class="trend-delta ${deltaClass}">${trend.latest} (${deltaLabel})</span>
       </header>
       <div class="trend-track"><div class="trend-fill" style="width: ${trend.latest}%"></div></div>
+      ${trend.history.length > 1 ? `<div class="trend-history">${history}</div>` : ""}
     </div>
   `;
 }
@@ -396,7 +512,11 @@ function buildTrends(submissions) {
         .sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
       const latest = sorted.at(-1).finalScore;
       const previous = sorted.length > 1 ? sorted.at(-2).finalScore : latest;
-      return { studentName, latest, delta: latest - previous };
+      const history = sorted.map((s) => ({
+        score: s.finalScore,
+        date: new Date(s.submittedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+      }));
+      return { studentName, latest, delta: latest - previous, history };
     })
     .sort((a, b) => b.latest - a.latest);
 }
@@ -413,10 +533,10 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
     const date = sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "-";
     return `
       <tr class="submission-row" data-id="${sub.id}">
-        <td><strong>${escapeHtml(sub.assessmentTitle)}</strong></td>
-        <td>${date}</td>
-        <td><span class="metric-pill" style="padding: 4px 12px;">${sub.finalScore}</span></td>
-        <td>
+        <td data-label="Topik"><strong>${escapeHtml(sub.assessmentTitle)}</strong></td>
+        <td data-label="Tanggal">${date}</td>
+        <td data-label="Skor"><span class="metric-pill" style="padding: 4px 12px;">${sub.finalScore}</span></td>
+        <td data-label="Aksi">
           <button type="button" class="secondary-button view-submission-btn" style="min-height: 36px; font-size: 0.9rem;">Lihat Hasil</button>
         </td>
       </tr>

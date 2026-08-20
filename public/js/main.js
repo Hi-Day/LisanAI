@@ -36,7 +36,7 @@ import { createRecorder } from "./recorder.js";
 import { renderApp, renderMonitoring, renderStudentHistory, renderQuestion, showResult, renderObservability } from "./render.js";
 import { createSession } from "./session.js";
 import { loadState } from "./storage.js";
-import { escapeHtml } from "./utils.js";
+import { compactText, escapeHtml } from "./utils.js";
 
 export async function initApp() {
   const els = getElements();
@@ -47,6 +47,7 @@ export async function initApp() {
   let pendingQuestions = [];
   let isEvaluating = false;
   let lastModalTrigger = null;
+  let currentWizardStep = 1;
   let session = createSession(state);
   const recorder = createRecorder({
     recordButton: els.recordButton,
@@ -155,6 +156,7 @@ export async function initApp() {
 
   function isAssessmentLocked(assessment) {
     if (!assessment) return false;
+    if (assessment.status === "closed") return true;
     const studentSubmissions = state.submissions.filter((submission) => submission.assessmentId === assessment.id);
     return studentSubmissions.length > 0 && !assessment.allowRetakes;
   }
@@ -491,6 +493,7 @@ export async function initApp() {
       pendingAssessmentConfig = config;
       pendingQuestions = questions;
       renderQuestionEditor();
+      goToWizardStep(2);
     } finally {
       setButtonLoading(event.submitter, false, "Menghubungi AI...", "Buat soal dengan AI");
     }
@@ -506,6 +509,7 @@ export async function initApp() {
     const count = Math.max(1, Number(config.count) || 1);
     pendingQuestions = Array.from({ length: count }).map((_, i) => ({ id: `q-${i}`, prompt: "", focus: "", outcome: "", rubric: "", ideal: "" }));
     renderQuestionEditor();
+    goToWizardStep(2);
   }
 
   function handleAddManualQuestion() {
@@ -538,6 +542,7 @@ export async function initApp() {
     pendingQuestions = [];
     els.form.reset();
     els.questionCount.value = DEFAULT_QUESTION_COUNT;
+    goToWizardStep(1);
     renderCurrentState();
   }
 
@@ -593,6 +598,59 @@ export async function initApp() {
         <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
       </article>
     `).join("");
+    renderReviewSummary();
+  }
+
+  function renderReviewSummary() {
+    if (!els.reviewSummary || !pendingAssessmentConfig) return;
+    const config = pendingAssessmentConfig;
+    const classId = config.classId;
+    const className = state.classes.find((c) => c.id === classId)?.name || "Kelas tidak dipilih";
+    const answered = pendingQuestions.filter((q) => (q.prompt || "").trim().length > 0).length;
+    const total = pendingQuestions.length;
+    const timeLimit = Number(config.timeLimit) || 0;
+
+    els.reviewSummary.innerHTML = `
+      <div class="review-block">
+        <h4>Konteks</h4>
+        <dl class="review-list">
+          <div><dt>Topik</dt><dd>${escapeHtml(config.topic || "-")}</dd></div>
+          <div><dt>Kelas</dt><dd>${escapeHtml(className)}</dd></div>
+          <div><dt>Tingkat kesulitan</dt><dd>${escapeHtml(config.difficulty || "-")}</dd></div>
+          <div><dt>Batas waktu per soal</dt><dd>${timeLimit > 0 ? formatTime(timeLimit) : "Tanpa batas"}</dd></div>
+          <div><dt>Mode</dt><dd>${config.oralExamEnabled !== false ? "Ujian lisan" : "Tulisan"}${config.disableManualTyping ? " (typing dimatikan)" : ""}</dd></div>
+          <div><dt>Retake</dt><dd>${config.allowRetakes ? "Diizinkan" : "Tidak diizinkan"}</dd></div>
+        </dl>
+      </div>
+      <div class="review-block">
+        <h4>Soal</h4>
+        <p class="review-count">${answered} dari ${total} soal sudah diisi.</p>
+        <ol class="review-questions">
+          ${pendingQuestions.map((q, i) => `
+            <li class="${(q.prompt || "").trim() ? "" : "review-empty"}">
+              <strong>Soal ${i + 1}</strong>
+              <span>${escapeHtml(compactText(q.prompt || "Belum diisi", 120))}</span>
+            </li>
+          `).join("")}
+        </ol>
+      </div>
+    `;
+  }
+
+  function goToWizardStep(step) {
+    currentWizardStep = step;
+    els.wizardPanels.forEach((panel) => {
+      panel.classList.toggle("hidden", Number(panel.dataset.wizardPanel) !== step);
+    });
+    els.wizardSteps.forEach((btn) => {
+      const btnStep = Number(btn.dataset.wizardStep);
+      const active = btnStep === step;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", String(active));
+      // Steps are enabled up to the current step
+      btn.disabled = btnStep > step;
+    });
+    if (step === 3) renderReviewSummary();
   }
 
   async function handleRecommendConfig() {
@@ -1059,11 +1117,68 @@ export async function initApp() {
       });
     }
 
+    if (els.monitorRangeFilter) {
+      els.monitorRangeFilter.addEventListener("change", () => {
+        renderCurrentState();
+      });
+    }
+
     els.form.addEventListener("submit", handleAssessmentSubmit);
     if (els.createManualAssessment) els.createManualAssessment.addEventListener("click", handleCreateManualAssessment);
     els.saveQuestionSet.addEventListener("click", savePendingQuestionSet);
     els.improveQuestionSet.addEventListener("click", improvePendingQuestionSet);
     if (els.addManualQuestion) els.addManualQuestion.addEventListener("click", handleAddManualQuestion);
+
+    // Wizard navigation
+    if (els.wizardToQuestions) {
+      els.wizardToQuestions.addEventListener("click", () => {
+        const config = readAssessmentForm(els);
+        if (!config.topic) {
+          showToast("Isi topik atau materi terlebih dahulu.");
+          els.topic.focus();
+          return;
+        }
+        if (!config.outcomes) {
+          showToast("Isi kompetensi / capaian pembelajaran terlebih dahulu.");
+          els.outcomes.focus();
+          return;
+        }
+        if (!config.rubric) {
+          showToast("Isi rubrik penilaian terlebih dahulu.");
+          els.rubric.focus();
+          return;
+        }
+        if (!config.classId) {
+          showToast("Pilih kelas tujuan terlebih dahulu.");
+          els.classSelect.focus();
+          return;
+        }
+        pendingAssessmentConfig = config;
+        goToWizardStep(2);
+      });
+    }
+    if (els.wizardBackToContext) {
+      els.wizardBackToContext.addEventListener("click", () => goToWizardStep(1));
+    }
+    if (els.wizardToReview) {
+      els.wizardToReview.addEventListener("click", () => {
+        if (!pendingAssessmentConfig) {
+          showToast("Buat atau buka penilaian dulu sebelum meninjau.");
+          return;
+        }
+        syncQuestionsFromEditor();
+        goToWizardStep(3);
+      });
+    }
+    if (els.wizardBackToQuestions) {
+      els.wizardBackToQuestions.addEventListener("click", () => goToWizardStep(2));
+    }
+    els.wizardSteps.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(btn.dataset.wizardStep);
+        if (step <= currentWizardStep) goToWizardStep(step);
+      });
+    });
     if (els.editDisableManualTyping) {
       els.editDisableManualTyping.addEventListener("change", (e) => {
         if (pendingAssessmentConfig) {
@@ -1396,6 +1511,16 @@ export async function initApp() {
       });
     }
 
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".more-menu")) {
+        document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((d) => {
+          d.classList.add("hidden");
+          const trigger = d.closest(".more-menu")?.querySelector(".more-menu-trigger");
+          if (trigger) trigger.setAttribute("aria-expanded", "false");
+        });
+      }
+    });
+
     els.assessmentList.addEventListener("click", async (event) => {
       const article = event.target.closest("article");
       if (!article) return;
@@ -1403,8 +1528,39 @@ export async function initApp() {
       const assessment = state.assessments.find(a => a.id === id);
       if (!assessment) return;
 
-      if (event.target.classList.contains("delete-assessment")) {
-        if (!confirm("Hapus penilaian beserta semua submission?")) return;
+      if (event.target.classList.contains("more-menu-trigger")) {
+        const menu = event.target.closest(".more-menu");
+        const dropdown = menu.querySelector(".more-menu-dropdown");
+        const isHidden = dropdown.classList.toggle("hidden");
+        event.target.setAttribute("aria-expanded", String(!isHidden));
+        // Close other open menus
+        document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((d) => {
+          if (d !== dropdown) d.classList.add("hidden");
+        });
+        return;
+      }
+      if (event.target.classList.contains("close-assessment")) {
+        const studentSubmissions = state.submissions.filter((s) => s.assessmentId === id);
+        const impact = studentSubmissions.length
+          ? `${studentSubmissions.length} siswa sudah mengumpulkan. Nilai mereka tetap tersimpan, tetapi siswa lain tidak bisa memulai penilaian ini.`
+          : "Belum ada siswa yang mengumpulkan. Siswa tidak akan bisa memulai penilaian ini.";
+        const proceed = confirm(`Tutup akses siswa untuk penilaian ini?\n\n${impact}\n\nAnda bisa membukanya kembali kapan saja.`);
+        if (!proceed) return;
+        await updateAssessment(id, { status: "closed", classId: assessment.classId });
+        const nextState = await loadState();
+        state.assessments = nextState.assessments;
+        state.submissions = nextState.submissions;
+        renderCurrentState();
+        showToast("Akses siswa ditutup. Siswa tidak bisa memulai penilaian ini.", "success");
+      } else if (event.target.classList.contains("reopen-assessment")) {
+        await updateAssessment(id, { status: "published", classId: assessment.classId });
+        const nextState = await loadState();
+        state.assessments = nextState.assessments;
+        state.submissions = nextState.submissions;
+        renderCurrentState();
+        showToast("Akses siswa dibuka kembali.", "success");
+      } else if (event.target.classList.contains("delete-assessment")) {
+        if (!confirm("Hapus penilaian beserta semua submission? Tindakan ini tidak bisa dibatalkan.")) return;
         await deleteAssessment(id);
         const nextState = await loadState();
         state.assessments = nextState.assessments;
@@ -1424,6 +1580,7 @@ export async function initApp() {
         };
         pendingQuestions = assessment.questions;
         renderQuestionEditor();
+        goToWizardStep(2);
         els.questionEditor.scrollIntoView({ behavior: 'smooth' });
       } else if (event.target.classList.contains("download-grades-assessment")) {
         const assessmentSubmissions = state.submissions.filter(s => s.assessmentId === id);
@@ -1496,7 +1653,11 @@ export async function initApp() {
         if (btn) {
           const assessment = state.assessments.find((item) => item.id === btn.dataset.id);
           if (assessment && isAssessmentLocked(assessment)) {
-            showToast("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
+            if (assessment.status === "closed") {
+              showToast("Akses ke penilaian ini sedang ditutup oleh guru.");
+            } else {
+              showToast("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
+            }
             return;
           }
 
@@ -1552,7 +1713,13 @@ export async function initApp() {
 
     els.seedDemo.addEventListener("click", () => {
       if (state.assessments.length) return;
+      const firstClass = state.classes[0];
+      if (!firstClass) {
+        showToast("Buat kelas terlebih dahulu sebelum mengisi data contoh.");
+        return;
+      }
       const assessment = createDemoAssessment(generateFallbackQuestions);
+      assessment.classId = firstClass.id;
       saveAssessmentToDatabase(assessment)
         .then(() => {
           state.assessments.push(assessment);
