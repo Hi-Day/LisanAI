@@ -5,6 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lisan.ai | Penilaian Lisan Berbasis AI</title>
+  <link rel="icon" type="image/svg+xml" href="logo/logo.svg" />
+  <link rel="apple-touch-icon" href="logo/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
@@ -16,7 +18,7 @@
   <section id="authView" class="auth-view">
     <div class="auth-copy">
       <div class="brand auth-brand">
-        <div class="brand-mark" aria-hidden="true">OA</div>
+        <img class="brand-mark" src="logo/logo.svg" alt="Logo Lisan.ai" />
         <div>
           <strong>Lisan.ai</strong>
           <span>Penilaian lisan untuk institusi</span>
@@ -72,7 +74,7 @@
   <div id="appShell" class="app-shell hidden">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">OA</div>
+        <img class="brand-mark" src="logo/logo.svg" alt="Logo Lisan.ai" />
         <div>
           <strong>Lisan.ai</strong>
           <span>Penilaian lisan adaptif</span>
@@ -122,89 +124,171 @@
         </div>
 
         <div class="teacher-grid">
-          <form id="assessmentForm" class="form-panel">
-            <label>
-              Topik atau materi
-              <input id="topic" required placeholder="Contoh: fotosintesis, hukum Newton, teks argumentasi" />
-            </label>
-            <div class="inline-actions">
-              <button class="secondary-button" id="recommendOutcomes" type="button">Rekomendasikan kompetensi</button>
-              <button class="secondary-button" id="recommendRubric" type="button">Rekomendasikan rubrik</button>
+          <div class="wizard">
+            <div class="wizard-steps" role="tablist" aria-label="Langkah pembuatan penilaian">
+              <button type="button" class="wizard-step active" data-wizard-step="1" role="tab" aria-selected="true">
+                <span class="wizard-step-num">1</span>
+                <span class="wizard-step-label">Konteks</span>
+              </button>
+              <button type="button" class="wizard-step" data-wizard-step="2" role="tab" aria-selected="false" disabled>
+                <span class="wizard-step-num">2</span>
+                <span class="wizard-step-label">Soal</span>
+              </button>
+              <button type="button" class="wizard-step" data-wizard-step="3" role="tab" aria-selected="false" disabled>
+                <span class="wizard-step-num">3</span>
+                <span class="wizard-step-label">Tinjau &amp; Publish</span>
+              </button>
             </div>
 
-            <label>
-              Kompetensi / capaian pembelajaran
-              <textarea id="outcomes" required rows="4"
-                placeholder="Tuliskan indikator kompetensi yang perlu terlihat dari jawaban siswa"></textarea>
-            </label>
+            <form id="assessmentForm" class="form-panel wizard-form">
+              <!-- Langkah 1: Konteks -->
+              <div class="wizard-panel" data-wizard-panel="1">
+                <div class="wizard-panel-head">
+                  <h3>Konteks penilaian</h3>
+                  <p>Tentukan topik, kompetensi, dan pengaturan dasar. Sistem akan menyusun soal yang relevan.</p>
+                </div>
 
-            <label>
-              Rubrik penilaian
-              <textarea id="rubric" required rows="5"
-                placeholder="Contoh: ketepatan konsep 40%, kelengkapan alasan 30%, contoh relevan 20%, komunikasi 10%"></textarea>
-            </label>
+                <label>
+                  Topik atau materi
+                  <input id="topic" required placeholder="Contoh: fotosintesis, hukum Newton, teks argumentasi" />
+                </label>
+                <div class="inline-actions">
+                  <button class="secondary-button" id="recommendOutcomes" type="button">Rekomendasikan kompetensi</button>
+                  <button class="secondary-button" id="recommendRubric" type="button">Rekomendasikan rubrik</button>
+                </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-              <label>
-                Kelas tujuan
-                <select id="classSelect" required></select>
-              </label>
-              <label>
-                Tingkat kesulitan
-                <select id="difficulty">
-                  <option>Dasar</option>
-                  <option selected>Menengah</option>
-                  <option>Lanjutan</option>
-                </select>
-              </label>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-              <label>
-                Jumlah soal
-                <input id="questionCount" type="number" min="1" max="10" value="5" />
-              </label>
-              <label>
-                Batas waktu per soal
-                <select id="timeLimit">
-                  <option value="0">Tanpa batas waktu</option>
-                  <option value="30">30 Detik</option>
-                  <option value="60">1 Menit</option>
-                  <option value="120">2 Menit</option>
-                  <option value="180">3 Menit</option>
-                </select>
-              </label>
-            </div>
+                <label>
+                  Kompetensi / capaian pembelajaran
+                  <textarea id="outcomes" required rows="4"
+                    placeholder="Tuliskan indikator kompetensi yang perlu terlihat dari jawaban siswa"></textarea>
+                </label>
 
-            <label
-              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
-              <input type="checkbox" id="oralExamEnabled" checked />
-              <span>Aktifkan mode ujian lisan</span>
-            </label>
+                <label>
+                  Rubrik penilaian
+                  <textarea id="rubric" required rows="5"
+                    placeholder="Contoh: ketepatan konsep 40%, kelengkapan alasan 30%, contoh relevan 20%, komunikasi 10%"></textarea>
+                </label>
 
-            <label
-              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
-              <input type="checkbox" id="disableManualTyping" />
-              <span>Matikan fungsi typing manual siswa</span>
-            </label>
+                <div class="form-row-2">
+                  <label>
+                    Kelas tujuan
+                    <select id="classSelect" required></select>
+                  </label>
+                  <label>
+                    Tingkat kesulitan
+                    <select id="difficulty">
+                      <option>Dasar</option>
+                      <option selected>Menengah</option>
+                      <option>Lanjutan</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="form-row-2">
+                  <label>
+                    Jumlah soal
+                    <input id="questionCount" type="number" min="1" max="10" value="5" />
+                  </label>
+                  <label>
+                    Batas waktu per soal
+                    <select id="timeLimit">
+                      <option value="0">Tanpa batas waktu</option>
+                      <option value="30">30 Detik</option>
+                      <option value="60">1 Menit</option>
+                      <option value="120">2 Menit</option>
+                      <option value="180">3 Menit</option>
+                    </select>
+                  </label>
+                </div>
 
-            <label
-              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; margin-bottom: 8px;">
-              <input type="checkbox" id="allowRetakes" />
-              <span>Izinkan retake penilaian untuk siswa</span>
-            </label>
+                <div class="wizard-checks">
+                  <label class="check-row">
+                    <input type="checkbox" id="oralExamEnabled" checked />
+                    <span>Aktifkan mode ujian lisan</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" id="disableManualTyping" />
+                    <span>Matikan fungsi typing manual siswa</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" id="allowRetakes" />
+                    <span>Izinkan retake penilaian untuk siswa</span>
+                  </label>
+                </div>
 
-            <label>
-              Contoh soal opsional
-              <textarea id="examples" rows="3" placeholder="Masukkan contoh gaya soal jika ada"></textarea>
-            </label>
+                <label>
+                  Contoh soal opsional
+                  <textarea id="examples" rows="3" placeholder="Masukkan contoh gaya soal jika ada"></textarea>
+                </label>
 
-            <button class="primary-button" type="submit">Buat soal dengan AI</button>
-            <button class="secondary-button" id="createManualAssessment" type="button" style="margin-left:8px;">Buat manual</button>
-          </form>
+                <div class="wizard-nav">
+                  <button class="primary-button" id="wizardToQuestions" type="button">Lanjut ke Soal →</button>
+                </div>
+              </div>
+
+              <!-- Langkah 2: Soal -->
+              <div class="wizard-panel hidden" data-wizard-panel="2">
+                <div class="wizard-panel-head">
+                  <h3>Susun soal</h3>
+                  <p>Buat soal dengan AI atau secara manual, lalu kustomisasi setiap soal sebelum lanjut.</p>
+                </div>
+
+                <div class="wizard-generate">
+                  <button class="primary-button" type="submit">Buat soal dengan AI</button>
+                  <button class="secondary-button" id="createManualAssessment" type="button">Buat manual</button>
+                </div>
+
+                <div id="questionEditor" class="question-editor hidden">
+                  <div class="question-editor-head">
+                    <div>
+                      <h3>Kustomisasi question set</h3>
+                      <p>Edit manual setiap soal atau minta AI memperbaiki seluruh question set sebelum disimpan ke kelas.</p>
+                      <div class="wizard-checks">
+                        <label class="check-row">
+                          <input type="checkbox" id="editOralExamEnabled" />
+                          <span>Aktifkan mode ujian lisan</span>
+                        </label>
+                        <label class="check-row">
+                          <input type="checkbox" id="editDisableManualTyping" />
+                          <span>Matikan fungsi typing manual siswa</span>
+                        </label>
+                        <label class="check-row">
+                          <input type="checkbox" id="editAllowRetakes" />
+                          <span>Izinkan retake penilaian untuk siswa</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="student-actions">
+                      <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
+                      <button id="addManualQuestion" class="secondary-button" type="button">Tambah soal</button>
+                    </div>
+                  </div>
+                  <div id="editableQuestionList" class="feedback-grid"></div>
+                </div>
+
+                <div class="wizard-nav">
+                  <button class="secondary-button" id="wizardBackToContext" type="button">← Kembali ke Konteks</button>
+                  <button class="primary-button" id="wizardToReview" type="button">Tinjau &amp; Publish →</button>
+                </div>
+              </div>
+
+              <!-- Langkah 3: Tinjau & Publish -->
+              <div class="wizard-panel hidden" data-wizard-panel="3">
+                <div class="wizard-panel-head">
+                  <h3>Tinjau &amp; publish</h3>
+                  <p>Periksa ringkasan penilaian sebelum dibagikan ke kelas.</p>
+                </div>
+
+                <div id="reviewSummary" class="review-summary"></div>
+
+                <div class="wizard-nav">
+                  <button class="secondary-button" id="wizardBackToQuestions" type="button">← Kembali ke Soal</button>
+                  <button id="saveQuestionSet" class="primary-button" type="button">Publish penilaian</button>
+                </div>
+              </div>
+            </form>
+          </div>
 
           <div class="preview-panel">
-
-
             <div class="visual-card">
               <div class="voice-waves" aria-hidden="true">
                 <span></span><span></span><span></span><span></span><span></span>
@@ -218,36 +302,6 @@
             <div id="assessmentList" class="list-stack empty-state">Belum ada penilaian. Buat penilaian pertama untuk
               mulai.</div>
           </div>
-        </div>
-
-        <div id="questionEditor" class="result-panel hidden">
-          <div class="result-header">
-            <div>
-              <h3>Kustomisasi question set</h3>
-              <p>Edit manual setiap soal atau minta AI memperbaiki seluruh question set sebelum disimpan ke kelas.</p>
-              <label
-                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
-                <input type="checkbox" id="editOralExamEnabled" />
-                <span>Aktifkan mode ujian lisan</span>
-              </label>
-              <label
-                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
-                <input type="checkbox" id="editDisableManualTyping" />
-                <span>Matikan fungsi typing manual siswa</span>
-              </label>
-              <label
-                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-weight: 500;">
-                <input type="checkbox" id="editAllowRetakes" />
-                <span>Izinkan retake penilaian untuk siswa</span>
-              </label>
-            </div>
-            <div class="student-actions">
-                <button id="improveQuestionSet" class="secondary-button" type="button">Perbaiki dengan AI</button>
-                <button id="addManualQuestion" class="secondary-button" type="button">Tambah soal</button>
-                <button id="saveQuestionSet" class="primary-button" type="button">Simpan penilaian</button>
-            </div>
-          </div>
-          <div id="editableQuestionList" class="feedback-grid"></div>
         </div>
       </section>
 

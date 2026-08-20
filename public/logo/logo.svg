@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Lisan.ai">
+  <!-- Latar belakang rounded square -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#2563eb"/>
+  <!-- Gelombang suara (mewakili penilaian lisan) -->
+  <path d="M18 30v4M24 26v12M30 22v20M36 26v12M42 30v4" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none"/>
+</svg>

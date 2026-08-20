@@ -187,16 +187,12 @@ button {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 1.2rem;
-  box-shadow: var(--shadow-glow);
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .brand span, .sidebar-panel p, .eyebrow, .section-heading p, .assessment-item p, .analytics-panel p, .recordStatus p {
