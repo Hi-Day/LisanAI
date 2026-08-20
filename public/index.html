@@ -300,18 +300,32 @@
               </div>
               <h3 id="activeQuestion">Pertanyaan akan muncul di sini.</h3>
               <p id="activeHint">Jawab dengan jelas, gunakan istilah kunci, dan berikan alasan.</p>
-              <div id="activeOutcome" class="question-outcome hidden"></div>
-              <div id="activeRubric" class="question-rubric hidden"></div>
 
               <div id="recorderPanel" class="recorder">
-                <button id="recordButton" class="record-button" type="button" aria-label="Mulai rekam">
-                  <span></span>
-                </button>
-                <div>
-                  <strong id="recordStatus">Siap merekam</strong>
-                  <p id="recordInstructions">Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika
-                    transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
+                <div class="recorder-controls">
+                  <button id="recordButton" class="record-button" type="button" aria-label="Mulai rekam">
+                    <span class="record-dot"></span>
+                    <span class="record-label">Mulai rekam</span>
+                  </button>
+                  <div class="recorder-info">
+                    <strong id="recordStatus">Siap merekam</strong>
+                    <span id="recordTimer" class="record-timer" aria-live="polite">00:00</span>
+                    <div id="volumeIndicator" class="volume-indicator" aria-hidden="true">
+                      <span class="volume-bar"></span>
+                      <span class="volume-bar"></span>
+                      <span class="volume-bar"></span>
+                      <span class="volume-bar"></span>
+                      <span class="volume-bar"></span>
+                    </div>
+                  </div>
                 </div>
+                <div class="recorder-actions">
+                  <button id="testMicButton" class="secondary-button" type="button">Tes mikrofon</button>
+                  <span id="micStatus" class="mic-status" role="status"></span>
+                </div>
+                <div id="micDiagnostics" class="mic-diagnostics hidden" role="alert"></div>
+                <p id="recordInstructions">Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika
+                  transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.</p>
               </div>
 
               <label>
@@ -332,6 +346,8 @@
                 Nama siswa
                 <input id="studentName" placeholder="Contoh: Aisyah Putri" />
               </label>
+              <div id="activeOutcome" class="question-outcome hidden"></div>
+              <div id="activeRubric" class="question-rubric hidden"></div>
               <div id="answerMap" class="answer-map"></div>
               <button id="finishAssessment" class="primary-button full" type="button">Selesaikan penilaian</button>
             </aside>
