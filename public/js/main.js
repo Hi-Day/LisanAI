@@ -1415,6 +1415,14 @@ export async function initApp() {
     els.saveAnswer.addEventListener("click", async () => {
       recorder.stop();
       await saveCurrentAnswer();
+      const assessment = session.getCurrentAssessment();
+      const isLastQuestion = assessment && session.currentQuestionIndex === assessment.questions.length - 1;
+      if (isLastQuestion) {
+        // On the last question, "Simpan & lanjut" is equivalent to finishing the assessment.
+        stopQuestionTimer();
+        await handleFinishAssessment();
+        return;
+      }
       session.goNext();
       renderQuestion(els, session.getCurrentAssessment(), session);
       await startRecorderForCurrentAssessment();
