@@ -93,21 +93,21 @@ export function renderQuestion(els, assessment, session) {
   if (!isOralExam) {
     els.answerText.placeholder = "Tulis jawaban Anda di sini.";
     els.answerText.readOnly = false;
-    els.recordButton?.classList.add("hidden");
+    els.recorderPanel?.classList.add("hidden");
     if (els.recordInstructions) {
       els.recordInstructions.textContent = "Mode tulisan aktif. Jawab setiap soal dengan mengetik jawaban Anda.";
     }
   } else if (assessment.disableManualTyping) {
     els.answerText.placeholder = "Jawaban manual dimatikan untuk assessment ini. Silakan menjawab menggunakan rekaman suara.";
     els.answerText.readOnly = true;
-    els.recordButton?.classList.remove("hidden");
+    els.recorderPanel?.classList.remove("hidden");
     if (els.recordInstructions) {
       els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).";
     }
   } else {
     els.answerText.placeholder = "Transkripsi otomatis atau jawaban manual siswa akan muncul di sini";
     els.answerText.readOnly = false;
-    els.recordButton?.classList.remove("hidden");
+    els.recorderPanel?.classList.remove("hidden");
     if (els.recordInstructions) {
       els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.";
     }

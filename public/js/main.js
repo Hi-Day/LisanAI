@@ -408,6 +408,20 @@ export async function initApp() {
     recorder.clearAudio();
   }
 
+  async function startRecorderForCurrentAssessment() {
+    const assessment = session.getCurrentAssessment();
+    const isOralExam = assessment?.oralExamEnabled !== false;
+    recorder.setEnabled(isOralExam);
+    if (!isOralExam) return;
+
+    recorder.resetStatus();
+    try {
+      await recorder.start();
+    } catch (err) {
+      console.warn("Could not start recorder:", err);
+    }
+  }
+
   async function handleAssessmentSubmit(event) {
     event.preventDefault();
     const config = readAssessmentForm(els);
@@ -717,12 +731,7 @@ export async function initApp() {
     } else {
       session.goNext();
       renderQuestion(els, assessment, session);
-      recorder.resetStatus();
-      try {
-        await recorder.start();
-      } catch (err) {
-        console.warn("Could not start recorder:", err);
-      }
+      await startRecorderForCurrentAssessment();
       startQuestionTimer();
       questionStartTime = Date.now();
     }
@@ -1332,12 +1341,7 @@ export async function initApp() {
           session.selectAssessment(btn.dataset.id);
           els.resultPanel.classList.add("hidden");
           renderCurrentState(); // This will trigger the toggle to workspace
-          recorder.resetStatus();
-          try {
-            await recorder.start();
-          } catch (err) {
-            console.warn("Could not start recorder:", err);
-          }
+          await startRecorderForCurrentAssessment();
           startQuestionTimer();
           questionStartTime = Date.now();
         }
@@ -1358,12 +1362,7 @@ export async function initApp() {
       await saveCurrentAnswer();
       session.goNext();
       renderQuestion(els, session.getCurrentAssessment(), session);
-      recorder.resetStatus();
-      try {
-        await recorder.start();
-      } catch (err) {
-        console.warn("Could not start recorder:", err);
-      }
+      await startRecorderForCurrentAssessment();
       startQuestionTimer();
       questionStartTime = Date.now();
     });

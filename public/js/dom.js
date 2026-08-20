@@ -49,6 +49,7 @@ export function getElements() {
     activeQuestion: document.querySelector("#activeQuestion"),
     activeHint: document.querySelector("#activeHint"),
     recordButton: document.querySelector("#recordButton"),
+    recorderPanel: document.querySelector("#recorderPanel"),
     recordStatus: document.querySelector("#recordStatus"),
     answerText: document.querySelector("#answerText"),
     prevQuestion: document.querySelector("#prevQuestion"),

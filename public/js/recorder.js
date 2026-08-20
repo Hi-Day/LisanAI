@@ -14,8 +14,10 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
   let recognizing = false;
   let transcriptDraft = "";
   let runId = 0;
+  let enabled = true;
 
   async function start() {
+    if (!enabled) return;
     if (isRecording()) return;
 
     const activeRunId = runId + 1;
@@ -192,7 +194,15 @@ export function createRecorder({ recordButton, recordStatus, answerText }) {
     audioChunks = [];
   }
 
-  return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio };
+  function setEnabled(nextEnabled) {
+    enabled = nextEnabled;
+    if (!enabled) {
+      stop();
+      clearAudio();
+    }
+  }
+
+  return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio, setEnabled };
 }
 
 function getMicrophoneErrorMessage(error) {
