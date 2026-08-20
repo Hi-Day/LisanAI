@@ -715,6 +715,41 @@ textarea[readonly] {
   padding: 0;
   z-index: 10;
 }
+
+.evaluation-loading-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.evaluation-loading-card {
+  width: min(100%, 420px);
+  padding: 32px;
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.evaluation-loading-card h3 { margin: 18px 0 8px; }
+.evaluation-loading-card p { margin: 0; color: var(--muted); }
+
+.evaluation-spinner {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border: 5px solid var(--accent-light);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: evaluation-spin 0.8s linear infinite;
+}
+
+@keyframes evaluation-spin { to { transform: rotate(360deg); } }
 .result-close-btn:hover {
   background: var(--line);
   color: var(--rose);

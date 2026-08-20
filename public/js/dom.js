@@ -58,6 +58,7 @@ export function getElements() {
     studentName: document.querySelector("#studentName"),
     finishAssessment: document.querySelector("#finishAssessment"),
     resultPanel: document.querySelector("#resultPanel"),
+    evaluationLoadingModal: document.querySelector("#evaluationLoadingModal"),
     submissionCount: document.querySelector("#submissionCount"),
     submissionList: document.querySelector("#submissionList"),
     studentHistoryList: document.querySelector("#studentHistoryList"),

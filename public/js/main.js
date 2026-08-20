@@ -45,6 +45,7 @@ export async function initApp() {
   let users = [];
   let pendingAssessmentConfig = null;
   let pendingQuestions = [];
+  let isEvaluating = false;
   let session = createSession(state);
   const recorder = createRecorder(els);
   
@@ -582,16 +583,19 @@ export async function initApp() {
   }
 
   async function handleFinishAssessment() {
+    if (isEvaluating) return;
     const assessment = session.getCurrentAssessment();
     if (!assessment) return;
 
-    await saveCurrentAnswer();
-    const studentName = auth.user.role === "student"
-      ? auth.user.name
-      : els.studentName.value.trim() || "Siswa tanpa nama";
+    isEvaluating = true;
+    els.evaluationLoadingModal?.classList.remove("hidden");
     setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan assessment");
 
     try {
+      await saveCurrentAnswer();
+      const studentName = auth.user.role === "student"
+        ? auth.user.name
+        : els.studentName.value.trim() || "Siswa tanpa nama";
       const submission = await evaluateWithFallback(assessment, studentName);
       await saveSubmissionToDatabase(submission);
       state.submissions.push(submission);
@@ -605,6 +609,8 @@ export async function initApp() {
     } catch (error) {
       import('./toast.js').then(({ showToast }) => showToast(`Gagal menyimpan hasil: ${error.message}`));
     } finally {
+      isEvaluating = false;
+      els.evaluationLoadingModal?.classList.add("hidden");
       setButtonLoading(els.finishAssessment, false, "Menilai dengan AI...", "Selesaikan assessment");
     }
   }
