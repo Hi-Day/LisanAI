@@ -195,6 +195,11 @@ export async function renderCurrentState(ctx) {
     notifyStudentComplaintStatus(ctx);
   }
 
+  // Hide the "Isi data contoh" button once there is at least one assessment.
+  if (els.seedDemo) {
+    els.seedDemo.classList.toggle("hidden", state.assessments.length > 0);
+  }
+
   if (auth.user?.role === "student") {
     els.studentName.value = auth.user.name;
     els.studentName.readOnly = true;
