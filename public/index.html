@@ -622,12 +622,13 @@
             <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Total API Calls</span>
             <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0;" id="telemetryTotalCalls">0</strong>
             <span style="font-size: 0.75rem; color: var(--muted);" id="telemetryErrorRate">Error Rate: 0%</span>
+            <span style="font-size: 0.75rem; color: var(--muted);" id="telemetryRetryRate">Retry Rate: 0%</span>
           </div>
           <div class="analytics-panel metric-card"
             style="display: flex; flex-direction: column; justify-content: space-between;">
             <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500;">Rata-rata Latensi</span>
             <strong style="font-size: 1.8rem; font-weight: 700; margin: 8px 0;" id="telemetryLatency">0 ms</strong>
-            <span style="font-size: 0.75rem; color: var(--muted);">Waktu respons AI</span>
+            <span style="font-size: 0.75rem; color: var(--muted);" id="telemetryLatencyPercentiles">p50 0 | p95 0 | p99 0 ms</span>
           </div>
           <div class="analytics-panel metric-card"
             style="display: flex; flex-direction: column; justify-content: space-between;">
@@ -665,13 +666,25 @@
             <div
               style="display: flex; width: 100%; justify-content: space-around; border-top: 1px solid var(--line); padding-top: 16px; margin-top: auto;">
               <div>
-                <span style="font-size: 0.8rem; color: var(--muted);">Token Dihemat</span>
+                <span style="font-size: 0.8rem; color: var(--muted);">Token Dihemat (Estimasi)</span>
                 <div style="font-size: 1.2rem; font-weight: 700; color: var(--emerald);" id="cacheSavedTokensVal">0
                 </div>
               </div>
               <div>
                 <span style="font-size: 0.8rem; color: var(--muted);">Biaya Dihemat</span>
                 <div style="font-size: 1.2rem; font-weight: 700; color: var(--emerald);" id="cacheSavedCostVal">$0.00
+                </div>
+              </div>
+            </div>
+            <div
+              style="display: flex; width: 100%; justify-content: space-around; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 8px;">
+              <div>
+                <span style="font-size: 0.8rem; color: var(--muted);">KV Cache Hit (Actual)</span>
+                <div style="font-size: 1.2rem; font-weight: 700; color: var(--sky);" id="cacheReadTokensVal">0</div>
+              </div>
+              <div>
+                <span style="font-size: 0.8rem; color: var(--muted);">KV Cache Miss (Actual)</span>
+                <div style="font-size: 1.2rem; font-weight: 700; color: var(--amber);" id="cacheCreationTokensVal">0
                 </div>
               </div>
             </div>

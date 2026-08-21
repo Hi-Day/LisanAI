@@ -37,6 +37,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
  */
 async function requestModel(model, messages, schemaHint) {
   let lastError = null;
+  let retries = 0;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
     try {
@@ -81,6 +82,7 @@ async function requestModel(model, messages, schemaHint) {
         if (!isRetryableStatus(response.status)) err.retryable = false;
         if (isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
           lastError = err;
+          retries += 1;
           const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
           await sleep(delay);
           continue;
@@ -88,12 +90,13 @@ async function requestModel(model, messages, schemaHint) {
         throw err;
       }
 
-      return { ok: true, status: response.status, data };
+      return { ok: true, status: response.status, data, retries };
     } catch (err) {
       // Only retry transient/network errors (timeout, connection). Non-retryable
       // HTTP errors are thrown above and must NOT be retried here.
       if (err.retryable !== false && attempt < MAX_RETRIES) {
         lastError = err;
+        retries += 1;
         const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
         await sleep(delay);
         continue;
@@ -120,6 +123,10 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
   let errorMsg = null;
   let status = "success";
   let content = null;
+  let retryCount = 0;
+  // Actual provider KV-cache metrics (from OpenRouter usage.prompt_tokens_details).
+  let cacheReadInputTokens = 0;
+  let cacheCreationInputTokens = 0;
 
   try {
     const hasApiKey = !!process.env.OPENROUTER_API_KEY && 
@@ -197,6 +204,11 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
 
           promptTokens = responseData.usage?.prompt_tokens || 0;
           completionTokens = responseData.usage?.completion_tokens || 0;
+          retryCount = result.retries || 0;
+          // Actual provider KV-cache metrics (cache hit = read, cache miss = creation).
+          const promptDetails = responseData.usage?.prompt_tokens_details || {};
+          cacheReadInputTokens = promptDetails.cached_tokens || 0;
+          cacheCreationInputTokens = Math.max(0, promptTokens - cacheReadInputTokens);
           break;
         } catch (err) {
           lastError = err;
@@ -217,12 +229,12 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
     throw err;
   } finally {
     const latencyMs = Date.now() - startTime;
-    let cacheSavingsTokens = 0;
+    let estimatedPrefixCacheSavings = 0;
 
-    // Simulate Prefix KV Cache savings based on proposal's design criteria:
+    // Estimate prefix KV-cache savings (NOT an actual provider metric).
     // If the call succeeds and has a significant system prompt/rubric (promptTokens > 300),
     // and there was another successful AI call by the same tenant in the last 15 minutes,
-    // we consider the prefix prompt cached (saving ~65% of input tokens).
+    // we estimate the prefix prompt is cached (saving ~65% of input tokens).
     if (status === "success" && promptTokens > 300) {
       try {
         const db = getDb();
@@ -234,19 +246,24 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
           fifteenMinutesAgo
         );
         if (recentCall) {
-          cacheSavingsTokens = Math.round(promptTokens * 0.65);
+          estimatedPrefixCacheSavings = Math.round(promptTokens * 0.65);
         }
       } catch (dbErr) {
         console.error("Gagal memeriksa status cache:", dbErr);
       }
     }
 
+    // Estimate cost based on token usage (per-1K pricing).
+    const PROMPT_PRICE_PER_K = 0.0015; // $ per 1K prompt tokens
+    const COMPLETION_PRICE_PER_K = 0.0020; // $ per 1K completion tokens
+    const costUsd = (promptTokens * PROMPT_PRICE_PER_K + completionTokens * COMPLETION_PRICE_PER_K) / 1000;
+
     // Save telemetry to the database asynchronously
     try {
       const db = getDb();
       await db.run(
-        `INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, cache_savings_tokens, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         crypto.randomUUID().replace(/-/g, ""),
         tenantId,
         userId,
@@ -258,7 +275,11 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
         latencyMs,
         status,
         errorMsg,
-        cacheSavingsTokens,
+        estimatedPrefixCacheSavings,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
+        retryCount,
+        costUsd,
         new Date().toISOString()
       );
     } catch (dbErr) {

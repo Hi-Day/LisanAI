@@ -594,7 +594,11 @@ export function renderObservability(els, data) {
   // 1. Metric Cards
   if (els.telemetryTotalCalls) els.telemetryTotalCalls.textContent = metrics.totalCalls ?? 0;
   if (els.telemetryErrorRate) els.telemetryErrorRate.textContent = `Error Rate: ${metrics.errorRate ?? 0}%`;
+  if (els.telemetryRetryRate) els.telemetryRetryRate.textContent = `Retry Rate: ${metrics.retryRate ?? 0}%`;
   if (els.telemetryLatency) els.telemetryLatency.textContent = `${metrics.avgLatencyMs ?? 0} ms`;
+  if (els.telemetryLatencyPercentiles) {
+    els.telemetryLatencyPercentiles.textContent = `p50 ${metrics.p50LatencyMs ?? 0} | p95 ${metrics.p95LatencyMs ?? 0} | p99 ${metrics.p99LatencyMs ?? 0} ms`;
+  }
   if (els.telemetryTokens) els.telemetryTokens.textContent = (metrics.totalTokens ?? 0).toLocaleString("id-ID");
   if (els.telemetryTokenBreakdown) {
     els.telemetryTokenBreakdown.textContent = `Prompt: ${(metrics.promptTokens ?? 0).toLocaleString("id-ID")} | Comp: ${(metrics.completionTokens ?? 0).toLocaleString("id-ID")}`;
@@ -602,7 +606,7 @@ export function renderObservability(els, data) {
   if (els.telemetryCost) els.telemetryCost.textContent = `$${(metrics.actualCostUSD ?? 0).toFixed(5)}`;
   if (els.telemetryCacheEfficiency) els.telemetryCacheEfficiency.textContent = `${metrics.cacheEfficiencyPercent ?? 0}%`;
   if (els.telemetryCacheSavings) {
-    els.telemetryCacheSavings.textContent = `Saved: ${(metrics.cacheSavingsTokens ?? 0).toLocaleString("id-ID")} tokens`;
+    els.telemetryCacheSavings.textContent = `Saved: ${(metrics.estimatedPrefixCacheSavings ?? 0).toLocaleString("id-ID")} tokens`;
   }
 
   // 2. Cache Ring & ROI
@@ -610,8 +614,10 @@ export function renderObservability(els, data) {
     els.cacheSavingsPercentRing.textContent = `${metrics.cacheEfficiencyPercent ?? 0}%`;
     els.cacheSavingsPercentRing.style.setProperty("--score", metrics.cacheEfficiencyPercent ?? 0);
   }
-  if (els.cacheSavedTokensVal) els.cacheSavedTokensVal.textContent = (metrics.cacheSavingsTokens ?? 0).toLocaleString("id-ID");
+  if (els.cacheSavedTokensVal) els.cacheSavedTokensVal.textContent = (metrics.estimatedPrefixCacheSavings ?? 0).toLocaleString("id-ID");
   if (els.cacheSavedCostVal) els.cacheSavedCostVal.textContent = `$${(metrics.savedCostUSD ?? 0).toFixed(5)}`;
+  if (els.cacheReadTokensVal) els.cacheReadTokensVal.textContent = (metrics.cacheReadInputTokens ?? 0).toLocaleString("id-ID");
+  if (els.cacheCreationTokensVal) els.cacheCreationTokensVal.textContent = (metrics.cacheCreationInputTokens ?? 0).toLocaleString("id-ID");
 
   // 3. Server System Status
   if (els.sysMemoryHeap) els.sysMemoryHeap.textContent = `${system.memoryHeapUsedMB ?? 0} MB`;
@@ -640,8 +646,14 @@ export function renderObservability(els, data) {
             }) 
           : "-";
           
-        const savingsText = log.cache_savings_tokens > 0 
-          ? ` <span style="color: var(--emerald); font-weight: 600; font-size: 0.75rem;">(saved ${log.cache_savings_tokens})</span>` 
+        const savingsText = log.estimated_prefix_cache_savings > 0 
+          ? ` <span style="color: var(--emerald); font-weight: 600; font-size: 0.75rem;">(saved ${log.estimated_prefix_cache_savings})</span>` 
+          : "";
+        const cacheReadText = log.cache_read_input_tokens > 0
+          ? ` <span style="color: var(--sky); font-weight: 600; font-size: 0.75rem;">(cache-hit ${log.cache_read_input_tokens})</span>`
+          : "";
+        const retryText = log.retry_count > 0
+          ? ` <span style="color: var(--amber); font-weight: 600; font-size: 0.75rem;">(retries ${log.retry_count})</span>`
           : "";
 
         return `
@@ -654,7 +666,7 @@ export function renderObservability(els, data) {
             <td>${log.latency_ms} ms</td>
             <td>
               ${log.total_tokens}
-              <div style="font-size: 0.75rem; color: var(--muted);">${log.prompt_tokens} prompt / ${log.completion_tokens} comp${savingsText}</div>
+              <div style="font-size: 0.75rem; color: var(--muted);">${log.prompt_tokens} prompt / ${log.completion_tokens} comp${savingsText}${cacheReadText}${retryText}</div>
             </td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--muted);">${date}</span></td>
