@@ -392,19 +392,52 @@ function renderFeedbackCard(item, index, auth) {
   const audioHtml = item.audio ? `<div style="margin-top: 12px; margin-bottom: 12px;"><audio controls src="${escapeHtml(item.audio)}" style="width: 100%; height: 36px;"></audio></div>` : '';
   
   const isTeacher = auth && auth.user && auth.user.role === 'teacher';
+  const isStudent = auth && auth.user && auth.user.role === 'student';
   const durationText = item.duration !== undefined ? ` | ⏱️ ${formatDuration(item.duration)}` : '';
+
+  // Complaint UI
+  const complaint = item.complaint;
+  let complaintHtml = "";
+  if (complaint) {
+    const statusLabel = complaint.status === "resolved" ? "Selesai" : "Menunggu";
+    const statusClass = complaint.status === "resolved" ? "complaint-resolved" : "complaint-pending";
+    complaintHtml = `
+      <div class="complaint-box ${statusClass}">
+        <strong>📩 Komplain siswa:</strong>
+        <p>${escapeHtml(complaint.reason)}</p>
+        ${complaint.status === "resolved" && complaint.response
+          ? `<p class="complaint-response"><b>Respon guru:</b> ${escapeHtml(complaint.response)}</p>`
+          : ""}
+        <span class="tag">Status: ${statusLabel}</span>
+      </div>
+    `;
+  }
+
+  const complaintBtn = isStudent && !complaint
+    ? `<button type="button" class="action-button complaint-btn" data-index="${index}">Komplain</button>`
+    : "";
+
+  // Teacher can respond to a pending complaint.
+  const respondBtn = isTeacher && complaint && complaint.status === "pending"
+    ? `<button type="button" class="action-button respond-complaint-btn" data-index="${index}">Respon Komplain</button>`
+    : "";
 
   return `
     <article class="feedback-card" data-index="${index}">
       <div style="display: flex; justify-content: space-between; align-items: start;">
         <strong>Soal ${index + 1} - Skor <span class="qs-score">${item.score}</span>${durationText}</strong>
-        <button type="button" class="action-button edit-override-btn ${isTeacher ? '' : 'hidden'}" data-index="${index}">Koreksi</button>
+        <div style="display: flex; gap: 8px;">
+          ${complaintBtn}
+          ${respondBtn}
+          <button type="button" class="action-button edit-override-btn ${isTeacher ? '' : 'hidden'}" data-index="${index}">Koreksi</button>
+        </div>
       </div>
       <div class="rich-text">${formatRichText(item.question)}</div>
       ${audioHtml}
       <p><b>Jawaban:</b> <i>"${escapeHtml(item.answer || (item.audio ? 'Hanya audio' : 'Tidak ada jawaban'))}"</i></p>
       <p><b>Kelebihan:</b> <span class="qs-strengths rich-text">${formatRichText(item.strengths?.join(" ") || "")}</span></p>
       <p><b>Masih kurang:</b> <span class="qs-gaps rich-text">${formatRichText(item.gaps?.join(" ") || "")}</span></p>
+      ${complaintHtml}
       <div class="tag-row">
         ${(item.matched || []).slice(0, 5).map((keyword) => `<span class="tag">${escapeHtml(keyword)}</span>`).join("")}
       </div>

@@ -417,6 +417,123 @@ test("observability API endpoints enforce proper role-based authorization", asyn
   assert.ok(Array.isArray(resAdmin.body.logs));
 });
 
+test("student can submit a complaint on their own submission question", async () => {
+  const { tenant, student, publishedAssessment } = context;
+  const session = await createSession(student.id);
+  const headers = { cookie: `${SESSION_COOKIE}=${session.token}` };
+  const authContext = { sessionId: session.sessionId, tenant, user: student };
+  const csrfToken = createCsrfToken(authContext);
+
+  // Create a submission for the student first.
+  const submission = createSubmission(publishedAssessment.id, "sub-complaint-1");
+  submission.questionScores = [
+    { question: "Q1", score: 60, matched: [], strengths: [], gaps: [] },
+    { question: "Q2", score: 80, matched: [], strengths: [], gaps: [] },
+  ];
+  await saveSubmission(tenant.id, student.id, submission, true);
+
+  // Submit a complaint on question index 0.
+  const res = await callHandler(databaseApi, {
+    method: "POST",
+    url: "/api/database",
+    body: {
+      action: "submit-complaint",
+      payload: { submissionId: submission.id, questionIndex: 0, reason: "Saya rasa jawaban saya sudah benar." },
+    },
+    headers: { ...headers, "x-csrf-token": csrfToken },
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.submission.questionScores[0].complaint.status, "pending");
+  assert.equal(res.body.submission.questionScores[0].complaint.reason, "Saya rasa jawaban saya sudah benar.");
+});
+
+test("student cannot submit a complaint on another student's submission", async () => {
+  const { tenant, student, pendingStudent, publishedAssessment } = context;
+  const session = await createSession(student.id);
+  const headers = { cookie: `${SESSION_COOKIE}=${session.token}` };
+  const authContext = { sessionId: session.sessionId, tenant, user: student };
+  const csrfToken = createCsrfToken(authContext);
+
+  // Create a submission owned by pendingStudent.
+  const submission = createSubmission(publishedAssessment.id, "sub-complaint-other");
+  submission.questionScores = [{ question: "Q1", score: 70, matched: [], strengths: [], gaps: [] }];
+  await saveSubmission(tenant.id, pendingStudent.id, submission, true);
+
+  // student tries to complain on pendingStudent's submission -> 404 (not found for this user).
+  const res = await callHandler(databaseApi, {
+    method: "POST",
+    url: "/api/database",
+    body: {
+      action: "submit-complaint",
+      payload: { submissionId: submission.id, questionIndex: 0, reason: "Coba komplain" },
+    },
+    headers: { ...headers, "x-csrf-token": csrfToken },
+  });
+
+  assert.equal(res.statusCode, 404);
+});
+
+test("submit-complaint requires a reason", async () => {
+  const { tenant, student, publishedAssessment } = context;
+  const session = await createSession(student.id);
+  const headers = { cookie: `${SESSION_COOKIE}=${session.token}` };
+  const authContext = { sessionId: session.sessionId, tenant, user: student };
+  const csrfToken = createCsrfToken(authContext);
+
+  const submission = createSubmission(publishedAssessment.id, "sub-complaint-noreason");
+  submission.questionScores = [{ question: "Q1", score: 70, matched: [], strengths: [], gaps: [] }];
+  await saveSubmission(tenant.id, student.id, submission, true);
+
+  const res = await callHandler(databaseApi, {
+    method: "POST",
+    url: "/api/database",
+    body: {
+      action: "submit-complaint",
+      payload: { submissionId: submission.id, questionIndex: 0, reason: "   " },
+    },
+    headers: { ...headers, "x-csrf-token": csrfToken },
+  });
+
+  assert.equal(res.statusCode, 400);
+});
+
+test("teacher can respond to a complaint and re-evaluate the score", async () => {
+  const { tenant, student, teacher, publishedAssessment } = context;
+  const teacherSession = await createSession(teacher.id);
+  const teacherHeaders = { cookie: `${SESSION_COOKIE}=${teacherSession.token}` };
+  const teacherAuthContext = { sessionId: teacherSession.sessionId, tenant, user: teacher };
+  const teacherCsrfToken = createCsrfToken(teacherAuthContext);
+
+  // Create a submission with a pending complaint.
+  const submission = createSubmission(publishedAssessment.id, "sub-complaint-resolve");
+  submission.questionScores = [
+    { question: "Q1", score: 60, matched: [], strengths: [], gaps: [], complaint: { reason: "Kurang sesuai", status: "pending", submittedAt: new Date().toISOString() } },
+  ];
+  await saveSubmission(tenant.id, student.id, submission, true);
+
+  // Teacher re-evaluates via save-submission.
+  submission.questionScores[0].score = 85;
+  submission.questionScores[0].complaint = {
+    ...submission.questionScores[0].complaint,
+    status: "resolved",
+    response: "Setelah ditinjau, jawaban Anda layak mendapat nilai lebih.",
+    resolvedAt: new Date().toISOString(),
+  };
+  submission.finalScore = 85;
+
+  const res = await callHandler(databaseApi, {
+    method: "POST",
+    url: "/api/database",
+    body: { action: "save-submission", payload: submission },
+    headers: { ...teacherHeaders, "x-csrf-token": teacherCsrfToken },
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.submission.questionScores[0].score, 85);
+  assert.equal(res.body.submission.questionScores[0].complaint.status, "resolved");
+});
+
 
 
 

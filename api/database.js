@@ -142,6 +142,41 @@ module.exports = async (req, res) => {
         }
       }
 
+      // Student submits a complaint on a specific question of their own submission.
+      if (action === "submit-complaint") {
+        if (!isStudent) return sendJson(res, 403, { error: "Forbidden" });
+        const { submissionId, questionIndex, reason } = payload || {};
+        if (!submissionId || questionIndex === undefined || !String(reason || "").trim()) {
+          return sendJson(res, 400, { error: "Alasan komplain wajib diisi" });
+        }
+
+        const database = getDb();
+        const existing = await database.get(
+          "SELECT * FROM submissions WHERE id = ? AND tenant_id = ? AND user_id = ?",
+          submissionId,
+          auth.tenant.id,
+          auth.user.id
+        );
+        if (!existing) {
+          return sendJson(res, 404, { error: "Submission tidak ditemukan" });
+        }
+
+        const submission = JSON.parse(existing.payload);
+        const qs = submission.questionScores?.[questionIndex];
+        if (!qs) {
+          return sendJson(res, 400, { error: "Soal tidak ditemukan" });
+        }
+
+        qs.complaint = {
+          reason: String(reason).trim(),
+          status: "pending",
+          submittedAt: new Date().toISOString(),
+        };
+
+        await saveSubmission(auth.tenant.id, auth.user.id, submission, true);
+        return sendJson(res, 200, { submission });
+      }
+
       // Classes
       if (action === "create-class") {
         if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });

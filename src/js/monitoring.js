@@ -42,6 +42,82 @@ export function bindMonitoringEvents(ctx) {
       closeResultModal(ctx);
       return;
     }
+
+    // Student submits a complaint on a specific question.
+    const complaintBtn = e.target.closest(".complaint-btn");
+    if (complaintBtn) {
+      const idx = parseInt(complaintBtn.dataset.index, 10);
+      const submissionId = els.resultPanel.dataset.submissionId;
+      const submission = ctx.state.submissions.find((s) => s.id === submissionId);
+      if (!submission) return;
+
+      const qs = submission.questionScores[idx];
+      const reason = prompt(`Komplain untuk Soal ${idx + 1} (skor ${qs.score}):\nJelaskan alasan Anda merasa nilai kurang sesuai.`);
+      if (reason === null) return;
+      if (!reason.trim()) {
+        showToast("Alasan komplain wajib diisi", "error");
+        return;
+      }
+
+      try {
+        const { submitComplaint } = await import("./api.js");
+        const result = await submitComplaint(submissionId, idx, reason);
+        // Update local state with the returned submission.
+        const updated = result.submission;
+        const localIdx = ctx.state.submissions.findIndex((s) => s.id === submissionId);
+        if (localIdx >= 0) ctx.state.submissions[localIdx] = updated;
+        showToast("Komplain terkirim. Guru akan meninjau ulang.", "success");
+        showResult(els, updated, ctx.auth);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+
+    // Teacher responds to a complaint and re-evaluates the score.
+    const respondBtn = e.target.closest(".respond-complaint-btn");
+    if (respondBtn) {
+      const idx = parseInt(respondBtn.dataset.index, 10);
+      const submissionId = els.resultPanel.dataset.submissionId;
+      const submission = ctx.state.submissions.find((s) => s.id === submissionId);
+      if (!submission) return;
+
+      const qs = submission.questionScores[idx];
+      const newScoreStr = prompt(`Re-evaluasi Soal ${idx + 1} (skor saat ini: ${qs.score}):\nMasukkan skor baru (0-100):`, qs.score);
+      if (newScoreStr === null) return;
+      const scoreVal = parseInt(newScoreStr, 10);
+      if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
+        showToast("Skor tidak valid. Harus angka 0-100", "error");
+        return;
+      }
+
+      const response = prompt("Respon untuk siswa (penjelasan keputusan):", "");
+      if (response === null) return;
+
+      qs.score = scoreVal;
+      qs.complaint = {
+        ...qs.complaint,
+        status: "resolved",
+        response: String(response || "").trim(),
+        resolvedAt: new Date().toISOString(),
+      };
+
+      submission.finalScore = Math.round(
+        submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
+      );
+
+      try {
+        await saveSubmissionToDatabase(submission);
+        showToast("Re-evaluasi berhasil disimpan", "success");
+        showResult(els, submission, ctx.auth);
+        renderMonitoring(els, ctx.state);
+        renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+
     const editBtn = e.target.closest(".edit-override-btn");
     if (!editBtn) return;
     const idx = parseInt(editBtn.dataset.index, 10);

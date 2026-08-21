@@ -929,6 +929,16 @@ textarea[readonly] {
 .question-card-header strong { margin-bottom: 0; }
 .question-card-header .delete-question { flex-shrink: 0; }
 
+/* Student complaint box */
+.complaint-box {
+  margin: 12px 0; padding: 12px 14px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface, #f8fafc);
+}
+.complaint-box.complaint-pending { border-left: 4px solid #f59e0b; }
+.complaint-box.complaint-resolved { border-left: 4px solid #10b981; }
+.complaint-box p { margin: 6px 0 0; }
+.complaint-box .complaint-response { color: var(--ink); }
+
 /* Markdown-rendered rich text */
 .rich-text h1, .rich-text h2, .rich-text h3,
 .rich-text h4, .rich-text h5, .rich-text h6 {

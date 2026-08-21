@@ -89,6 +89,14 @@ export async function saveSubmissionToDatabase(submission) {
   await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
 }
 
+export async function submitComplaint(submissionId, questionIndex, reason) {
+  return postJson(
+    "/api/database",
+    { action: "submit-complaint", payload: { submissionId, questionIndex, reason } },
+    "Gagal mengirim komplain"
+  );
+}
+
 export async function clearDatabase() {
   await postJson("/api/database", { action: "clear-data" }, "Gagal reset database");
 }
