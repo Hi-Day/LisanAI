@@ -164,6 +164,7 @@ export function getElements() {
     apiKeyResult: document.querySelector("#apiKeyResult"),
     apiKeyValue: document.querySelector("#apiKeyValue"),
     apiKeyList: document.querySelector("#apiKeyList"),
+    apiKeysView: document.querySelector("#apiKeysView"),
   };
 }
 

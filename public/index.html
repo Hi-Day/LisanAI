@@ -795,9 +795,18 @@
             <div id="userList" class="list-stack empty-state">Belum ada akun tambahan.</div>
           </div>
         </div>
+      </section>
 
-        <div class="form-panel" style="margin-top: 24px;">
-          <h3>🔑 API Keys (untuk integrasi sistem eksternal)</h3>
+      <section id="apiKeysView" class="view" aria-labelledby="apiKeysTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="apiKeysTitle">🔑 API Keys</h2>
+            <p>Kelola API key untuk integrasi sistem eksternal.</p>
+          </div>
+        </div>
+
+        <div class="form-panel">
+          <h3>Buat API Key</h3>
           <p style="color: var(--muted); font-size: 0.9rem; margin-top: -12px;">
             Gunakan API key untuk mengakses API publik (<code>/api/v1/...</code>) dari sistem eksternal.
             Kirim sebagai header <code>Authorization: Bearer &lt;api_key&gt;</code>.

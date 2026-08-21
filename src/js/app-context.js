@@ -57,11 +57,6 @@ export async function bootstrapAuthenticatedApp(ctx, nextAuth) {
   // Dynamic import breaks the circular dependency (user-management imports from this file).
   const { renderUsers } = await import("./user-management.js");
   renderUsers(ctx);
-  // Load API keys for admin.
-  if (ctx.auth.user.role === "admin") {
-    const { loadApiKeys } = await import("./api-keys.js");
-    loadApiKeys(ctx);
-  }
   refreshSimulatorIfEnabled(ctx);
 }
 
@@ -244,6 +239,7 @@ export function applyRoleAccess(ctx) {
     navHtml = `
       <button class="nav-button" data-view="observabilityView"><span aria-hidden="true">📈</span> Observabilitas</button>
       <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">👤</span> Akun</button>
+      <button class="nav-button" data-view="apiKeysView"><span aria-hidden="true">🔑</span> API Keys</button>
     `;
   }
   els.mainNav.innerHTML = navHtml;
@@ -264,12 +260,12 @@ export function canAccessView(ctx, viewId) {
   if (!ctx.auth.user) return false;
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView";
-  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView";
+  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView";
   if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView" || viewId === "complaintView";
   return false;
 }
 
-export function switchView(ctx, viewId) {
+export async function switchView(ctx, viewId) {
   if (!canAccessView(ctx, viewId)) return;
   const { els } = ctx;
   const navBtns = els.mainNav.querySelectorAll(".nav-button");
@@ -277,6 +273,10 @@ export function switchView(ctx, viewId) {
   els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
   if (viewId === "observabilityView") {
     fetchAndRenderTelemetry(ctx);
+  }
+  if (viewId === "apiKeysView") {
+    const { loadApiKeys } = await import("./api-keys.js");
+    loadApiKeys(ctx);
   }
 }
 
