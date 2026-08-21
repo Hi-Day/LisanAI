@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { sendJson } = require("./http-utils");
+const { applySecurityHeaders } = require("./security-headers");
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -19,6 +20,7 @@ function serveStaticFile(res, root, pathname) {
   if (!filePath) return sendJson(res, 404, { error: "Not found" });
 
   const ext = path.extname(filePath);
+  applySecurityHeaders(res);
   res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
   fs.createReadStream(filePath).pipe(res);
 }

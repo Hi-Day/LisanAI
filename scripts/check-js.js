@@ -3,7 +3,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
-const TARGETS = ["local-server.js", "api", "server", "public/js", "scripts", "tests"];
+const TARGETS = ["local-server.js", "api", "server", "src/js", "scripts", "tests"];
 
 const files = TARGETS.flatMap((target) => collectJsFiles(path.join(ROOT, target)));
 let failed = false;

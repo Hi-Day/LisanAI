@@ -53,7 +53,7 @@ test("database helpers accept array parameters passed as a single array", async 
 });
 
 test("frontend bulk user creation imports the batch helper from the API module", () => {
-  const source = fs.readFileSync(path.join(__dirname, "../public/js/main.js"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "../src/js/user-management.js"), "utf8");
 
   assert.match(source, /import\s+\{[^}]*createUsersBatch[^}]*\}\s+from\s+["']\.\/api\.js["'];/);
 });

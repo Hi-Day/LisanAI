@@ -1,3 +1,5 @@
+const { applySecurityHeaders } = require("./security-headers");
+
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let raw = "";
@@ -20,6 +22,7 @@ function readJson(req) {
 }
 
 function sendJson(res, status, data) {
+  applySecurityHeaders(res);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(data));
 }

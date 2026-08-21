@@ -2,6 +2,109 @@ const { OPENROUTER_URL } = require("./config");
 const { getDb } = require("./database");
 const crypto = require("node:crypto");
 
+// Timeout for a single OpenRouter request (ms). Prevents hanging requests.
+const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 60_000);
+// Max retries for transient errors (429, 5xx, network) per model attempt.
+const MAX_RETRIES = Number(process.env.OPENROUTER_MAX_RETRIES || 2);
+// Base delay for exponential backoff (ms).
+const RETRY_BASE_DELAY_MS = 500;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+/**
+ * Fetch with a timeout using AbortController.
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Perform a single model request with retry + exponential backoff.
+ * Returns { ok, status, data } or throws on non-retryable failure.
+ */
+async function requestModel(model, messages, schemaHint) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(
+        OPENROUTER_URL,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://127.0.0.1:4173",
+            "X-Title": "Lisan.ai",
+          },
+          body: JSON.stringify({
+            model,
+            temperature: 0.25,
+            max_tokens: 4000,
+            reasoning: {
+              effort: "none",
+              exclude: true,
+            },
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Anda adalah evaluator pendidikan berbahasa Indonesia. Balas hanya JSON valid tanpa markdown. " +
+                  schemaHint,
+              },
+              ...messages,
+            ],
+          }),
+        },
+        REQUEST_TIMEOUT_MS
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      // Non-OK responses: retry only transient errors (429, 5xx).
+      if (!response.ok) {
+        const err = new Error(data.error?.message || `OpenRouter error ${response.status}`);
+        // Mark non-retryable HTTP errors so the catch block does not retry them.
+        if (!isRetryableStatus(response.status)) err.retryable = false;
+        if (isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
+          lastError = err;
+          const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
+          await sleep(delay);
+          continue;
+        }
+        throw err;
+      }
+
+      return { ok: true, status: response.status, data };
+    } catch (err) {
+      // Only retry transient/network errors (timeout, connection). Non-retryable
+      // HTTP errors are thrown above and must NOT be retried here.
+      if (err.retryable !== false && attempt < MAX_RETRIES) {
+        lastError = err;
+        const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error("OpenRouter request gagal");
+}
+
 async function callOpenRouter(messages, schemaHint, context = {}) {
   const startTime = Date.now();
   const tenantId = context.tenantId || "system";
@@ -87,39 +190,8 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
         model = candidateModel;
 
         try {
-          const response = await fetch(OPENROUTER_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "http://127.0.0.1:4173",
-              "X-Title": "Lisan.ai",
-            },
-            body: JSON.stringify({
-              model: candidateModel,
-              temperature: 0.25,
-              max_tokens: 4000,
-              reasoning: {
-                effort: "none",
-                exclude: true,
-              },
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    "Anda adalah evaluator pendidikan berbahasa Indonesia. Balas hanya JSON valid tanpa markdown. " +
-                    schemaHint,
-                },
-                ...messages,
-              ],
-            }),
-          });
-
-          responseData = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(responseData.error?.message || `OpenRouter error ${response.status}`);
-          }
-
+          const result = await requestModel(candidateModel, messages, schemaHint);
+          responseData = result.data;
           content = responseData.choices?.[0]?.message?.content;
           if (!content) throw new Error("Respons model kosong");
 
@@ -208,4 +280,8 @@ function parseJsonContent(content) {
 
 module.exports = {
   callOpenRouter,
+  fetchWithTimeout,
+  isRetryableStatus,
+  REQUEST_TIMEOUT_MS,
+  MAX_RETRIES,
 };
