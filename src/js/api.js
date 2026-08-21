@@ -1,6 +1,6 @@
 let clientCsrfToken = null;
 
-async function postJson(url, payload, fallbackMessage) {
+export async function postJson(url, payload, fallbackMessage) {
   const headers = { "Content-Type": "application/json" };
   if (clientCsrfToken) {
     headers["X-CSRF-Token"] = clientCsrfToken;

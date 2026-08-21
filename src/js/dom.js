@@ -159,6 +159,11 @@ export function getElements() {
     complaintCount: document.querySelector("#complaintCount"),
     complaintNavBadge: document.querySelector("#complaintNavBadge"),
     complaintNotification: document.querySelector("#complaintNotification"),
+    apiKeyName: document.querySelector("#apiKeyName"),
+    createApiKeyBtn: document.querySelector("#createApiKeyBtn"),
+    apiKeyResult: document.querySelector("#apiKeyResult"),
+    apiKeyValue: document.querySelector("#apiKeyValue"),
+    apiKeyList: document.querySelector("#apiKeyList"),
   };
 }
 

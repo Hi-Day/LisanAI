@@ -17,7 +17,9 @@ const requestHandler = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname.startsWith("/api/")) {
-      const endpointName = url.pathname.replace("/api/", "");
+      let endpointName = url.pathname.replace("/api/", "");
+      // Map /api/v1/... to the v1 handler.
+      if (endpointName.startsWith("v1/")) endpointName = "v1";
       try {
         const handler = require(`./api/${endpointName}`);
         return await handler(req, res);

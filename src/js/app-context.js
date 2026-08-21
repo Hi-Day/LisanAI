@@ -57,6 +57,11 @@ export async function bootstrapAuthenticatedApp(ctx, nextAuth) {
   // Dynamic import breaks the circular dependency (user-management imports from this file).
   const { renderUsers } = await import("./user-management.js");
   renderUsers(ctx);
+  // Load API keys for admin.
+  if (ctx.auth.user.role === "admin") {
+    const { loadApiKeys } = await import("./api-keys.js");
+    loadApiKeys(ctx);
+  }
   refreshSimulatorIfEnabled(ctx);
 }
 

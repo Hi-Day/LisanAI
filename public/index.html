@@ -795,6 +795,23 @@
             <div id="userList" class="list-stack empty-state">Belum ada akun tambahan.</div>
           </div>
         </div>
+
+        <div class="form-panel" style="margin-top: 24px;">
+          <h3>🔑 API Keys (untuk integrasi sistem eksternal)</h3>
+          <p style="color: var(--muted); font-size: 0.9rem; margin-top: -12px;">
+            Gunakan API key untuk mengakses API publik (<code>/api/v1/...</code>) dari sistem eksternal.
+            Kirim sebagai header <code>Authorization: Bearer &lt;api_key&gt;</code>.
+          </p>
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+            <input id="apiKeyName" placeholder="Nama API key (contoh: LMS Integration)" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line);" />
+            <button id="createApiKeyBtn" class="primary-button" type="button">Buat API Key</button>
+          </div>
+          <div id="apiKeyResult" class="api-key-result hidden" style="margin-bottom: 12px; padding: 12px; border-radius: 8px; background: #fefce8; border: 1px solid #f59e0b;">
+            <strong>Salin API key ini sekarang (hanya ditampilkan sekali):</strong>
+            <code id="apiKeyValue" style="display: block; margin: 8px 0; word-break: break-all; user-select: all;"></code>
+          </div>
+          <div id="apiKeyList" class="list-stack empty-state">Belum ada API key.</div>
+        </div>
       </section>
     </main>
     <div id="resultPanel" class="result-modal hidden"></div>

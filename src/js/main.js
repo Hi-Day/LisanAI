@@ -9,6 +9,7 @@ import { bindSimulatorEvents } from "./simulator.js";
 import { bindMonitoringEvents } from "./monitoring.js";
 import { bindDemoDataEvents } from "./demo-data.js";
 import { bindComplaintEvents } from "./complaints.js";
+import { bindApiKeyEvents, loadApiKeys } from "./api-keys.js";
 
 /**
  * Application entry point. Creates the shared context, wires up all feature
@@ -28,6 +29,7 @@ export async function initApp() {
   bindMonitoringEvents(ctx);
   bindDemoDataEvents(ctx);
   bindComplaintEvents(ctx);
+  bindApiKeyEvents(ctx);
 
   // Navigation: clicking a nav button switches the active view.
   ctx.els.mainNav.addEventListener("click", (e) => {

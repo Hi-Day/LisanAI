@@ -7,6 +7,7 @@ const {
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { initDatabase } = require("../server/database");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
+const { authenticateApiKey } = require("../server/api-auth");
 
 let isDbInitialized = false;
 
@@ -21,15 +22,30 @@ module.exports = async (req, res) => {
       return sendJson(res, 405, { error: "Method not allowed" });
     }
 
-    const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
+    // Authenticate via session cookie OR API key (Bearer token).
+    let auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
+    let viaApiKey = false;
+    if (!auth) {
+      const apiAuth = await authenticateApiKey(req);
+      if (apiAuth) {
+        // API keys act as a tenant-level admin for AI actions.
+        auth = {
+          tenant: { id: apiAuth.tenantId, name: "API", plan: "api" },
+          user: { id: `apikey:${apiAuth.keyId}`, tenantId: apiAuth.tenantId, name: "API Key", role: "admin" },
+        };
+        viaApiKey = true;
+      }
+    }
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
 
-    // CSRF Check
-    const { assertCsrfToken } = require("../server/auth-service");
-    try {
-      assertCsrfToken(req, auth);
-    } catch (csrfError) {
-      return sendJson(res, 403, { error: csrfError.message });
+    // CSRF is only required for browser (session) auth, not API keys.
+    if (!viaApiKey) {
+      const { assertCsrfToken } = require("../server/auth-service");
+      try {
+        assertCsrfToken(req, auth);
+      } catch (csrfError) {
+        return sendJson(res, 403, { error: csrfError.message });
+      }
     }
 
     const body = await readJson(req);
