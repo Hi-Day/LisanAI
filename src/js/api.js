@@ -110,6 +110,82 @@ export async function generateQuestionsWithAI(config) {
   return data.questions;
 }
 
+/**
+ * Stream an AI action from the server via SSE.
+ *
+ * @param {object} options
+ * @param {string} options.action - AI action name.
+ * @param {object} options.payload - Payload for the action.
+ * @param {function(string):void} options.onChunk - Called with each text delta.
+ * @param {function(object):void} options.onResult - Called with the final result data.
+ * @param {function(string):void} [options.onError] - Called with an error message.
+ * @returns {Promise<object>} Resolves with the final result data.
+ */
+export async function streamAssessmentAction({ action, payload, onChunk, onResult, onError }) {
+  const headers = { "Content-Type": "application/json" };
+  if (clientCsrfToken) {
+    headers["X-CSRF-Token"] = clientCsrfToken;
+  }
+
+  const response = await fetch("/api/assessment", {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify({ action, payload, stream: true }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "Gagal memproses permintaan AI");
+  }
+
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("Streaming tidak didukung oleh browser ini");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let resultData = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const event of events) {
+      const dataLine = event
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("");
+
+      if (!dataLine) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(dataLine);
+      } catch {
+        continue;
+      }
+
+      if (parsed.type === "chunk" && typeof parsed.text === "string") {
+        if (onChunk) onChunk(parsed.text);
+      } else if (parsed.type === "result") {
+        resultData = parsed.data || {};
+        if (onResult) onResult(resultData);
+      } else if (parsed.type === "error") {
+        if (onError) onError(parsed.message || "Terjadi kesalahan");
+        throw new Error(parsed.message || "Terjadi kesalahan");
+      }
+    }
+  }
+
+  return resultData;
+}
+
 export async function improveQuestionsWithAI(config, questions) {
   const data = await postJson(
     "/api/assessment",

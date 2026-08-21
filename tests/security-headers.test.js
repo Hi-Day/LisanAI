@@ -137,6 +137,62 @@ test("callOpenRouter retries a 429 then succeeds", async () => {
   assert.ok(attempts >= 2, `expected retry, got ${attempts} attempts`);
 });
 
+test("callOpenRouter saves retry_count, cost_usd, and estimated_prefix_cache_savings telemetry", async () => {
+  let attempts = 0;
+  global.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return { ok: false, status: 429, json: async () => ({ error: { message: "rate limited" } }) };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: '{"ok":true}' } }],
+        usage: { prompt_tokens: 500, completion_tokens: 100 },
+      }),
+    };
+  };
+
+  const { getDb } = require("../server/database");
+  const db = getDb();
+
+  // First call: no prior successful call, so estimated_prefix_cache_savings = 0.
+  await callOpenRouter(
+    [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
+    "return valid JSON",
+    { tenantId: "tenant-telemetry", userId: "user-telemetry", action: "generate-questions" }
+  );
+
+  // Second call: a recent successful call exists, so the prefix estimate is applied.
+  await callOpenRouter(
+    [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
+    "return valid JSON",
+    { tenantId: "tenant-telemetry", userId: "user-telemetry", action: "generate-questions" }
+  );
+
+  const logs = await db.all(
+    `SELECT retry_count, cost_usd, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens
+     FROM ai_logs
+     WHERE tenant_id = ? AND action = ? AND status = 'success'
+     ORDER BY datetime(created_at) ASC`,
+    "tenant-telemetry",
+    "generate-questions"
+  );
+
+  assert.equal(logs.length, 2, "expected two ai_logs rows");
+  const first = logs[0];
+  const second = logs[1];
+
+  assert.ok(first.retry_count >= 1, `expected retry_count >= 1, got ${first.retry_count}`);
+  assert.ok(first.cost_usd > 0, `expected cost_usd > 0, got ${first.cost_usd}`);
+  assert.equal(first.estimated_prefix_cache_savings, 0, "first call has no prior cache to estimate");
+  assert.equal(first.cache_read_input_tokens, 0, "no provider cache metrics in this mock response");
+  assert.equal(first.cache_creation_input_tokens, 500, "cache creation should equal prompt tokens when no cache hit");
+
+  assert.ok(second.estimated_prefix_cache_savings > 0, "second call should estimate prefix cache savings");
+});
+
 test("callOpenRouter falls back to the fallback model when primary fails", async () => {
   const attempts = [];
   global.fetch = async (_url, options) => {

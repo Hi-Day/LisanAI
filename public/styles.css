@@ -853,6 +853,56 @@ textarea[readonly] {
 }
 
 @keyframes evaluation-spin { to { transform: rotate(360deg); } }
+
+/* AI streaming panel (wizard + recommend + evaluation) */
+.ai-stream-panel {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+
+.ai-stream-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.ai-stream-spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--accent-light);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: evaluation-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.ai-stream-content {
+  margin: 0;
+  padding: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.evaluation-stream-content {
+  margin-top: 14px;
+  max-height: 200px;
+  text-align: left;
+}
 .result-close-btn:hover {
   background: var(--line);
   color: var(--rose);

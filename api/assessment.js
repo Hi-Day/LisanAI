@@ -3,13 +3,70 @@ const {
   generateQuestions,
   improveQuestionSet,
   recommendAssessmentConfig,
+  streamEvaluateAnswers,
+  streamGenerateQuestions,
+  streamImproveQuestionSet,
+  streamRecommendAssessmentConfig,
 } = require("../server/assessment-service");
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { initDatabase } = require("../server/database");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
+const { applySecurityHeaders } = require("../server/security-headers");
 const { authenticateApiKey } = require("../server/api-auth");
 
 let isDbInitialized = false;
+
+/**
+ * Write an SSE event to the response.
+ */
+function writeSse(res, data) {
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+/**
+ * Stream an AI action to the client via Server-Sent Events.
+ * The client receives incremental text chunks, then a final result event.
+ */
+async function handleStreamingAction(req, res, auth, action, payload) {
+  applySecurityHeaders(res);
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.write("retry: 2000\n\n");
+
+  const onChunk = (text) => {
+    if (text && res.writableEnded === false) {
+      writeSse(res, { type: "chunk", text });
+    }
+  };
+
+  try {
+    let result;
+    if (action === "generate-questions") {
+      result = await streamGenerateQuestions(payload, onChunk);
+      writeSse(res, { type: "result", data: { questions: result } });
+    } else if (action === "improve-questions") {
+      result = await streamImproveQuestionSet(payload, onChunk);
+      writeSse(res, { type: "result", data: { questions: result } });
+    } else if (action === "recommend-assessment-config") {
+      result = await streamRecommendAssessmentConfig(payload, onChunk);
+      writeSse(res, { type: "result", data: { recommendation: result } });
+    } else if (action === "evaluate") {
+      result = await streamEvaluateAnswers(payload, onChunk);
+      writeSse(res, { type: "result", data: { evaluation: result } });
+    } else {
+      writeSse(res, { type: "error", message: "Action not found" });
+    }
+  } catch (error) {
+    console.error(error);
+    writeSse(res, { type: "error", message: error.message || "Server error" });
+  } finally {
+    res.end();
+  }
+}
 
 module.exports = async (req, res) => {
   try {
@@ -49,12 +106,28 @@ module.exports = async (req, res) => {
     }
 
     const body = await readJson(req);
-    const { action, payload } = body;
+    const { action, payload, stream } = body;
 
     // Attach authentication context for telemetry logging
     if (payload) {
       payload.tenantId = auth.tenant.id;
       payload.userId = auth.user.id;
+    }
+
+    // Streaming path (browser UI).
+    if (stream === true) {
+      if (action === "evaluate" && auth.user.role === "student") {
+        const { assertCanSubmitAssessment } = require("../server/database");
+        try {
+          await assertCanSubmitAssessment(auth.tenant.id, auth.user.id, payload.assessment.id);
+        } catch (authError) {
+          return sendJson(res, authError.status || 403, { error: authError.message });
+        }
+      }
+      if (action !== "evaluate" && !["admin", "teacher"].includes(auth.user.role)) {
+        return sendJson(res, 403, { error: "Forbidden" });
+      }
+      return handleStreamingAction(req, res, auth, action, payload);
     }
 
     if (action === "evaluate") {

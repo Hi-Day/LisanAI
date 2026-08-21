@@ -1,9 +1,7 @@
 import { DEFAULT_QUESTION_COUNT } from "./config.js";
 import {
-  generateQuestionsWithAI,
-  improveQuestionsWithAI,
-  recommendAssessmentConfig,
   saveAssessmentToDatabase,
+  streamAssessmentAction,
   updateAssessment,
 } from "./api.js";
 import { createAssessment, readAssessmentForm } from "./assessment-factory.js";
@@ -124,10 +122,12 @@ export async function handleAssessmentSubmit(ctx, event) {
   }
 
   setButtonLoading(event.submitter, true, "Menghubungi AI...", "Buat soal dengan AI");
+  showStreamPanel(ctx, els.aiStreamPanel, els.aiStreamTitle, els.aiStreamContent, "AI sedang membuat soal...");
   try {
     const questions = await generateQuestionsWithFallback(ctx, config);
     ctx.pendingAssessmentConfig = config;
     ctx.pendingQuestions = questions;
+    hideStreamPanel(ctx, els.aiStreamPanel);
     renderQuestionEditor(ctx);
     goToWizardStep(ctx, 2);
   } finally {
@@ -213,8 +213,10 @@ export async function improvePendingQuestionSet(ctx) {
   if (!ctx.pendingAssessmentConfig) return;
   syncQuestionsFromEditor(ctx);
   setButtonLoading(els.improveQuestionSet, true, "Memperbaiki...", "Perbaiki dengan AI");
+  showStreamPanel(ctx, els.aiStreamPanel, els.aiStreamTitle, els.aiStreamContent, "AI sedang memperbaiki soal...");
   try {
-    ctx.pendingQuestions = await improveQuestionsWithAI(ctx.pendingAssessmentConfig, ctx.pendingQuestions);
+    ctx.pendingQuestions = await improveQuestionsWithFallback(ctx, ctx.pendingAssessmentConfig, ctx.pendingQuestions);
+    hideStreamPanel(ctx, els.aiStreamPanel);
     renderQuestionEditor(ctx);
   } catch (error) {
     showToast(error.message);
@@ -337,10 +339,12 @@ export async function fillRecommendedFields(ctx, target) {
   const button = target === "rubric" ? els.recommendRubric : els.recommendOutcomes;
   const defaultText = target === "rubric" ? "Rekomendasikan rubrik" : "Rekomendasikan kompetensi";
   setButtonLoading(button, true, "Membuat rekomendasi...", defaultText);
+  showStreamPanel(ctx, els.recommendStreamPanel, els.recommendStreamTitle, els.recommendStreamContent, "AI sedang membuat rekomendasi...");
   try {
     const recommendation = await recommendConfigWithFallback(ctx, topic, els.difficulty.value);
     if (target === "outcomes" || target === "both") els.outcomes.value = recommendation.outcomes;
     if (target === "rubric" || target === "both") els.rubric.value = recommendation.rubric;
+    hideStreamPanel(ctx, els.recommendStreamPanel);
   } finally {
     setButtonLoading(button, false, "Membuat rekomendasi...", defaultText);
   }
@@ -348,7 +352,11 @@ export async function fillRecommendedFields(ctx, target) {
 
 export async function recommendConfigWithFallback(ctx, topic, difficulty) {
   try {
-    return await recommendAssessmentConfig(topic, difficulty);
+    return await streamAssessmentAction({
+      action: "recommend-assessment-config",
+      payload: { topic, difficulty },
+      onChunk: (text) => appendStreamText(ctx.els.recommendStreamContent, text),
+    });
   } catch (error) {
     showToast(`AI belum tersedia, memakai rekomendasi lokal. Detail: ${error.message}`);
     return recommendFallbackConfig(topic, difficulty);
@@ -357,9 +365,47 @@ export async function recommendConfigWithFallback(ctx, topic, difficulty) {
 
 export async function generateQuestionsWithFallback(ctx, config) {
   try {
-    return await generateQuestionsWithAI(config);
+    return await streamAssessmentAction({
+      action: "generate-questions",
+      payload: config,
+      onChunk: (text) => appendStreamText(ctx.els.aiStreamContent, text),
+    });
   } catch (error) {
     showToast(`AI belum tersedia, memakai generator lokal. Detail: ${error.message}`);
     return generateFallbackQuestions(config);
   }
+}
+
+export async function improveQuestionsWithFallback(ctx, config, questions) {
+  try {
+    return await streamAssessmentAction({
+      action: "improve-questions",
+      payload: { config, questions },
+      onChunk: (text) => appendStreamText(ctx.els.aiStreamContent, text),
+    });
+  } catch (error) {
+    showToast(`AI belum tersedia, memakai question set sebelumnya. Detail: ${error.message}`);
+    return questions;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Streaming panel helpers
+// ---------------------------------------------------------------------------
+
+function showStreamPanel(ctx, panel, titleEl, contentEl, title) {
+  if (!panel) return;
+  if (titleEl) titleEl.textContent = title;
+  if (contentEl) contentEl.textContent = "";
+  panel.classList.remove("hidden");
+}
+
+function hideStreamPanel(ctx, panel) {
+  if (panel) panel.classList.add("hidden");
+}
+
+function appendStreamText(contentEl, text) {
+  if (!contentEl) return;
+  contentEl.textContent += text;
+  contentEl.scrollTop = contentEl.scrollHeight;
 }

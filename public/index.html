@@ -156,6 +156,13 @@
                   <button class="secondary-button" id="recommendOutcomes" type="button">Rekomendasikan kompetensi</button>
                   <button class="secondary-button" id="recommendRubric" type="button">Rekomendasikan rubrik</button>
                 </div>
+                <div id="recommendStreamPanel" class="ai-stream-panel hidden">
+                  <div class="ai-stream-head">
+                    <span class="ai-stream-spinner" aria-hidden="true"></span>
+                    <strong id="recommendStreamTitle">AI sedang membuat rekomendasi...</strong>
+                  </div>
+                  <pre id="recommendStreamContent" class="ai-stream-content" aria-live="polite"></pre>
+                </div>
 
                 <label>
                   Kompetensi / capaian pembelajaran
@@ -235,6 +242,14 @@
                 <div class="wizard-generate">
                   <button class="primary-button" type="submit">Buat soal dengan AI</button>
                   <button class="secondary-button" id="createManualAssessment" type="button">Buat manual</button>
+                </div>
+
+                <div id="aiStreamPanel" class="ai-stream-panel hidden">
+                  <div class="ai-stream-head">
+                    <span class="ai-stream-spinner" aria-hidden="true"></span>
+                    <strong id="aiStreamTitle">AI sedang bekerja...</strong>
+                  </div>
+                  <pre id="aiStreamContent" class="ai-stream-content" aria-live="polite"></pre>
                 </div>
 
                 <div id="questionEditor" class="question-editor hidden">
@@ -843,6 +858,7 @@
         <div class="evaluation-spinner" aria-hidden="true"></div>
         <h3 id="evaluationLoadingTitle">Sedang memproses evaluasi</h3>
         <p>Sistem sedang menilai jawaban Anda. Mohon tunggu sebentar.</p>
+        <pre id="evaluationStreamContent" class="ai-stream-content evaluation-stream-content" aria-live="polite"></pre>
       </div>
     </div>
   </div>

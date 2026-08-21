@@ -1,6 +1,6 @@
 import {
-  evaluateAssessmentWithAI,
   saveSubmissionToDatabase,
+  streamAssessmentAction,
 } from "./api.js";
 import { createSubmission } from "./assessment-factory.js";
 import { setButtonLoading } from "./dom.js";
@@ -208,6 +208,7 @@ export async function handleFinishAssessment(ctx) {
 
   ctx.isEvaluating = true;
   els.evaluationLoadingModal?.classList.remove("hidden");
+  if (els.evaluationStreamContent) els.evaluationStreamContent.textContent = "";
   setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan penilaian");
 
   try {
@@ -236,11 +237,49 @@ export async function handleFinishAssessment(ctx) {
 
 export async function evaluateWithFallback(ctx, assessment, studentName) {
   try {
-    return await evaluateAssessmentWithAI(assessment, ctx.session.currentAnswers, studentName, createSubmission);
+    const answers = ctx.session.currentAnswers;
+    const textAnswers = answers.map(a => a.text || "");
+    const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
+
+    const data = await streamAssessmentAction({
+      action: "evaluate",
+      payload: { assessment: safeAssessment, answers: textAnswers, studentName },
+      onChunk: (text) => {
+        if (ctx.els.evaluationStreamContent) {
+          ctx.els.evaluationStreamContent.textContent += text;
+          ctx.els.evaluationStreamContent.scrollTop = ctx.els.evaluationStreamContent.scrollHeight;
+        }
+      },
+    });
+
+    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => ({
+      ...qs,
+      audio: answers[idx]?.audio || null,
+      duration: answers[idx]?.duration || 0,
+    }));
+
+    return createSubmission({
+      assessment,
+      studentName,
+      finalScore: data.evaluation.finalScore,
+      questionScores: questionScoresWithMetadata,
+      feedback: data.evaluation.feedback,
+    });
   } catch (error) {
     showToast(`AI belum tersedia, memakai penilaian lokal. Detail: ${error.message}`);
     return evaluateFallbackAssessment(assessment, ctx.session.currentAnswers, studentName, createSubmission);
   }
+}
+
+function sanitizeAssessmentForEvaluation(assessment) {
+  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
+  return {
+    ...assessment,
+    questions: assessment.questions.map((question) => ({
+      prompt: question?.prompt || "",
+      focus: question?.focus || "",
+    })),
+  };
 }
 
 export function stopQuestionTimer(ctx) {
