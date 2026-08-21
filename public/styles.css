@@ -921,6 +921,14 @@ textarea[readonly] {
 .feedback-card b { color: var(--ink); font-weight: 700; }
 .feedback-card p { margin-bottom: 8px; line-height: 1.6; color: var(--ink); }
 
+/* Question editor card header (title + delete button) */
+.question-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 8px;
+}
+.question-card-header strong { margin-bottom: 0; }
+.question-card-header .delete-question { flex-shrink: 0; }
+
 /* Markdown-rendered rich text */
 .rich-text h1, .rich-text h2, .rich-text h3,
 .rich-text h4, .rich-text h5, .rich-text h6 {

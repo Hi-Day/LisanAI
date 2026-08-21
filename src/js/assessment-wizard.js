@@ -30,6 +30,13 @@ export function bindAssessmentWizardEvents(ctx) {
     els.addManualQuestion.addEventListener("click", () => handleAddManualQuestion(ctx));
   }
 
+  // Delete a single question from the editor (event delegation).
+  els.editableQuestionList.addEventListener("click", (event) => {
+    const deleteBtn = event.target.closest(".delete-question");
+    if (!deleteBtn) return;
+    handleDeleteQuestion(ctx, Number(deleteBtn.dataset.index));
+  });
+
   // Wizard navigation
   if (els.wizardToQuestions) {
     els.wizardToQuestions.addEventListener("click", () => {
@@ -159,6 +166,24 @@ export function handleAddManualQuestion(ctx) {
   renderQuestionEditor(ctx);
 }
 
+export function handleDeleteQuestion(ctx, index) {
+  if (!ctx.pendingAssessmentConfig) {
+    showToast("Buat atau buka penilaian dulu sebelum menghapus soal.");
+    return;
+  }
+  if (ctx.pendingQuestions.length <= 1) {
+    showToast("Minimal harus ada satu soal.");
+    return;
+  }
+  if (index < 0 || index >= ctx.pendingQuestions.length) return;
+
+  // Sync current editor values first so unsaved edits are not lost.
+  syncQuestionsFromEditor(ctx);
+  ctx.pendingQuestions.splice(index, 1);
+  renderQuestionEditor(ctx);
+  showToast("Soal dihapus.");
+}
+
 export async function savePendingQuestionSet(ctx) {
   const { els } = ctx;
   if (!ctx.pendingAssessmentConfig) return;
@@ -229,7 +254,10 @@ export function renderQuestionEditor(ctx) {
   }
   els.editableQuestionList.innerHTML = ctx.pendingQuestions.map((question, index) => `
     <article class="feedback-card editable-question">
-      <strong>Soal ${index + 1}</strong>
+      <div class="question-card-header">
+        <strong>Soal ${index + 1}</strong>
+        <button type="button" class="action-button danger-button delete-question" data-index="${index}" aria-label="Hapus soal ${index + 1}">Hapus</button>
+      </div>
       <label>Pertanyaan<textarea data-field="prompt" rows="3">${escapeHtml(question.prompt)}</textarea></label>
       <label>Fokus<input data-field="focus" value="${escapeHtml(question.focus || "")}" /></label>
       <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
