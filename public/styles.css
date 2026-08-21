@@ -940,6 +940,34 @@ textarea[readonly] {
 .complaint-box p { margin: 6px 0 0; }
 .complaint-box .complaint-response { color: var(--ink); }
 
+/* Nav notification badge */
+.nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+  border-radius: 999px; background: #ef4444; color: #fff;
+  font-size: 0.7rem; font-weight: 700; line-height: 1;
+}
+
+/* Centralized complaint list (teacher view) */
+.complaint-list { display: flex; flex-direction: column; gap: 16px; padding: 24px; }
+.complaint-group h4 { margin: 0 0 12px; color: var(--accent-dark); }
+.complaint-item {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  padding: 16px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--paper); margin-bottom: 12px;
+}
+.complaint-item.complaint-pending { border-left: 4px solid #f59e0b; }
+.complaint-item.complaint-resolved { border-left: 4px solid #10b981; }
+.complaint-item.complaint-rejected { border-left: 4px solid #ef4444; }
+
+/* Student complaint notification banner */
+.complaint-notification {
+  margin: 0 0 16px; padding: 14px 16px; border-radius: 10px;
+  border: 1px solid var(--line); background: #fefce8;
+  border-left: 4px solid #f59e0b;
+}
+.complaint-notification p { margin: 4px 0; line-height: 1.5; }
+
 /* Markdown-rendered rich text */
 .rich-text h1, .rich-text h2, .rich-text h3,
 .rich-text h4, .rich-text h5, .rich-text h6 {

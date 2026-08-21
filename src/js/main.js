@@ -8,6 +8,7 @@ import { bindUserManagementEvents } from "./user-management.js";
 import { bindSimulatorEvents } from "./simulator.js";
 import { bindMonitoringEvents } from "./monitoring.js";
 import { bindDemoDataEvents } from "./demo-data.js";
+import { bindComplaintEvents } from "./complaints.js";
 
 /**
  * Application entry point. Creates the shared context, wires up all feature
@@ -26,6 +27,7 @@ export async function initApp() {
   bindSimulatorEvents(ctx);
   bindMonitoringEvents(ctx);
   bindDemoDataEvents(ctx);
+  bindComplaintEvents(ctx);
 
   // Navigation: clicking a nav button switches the active view.
   ctx.els.mainNav.addEventListener("click", (e) => {

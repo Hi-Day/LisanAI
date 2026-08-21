@@ -185,6 +185,16 @@ export async function renderCurrentState(ctx) {
   const { renderQuestionEditor } = await import("./assessment-wizard.js");
   renderClasses(ctx);
   renderQuestionEditor(ctx);
+
+  // Complaint UI: teacher badge + centralized list, student status notification.
+  const { renderComplaints, updateComplaintBadge, notifyStudentComplaintStatus } = await import("./complaints.js");
+  if (auth.user?.role === "teacher") {
+    renderComplaints(ctx);
+    updateComplaintBadge(ctx);
+  } else if (auth.user?.role === "student") {
+    notifyStudentComplaintStatus(ctx);
+  }
+
   if (auth.user?.role === "student") {
     els.studentName.value = auth.user.name;
     els.studentName.readOnly = true;
@@ -210,6 +220,10 @@ export function applyRoleAccess(ctx) {
       <button class="nav-button" data-view="teacherView"><span aria-hidden="true">⌘</span> Penilaian</button>
       <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
+      <button class="nav-button" data-view="complaintView">
+        <span aria-hidden="true">📩</span> Komplain
+        <span id="complaintNavBadge" class="nav-badge hidden">0</span>
+      </button>
     `;
   } else if (role === "student") {
     navHtml = `
@@ -241,7 +255,7 @@ export function canAccessView(ctx, viewId) {
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView";
   if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView";
-  if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView";
+  if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView" || viewId === "complaintView";
   return false;
 }
 

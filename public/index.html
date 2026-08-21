@@ -314,6 +314,8 @@
           <select id="studentAssessmentSelect" aria-label="Pilih penilaian" class="hidden"></select>
         </div>
 
+        <div id="complaintNotification" class="complaint-notification hidden" role="status"></div>
+
         <div id="studentDashboard" class="student-dashboard">
           <div class="student-dashboard-main">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -581,6 +583,23 @@
               </table>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="complaintView" class="view" aria-labelledby="complaintTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="complaintTitle">Komplain Penilaian</h2>
+            <p>Kelola semua komplain siswa dari berbagai penilaian dalam satu tempat.</p>
+          </div>
+          <div class="monitor-filters">
+            <span class="metric-pill"><strong id="complaintCount">0</strong> komplain</span>
+          </div>
+        </div>
+
+        <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+          <h3 style="padding: 24px 24px 16px;">Daftar Komplain Siswa</h3>
+          <div id="complaintList" class="complaint-list empty-state">Belum ada komplain.</div>
         </div>
       </section>
 

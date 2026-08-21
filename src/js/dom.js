@@ -154,6 +154,11 @@ export function getElements() {
     sysNodeVersion: document.querySelector("#sysNodeVersion"),
     telemetryLogList: document.querySelector("#telemetryLogList"),
     refreshTelemetryBtn: document.querySelector("#refreshTelemetryBtn"),
+    complaintView: document.querySelector("#complaintView"),
+    complaintList: document.querySelector("#complaintList"),
+    complaintCount: document.querySelector("#complaintCount"),
+    complaintNavBadge: document.querySelector("#complaintNavBadge"),
+    complaintNotification: document.querySelector("#complaintNotification"),
   };
 }
 
