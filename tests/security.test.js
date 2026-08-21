@@ -534,6 +534,42 @@ test("teacher can respond to a complaint and re-evaluate the score", async () =>
   assert.equal(res.body.submission.questionScores[0].complaint.status, "resolved");
 });
 
+test("teacher can reject a complaint and the score is reduced by 20", async () => {
+  const { tenant, student, teacher, publishedAssessment } = context;
+  const teacherSession = await createSession(teacher.id);
+  const teacherHeaders = { cookie: `${SESSION_COOKIE}=${teacherSession.token}` };
+  const teacherAuthContext = { sessionId: teacherSession.sessionId, tenant, user: teacher };
+  const teacherCsrfToken = createCsrfToken(teacherAuthContext);
+
+  // Create a submission with a pending complaint and score 80.
+  const submission = createSubmission(publishedAssessment.id, "sub-complaint-reject");
+  submission.questionScores = [
+    { question: "Q1", score: 80, matched: [], strengths: [], gaps: [], complaint: { reason: "Kurang sesuai", status: "pending", submittedAt: new Date().toISOString() } },
+  ];
+  await saveSubmission(tenant.id, student.id, submission, true);
+
+  // Teacher rejects: score becomes 80 - 20 = 60.
+  submission.questionScores[0].score = 60;
+  submission.questionScores[0].complaint = {
+    ...submission.questionScores[0].complaint,
+    status: "rejected",
+    response: "Skor sudah sesuai.",
+    resolvedAt: new Date().toISOString(),
+  };
+  submission.finalScore = 60;
+
+  const res = await callHandler(databaseApi, {
+    method: "POST",
+    url: "/api/database",
+    body: { action: "save-submission", payload: submission },
+    headers: { ...teacherHeaders, "x-csrf-token": teacherCsrfToken },
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.submission.questionScores[0].score, 60);
+  assert.equal(res.body.submission.questionScores[0].complaint.status, "rejected");
+});
+
 
 
 

@@ -399,12 +399,15 @@ function renderFeedbackCard(item, index, auth) {
   const complaint = item.complaint;
   let complaintHtml = "";
   if (complaint) {
-    const statusLabel = complaint.status === "resolved" ? "Selesai" : "Menunggu";
-    const statusClass = complaint.status === "resolved" ? "complaint-resolved" : "complaint-pending";
+    const statusLabel = complaint.status === "resolved" ? "Selesai" : complaint.status === "rejected" ? "Ditolak" : "Menunggu";
+    const statusClass = complaint.status === "resolved" ? "complaint-resolved" : complaint.status === "rejected" ? "complaint-rejected" : "complaint-pending";
     complaintHtml = `
       <div class="complaint-box ${statusClass}">
         <strong>📩 Komplain siswa:</strong>
         <p>${escapeHtml(complaint.reason)}</p>
+        ${complaint.status === "rejected"
+          ? `<p class="complaint-response"><b>Keputusan guru:</b> Komplain ditolak. Skor dikurangi 20 poin.${complaint.response ? ` — ${escapeHtml(complaint.response)}` : ""}</p>`
+          : ""}
         ${complaint.status === "resolved" && complaint.response
           ? `<p class="complaint-response"><b>Respon guru:</b> ${escapeHtml(complaint.response)}</p>`
           : ""}
@@ -422,6 +425,11 @@ function renderFeedbackCard(item, index, auth) {
     ? `<button type="button" class="action-button respond-complaint-btn" data-index="${index}">Respon Komplain</button>`
     : "";
 
+  // Teacher can reject a pending complaint (score -20).
+  const rejectBtn = isTeacher && complaint && complaint.status === "pending"
+    ? `<button type="button" class="action-button danger-button reject-complaint-btn" data-index="${index}">Tolak Komplain</button>`
+    : "";
+
   return `
     <article class="feedback-card" data-index="${index}">
       <div style="display: flex; justify-content: space-between; align-items: start;">
@@ -429,6 +437,7 @@ function renderFeedbackCard(item, index, auth) {
         <div style="display: flex; gap: 8px;">
           ${complaintBtn}
           ${respondBtn}
+          ${rejectBtn}
           <button type="button" class="action-button edit-override-btn ${isTeacher ? '' : 'hidden'}" data-index="${index}">Koreksi</button>
         </div>
       </div>

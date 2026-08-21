@@ -52,6 +52,9 @@ export function bindMonitoringEvents(ctx) {
       if (!submission) return;
 
       const qs = submission.questionScores[idx];
+      const warning = `⚠️ PERHATIAN\n\nAnda akan mengajukan komplain untuk Soal ${idx + 1} (skor ${qs.score}).\n\nJika guru menilai bahwa skor yang diberikan sudah sesuai, maka skor soal ini akan dikurangi 20 poin (menjadi ${Math.max(0, qs.score - 20)}).\n\nApakah Anda yakin ingin melanjutkan komplain?`;
+      if (!confirm(warning)) return;
+
       const reason = prompt(`Komplain untuk Soal ${idx + 1} (skor ${qs.score}):\nJelaskan alasan Anda merasa nilai kurang sesuai.`);
       if (reason === null) return;
       if (!reason.trim()) {
@@ -109,6 +112,43 @@ export function bindMonitoringEvents(ctx) {
       try {
         await saveSubmissionToDatabase(submission);
         showToast("Re-evaluasi berhasil disimpan", "success");
+        showResult(els, submission, ctx.auth);
+        renderMonitoring(els, ctx.state);
+        renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+
+    // Teacher rejects a complaint: score is automatically reduced by 20.
+    const rejectBtn = e.target.closest(".reject-complaint-btn");
+    if (rejectBtn) {
+      const idx = parseInt(rejectBtn.dataset.index, 10);
+      const submissionId = els.resultPanel.dataset.submissionId;
+      const submission = ctx.state.submissions.find((s) => s.id === submissionId);
+      if (!submission) return;
+
+      const qs = submission.questionScores[idx];
+      const newScore = Math.max(0, qs.score - 20);
+      const response = prompt(`Tolak komplain untuk Soal ${idx + 1}?\n\nSkor akan dikurangi 20 poin: ${qs.score} → ${newScore}\n\nTuliskan penjelasan untuk siswa (opsional):`, "");
+      if (response === null) return;
+
+      qs.score = newScore;
+      qs.complaint = {
+        ...qs.complaint,
+        status: "rejected",
+        response: String(response || "").trim(),
+        resolvedAt: new Date().toISOString(),
+      };
+
+      submission.finalScore = Math.round(
+        submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
+      );
+
+      try {
+        await saveSubmissionToDatabase(submission);
+        showToast("Komplain ditolak. Skor dikurangi 20 poin.", "success");
         showResult(els, submission, ctx.auth);
         renderMonitoring(els, ctx.state);
         renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);

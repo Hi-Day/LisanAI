@@ -936,6 +936,7 @@ textarea[readonly] {
 }
 .complaint-box.complaint-pending { border-left: 4px solid #f59e0b; }
 .complaint-box.complaint-resolved { border-left: 4px solid #10b981; }
+.complaint-box.complaint-rejected { border-left: 4px solid #ef4444; }
 .complaint-box p { margin: 6px 0 0; }
 .complaint-box .complaint-response { color: var(--ink); }
 
