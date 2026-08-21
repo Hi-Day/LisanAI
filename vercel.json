@@ -13,6 +13,10 @@
     }
   ],
   "routes": [
+    { "src": "/api/v1/(.*)", "dest": "/api/v1.js" },
+    { "src": "/api/docs/(.*)", "dest": "/api/docs.js" },
+    { "src": "/api/apikeys", "dest": "/api/apikeys.js" },
+    { "src": "/api/openapi.json", "dest": "/api/openapi.json" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
     { "src": "/(.*)", "dest": "/$1" }
   ]

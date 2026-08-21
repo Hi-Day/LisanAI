@@ -2,7 +2,7 @@
   "name": "new-project",
   "version": "1.0.0",
   "scripts": {
-    "build": "node scripts/build.js && node scripts/seed-accounts.js && echo \"Static build ready\"",
+    "build": "node scripts/build.js && echo \"Static build ready\"",
     "build:frontend": "node scripts/build.js",
     "check": "node scripts/check-js.js && npm test",
     "dev": "node scripts/build.js && node local-server.js",
