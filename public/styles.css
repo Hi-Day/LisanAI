@@ -767,6 +767,28 @@ textarea[readonly] {
 
 /* Results */
 .result-panel { margin-top: 24px; }
+
+/* Research trace viewer — uses .modal wrapper (not .result-modal), so it
+   needs its own card + scroll styling. */
+#researchResultPanel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+}
+#researchResultPanel .result-modal-content {
+  background: var(--panel);
+  max-width: 800px;
+  width: 100%;
+  margin: auto;
+  border-radius: 16px;
+  padding: 30px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  position: relative;
+}
+#researchResultPanel h3 { margin: 0 0 4px; }
+#researchResultPanel h4 { margin: 20px 0 8px; }
+
 .result-modal {
   position: fixed;
   inset: 0;
