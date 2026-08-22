@@ -6,6 +6,7 @@
     "description": "API publik untuk integrasi sistem eksternal dengan platform penilaian lisan berbasis AI.\n\nAutentikasi menggunakan **API Key** yang dikirim sebagai header `Authorization: Bearer <api_key>`.\n\nAPI key dapat dibuat oleh admin di halaman **Akun → API Keys**."
   },
   "servers": [
+    { "url": "https://lisan-ai-assessment.vercel.app/api/v1", "description": "Production (Vercel)" },
     { "url": "http://127.0.0.1:4173/api/v1", "description": "Local development" }
   ],
   "security": [
