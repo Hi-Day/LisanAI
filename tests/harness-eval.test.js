@@ -76,6 +76,21 @@ test("splitFeedback puts critique sentences into gaps, not strengths", () => {
   const low = splitFeedback("Tidak ada kritik khusus tersurat.", 50);
   assert.ok(low.gaps.length > 0);
   assert.equal(low.strengths.length, 0);
+
+  // Low score must NOT wipe out explicit strengths (regression: score 40,
+  // model praised correctness -> Kekuatan was empty before this fix).
+  const lowWithStrength = splitFeedback(
+    "Student correctly identifies the core idea of modularity and gives a relevant example. However, the answer is too brief and lacks depth.",
+    40
+  );
+  assert.ok(
+    lowWithStrength.strengths.some((s) => s.toLowerCase().includes("correctly")),
+    "explicit strength must survive a low score"
+  );
+  assert.ok(
+    lowWithStrength.gaps.some((g) => g.toLowerCase().includes("lack")),
+    "critique must still be in gaps"
+  );
 });
 
 test("evaluateWithHarness returns frontend contract + harness provenance", async () => {

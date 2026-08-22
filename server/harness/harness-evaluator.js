@@ -144,10 +144,24 @@ const GAP_KEYWORDS = [
   "not explain", "not cover", "not use", "not show", "incomplete",
 ];
 
+// Keywords that signal a strength / positive observation.
+const STRENGTH_KEYWORDS = [
+  "benar", "tepat", "akurat", "relevan", "sesuai", "lengkap", "jelas",
+  "baik", "memadai", "cukup", "mampu", "berhasil", "memahami", "menguasai",
+  "menyebut", "menjelaskan", "mencakup", "menggunakan", "menunjukkan",
+  "mengidentifikasi", "memberikan", "mengenali", "memperlihatkan",
+  "correct", "correctly", "accurate", "relevant", "appropriate", "complete",
+  "clear", "adequate", "properly", "successfully", "understands", "identifies",
+  "mentions", "explains", "covers", "uses", "shows", "gives", "provides",
+  "recognizes", "demonstrates", "good", "well",
+];
+
 /**
  * Split a criterion's rationale into strengths vs gaps.
- * A sentence is treated as a gap when it contains a critique keyword OR the
- * criterion score is low (< 70). Otherwise it is a strength.
+ * A sentence is classified by keywords first: a critique keyword routes it to
+ * gaps, a strength keyword routes it to strengths. Only neutral sentences fall
+ * back to the low-score (< 70) rule, so a low score never wipes out genuine
+ * strengths that the model explicitly praised.
  */
 function splitFeedback(rationale, score) {
   const sentences = splitSentences(rationale);
@@ -157,7 +171,10 @@ function splitFeedback(rationale, score) {
   for (const sentence of sentences) {
     const lower = sentence.toLowerCase();
     const isCritique = GAP_KEYWORDS.some((kw) => lower.includes(kw));
-    if (isCritique || lowScore) gaps.push(sentence);
+    const isStrength = STRENGTH_KEYWORDS.some((kw) => lower.includes(kw));
+    if (isCritique) gaps.push(sentence);
+    else if (isStrength) strengths.push(sentence);
+    else if (lowScore) gaps.push(sentence);
     else strengths.push(sentence);
   }
   return { strengths, gaps };
