@@ -92,8 +92,19 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
     }
   }
 
+  /** Re-resolve the answer textarea lazily, in case the student view was (re)rendered. */
+  function currentAnswerText() {
+    return (
+      typeof answerText === "string"
+        ? document.querySelector(answerText)
+        : answerText && answerText.isConnected
+          ? answerText
+          : document.querySelector("#answerText")
+    ) || null;
+  }
+
   function startSpeechRecognition(SpeechRecognition, activeRunId) {
-    transcriptDraft = answerText.value.trim();
+    transcriptDraft = (currentAnswerText()?.value || "").trim();
     recognition = new SpeechRecognition();
     recognition.lang = "id-ID";
     recognition.continuous = true;
@@ -109,7 +120,8 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
       if (activeRunId !== runId) return;
       const { finalText, interimText } = collectSpeechText(event);
       if (finalText) transcriptDraft = [transcriptDraft, finalText].filter(Boolean).join(" ");
-      answerText.value = [transcriptDraft, interimText].filter(Boolean).join(" ");
+      const target = currentAnswerText();
+      if (target) target.value = [transcriptDraft, interimText].filter(Boolean).join(" ");
     };
 
     recognition.onerror = (event) => {
@@ -143,8 +155,9 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
       stopStream();
       stopTimer();
       stopVolumeMeter();
+      const target = currentAnswerText();
       recordStatus.textContent = audioChunks.length
-        ? (answerText.readOnly
+        ? (target?.readOnly
             ? "Audio berhasil direkam. Jawaban hanya menggunakan transkripsi otomatis."
             : "Audio berhasil direkam. Ketik atau koreksi transkripsi agar bisa dinilai.")
         : "Rekaman berhenti, tetapi tidak ada audio yang tersimpan.";

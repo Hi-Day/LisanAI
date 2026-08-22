@@ -321,15 +321,20 @@ async function openTrace(ctx, runId) {
         </div>
 
         ${reliabilityHtml}
+        <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
+          <label>Skor manusia
+            <input id="humanScoreInput" type="number" min="0" max="100" placeholder="Tilai manual 0-100" />
+          </label>
+          <label>Penilai
             <input id="humanReviewer" type="text" value="${escapeHtml((ctx.auth && ctx.auth.user && ctx.auth.user.name) || "")}" disabled />
           </label>
-        </div>
-        <label>Ulasan
-          <textarea id="humanScoreFeedback" rows="2" placeholder="Catatan penilai manusia (opsional)"></textarea>
-        </label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-          <button class="primary-button" id="approveAiScoreBtn" type="button">✓ Approve skor AI</button>
-          <button class="secondary-button" id="saveHumanScoreBtn" type="button">Simpan skor manual</button>
+          <label>Ulasan
+            <textarea id="humanScoreFeedback" rows="2" placeholder="Catatan penilai manusia (opsional)"></textarea>
+          </label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <button class="primary-button" id="approveAiScoreBtn" type="button">✓ Approve skor AI</button>
+            <button class="secondary-button" id="saveHumanScoreBtn" type="button">Simpan skor manual</button>
+          </div>
         </div>
         <p class="hint" style="font-size:0.8rem;color:var(--muted);margin-top:8px;">
           Skor AI ${escapeHtml(result.finalScore ?? "-")}. Approve menyimpan skor AI sebagai penilaian manusia. 
@@ -348,7 +353,8 @@ async function openTrace(ctx, runId) {
           <pre class="ai-stream-content">${escapeHtml(JSON.stringify(events, null, 2))}</pre>
         </details>
       </div>`;
-    els.researchResultPanel.querySelector("#humanScoreInput").value = "";
+    const scoreInput = els.researchResultPanel.querySelector("#humanScoreInput");
+    if (scoreInput) scoreInput.value = "";
     els.researchResultPanel.classList.remove("hidden");
   } catch (err) {
     showToast(err.message, "error");
