@@ -97,3 +97,21 @@ test("harness validates before evaluating when no rubric is available", async ()
     /Rubric tidak tersedia/
   );
 });
+
+// A provider that returns malformed output (no criteria/questionScores).
+const FatoumingProvider = {
+  name: "broken",
+  version: "1.0.0",
+  async generate() {
+    return JSON.stringify({ foo: "bar" });
+  },
+};
+
+test("harness throws a clear error when model output lacks criteria/questionScores", async () => {
+  const harness = createHarness();
+  harness.setProvider(FatoumingProvider).setParser({ parse });
+  await assert.rejects(
+    () => harness.evaluate({ assessmentId: "x", rubric: RUBRIC, answers: ["jawaban"] }),
+    /tidak mengandung array 'criteria'/
+  );
+});

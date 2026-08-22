@@ -129,6 +129,7 @@ class AssessmentHarness {
         tenantId: input.tenantId,
         userId: input.userId,
         runId,
+        schemaHint: ctx.evaluationHint || "Balas JSON valid.",
       });
       trace.event("MODEL_RESPONSE", { modelTokenEstimate: rawContent ? rawContent.length : 0 });
       trace.setContext("rawContentLength", rawContent ? rawContent.length : 0);
@@ -235,13 +236,20 @@ class AssessmentHarness {
 
 /**
  * Default evaluator prompt used when no persona/context plugin overrides it.
+ * Explicitly demands a `criteria` array keyed by rubric criterionId and a
+ * per-question `questionScores` array (to preserve the legacy shape).
  */
 function defaultPrompt(plan) {
+  const criteriaIds = (plan.rubric && plan.rubric.criteria && plan.rubric.criteria.map((c) => c.id)) || [];
   return JSON.stringify({
     role: "expert-academic-assessor",
     instruction:
-      "Evaluate the student answer against each rubric criterion. " +
-      "For every criterion return: score (0-100), evidence (exact text from the answer), confidence.",
+      "Evaluate the student answers. Return a STRICT JSON object with NO markdown. " +
+      "Step 1: For every rubric criterion id in " + JSON.stringify(criteriaIds) +
+      ", produce a criterion entry with {criterionId, score(0-100), evidence[exact text quoted from the student answer], rationale, confidence(0-1)}. " +
+      "Step 2: Also produce questionScores (one entry per student answer) with {question, answer, score, matched, strengths, gaps}. " +
+      "Do NOT invent evidence. Do NOT calculate a finalScore — the server will.",
+    criteria: criteriaIds.map((id) => ({ criterionId: id, score: 0, evidence: [], rationale: "", confidence: 0 })),
     rubric: plan.rubric,
     questions: plan.questions,
     answers: plan.answers,
@@ -262,17 +270,24 @@ function harnessOutput(ctx, parsed, { runId, input }) {
       submissionId: parsed.submissionId || null,
     };
   }
+  const qs = Array.isArray(parsed && parsed.questionScores) ? parsed.questionScores : [];
+  if (qs.length === 0) {
+    throw new Error(
+      "Respons model tidak mengandung array 'criteria' maupun 'questionScores'. " +
+        "Output model: " + JSON.stringify(parsed || {}).slice(0, 300)
+    );
+  }
   // Legacy fallback: convert questionScores into criteria (one per question).
   const rubric = ctx.rubric || {
     id: "rubric-v1",
-    criteria: (parsed.questionScores || []).map((q, i) => ({
+    criteria: qs.map((q, i) => ({
       id: `q${i + 1}`,
       name: q.question || `Question ${i + 1}`,
-      weight: 1 / Math.max(1, (parsed.questionScores || []).length),
+      weight: 1 / Math.max(1, qs.length),
       scale: 100,
     })),
   };
-  const criteria = (parsed.questionScores || []).map((q, i) => ({
+  const criteria = qs.map((q, i) => ({
     criterionId: `q${i + 1}`,
     score: q.score,
     evidence: (q.matched || []).map((m) => ({ text: m, location: "answer" })),
