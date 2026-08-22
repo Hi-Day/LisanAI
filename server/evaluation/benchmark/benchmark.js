@@ -3,6 +3,7 @@ const { createHarness } = require("../../harness");
 const { MockProvider } = require("../../ai/mock-provider");
 const { OpenRouterProvider } = require("../../ai/openrouter-provider");
 const { parse } = require("../../ai/response-parser");
+const { summarizeExperimentMetrics } = require("./experiment-metrics");
 
 /**
  * Deterministic single-prompt baseline provider — returns { score } (0-100).
@@ -189,6 +190,7 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
     mode: modes,
     results,
     pairs,
+    metrics: summarizeExperimentMetrics({ results }),
   };
 }
 
