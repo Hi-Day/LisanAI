@@ -12,6 +12,7 @@ const {
   listApprovals,
   processExpiredApprovals,
 } = require("../server/evaluation/human-approval");
+const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
 
 let isDbInitialized = false;
 
@@ -45,6 +46,15 @@ module.exports = async (req, res) => {
       const action = url.searchParams.get("action");
       const assessmentId = url.searchParams.get("assessmentId") || url.searchParams.get("assessment_id");
       const runId = url.searchParams.get("runId") || url.searchParams.get("run_id");
+
+      // PRD §24 — Run a benchmark experiment over a bundled dataset.
+      if (action === "benchmark") {
+        const dataset = url.searchParams.get("dataset") || "sample-bench-smoke";
+        const modeParam = url.searchParams.get("mode");
+        const mode = modeParam ? modeParam.split(",") : ["baseline", "harness"];
+        const data = await runExperiment({ dataset, mode });
+        return sendJson(res, 200, data);
+      }
 
       // Eagerly sweep expired pending approvals so auto-approved runs have
       // already been written to evaluation_human_scores before any read.
