@@ -1120,6 +1120,44 @@ textarea[readonly] {
 }
 .complaint-notification p { margin: 4px 0; line-height: 1.5; }
 
+/* Student notification cards (Notifikasi tab) */
+.notif-card {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.notif-card.complaint-resolved { border-left-color: #10b981; }
+.notif-card.complaint-rejected { border-left-color: #ef4444; }
+.notif-header { display: flex; align-items: flex-start; gap: 12px; }
+.notif-icon {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; flex: 0 0 auto;
+  border-radius: 8px; font-size: 1.05rem;
+  background: var(--surface);
+}
+.notif-card.complaint-resolved .notif-icon { background: #ecfdf5; }
+.notif-card.complaint-rejected .notif-icon { background: #fef2f2; }
+.notif-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notif-title strong { font-size: 0.98rem; line-height: 1.35; color: var(--ink); }
+.notif-date { font-size: 0.78rem; color: var(--muted); }
+.notif-body {
+  margin: 12px 0 0 46px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.notif-row {
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: 0.9rem; line-height: 1.5; color: var(--ink);
+}
+.notif-label {
+  flex: 0 0 auto; min-width: 96px;
+  font-size: 0.74rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); padding-top: 1px;
+}
+
 /* Markdown-rendered rich text */
 .rich-text h1, .rich-text h2, .rich-text h3,
 .rich-text h4, .rich-text h5, .rich-text h6 {

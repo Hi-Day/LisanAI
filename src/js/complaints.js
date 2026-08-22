@@ -242,16 +242,17 @@ export function notifyStudentComplaintStatus(ctx) {
   els.studentNotifList.innerHTML = notifications
     .map(
       (n) => `
-        <article class="complaint-item ${n.statusClass}">
-          <div style="flex: 1; min-width: 0;">
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <strong>${n.icon} ${escapeHtml(n.title)}</strong>
+        <article class="notif-card ${n.statusClass}">
+          <div class="notif-header">
+            <span class="notif-icon" aria-hidden="true">${n.icon}</span>
+            <div class="notif-title">
+              <strong>${escapeHtml(n.title)}</strong>
+              ${n.submittedAt ? `<span class="notif-date">${escapeHtml(new Date(n.submittedAt).toLocaleString("id-ID"))}</span>` : ""}
             </div>
-            <div class="complaint-box ${n.statusClass}" style="margin: 8px 0 0;">
-              ${n.reason ? `<p><b>Isi komplain:</b> ${escapeHtml(n.reason)}</p>` : ""}
-              <p class="complaint-response">${escapeHtml(n.detail)}</p>
-              ${n.submittedAt ? `<span class="tag">${escapeHtml(new Date(n.submittedAt).toLocaleString("id-ID"))}</span>` : ""}
-            </div>
+          </div>
+          <div class="notif-body">
+            ${n.reason ? `<div class="notif-row"><span class="notif-label">Isi komplain</span><span>${escapeHtml(n.reason)}</span></div>` : ""}
+            <div class="notif-row"><span class="notif-label">Keputusan</span><span>${escapeHtml(n.detail)}</span></div>
           </div>
         </article>
       `
