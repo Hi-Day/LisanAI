@@ -81,6 +81,25 @@ test("evaluateWithHarness returns frontend contract + harness provenance", async
   assert.ok(result.verification);
 });
 
+test("questionScores is bounded to the number of student answers (even if rubric has more criteria)", async () => {
+  const ONE_ASSESSMENT = {
+    id: ASSESSMENT.id,
+    topic: "Psikologi",
+    difficulty: "Menengah",
+    rubric: "Akurasi 40%, Kelengkapan 60%",
+    questions: [{ prompt: "Jelaskan Piaget dan Erikson", focus: "konsep", ideal: "tahapan" }],
+  };
+  const result = await evaluateWithHarness({
+    assessment: ONE_ASSESSMENT,
+    answers: ["Jawaban tunggal singkat."],
+    tenantId: "t-harness",
+    userId: "u-harness",
+  });
+  // 1 answer, but rubric parsed 2 criteria -> per-question contract must be 1.
+  assert.equal(result.questionScores.length, 1);
+  assert.equal(result.questionScores[0].question, "Jelaskan Piaget dan Erikson");
+});
+
 test("trace persister reconstructs a run from the DB", async () => {
   const harness = createHarness();
   harness.setProvider(new MockProvider()).setParser({ parse });

@@ -47,16 +47,24 @@ async function evaluateWithHarness(payload) {
   });
 
   // Adapt harness canonical output to the existing frontend contract.
-  const questionScores = (result.criteria || []).map((c, idx) => ({
-    question: (questions[idx] && questions[idx].prompt) || `Soal ${idx + 1}`,
-    answer: answers[idx] || "",
-    score: c.score,
-    matched: (c.evidence || []).map((ev) => ev.text),
-    strengths: splitSentences(c.rationale),
-    gaps: [],
-    criterionId: c.criterionId,
-    confidence: c.confidence,
-  }));
+  // The frontend contract is PER-QUESTION: exactly one entry per student answer.
+  // Map rubric-level criteria to per-question feedback, bounded by answers.length
+  // so an over-eager model cannot inflate the number of returned questions.
+  const n = answers.length;
+  const criteria = result.criteria || [];
+  const questionScores = Array.from({ length: n }, (_, idx) => {
+    const c = criteria[idx] || criteria[0] || {};
+    return {
+      question: (questions[idx] && questions[idx].prompt) || `Soal ${idx + 1}`,
+      answer: answers[idx] || "",
+      score: clamp01(c.score),
+      matched: (c.evidence || []).map((ev) => ev.text),
+      strengths: splitSentences(c.rationale),
+      gaps: [],
+      criterionId: c.criterionId,
+      confidence: c.confidence,
+    };
+  });
 
   return {
     finalScore: Math.round(result.finalScore),
@@ -69,6 +77,12 @@ async function evaluateWithHarness(payload) {
     verification: result.verification,
     versioning: result.versioning,
   };
+}
+
+function clamp01(score) {
+  const s = Number(score);
+  if (!Number.isFinite(s)) return 0;
+  return Math.max(0, Math.min(100, s));
 }
 
 /**
