@@ -151,6 +151,16 @@ function fmt(v, digits = 3) {
   return typeof v === "number" ? v.toFixed(digits) : String(v);
 }
 
+/**
+ * Format a weight (0-1) as a percentage WITHOUT destructive rounding, so the
+ * displayed weights always sum correctly. E.g. 0.125 -> "12.5", 0.3333 -> "33.3".
+ */
+function fmtWeightPct(weight) {
+  const pct = (Number(weight) || 0) * 100;
+  if (Number.isInteger(pct)) return String(pct);
+  return pct.toFixed(1).replace(/\.0$/, "");
+}
+
 /** Turn a slug criterionId like "ketepatan_konsep_arsitektur_30" into readable text. */
 function prettifyId(id) {
   return String(id || "")
@@ -294,7 +304,7 @@ async function openTrace(ctx, runId) {
           <li style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <span style="min-width:0;overflow-wrap:break-word;">${escapeHtml(d.label || prettifyId(d.criterionId))}</span>
             <span style="flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums;">
-              ${fmt(d.score, 0)} × ${Math.round((d.weight || 0) * 100)}%
+              ${fmt(d.score, 0)} × ${fmtWeightPct(d.weight)}%
               <span style="color:var(--emerald,#4caf7d);font-weight:700;">= ${fmt(d.contribution, 2)}</span>
             </span>
           </li>`
