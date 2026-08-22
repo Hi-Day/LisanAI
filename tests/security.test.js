@@ -200,6 +200,20 @@ test("student cannot submit the same assessment twice unless retakes are enabled
   await saveSubmission(tenant.id, student.id, createSubmission(retakeAssessment.id, "sub-retake-2"));
 });
 
+test("student can submit up to maxAttempts, then is blocked", async () => {
+  const { tenant, student, limitedAssessment } = context;
+
+  // First attempt OK.
+  await saveSubmission(tenant.id, student.id, createSubmission(limitedAssessment.id, "limit-1"));
+  // Second attempt OK (maxAttempts = 2).
+  await saveSubmission(tenant.id, student.id, createSubmission(limitedAssessment.id, "limit-2"));
+  // Third attempt blocked.
+  await assert.rejects(
+    () => saveSubmission(tenant.id, student.id, createSubmission(limitedAssessment.id, "limit-3")),
+    { status: 409 }
+  );
+});
+
 test("student-facing state API omits ideal answers from assessment questions", async () => {
   const { student, tenant, publishedAssessment } = context;
   const session = await createSession(student.id);
@@ -629,11 +643,13 @@ async function seedTenantScenario() {
   const publishedAssessment = createAssessment("assessment-published", approvedClass.id);
   const closedAssessment = createAssessment("assessment-closed", approvedClass.id, { status: "closed" });
   const retakeAssessment = createAssessment("assessment-retake", approvedClass.id, { allowRetakes: true });
+  const limitedAssessment = createAssessment("assessment-limited", approvedClass.id, { maxAttempts: 2 });
   const pendingAssessment = createAssessment("assessment-pending", pendingClass.id);
 
   await saveAssessment(teacherAuth, publishedAssessment);
   await saveAssessment(teacherAuth, closedAssessment);
   await saveAssessment(teacherAuth, retakeAssessment);
+  await saveAssessment(teacherAuth, limitedAssessment);
   await saveAssessment(teacherAuth, pendingAssessment);
 
   await updateAssessment(teacherAuth, closedAssessment.id, { status: "closed" });
@@ -648,6 +664,7 @@ async function seedTenantScenario() {
     closedAssessment,
     pendingAssessment,
     retakeAssessment,
+    limitedAssessment,
   };
 }
 

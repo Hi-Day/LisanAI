@@ -158,7 +158,10 @@ export function isAssessmentLocked(ctx, assessment) {
   if (!assessment) return false;
   if (assessment.status === "closed") return true;
   const studentSubmissions = ctx.state.submissions.filter((submission) => submission.assessmentId === assessment.id);
-  return studentSubmissions.length > 0 && !assessment.allowRetakes;
+  const used = studentSubmissions.length;
+  if (assessment.allowRetakes) return false;
+  const maxAttempts = Number(assessment.maxAttempts) || 1;
+  return used >= maxAttempts;
 }
 
 export async function renderCurrentState(ctx) {

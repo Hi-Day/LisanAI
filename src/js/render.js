@@ -48,12 +48,13 @@ export function renderStudentArea(els, state, session) {
           : null;
 
         // Attempts remaining
-        let attemptsText = '1 percobaan';
-        if (assessment.allowRetakes) {
-          const used = studentSubmissions.length;
-          attemptsText = used > 0 ? `Sisa ${Math.max(0, 3 - used)} percobaan` : '3 percobaan';
-        } else if (hasSubmitted) {
+        const maxAttempts = assessment.allowRetakes ? Infinity : (Number(assessment.maxAttempts) || 1);
+        const used = studentSubmissions.length;
+        let attemptsText = `${Math.max(0, maxAttempts - used)} percobaan tersisa`;
+        if (Number.isFinite(maxAttempts) && used >= maxAttempts) {
           attemptsText = 'Percobaan habis';
+        } else if (!Number.isFinite(maxAttempts)) {
+          attemptsText = 'Percobaan tak terbatas';
         }
 
         // Time limit

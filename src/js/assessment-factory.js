@@ -15,6 +15,7 @@ export function readAssessmentForm(els) {
     oralExamEnabled: els.oralExamEnabled.checked,
     disableManualTyping: els.disableManualTyping.checked,
     allowRetakes: els.allowRetakes.checked,
+    maxAttempts: Number(els.maxAttempts?.value || 0),
     createdAt: new Date().toISOString(),
   };
 }
@@ -39,6 +40,7 @@ export function createDemoAssessment(generateQuestions) {
     oralExamEnabled: true,
     disableManualTyping: false,
     allowRetakes: false,
+    maxAttempts: 1,
     createdAt: new Date().toISOString(),
   };
 

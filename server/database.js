@@ -435,16 +435,22 @@ async function assertCanSubmitAssessment(tenantId, userId, assessmentId) {
   }
 
   const payload = JSON.parse(assessment.payload);
+  // Unlimited retakes: no enforcement beyond membership.
   if (payload.allowRetakes === true) return;
 
+  const maxAttempts = Math.max(1, Number(payload.maxAttempts) || 1);
   const existing = await getDb().get(
-    "SELECT id FROM submissions WHERE tenant_id = ? AND assessment_id = ? AND user_id = ? LIMIT 1",
+    "SELECT COUNT(*) AS cnt FROM submissions WHERE tenant_id = ? AND assessment_id = ? AND user_id = ?",
     tenantId,
     assessmentId,
     userId
   );
-  if (existing) {
-    throw Object.assign(new Error("Assessment ini sudah pernah dikumpulkan"), { status: 409 });
+  const used = Number(existing?.cnt || 0);
+  if (used >= maxAttempts) {
+    throw Object.assign(
+      new Error(`Batas percobaan tercapai (${maxAttempts} dari ${maxAttempts})`),
+      { status: 409 }
+    );
   }
 }
 

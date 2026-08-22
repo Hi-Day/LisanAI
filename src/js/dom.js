@@ -142,6 +142,7 @@ export function getElements() {
     editOralExamEnabled: document.querySelector("#editOralExamEnabled"),
     allowRetakes: document.querySelector("#allowRetakes"),
     editAllowRetakes: document.querySelector("#editAllowRetakes"),
+    maxAttempts: document.querySelector("#maxAttempts"),
     recordInstructions: document.querySelector("#recordInstructions"),
     observabilityView: document.querySelector("#observabilityView"),
     telemetryTotalCalls: document.querySelector("#telemetryTotalCalls"),
