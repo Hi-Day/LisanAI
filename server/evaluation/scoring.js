@@ -26,6 +26,8 @@ function calculateFinalScore(criteria, rubric) {
     weighted += contribution;
     detail.push({
       criterionId: criterion.criterionId,
+      // Human-readable label for trace display (name wins, else a prettified id)
+      label: def.label || def.name || prettifyId(criterion.criterionId),
       weight: def.weight,
       score,
       contribution: round(contribution, 4),
@@ -40,8 +42,24 @@ function calculateFinalScore(criteria, rubric) {
     finalScore,
     weighted,
     detail,
-    formula: detail.map((d) => `${d.criterionId}.${d.score}*${d.weight}`).join(" + "),
+    formula: detail.map((d) => `${prettifyId(d.criterionId)} (${d.score} × ${pct(d.weight)})`).join(" + "),
   };
+}
+
+/** Turn a slug criterionId like "ketepatan_konsep_arsitektur_30" into readable text. */
+function prettifyId(id) {
+  return String(id || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\d{2,3}\b/g, "") // drop trailing/embedded weight numbers like "_30"
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Format a weight (0-1) as an integer percent for display. */
+function pct(weight) {
+  const v = Math.round((Number(weight) || 0) * 100);
+  return `${v}%`;
 }
 
 function round(value, places = 2) {

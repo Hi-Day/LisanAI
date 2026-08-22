@@ -151,6 +151,16 @@ function fmt(v, digits = 3) {
   return typeof v === "number" ? v.toFixed(digits) : String(v);
 }
 
+/** Turn a slug criterionId like "ketepatan_konsep_arsitektur_30" into readable text. */
+function prettifyId(id) {
+  return String(id || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\d{2,3}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function renderMetrics(els, data) {
   const m = data && data.metrics;
   const total = data && data.n ? data.n : 0;
@@ -247,12 +257,30 @@ async function openTrace(ctx, runId) {
     const criteria = Array.isArray(result.criteria) ? result.criteria : [];
     const versions = trace.versions || {};
     const weighted = result.weighted || {};
-    const formula = weighted.formula || "";
+    const detailRows = Array.isArray(weighted.detail) ? weighted.detail : [];
     const events = trace.events || [];
 
-    // Weighted formula presentation.
-    const formulaHtml = formula
-      ? `<code>${escapeHtml(formula)} = <strong>${fmt(result.finalScore, 1)}</strong></code>`
+    // Human-readable weighted breakdown.
+    const breakdownHtml = detailRows.length
+      ? `
+      <ul style="list-style:none;padding:0;margin:8px 0 0;display:flex;flex-direction:column;gap:6px;">
+        ${detailRows
+          .map(
+            (d) => `
+          <li style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <span style="min-width:0;overflow-wrap:break-word;">${escapeHtml(d.label || prettifyId(d.criterionId))}</span>
+            <span style="flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums;">
+              ${fmt(d.score, 0)} × ${Math.round((d.weight || 0) * 100)}%
+              <span style="color:var(--emerald,#4caf7d);font-weight:700;">= ${fmt(d.contribution, 2)}</span>
+            </span>
+          </li>`
+          )
+          .join("")}
+      </ul>`
+      : `<strong>${fmt(result.finalScore, 1)}</strong>`;
+
+    const formulaHtml = detailRows.length
+      ? `<div style="font-size:0.95rem;">${breakdownHtml}<div style="margin-top:10px;font-size:1.4rem;font-weight:700;">= ${fmt(result.finalScore, 1)}</div></div>`
       : `<strong>${fmt(result.finalScore, 1)}</strong>`;
 
     const criteriaHtml = criteria
