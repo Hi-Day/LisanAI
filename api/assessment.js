@@ -55,8 +55,17 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRecommendAssessmentConfig(payload, onChunk);
       writeSse(res, { type: "result", data: { recommendation: result } });
     } else if (action === "evaluate") {
-      result = await streamEvaluateAnswers(payload, onChunk);
-      writeSse(res, { type: "result", data: { evaluation: result } });
+      // Harness streaming path (opt-in via env to preserve baseline).
+      if (process.env.HARNESS_EVALUATION === "true" && payload) {
+        const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
+        const combined = { ...payload, auth };
+        const evaluation = await evaluateWithHarness(combined);
+        writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
+        writeSse(res, { type: "result", data: { evaluation, harness: true } });
+      } else {
+        result = await streamEvaluateAnswers(payload, onChunk);
+        writeSse(res, { type: "result", data: { evaluation: result } });
+      }
     } else {
       writeSse(res, { type: "error", message: "Action not found" });
     }
@@ -138,6 +147,13 @@ module.exports = async (req, res) => {
         } catch (authError) {
           return sendJson(res, authError.status || 403, { error: authError.message });
         }
+      }
+      // Harness path (opt-in via env to preserve baseline).
+      if (process.env.HARNESS_EVALUATION === "true") {
+        const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
+        const harnessPayload = { ...payload, auth };
+        const evaluation = await evaluateWithHarness(harnessPayload);
+        return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL, harness: true });
       }
       const evaluation = await evaluateAnswers(payload);
       return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL });

@@ -161,6 +161,10 @@
                     <span class="ai-stream-spinner" aria-hidden="true"></span>
                     <strong id="recommendStreamTitle">AI sedang membuat rekomendasi...</strong>
                   </div>
+                  <div id="recommendStreamPlaceholder" class="ai-stream-placeholder">
+                    <div class="ai-skeleton-card"></div>
+                    <div class="ai-skeleton-card"></div>
+                  </div>
                   <pre id="recommendStreamContent" class="ai-stream-content" aria-live="polite"></pre>
                 </div>
 
@@ -247,9 +251,14 @@
                 <div id="aiStreamPanel" class="ai-stream-panel hidden">
                   <div class="ai-stream-head">
                     <span class="ai-stream-spinner" aria-hidden="true"></span>
-                    <strong id="aiStreamTitle">AI sedang bekerja...</strong>
+                    <strong id="aiStreamTitle">AI sedang menyusun soal...</strong>
                   </div>
-                  <pre id="aiStreamContent" class="ai-stream-content" aria-live="polite"></pre>
+                  <div id="aiStreamPlaceholder" class="ai-stream-placeholder">
+                    <div class="ai-skeleton-card"></div>
+                    <div class="ai-skeleton-card"></div>
+                    <div class="ai-skeleton-card"></div>
+                  </div>
+                  <div id="aiStreamQuestions" class="ai-stream-questions"></div>
                 </div>
 
                 <div id="questionEditor" class="question-editor hidden">
@@ -766,6 +775,73 @@
             </table>
           </div>
         </div>
+      </section>
+
+      <section id="researchView" class="view" aria-labelledby="researchTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="researchTitle">Riset Penilaian</h2>
+            <p>Ukur validitas AI-vs-Human, pantau run evaluasi Harness, beri skor manusia, dan ekspor trace untuk eksperimen.</p>
+          </div>
+          <div class="monitor-filters">
+            <select id="researchSelect" aria-label="Filter assessment"
+              style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;">
+              <option value="">Semua assessment</option>
+            </select>
+            <button id="refreshResearchBtn" class="secondary-button" type="button">🔄 Refresh</button>
+            <button id="researchExportBtn" class="secondary-button" type="button">📥 Export Trace</button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;" id="researchValidity">
+          <p class="empty-state">Memuat metrik validitas...</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+          <div class="analytics-panel" id="researchRubricPanel">
+            <h3 style="margin-bottom:12px;">Rubric Compliance</h3>
+            <p class="empty-state">Belum ada data rubric compliance.</p>
+          </div>
+          <div class="analytics-panel">
+            <h3 style="margin-bottom:12px;">Tentang Penelitian</h3>
+            <p style="font-size:0.9rem;color:var(--muted);margin-bottom:8px;">
+              <strong>H1:</strong> Assessment Harness yang composable meningkatkan reliabilitas, konsistensi,
+              kepatuhan rubrik, dan explainability dibanding baseline single-prompt.
+            </p>
+            <p style="font-size:0.9rem;color:var(--muted);margin-bottom:8px;">
+              Metrik validitas (Pearson/Spearman/MAE/RMSE) dihitung dari pasangan skor AI (Harness) vs skor manusia
+              pada <code>evaluation_human_scores</code>.
+            </p>
+            <p style="font-size:0.9rem;color:var(--muted);">
+              Trace merekonstruksi apa yang terjadi: model, prompt, rubrik, evidence, criterion score, dan verifikasi.
+            </p>
+          </div>
+        </div>
+
+        <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+          <h3 style="padding: 24px 24px 16px;">Run Evaluasi Harness</h3>
+          <div class="table-container" style="overflow-x: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Run ID</th>
+                  <th>Assessment</th>
+                  <th>Model</th>
+                  <th>Skor Akhir</th>
+                  <th>Valid</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="researchRunsList">
+                <tr>
+                  <td colspan="6" class="empty-state">Belum ada run evaluasi.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="researchResultPanel" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="researchResultTitle"></div>
       </section>
 
       <section id="accountView" class="view" aria-labelledby="accountTitle">

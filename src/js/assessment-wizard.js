@@ -122,11 +122,14 @@ export async function handleAssessmentSubmit(ctx, event) {
   }
 
   setButtonLoading(event.submitter, true, "Menghubungi AI...", "Buat soal dengan AI");
-  showStreamPanel(ctx, els.aiStreamPanel, els.aiStreamTitle, els.aiStreamContent, "AI sedang membuat soal...");
+  showQuestionStreamPlaceholder(ctx);
   try {
     const questions = await generateQuestionsWithFallback(ctx, config);
     ctx.pendingAssessmentConfig = config;
     ctx.pendingQuestions = questions;
+    finishQuestionStream(ctx);
+    // Brief pause so the user sees the completed stream before switching.
+    await new Promise((resolve) => setTimeout(resolve, 600));
     hideStreamPanel(ctx, els.aiStreamPanel);
     renderQuestionEditor(ctx);
     goToWizardStep(ctx, 2);
@@ -213,9 +216,11 @@ export async function improvePendingQuestionSet(ctx) {
   if (!ctx.pendingAssessmentConfig) return;
   syncQuestionsFromEditor(ctx);
   setButtonLoading(els.improveQuestionSet, true, "Memperbaiki...", "Perbaiki dengan AI");
-  showStreamPanel(ctx, els.aiStreamPanel, els.aiStreamTitle, els.aiStreamContent, "AI sedang memperbaiki soal...");
+  showQuestionStreamPlaceholder(ctx);
   try {
     ctx.pendingQuestions = await improveQuestionsWithFallback(ctx, ctx.pendingAssessmentConfig, ctx.pendingQuestions);
+    finishQuestionStream(ctx);
+    await new Promise((resolve) => setTimeout(resolve, 500));
     hideStreamPanel(ctx, els.aiStreamPanel);
     renderQuestionEditor(ctx);
   } catch (error) {
@@ -339,7 +344,7 @@ export async function fillRecommendedFields(ctx, target) {
   const button = target === "rubric" ? els.recommendRubric : els.recommendOutcomes;
   const defaultText = target === "rubric" ? "Rekomendasikan rubrik" : "Rekomendasikan kompetensi";
   setButtonLoading(button, true, "Membuat rekomendasi...", defaultText);
-  showStreamPanel(ctx, els.recommendStreamPanel, els.recommendStreamTitle, els.recommendStreamContent, "AI sedang membuat rekomendasi...");
+  showRecommendStreamPlaceholder(ctx);
   try {
     const recommendation = await recommendConfigWithFallback(ctx, topic, els.difficulty.value);
     if (target === "outcomes" || target === "both") els.outcomes.value = recommendation.outcomes;
@@ -351,38 +356,130 @@ export async function fillRecommendedFields(ctx, target) {
 }
 
 export async function recommendConfigWithFallback(ctx, topic, difficulty) {
+  let raw = "";
+  let recommendation = null;
   try {
-    return await streamAssessmentAction({
+    await streamAssessmentAction({
       action: "recommend-assessment-config",
       payload: { topic, difficulty },
-      onChunk: (text) => appendStreamText(ctx.els.recommendStreamContent, text),
+      onChunk: (text) => {
+        raw += text;
+        renderRecommendStream(ctx, raw);
+      },
+      onResult: (data) => {
+        recommendation = data?.recommendation || null;
+      },
     });
+    return recommendation;
   } catch (error) {
     showToast(`AI belum tersedia, memakai rekomendasi lokal. Detail: ${error.message}`);
     return recommendFallbackConfig(topic, difficulty);
   }
 }
 
-export async function generateQuestionsWithFallback(ctx, config) {
+/**
+ * Show the animated placeholder skeleton while AI is generating a recommendation.
+ */
+function showRecommendStreamPlaceholder(ctx) {
+  const { els } = ctx;
+  if (els.recommendStreamPlaceholder) els.recommendStreamPlaceholder.classList.remove("hidden");
+  if (els.recommendStreamContent) els.recommendStreamContent.textContent = "";
+  if (els.recommendStreamPanel) els.recommendStreamPanel.classList.remove("hidden");
+}
+
+/**
+ * Incrementally render the streamed recommendation JSON into a readable preview.
+ */
+function renderRecommendStream(ctx, raw) {
+  const { els } = ctx;
+  if (!els.recommendStreamContent) return;
+  if (els.recommendStreamPlaceholder && !els.recommendStreamPlaceholder.classList.contains("hidden")) {
+    els.recommendStreamPlaceholder.classList.add("hidden");
+  }
+
+  const trimmed = raw.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  const match = trimmed.match(/\{[\s\S]*\}/);
+  if (!match) return;
+
+  let parsed;
   try {
-    return await streamAssessmentAction({
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return;
+  }
+
+  const parts = [];
+  if (parsed.outcomes) parts.push(`📋 Kompetensi:\n${parsed.outcomes}`);
+  if (parsed.rubric) parts.push(`\n📐 Rubrik:\n${parsed.rubric}`);
+  els.recommendStreamContent.textContent = parts.join("\n");
+  els.recommendStreamContent.scrollTop = els.recommendStreamContent.scrollHeight;
+}
+
+export async function generateQuestionsWithFallback(ctx, config) {
+  let raw = "";
+  let questions = null;
+  try {
+    await streamAssessmentAction({
       action: "generate-questions",
       payload: config,
-      onChunk: (text) => appendStreamText(ctx.els.aiStreamContent, text),
+      onChunk: (text) => {
+        raw += text;
+        renderStreamedQuestionsFromRaw(ctx, raw);
+      },
+      onResult: (data) => {
+        questions = Array.isArray(data?.questions) ? data.questions : null;
+      },
     });
+    return questions;
   } catch (error) {
     showToast(`AI belum tersedia, memakai generator lokal. Detail: ${error.message}`);
     return generateFallbackQuestions(config);
   }
 }
 
-export async function improveQuestionsWithFallback(ctx, config, questions) {
+/**
+ * Incrementally parse the streamed JSON and render each question card as soon
+ * as its "prompt" field becomes available.
+ */
+function renderStreamedQuestionsFromRaw(ctx, raw) {
+  const { els } = ctx;
+  if (!els.aiStreamQuestions) return;
+  // Hide the placeholder once real content starts arriving.
+  if (els.aiStreamPlaceholder && !els.aiStreamPlaceholder.classList.contains("hidden")) {
+    els.aiStreamPlaceholder.classList.add("hidden");
+  }
+
+  const trimmed = raw.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  const match = trimmed.match(/\{[\s\S]*\}/);
+  if (!match) return;
+
+  let parsed;
   try {
-    return await streamAssessmentAction({
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return; // JSON not complete yet — keep waiting for more chunks.
+  }
+
+  const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+  questions.forEach((q, index) => renderStreamedQuestion(ctx, index, q));
+}
+
+export async function improveQuestionsWithFallback(ctx, config, questions) {
+  let raw = "";
+  let improved = null;
+  try {
+    await streamAssessmentAction({
       action: "improve-questions",
       payload: { config, questions },
-      onChunk: (text) => appendStreamText(ctx.els.aiStreamContent, text),
+      onChunk: (text) => {
+        raw += text;
+        renderStreamedQuestionsFromRaw(ctx, raw);
+      },
+      onResult: (data) => {
+        improved = Array.isArray(data?.questions) ? data.questions : null;
+      },
     });
+    return improved;
   } catch (error) {
     showToast(`AI belum tersedia, memakai question set sebelumnya. Detail: ${error.message}`);
     return questions;
@@ -393,19 +490,60 @@ export async function improveQuestionsWithFallback(ctx, config, questions) {
 // Streaming panel helpers
 // ---------------------------------------------------------------------------
 
-function showStreamPanel(ctx, panel, titleEl, contentEl, title) {
-  if (!panel) return;
-  if (titleEl) titleEl.textContent = title;
-  if (contentEl) contentEl.textContent = "";
-  panel.classList.remove("hidden");
-}
-
 function hideStreamPanel(ctx, panel) {
   if (panel) panel.classList.add("hidden");
 }
 
-function appendStreamText(contentEl, text) {
-  if (!contentEl) return;
-  contentEl.textContent += text;
-  contentEl.scrollTop = contentEl.scrollHeight;
+/**
+ * Show the animated placeholder skeleton while AI is generating questions.
+ */
+function showQuestionStreamPlaceholder(ctx) {
+  const { els } = ctx;
+  if (els.aiStreamPlaceholder) els.aiStreamPlaceholder.classList.remove("hidden");
+  if (els.aiStreamQuestions) els.aiStreamQuestions.innerHTML = "";
+  if (els.aiStreamPanel) {
+    els.aiStreamPanel.classList.remove("hidden");
+    els.aiStreamPanel.classList.remove("ai-stream-done");
+  }
+}
+
+/**
+ * Hide the placeholder skeleton once streaming begins producing content.
+ */
+function hideQuestionStreamPlaceholder(ctx) {
+  if (ctx.els.aiStreamPlaceholder) ctx.els.aiStreamPlaceholder.classList.add("hidden");
+}
+
+/**
+ * Render a single question card progressively as it streams in.
+ */
+function renderStreamedQuestion(ctx, index, question) {
+  const { els } = ctx;
+  if (!els.aiStreamQuestions) return;
+  const prompt = (question?.prompt || "").trim();
+  if (!prompt) return;
+
+  const existing = els.aiStreamQuestions.querySelector(`[data-q-index="${index}"]`);
+  const card = existing || document.createElement("div");
+  card.className = "ai-stream-question";
+  card.dataset.qIndex = index;
+  card.innerHTML = `
+    <span class="ai-q-num">${index + 1}</span>
+    <span class="ai-q-text">${escapeHtml(prompt)}</span>
+  `;
+  if (!existing) els.aiStreamQuestions.appendChild(card);
+}
+
+/**
+ * Mark the stream as complete: apply the slide-in animation and focus the
+ * first question card.
+ */
+function finishQuestionStream(ctx) {
+  const { els } = ctx;
+  if (els.aiStreamPanel) els.aiStreamPanel.classList.add("ai-stream-done");
+  const first = els.aiStreamQuestions?.querySelector(".ai-stream-question");
+  if (first) {
+    first.scrollIntoView({ behavior: "smooth", block: "center" });
+    first.classList.add("ai-stream-focus");
+  }
 }

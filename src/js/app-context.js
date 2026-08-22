@@ -238,6 +238,7 @@ export function applyRoleAccess(ctx) {
   } else if (role === "admin") {
     navHtml = `
       <button class="nav-button" data-view="observabilityView"><span aria-hidden="true">📈</span> Observabilitas</button>
+      <button class="nav-button" data-view="researchView"><span aria-hidden="true">🧪</span> Riset</button>
       <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">👤</span> Akun</button>
       <button class="nav-button" data-view="apiKeysView"><span aria-hidden="true">🔑</span> API Keys</button>
     `;
@@ -260,7 +261,7 @@ export function canAccessView(ctx, viewId) {
   if (!ctx.auth.user) return false;
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView";
-  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView";
+  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView";
   if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView" || viewId === "complaintView";
   return false;
 }
@@ -273,6 +274,10 @@ export async function switchView(ctx, viewId) {
   els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
   if (viewId === "observabilityView") {
     fetchAndRenderTelemetry(ctx);
+  }
+  if (viewId === "researchView") {
+    const { loadResearch } = await import("./research.js");
+    loadResearch(ctx);
   }
   if (viewId === "apiKeysView") {
     const { loadApiKeys } = await import("./api-keys.js");
