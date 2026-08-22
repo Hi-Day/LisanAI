@@ -189,6 +189,23 @@ class AssessmentHarness {
 
     const verificationResult = this.runVerification(result, rubric, criteria);
 
+    // PRD FR-10 — Reliability Vector (separate from modelConfidence).
+    let reliability = null;
+    if (this.config.pipeline && this.config.pipeline.reliability !== false && verificationResult) {
+      const { reliabilityVector } = require("./scoring/reliability");
+      reliability = reliabilityVector({
+        criteria,
+        rubricCriteria: (rubric && rubric.criteria) || [],
+        verification: verificationResult,
+        valid: verificationResult.status === "FAIL" ? false : true,
+      });
+      trace.event("RELIABILITY", {
+        overall: reliability.overallReliability,
+        dimensions: reliability.dimensions,
+      });
+      trace.setContext("overallReliability", reliability.overallReliability);
+    }
+
     const output = {
       evaluationId: `ev_${crypto.randomBytes(6).toString("hex")}`,
       evaluationRunId: runId,
@@ -199,6 +216,7 @@ class AssessmentHarness {
       weighted,
       feedback: result.feedback || "",
       verification: verificationResult,
+      reliability,
       versioning: {
         modelVersion: this.config.model.model,
         promptVersion: "v1",

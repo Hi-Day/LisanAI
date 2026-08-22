@@ -22,6 +22,7 @@ function defaultConfig(overrides = {}) {
       evidence: flagDefault("HARNESS_EVIDENCE", true),
       evaluation: flagDefault("HARNESS_EVALUATION_PLUGIN", true),
       verification: flagDefault("HARNESS_VERIFICATION", true),
+      reliability: flagDefault("HARNESS_RELIABILITY", true),
       output: false, // replaced by canonical output assembly in pipeline
       calibration: false,
       safety: false,

@@ -77,6 +77,7 @@ async function evaluateWithHarness(payload) {
     criteria: result.criteria,
     verification: result.verification,
     versioning: result.versioning,
+    reliability: result.reliability,
   };
 }
 
