@@ -78,7 +78,7 @@ module.exports = async (req, res) => {
         const db = getDb();
         const rows = await db.all(
           `SELECT r.run_id, r.assessment_id, r.submission_id, r.model, r.final_score,
-                  r.verification_valid, r.created_at,
+                  r.verification_valid, r.verification_status, r.created_at,
                   a.approval_status, a.deadline_at, h.human_score
              FROM evaluation_runs r
              LEFT JOIN human_approvals a ON a.run_id = r.run_id

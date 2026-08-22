@@ -179,13 +179,14 @@ function renderRuns(els, runs) {
     ? runs
         .map((r) => {
           const status = approvalBadge(r.approval_status, r.human_score);
+          const gate = gateBadge(r.verification_status, r.verification_valid);
           return `
       <tr>
         <td>${escapeHtml(r.run_id)}</td>
         <td>${escapeHtml((r.assessment_id || "").slice(0, 20))}</td>
         <td>${escapeHtml(r.model || "-")}</td>
         <td>${r.final_score ?? "-"}</td>
-        <td>${r.verification_valid ? "✓" : "✗"}</td>
+        <td>${gate}</td>
         <td>${status}</td>
         <td style="white-space:nowrap;">
           <button type="button" class="secondary-button" data-trace="${escapeHtml(r.run_id)}">Trace</button>
@@ -194,9 +195,24 @@ function renderRuns(els, runs) {
       </tr>`;
         })
         .join("")
-    : '<tr><td colspan="7" class="empty-state">Belum ada run evaluasi.</td></tr>';
+    : '<tr><td colspan="8" class="empty-state">Belum ada run evaluasi.</td></tr>';
 
   els.researchRunsList.style.display = "";
+}
+
+/**
+ * Verification gate badge (PRD FR-08): PASS | REVIEW | FAIL.
+ * REVIEW means the run needs human review (low confidence).
+ */
+function gateBadge(status, verificationValid) {
+  const s = status || (verificationValid ? "PASS" : "FAIL");
+  const map = {
+    PASS: { label: "PASS", cls: "badge-ok", title: "Verification gate lolos — skor dapat diterbitkan" },
+    REVIEW: { label: "REVIEW", cls: "badge-warn", title: "Perlu tinjauan manusia (kepercayaan rendah)" },
+    FAIL: { label: "FAIL", cls: "badge-bad", title: "Evaluasi gagal verifikasi — tidak boleh diterbitkan" },
+  };
+  const info = map[s] || { label: s || "-", cls: "badge-muted" };
+  return `<span class="badge ${info.cls}" title="${escapeHtml(info.title || "")}">${escapeHtml(info.label)}</span>`;
 }
 
 function approvalBadge(status, humanScore) {
@@ -249,16 +265,47 @@ async function openTrace(ctx, runId) {
           </div>
           ${typeof c.confidence === "number" ? `<div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Kepercayaan: ${fmt(c.confidence * 100, 0)}%</div>` : ""}
           ${
-            Array.isArray(c.evidence) && c.evidence.length
-              ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Evidence:</span><ul style="margin:4px 0 0 18px;">${c.evidence
-                  .map((ev) => `<li>${escapeHtml(ev.text || "")}</li>`)
-                  .join("")}</ul></div>`
-              : ""
+            c.noEvidence
+              ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--accent,#e0a53b);"><strong>TANPA EVIDENCE</strong> — criterion tanpa bukti jawaban (FR-03)</div>`
+              : Array.isArray(c.evidence) && c.evidence.length
+                ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Evidence:</span><ul style="margin:4px 0 0 18px;">${c.evidence
+                    .map((ev) => {
+                      const verdict = ev.grounded
+                        ? `<span style="color:var(--emerald);font-size:0.75rem;"> ✓ grounded</span>`
+                        : `<span style="color:var(--rose, #e0706b);font-size:0.75rem;"> ✗ tidak grounded</span>`;
+                      const method = ev.groundingMethod
+                        ? ` <span style="color:var(--muted);font-size:0.7rem;">(${escapeHtml(ev.groundingMethod)})</span>`
+                        : "";
+                      return `<li>${escapeHtml(ev.text || "")}${verdict}${method}</li>`;
+                    })
+                    .join("")}</ul></div>`
+                : ""
           }
           ${c.rationale ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Alasan:</span> ${escapeHtml(c.rationale)}</div>` : ""}
         </div>`
         )
-        .join("") || '<p class="empty-state">Tanpa criterion</p>';
+      .join("") || '<p class="empty-state">Tanpa criterion</p>';
+
+    // Verification gate badge (PRD FR-08).
+    const gate = gateBadge(result.verification?.status, result.verification?.valid);
+
+    // Reliability vector (PRD FR-10).
+    const reliability = result.reliability;
+    const reliabilityHtml = reliability && reliability.dimensions
+      ? `
+        <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="color:var(--muted);font-size:0.85rem;">Reliability sistem</span>
+            <strong style="font-size:1.2rem;">${fmt(reliability.overallReliability * 100, 0)}%</strong>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">
+            ${Object.entries(reliability.dimensions)
+              .map(([k, v]) => `<div style="font-size:0.8rem;"><span style="color:var(--muted);display:block;">${escapeHtml(k)}</span><strong>${fmt(v * 100, 1)}%</strong></div>`)
+              .join("")}
+          </div>
+          <p class="hint" style="font-size:0.7rem;color:var(--muted);margin-top:8px;">Pisah dari kepercayaan model: indicator keandalan keputusan (FR-10).</p>
+        </div>`
+      : "";
 
     els.researchResultPanel.dataset.runId = runId;
     els.researchResultPanel.innerHTML = `
@@ -266,22 +313,14 @@ async function openTrace(ctx, runId) {
         <button type="button" class="result-close-btn research-close-btn">&times;</button>
         <p class="eyebrow">${escapeHtml(runId)}</p>
         <h3>Trace Evaluasi</h3>
-        <p>Assessment: <strong>${escapeHtml(result.assessmentId || "-")}</strong></p>
+        <p>Assessment: <strong>${escapeHtml(result.assessmentId || "-")}</strong> · Verification gate: ${gate}</p>
 
         <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
           <span style="color:var(--muted);font-size:0.85rem;">Skor akhir (deterministik)</span>
           <div style="font-size:1.6rem;font-weight:700;">${formulaHtml}</div>
         </div>
 
-        <h4>Criterion, evidence &amp; kepercayaan</h4>
-        ${criteriaHtml}
-
-        <h4>Skor manusia</h4>
-        <div class="form-row-2" style="margin-bottom:8px;">
-          <label>Skor (0-100)
-            <input id="humanScoreInput" type="number" min="0" max="100" placeholder="0-100" />
-          </label>
-          <label>Reviewer
+        ${reliabilityHtml}
             <input id="humanReviewer" type="text" value="${escapeHtml((ctx.auth && ctx.auth.user && ctx.auth.user.name) || "")}" disabled />
           </label>
         </div>

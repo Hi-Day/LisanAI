@@ -38,13 +38,14 @@ async function persistEvaluationTrace(snapshot) {
   // table (e.g. ad-hoc evaluation), the FK would reject the insert. Keep the
   // trace robust by retrying with assessment_id = NULL so the evaluation is
   // never lost, while still recording the assessment id in context.
+  const verificationStatus = result && result.verification ? result.verification.status || (result.verification.valid ? "PASS" : "FAIL") : null;
   try {
     await db.run(
       `INSERT INTO evaluation_runs
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
           prompt_version, rubric_version, harness_version, engine_version,
-          final_score, verification_valid, verification_issues, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          final_score, verification_valid, verification_status, verification_issues, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -58,6 +59,7 @@ async function persistEvaluationTrace(snapshot) {
       vEngine,
       result ? result.finalScore : null,
       result && result.verification ? (result.verification.valid ? 1 : 0) : null,
+      verificationStatus,
       result && result.verification ? JSON.stringify(result.verification.issues || []) : null,
       new Date().toISOString()
     );
@@ -67,8 +69,8 @@ async function persistEvaluationTrace(snapshot) {
       `INSERT INTO evaluation_runs
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
           prompt_version, rubric_version, harness_version, engine_version,
-          final_score, verification_valid, verification_issues, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          final_score, verification_valid, verification_status, verification_issues, created_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -81,6 +83,7 @@ async function persistEvaluationTrace(snapshot) {
       vEngine,
       result ? result.finalScore : null,
       result && result.verification ? (result.verification.valid ? 1 : 0) : null,
+      verificationStatus,
       result && result.verification ? JSON.stringify(result.verification.issues || []) : null,
       new Date().toISOString()
     );
