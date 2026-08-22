@@ -979,6 +979,9 @@ textarea[readonly] {
   max-height: 200px;
   text-align: left;
 }
+.evaluation-stream-content:empty {
+  display: none;
+}
 .result-close-btn:hover {
   background: var(--line);
   color: var(--rose);

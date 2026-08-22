@@ -1,17 +1,15 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Lisan.ai Public API",
+    "title": "Lisan.ai API",
     "version": "1.0.0",
-    "description": "API publik untuk integrasi sistem eksternal dengan platform penilaian lisan berbasis AI.\n\nAutentikasi menggunakan **API Key** yang dikirim sebagai header `Authorization: Bearer <api_key>`.\n\nAPI key dapat dibuat oleh admin di halaman **Akun → API Keys**."
+    "description": "API untuk platform penilaian lisan berbasis AI: autentikasi, manajemen assessment/kelas/user, evaluasi AI, observability, dan penelitian (research harness).\n\n## Autentikasi\n\nSebagian besar endpoint memakai sesi cookie (HttpOnly) yang dibuat via `POST /api/auth`.\n\nUntuk integrasi sistem eksternal, endpoint **Public API** (`/api/v1/*`) dan **Aksi AI** (`/api/assessment`) mendukung autentikasi alternatif menggunakan **API Key** pada header:\n\n```\nAuthorization: Bearer lsk_xxx\n```\n\nAPI key (prefix `lsk_`) dapat dibuat oleh admin di halaman **Akun → API Keys**. API key tidak memerlukan CSRF token.\n\n## CSRF\nPermintaan POST yang memakai sesi browser (cookie) wajib menyertakan header `X-CSRF-Token` berisi `csrfToken` dari `GET /api/auth?action=me` atau hasil login/register."
   },
   "servers": [
-    { "url": "https://lisan-ai-assessment.vercel.app/api/v1", "description": "Production (Vercel)" },
-    { "url": "http://127.0.0.1:4173/api/v1", "description": "Local development" }
+    { "url": "https://lisan-ai-assessment.vercel.app", "description": "Production (Vercel)" },
+    { "url": "http://127.0.0.1:4173", "description": "Local development" }
   ],
-  "security": [
-    { "bearerAuth": [] }
-  ],
+  "security": [],
   "components": {
     "securitySchemes": {
       "bearerAuth": {
@@ -19,6 +17,12 @@
         "scheme": "bearer",
         "bearerFormat": "lsk_",
         "description": "API key dengan prefix `lsk_`. Contoh: `Authorization: Bearer lsk_xxx`"
+      },
+      "sessionAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "Session",
+        "description": "Session cookie (HttpOnly) yang diatur oleh `POST /api/auth` (login/register)."
       }
     },
     "schemas": {
@@ -26,6 +30,48 @@
         "type": "object",
         "properties": {
           "error": { "type": "string", "example": "Unauthorized" }
+        }
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": true }
+        }
+      },
+      "Authenticated": {
+        "type": "object",
+        "properties": {
+          "authenticated": { "type": "boolean", "example": true },
+          "tenant": { "$ref": "#/components/schemas/Tenant" },
+          "user": { "$ref": "#/components/schemas/User" },
+          "csrfToken": { "type": "string", "description": "CSRF token untuk request POST berbasis sesi" }
+        }
+      },
+      "Tenant": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "plan": { "type": "string" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "tenantId": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "teacher", "student"] }
+        }
+      },
+      "ActionRequest": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "description": "Nama aksi yang diminta" },
+          "payload": { "type": "object", "description": "Data aksi" },
+          "id": { "type": "string", "description": "ID target (dipakai sebagian aksi)" }
         }
       },
       "Assessment": {
@@ -46,6 +92,15 @@
           "student_name": { "type": "string" },
           "final_score": { "type": "integer" },
           "submitted_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Class": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "joinCode": { "type": "string", "description": "Kode gabung 8 karakter" },
+          "createdAt": { "type": "string", "format": "date-time" }
         }
       },
       "GenerateRequest": {
@@ -79,9 +134,11 @@
             "type": "object",
             "description": "Objek assessment (bisa dari hasil generate atau buatan sendiri)",
             "properties": {
+              "id": { "type": "string" },
               "topic": { "type": "string" },
-              "rubric": { "type": "string" },
+              "rubric": { "type": "string", "description": "Rubrik penilaian" },
               "outcomes": { "type": "string" },
+              "oralExamEnabled": { "type": "boolean", "default": true, "description": "true = penilaian ujian lisan (tidak menghukum format tulisan)" },
               "questions": {
                 "type": "array",
                 "items": {
@@ -118,7 +175,16 @@
                 "score": { "type": "integer" },
                 "matched": { "type": "array", "items": { "type": "string" } },
                 "strengths": { "type": "array", "items": { "type": "string" } },
-                "gaps": { "type": "array", "items": { "type": "string" } }
+                "gaps": { "type": "array", "items": { "type": "string" } },
+                "complaint": {
+                  "type": "object",
+                  "description": "Komplain siswa pada soal (jika ada)",
+                  "properties": {
+                    "reason": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending"] },
+                    "submittedAt": { "type": "string", "format": "date-time" }
+                  }
+                }
               }
             }
           }
@@ -138,15 +204,131 @@
           "outcomes": { "type": "string" },
           "rubric": { "type": "string" }
         }
+      },
+      "SSEEvent": {
+        "type": "object",
+        "description": "Event Server-Sent Events. Tipe: `chunk` (teks inkremental), `result` (hasil akhir), `error`.",
+        "properties": {
+          "type": { "type": "string", "enum": ["chunk", "result", "error"] },
+          "text": { "type": "string" },
+          "data": { "type": "object" },
+          "message": { "type": "string" }
+        }
+      },
+      "ApiKeyCreateResponse": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "description": "Raw API key (hanya ditampilkan sekali)" },
+          "keyId": { "type": "string" },
+          "name": { "type": "string" },
+          "prefix": { "type": "string" }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "prefix": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "revokedAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "ObservabilityResponse": {
+        "type": "object",
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "totalCalls": { "type": "integer" },
+              "errorRate": { "type": "integer" },
+              "retryRate": { "type": "integer" },
+              "avgLatencyMs": { "type": "integer" },
+              "p50LatencyMs": { "type": "integer" },
+              "p95LatencyMs": { "type": "integer" },
+              "p99LatencyMs": { "type": "integer" },
+              "promptTokens": { "type": "integer" },
+              "completionTokens": { "type": "integer" },
+              "totalTokens": { "type": "integer" },
+              "actualCostUSD": { "type": "number" },
+              "savedCostUSD": { "type": "number" },
+              "cacheEfficiencyPercent": { "type": "integer" }
+            }
+          },
+          "modelUsage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": { "type": "string" },
+                "calls": { "type": "integer" }
+              }
+            }
+          },
+          "system": {
+            "type": "object",
+            "properties": {
+              "uptimeSeconds": { "type": "integer" },
+              "nodeVersion": { "type": "string" },
+              "memoryHeapUsedMB": { "type": "integer" },
+              "memoryRssMB": { "type": "integer" }
+            }
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "action": { "type": "string" },
+                "model": { "type": "string" },
+                "latencyMs": { "type": "integer" },
+                "status": { "type": "string" },
+                "cost_usd": { "type": "number" },
+                "created_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "ResearchRuns": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "run_id": { "type": "string" },
+                "assessment_id": { "type": "string" },
+                "submission_id": { "type": "string" },
+                "model": { "type": "string" },
+                "final_score": { "type": "integer" },
+                "verification_valid": { "type": "boolean" },
+                "created_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "SaveHumanScoreRequest": {
+        "type": "object",
+        "required": ["runId", "humanScore", "humanFeedback"],
+        "properties": {
+          "runId": { "type": "string" },
+          "humanScore": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "humanFeedback": { "type": "string" }
+        }
       }
     }
   },
   "paths": {
-    "/assessments": {
+    "/api/v1/assessments": {
       "get": {
         "summary": "Daftar assessment",
-        "description": "Mengembalikan daftar assessment milik tenant.",
-        "tags": ["Assessments"],
+        "description": "Mengembalikan daftar assessment milik tenant (Public API).",
+        "tags": ["Public API · Assessments"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
             "description": "Daftar assessment",
@@ -165,11 +347,12 @@
         }
       }
     },
-    "/submissions": {
+    "/api/v1/submissions": {
       "get": {
         "summary": "Daftar submission",
-        "description": "Mengembalikan daftar submission milik tenant.",
-        "tags": ["Submissions"],
+        "description": "Mengembalikan daftar submission milik tenant (Public API).",
+        "tags": ["Public API · Submissions"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
             "description": "Daftar submission",
@@ -188,11 +371,12 @@
         }
       }
     },
-    "/assessments/generate": {
+    "/api/v1/assessments/generate": {
       "post": {
-        "summary": "Generate soal",
-        "description": "Membuat soal assessment lisan berdasarkan konfigurasi menggunakan AI.",
-        "tags": ["Assessments"],
+        "summary": "Generate soal (AI)",
+        "description": "Membuat soal assessment lisan berdasarkan konfigurasi menggunakan AI (Public API).",
+        "tags": ["Public API · Assessments"],
+        "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -220,11 +404,12 @@
         }
       }
     },
-    "/assessments/evaluate": {
+    "/api/v1/assessments/evaluate": {
       "post": {
         "summary": "Evaluasi jawaban",
-        "description": "Menilai jawaban siswa berdasarkan rubrik menggunakan AI.",
-        "tags": ["Assessments"],
+        "description": "Menilai jawaban siswa berdasarkan rubrik menggunakan AI (Public API).",
+        "tags": ["Public API · Assessments"],
+        "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -252,11 +437,12 @@
         }
       }
     },
-    "/assessments/recommend": {
+    "/api/v1/assessments/recommend": {
       "post": {
-        "summary": "Rekomendasi konfigurasi",
-        "description": "Membuat rekomendasi kompetensi (learning outcome) dan rubrik untuk topik tertentu.",
-        "tags": ["Assessments"],
+        "summary": "Rekomendasi konfigurasi (AI)",
+        "description": "Membuat rekomendasi kompetensi (learning outcome) dan rubrik untuk topik tertentu (Public API).",
+        "tags": ["Public API · Assessments"],
+        "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -283,11 +469,454 @@
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
+    },
+    "/api/auth": {
+      "get": {
+        "summary": "Ambil status autentikasi",
+        "description": "Mengembalikan status sesi, user, tenant, dan CSRF token bila sudah login.",
+        "tags": ["Auth"],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["me", "simulation"], "default": "me" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status autentikasi",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Authenticated" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Aksi autentikasi",
+        "description": "Menjalankan aksi autentikasi. `register` (membuat tenant + admin), `login`, `logout`, atau `simulate-login` (hanya jika demo simulation diaktifkan).\n\nPermintaan `logout` berbasis sesi wajib menyertakan header `X-CSRF-Token`.",
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["register", "login", "logout", "simulate-login"] },
+                  "payload": {
+                    "type": "object",
+                    "properties": {
+                      "tenantName": { "type": "string" },
+                      "name": { "type": "string" },
+                      "email": { "type": "string", "format": "email" },
+                      "password": { "type": "string" },
+                      "userId": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil login / logout",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Authenticated" }
+              }
+            }
+          },
+          "201": {
+            "description": "Berhasil register",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Authenticated" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/database": {
+      "get": {
+        "summary": "Ambil data tenant",
+        "description": "Mengambil kondisi data aplikasi berdasarkan role. Aksi `state` (semua terautentikasi) atau `users` (admin saja).",
+        "tags": ["Database"],
+        "security": [{ "sessionAuth": [] }],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "enum": ["state", "users"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Data kondisi aplikasi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": { "type": "array", "items": { "$ref": "#/components/schemas/User" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "summary": "Aksi CRUD data",
+        "description": "Semua operasi tulis data (assessment, kelas, membership, user, submission, complaint). Role yang diizinkan bervariasi per aksi.\n\nAksi yang tersedia:\n- `clear-data` (guru/admin)\n- `save-assessment`, `update-assessment`, `delete-assessment` (guru/admin)\n- `save-submission` (siswa untuk dirinya; guru/admin untuk siswa)\n- `submit-complaint` (siswa)\n- `create-class`, `update-class`, `delete-class` (guru/admin)\n- `join-class` (siswa), `approve-membership`, `update-membership`, `delete-membership` (guru)\n- `create-user`, `create-users-batch`, `update-user`, `delete-user` (admin)\n- `add-students-to-class`, `create-students-batch` (guru)",
+        "tags": ["Database"],
+        "security": [{ "sessionAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ActionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil (bisa `ok`, `assessment`, `submission`, `class`, `user`, `added`/`errors`, dst.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "assessment": { "$ref": "#/components/schemas/Assessment" },
+                    "submission": { "$ref": "#/components/schemas/Submission" },
+                    "class": { "$ref": "#/components/schemas/Class" },
+                    "user": { "$ref": "#/components/schemas/User" },
+                    "added": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": { "id": { "type": "string" }, "email": { "type": "string" } }
+                      }
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": { "email": { "type": "string" }, "message": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Sumber daya berhasil dibuat",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/assessment": {
+      "post": {
+        "summary": "Aksi AI assessment (non-streaming & SSE)",
+        "description": "Menjalankan aksi AI. Mendukung autentikasi sesi **atau** API key. Jika body berisi `stream: true`, respons berupa Server-Sent Events (SSE) `text/event-stream`.\n\nAksi non-streaming:\n- `generate-questions` (guru/admin)\n- `improve-questions` (guru/admin)\n- `recommend-assessment-config` (guru/admin)\n- `evaluate` (siswa/guru/admin)\n\nAksi streaming (SSE, `stream:true`):\n- `generate-questions`, `improve-questions`, `evaluate`, `recommend-assessment-config`",
+        "tags": ["AI Assessment"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": ["generate-questions", "improve-questions", "evaluate", "recommend-assessment-config"]
+                  },
+                  "stream": { "type": "boolean", "default": false },
+                  "payload": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hasil aksi AI. Jika `stream:true`, berupa SSE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "questions": { "type": "array", "items": { "$ref": "#/components/schemas/Question" } },
+                    "evaluation": { "$ref": "#/components/schemas/Evaluation" },
+                    "recommendation": { "$ref": "#/components/schemas/Recommendation" },
+                    "model": { "type": "string" },
+                    "harness": { "type": "boolean", "description": "true bila memakai harness evaluasi" }
+                  }
+                }
+              },
+              "text/event-stream": {
+                "schema": { "$ref": "#/components/schemas/SSEEvent" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/apikeys": {
+      "get": {
+        "summary": "Daftar API key",
+        "tags": ["API Keys"],
+        "security": [{ "sessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Daftar API key milik tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": { "type": "array", "items": { "$ref": "#/components/schemas/ApiKey" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "summary": "Kelola API key",
+        "description": "Aksi `create` (membuat API key, admin) atau `revoke` (mencabut, admin). Raw key hanya ditampilkan sekali.",
+        "tags": ["API Keys"],
+        "security": [{ "sessionAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["create", "revoke"] },
+                  "payload": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "description": "Nama API key (untuk create)" },
+                      "keyId": { "type": "string", "description": "ID API key (untuk revoke)" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aksi berhasil",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Ok" }
+              }
+            }
+          },
+          "201": {
+            "description": "API key dibuat (raw key hanya tampil sekali)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiKeyCreateResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/research": {
+      "get": {
+        "summary": "Aksi penelitian (admin)",
+        "description": "Aksi query: `metrics`, `runs`, `rubric`, `trace`, `export`. Semua membutuhkan role admin.",
+        "tags": ["Research"],
+        "security": [{ "sessionAuth": [] }],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "enum": ["metrics", "runs", "rubric", "trace", "export"] }
+          },
+          {
+            "name": "assessmentId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "runId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hasil research per aksi",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "summary": "Simpan nilai manual (admin)",
+        "tags": ["Research"],
+        "security": [{ "sessionAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["save-human-score"] },
+                  "payload": { "$ref": "#/components/schemas/SaveHumanScoreRequest" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nilai manual tersimpan",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/observability": {
+      "get": {
+        "summary": "Telemetry AI & system (admin)",
+        "tags": ["Observability"],
+        "security": [{ "sessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Metrik AI, pemakaian model, status sistem, dan log terbaru",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ObservabilityResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/docs": {
+      "get": {
+        "summary": "Dokumentasi API (Swagger UI)",
+        "description": "Mengembalikan halaman HTML Swagger UI untuk mendokumentasi API ini.",
+        "tags": ["Docs"],
+        "responses": {
+          "200": {
+            "description": "HTML Swagger UI",
+            "content": {
+              "text/html": { "schema": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/docs/spec": {
+      "get": {
+        "summary": "OpenAPI JSON spec",
+        "description": "Mengembalikan spesifikasi OpenAPI dalam format JSON (spec yang sedang Anda baca).",
+        "tags": ["Docs"],
+        "responses": {
+          "200": {
+            "description": "Spesifikasi OpenAPI",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "responses": {
+    "BadRequest": {
+      "description": "Permintaan tidak valid",
+      "content": {
+        "application/json": {
+          "schema": { "$ref": "#/components/schemas/Error" }
+        }
+      }
+    },
     "Unauthorized": {
-      "description": "API key tidak valid atau tidak disertakan",
+      "description": "Tidak terautentikasi atau API key tidak valid",
+      "content": {
+        "application/json": {
+          "schema": { "$ref": "#/components/schemas/Error" }
+        }
+      }
+    },
+    "Forbidden": {
+      "description": "Tidak punya izin akses (atau CSRF tidak valid)",
+      "content": {
+        "application/json": {
+          "schema": { "$ref": "#/components/schemas/Error" }
+        }
+      }
+    },
+    "NotFound": {
+      "description": "Endpoint atau aksi tidak ditemukan",
+      "content": {
+        "application/json": {
+          "schema": { "$ref": "#/components/schemas/Error" }
+        }
+      }
+    },
+    "RateLimited": {
+      "description": "Terlalu banyak permintaan (rate limit)",
       "content": {
         "application/json": {
           "schema": { "$ref": "#/components/schemas/Error" }

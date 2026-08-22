@@ -214,8 +214,7 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
           completionTokens = responseData.usage?.completion_tokens || 0;
           retryCount = result.retries || 0;
           // Actual provider KV-cache metrics (cache hit = read, cache miss = creation).
-          const promptDetails = responseData.usage?.prompt_tokens_details || {};
-          cacheReadInputTokens = promptDetails.cached_tokens || 0;
+          cacheReadInputTokens = resolveCachedInputTokens(responseData.usage);
           cacheCreationInputTokens = Math.max(0, promptTokens - cacheReadInputTokens);
           break;
         } catch (err) {
@@ -305,6 +304,30 @@ function parseJsonContent(content) {
     if (match) return JSON.parse(match[0]);
     throw new Error("Respons model bukan JSON valid");
   }
+}
+
+/**
+ * Resolve the number of input tokens served from the provider KV cache.
+ *
+ * OpenRouter does not populate `prompt_tokens_details.cached_tokens`
+ * consistently across providers (often 0). The provider-normalized cache
+ * figure is exposed as `usage.native_tokens_cached`, so we prefer that first.
+ *
+ * @param {object|null} usage - OpenRouter/OpenAI usage object.
+ * @returns {number} Cached (cache-hit) input tokens.
+ */
+function resolveCachedInputTokens(usage) {
+  if (!usage) return 0;
+  // Provider-normalized cache hit count (most reliable on OpenRouter).
+  const nativeCached = usage.native_tokens_cached;
+  if (typeof nativeCached === "number" && Number.isFinite(nativeCached) && nativeCached > 0) {
+    return nativeCached;
+  }
+  // Fall back to OpenAI-style prompt_tokens_details.cached_tokens.
+  const promptDetails = usage.prompt_tokens_details || {};
+  const cached = Number(promptDetails.cached_tokens);
+  if (Number.isFinite(cached) && cached > 0) return cached;
+  return 0;
 }
 
 /**
@@ -536,12 +559,13 @@ async function consumeStream(response, onChunk) {
     const data = await response.json().catch(() => ({}));
     const content = data.choices?.[0]?.message?.content || "";
     if (content && typeof onChunk === "function") onChunk(content);
+    const cachedRead = resolveCachedInputTokens(data.usage);
     return {
       content,
       promptTokens: data.usage?.prompt_tokens || 0,
       completionTokens: data.usage?.completion_tokens || 0,
-      cacheReadInputTokens: data.usage?.prompt_tokens_details?.cached_tokens || 0,
-      cacheCreationInputTokens: Math.max(0, (data.usage?.prompt_tokens || 0) - (data.usage?.prompt_tokens_details?.cached_tokens || 0)),
+      cacheReadInputTokens: cachedRead,
+      cacheCreationInputTokens: Math.max(0, (data.usage?.prompt_tokens || 0) - cachedRead),
     };
   }
 
@@ -588,9 +612,8 @@ async function consumeStream(response, onChunk) {
         if (usage) {
           promptTokens = usage.prompt_tokens || 0;
           completionTokens = usage.completion_tokens || 0;
-          const cached = usage.prompt_tokens_details?.cached_tokens || 0;
-          cacheReadInputTokens = cached;
-          cacheCreationInputTokens = Math.max(0, promptTokens - cached);
+          cacheReadInputTokens = resolveCachedInputTokens(usage);
+          cacheCreationInputTokens = Math.max(0, promptTokens - cacheReadInputTokens);
         }
       }
     }

@@ -171,4 +171,4 @@ async function readRun(runId) {
   };
 }
 
-module.exports = { persistEvaluationTrace };
+module.exports = { persistEvaluationTrace, readRun };

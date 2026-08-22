@@ -193,6 +193,44 @@ test("callOpenRouter saves retry_count, cost_usd, and estimated_prefix_cache_sav
   assert.ok(second.estimated_prefix_cache_savings > 0, "second call should estimate prefix cache savings");
 });
 
+test("callOpenRouter captures native_tokens_cached as the KV cache hit count", async () => {
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [{ message: { content: '{"ok":true}' } }],
+      usage: {
+        prompt_tokens: 30000,
+        completion_tokens: 100,
+        // OpenRouter provider-normalized cache figure (preferred source).
+        native_tokens_cached: 25088,
+        prompt_tokens_details: { cached_tokens: 0 },
+      },
+    }),
+  });
+
+  await callOpenRouter(
+    [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
+    "return valid JSON",
+    { tenantId: "tenant-native-cache", userId: "user-native-cache", action: "generate-questions" }
+  );
+
+  const { getDb } = require("../server/database");
+  const db = getDb();
+  const log = await db.get(
+    `SELECT cache_read_input_tokens, cache_creation_input_tokens
+     FROM ai_logs
+     WHERE tenant_id = ? AND action = ?
+     ORDER BY datetime(created_at) DESC LIMIT 1`,
+    "tenant-native-cache",
+    "generate-questions"
+  );
+
+  assert.ok(log, "expected an ai_logs row");
+  assert.equal(log.cache_read_input_tokens, 25088, "cache hit should read native_tokens_cached");
+  assert.equal(log.cache_creation_input_tokens, 30000 - 25088, "cache miss = prompt tokens minus cache hit");
+});
+
 test("callOpenRouter falls back to the fallback model when primary fails", async () => {
   const attempts = [];
   global.fetch = async (_url, options) => {
