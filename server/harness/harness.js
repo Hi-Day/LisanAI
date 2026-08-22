@@ -99,6 +99,7 @@ class AssessmentHarness {
       assessment: input.assessment || null,
       rubric: null,
       prompt: null,
+      config: this.config,
     };
 
     trace.event("ASSESSMENT_LOADED", { assessmentId: input.assessmentId });
@@ -212,16 +213,31 @@ class AssessmentHarness {
   }
 
   runVerification(result, rubric, weighted) {
-    const issues = [];
-    if (!rubric || !Array.isArray(rubric.criteria)) issues.push("Rubric tidak tersedia/tidak valid");
-    if (!Array.isArray(result.criteria) || result.criteria.length === 0) issues.push("Tidak ada criterion score");
+    const fatalIssues = [];
+    if (!rubric || !Array.isArray(rubric.criteria)) fatalIssues.push("Rubric tidak tersedia/tidak valid");
+    if (!Array.isArray(result.criteria) || result.criteria.length === 0) fatalIssues.push("Tidak ada criterion score");
+    const issues = [...fatalIssues];
     const out = validateOutput({
       evaluationId: "pending",
       criteria: result.criteria,
       finalScore: weighted.finalScore,
     });
-    if (!out.valid) issues.push(...out.issues);
-    return { valid: issues.length === 0, issues };
+    if (!out.valid) {
+      fatalIssues.push(...out.issues);
+      issues.push(...out.issues);
+    }
+
+    // Preserve the gate decision produced by the verification plugin (PASS/REVIEW/FAIL).
+    const pluginVerification = result.verification || {};
+    const status = pluginVerification.status || (fatalIssues.length === 0 ? "PASS" : "FAIL");
+    const reasons = pluginVerification.reasons || fatalIssues;
+    return {
+      valid: fatalIssues.length === 0,
+      issues,
+      status,
+      reasons,
+      scoreConsistency: pluginVerification.scoreConsistency,
+    };
   }
 
   /**

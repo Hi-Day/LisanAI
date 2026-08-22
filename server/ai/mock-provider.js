@@ -46,7 +46,7 @@ class MockProvider extends AIProvider {
       return {
         criterionId: c.id,
         score,
-        evidence: excerpt ? [{ text: excerpt, location: "answer", grounded: true }] : [],
+        evidence: excerpt ? [{ text: excerpt, location: "answer" }] : [],
         rationale: `Evaluasi deterministik mock menurut '${c.name}'.`,
         confidence: 0.9,
         runId,
@@ -59,7 +59,11 @@ class MockProvider extends AIProvider {
 function excerptText(text, max) {
   const s = String(text || "").trim();
   if (!s) return "";
-  return s.length > max ? s.slice(0, max) + "…" : s;
+  // Return a true substring of the answer (never append ellipsis) so that the
+  // licensing-grounding plugin (FR-01/02) can match it lexically within the
+  // student answer. An added "…" would never be found and would mark
+  // otherwise valid evidence as ungrounded.
+  return s.length > max ? s.slice(0, max) : s;
 }
 
 module.exports = { MockProvider };

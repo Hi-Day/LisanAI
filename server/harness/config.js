@@ -14,13 +14,14 @@ function defaultConfig(overrides = {}) {
       model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash",
     },
     // Which plugins are active, v1..v3 research modes.
+    // Per-plugin feature flags allow rollback without redeploy (PRD §27).
     pipeline: {
-      persona: true,
-      assessmentContext: true,
+      persona: flagDefault("HARNESS_PERSONA", true),
+      assessmentContext: flagDefault("HARNESS_CONTEXT", true),
       rubric: true,
-      evidence: true,
-      evaluation: true,
-      verification: true,
+      evidence: flagDefault("HARNESS_EVIDENCE", true),
+      evaluation: flagDefault("HARNESS_EVALUATION_PLUGIN", true),
+      verification: flagDefault("HARNESS_VERIFICATION", true),
       output: false, // replaced by canonical output assembly in pipeline
       calibration: false,
       safety: false,
@@ -51,4 +52,14 @@ function validateConfig(config) {
   return config;
 }
 
-module.exports = { defaultConfig, validateConfig, HARNESS_VERSION, ENGINE_VERSION };
+/**
+ * Read a boolean feature flag from the environment with a default.
+ * Lets ops disable a harness feature without touching code (PRD §27).
+ */
+function flagDefault(name, fallback) {
+  const v = process.env[name];
+  if (v === undefined || v === "") return fallback;
+  return v === "1" || /^true$/i.test(v);
+}
+
+module.exports = { defaultConfig, validateConfig, HARNESS_VERSION, ENGINE_VERSION, flagDefault };

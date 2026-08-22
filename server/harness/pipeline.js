@@ -19,22 +19,22 @@ class Pipeline {
 
   async run(context, invoke) {
     const enabled = this.plugins.filter((p) => this.isEnabled(p.name));
-    const activated = [];
 
-    // before phase
+    // before phase (in registration order)
     for (const plugin of enabled) {
       if (!plugin.before) continue;
       const result = await plugin.before(context);
       context = result || context;
-      activated.push(plugin);
     }
 
     // core invocation
     let result = await invoke(context);
 
-    // after phase (reverse)
-    for (let i = activated.length - 1; i >= 0; i -= 1) {
-      const plugin = activated[i];
+    // after phase — run in REGISTRATION order so that transforms (e.g.
+    // evidence → verification) apply in dependency order. The evidence plugin
+    // must enrich criteria (grounded vectors) BEFORE verification consumes
+    // them to compute the gate decision.
+    for (const plugin of enabled) {
       if (!plugin.after) continue;
       result = (await plugin.after(context, result)) || result;
     }
