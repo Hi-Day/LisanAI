@@ -32,9 +32,14 @@ module.exports = {
       }
       criterion.evidence = normalized;
       criterion.evidenceCount = criterion.evidence.length;
-      // FR-03: explicit no_evidence marker when a criterion has no evidence.
+      // FR-03/FR-06: explicit marker & status when a criterion has no evidence.
       if (criterion.evidence.length === 0) {
         criterion.noEvidence = true;
+        criterion.evidenceStatus = "MISSING";
+      } else if (criterion.evidence.some((ev) => ev && ev.grounded)) {
+        criterion.evidenceStatus = "GROUNDED";
+      } else {
+        criterion.evidenceStatus = "UNSUPPORTED";
       }
     }
     context.trace &&
@@ -97,6 +102,9 @@ function buildEvidence(text, criterionId, answers) {
     grounded,
     groundingMethod: grounded ? "lexical" : null,
     confidence: grounded ? lexicalConfidence(text, found) : 0,
+    // PRD FR-06 — evidence status enum: GROUNDED | UNSUPPORTED | MISSING.
+    // (criterion-level MISSING is stamped on the criterion by the plugin.)
+    status: grounded ? "GROUNDED" : "UNSUPPORTED",
   };
 }
 

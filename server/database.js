@@ -62,6 +62,12 @@ async function initDatabase() {
   await ensureColumn("assessments", "status", "TEXT DEFAULT 'published'");
   await ensureColumn("submissions", "tenant_id", "TEXT");
   await ensureColumn("submissions", "user_id", "TEXT");
+  await ensureColumn("evaluation_runs", "input_hash", "TEXT");
+  await ensureColumn("evaluation_runs", "rubric_hash", "TEXT");
+  await ensureColumn("evaluation_runs", "prompt_hash", "TEXT");
+  await ensureColumn("evaluation_runs", "config_hash", "TEXT");
+  await ensureColumn("evaluation_runs", "published", "INTEGER");
+  await ensureColumn("evaluation_runs", "requires_human_review", "INTEGER");
 }
 
 function getDb() {

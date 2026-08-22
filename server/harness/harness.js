@@ -4,6 +4,7 @@ const { Pipeline } = require("./pipeline");
 const { Trace } = require("./trace");
 const { defaultConfig, validateConfig } = require("./config");
 const { validateOutput } = require("./validator");
+const { buildReproducibilityHashes } = require("./reproducibility");
 
 /**
  * AssessmentHarness — controls, validates, and records the judgment process.
@@ -81,15 +82,6 @@ class AssessmentHarness {
     const runId = AssessmentHarness.createRunId();
     const trace = new Trace(runId, { tenantId: input.tenantId, userId: input.userId });
 
-    // Build the pipeline from configured+registered plugins.
-    const enabled = {};
-    const map = this.config.pipeline || {};
-    const registered = this.registry.list();
-    for (const p of registered) {
-      enabled[p.name] = typeof map[p.name] === "boolean" ? map[p.name] : true;
-    }
-    const pipeline = new Pipeline(registered, { enabled });
-
     const context = {
       runId,
       trace,
@@ -105,6 +97,75 @@ class AssessmentHarness {
     trace.event("ASSESSMENT_LOADED", { assessmentId: input.assessmentId });
     trace.setContext("assessmentId", input.assessmentId);
     trace.setContext("answerCount", input.answers.length);
+
+    // PRD FR-12 — Re-evaluation. When verification FAILs, retry the model up
+    // to `maxRetries` times (bounded, never an infinite loop). Each attempt
+    // re-invokes the LLM with identical input; only a deterministically-failing
+    // or parsing error path escapes early.
+    const maxRetries = Number(process.env.MAX_EVALUATION_RETRIES ?? (this.config.verification && this.config.verification.maxRetries) ?? 1);
+    let finalResult = null;
+    let attempt = 0;
+    for (let i = 0; i <= maxRetries; i += 1) {
+      attempt = i + 1;
+      const attemptResult = await this.runOnce(context, input, runId);
+      if (attemptResult.verification && attemptResult.verification.status === "FAIL" && i < maxRetries) {
+        trace.event("VERIFICATION_RETRY", {
+          attempt,
+          maxRetries,
+          reason: (attemptResult.verification.reasons || []).slice(0, 3),
+        });
+        // Re-run the next attempt with a clean rubric context so plugins
+        // assemble it fresh (evidence grounding stays student-only).
+        delete context.criteria;
+        context.prompt = null;
+        context.promptForHash = null;
+        continue;
+      }
+      finalResult = attemptResult;
+      break;
+    }
+    trace.event("VERIFICATION", { valid: finalResult.verification.valid });
+
+    if (this.persistTrace) {
+      const snap = trace.snapshot({
+        meta: {
+          tenantId: input.tenantId,
+          userId: input.userId,
+          submissionId: (input.submissionId) || finalResult.submissionId || null,
+          assessmentId: input.assessmentId,
+        },
+        model: this.config.model.model,
+        provider: (this.provider && this.provider.name) || null,
+        promptVersion: "v1",
+        rubricVersion: finalResult.versioning.rubricVersion,
+        harnessVersion: this.config.version,
+        engineVersion: this.config.engineVersion,
+        result: finalResult,
+      });
+      try {
+        await this.persistTrace(snap);
+      } catch (err) {
+        // Trace persistence must never break evaluation.
+        trace.event("TRACE_PERSIST_ERROR", { message: err.message });
+      }
+    }
+
+    return finalResult;
+  }
+
+  /**
+   * Run one full cycle: plugins around the model invocation, then finalize.
+   * Returns the canonical evaluation result for a single attempt.
+   */
+  async runOnce(context, input, runId) {
+    const trace = context.trace;
+    const enabled = {};
+    const map = this.config.pipeline || {};
+    const registered = this.registry.list();
+    for (const p of registered) {
+      enabled[p.name] = typeof map[p.name] === "boolean" ? map[p.name] : true;
+    }
+    const pipeline = new Pipeline(registered, { enabled });
 
     // Run plugins around the model invocation.
     const result = await pipeline.run(context, async (ctx) => {
@@ -123,6 +184,7 @@ class AssessmentHarness {
       // Let plugins inject a custom prompt BEFORE hitting the provider.
       let effectivePrompt = ctx.prompt || defaultPrompt(evidencePlan);
       if (ctx.buildPrompt) effectivePrompt = await ctx.buildPrompt(ctx);
+      ctx.promptForHash = effectivePrompt;
 
       const rawContent = await this.provider.generate({
         prompt: effectivePrompt,
@@ -143,33 +205,7 @@ class AssessmentHarness {
     });
 
     // Final validation + compute score if plugin didn't already supply criteria-only.
-    const finalResult = await this.finalize(result, { runId, input, trace });
-    trace.event("VERIFICATION", { valid: finalResult.verification.valid });
-
-    if (this.persistTrace) {
-      const snap = trace.snapshot({
-        meta: {
-          tenantId: input.tenantId,
-          userId: input.userId,
-          submissionId: (input.submissionId) || result.submissionId || null,
-          assessmentId: input.assessmentId,
-        },
-        model: this.config.model.model,
-        promptVersion: "v1",
-        rubricVersion: finalResult.versioning.rubricVersion,
-        harnessVersion: this.config.version,
-        engineVersion: this.config.engineVersion,
-        result: finalResult,
-      });
-      try {
-        await this.persistTrace(snap);
-      } catch (err) {
-        // Trace persistence must never break evaluation.
-        trace.event("TRACE_PERSIST_ERROR", { message: err.message });
-      }
-    }
-
-    return finalResult;
+    return this.finalize(result, { runId, input, trace });
   }
 
   /**
@@ -206,6 +242,23 @@ class AssessmentHarness {
       trace.setContext("overallReliability", reliability.overallReliability);
     }
 
+    // PRD FR-15 — Reproducibility hashes. These prove two runs used identical
+    // input (answers), rubric, prompt and configuration.
+    const hashes = buildReproducibilityHashes({
+      answers: (input && input.answers) || [],
+      rubric,
+      prompt: result.promptForHash || input.promptForHash || null,
+      config: this.config,
+    });
+    trace.setContext("reproducibility", hashes);
+
+    // PRD FR-13 — Publication rule. A final score is only `published` after
+    // verification clears it. FAIL → never published; REVIEW → requires human
+    // review; PASS → published automatically.
+    const status = verificationResult.status;
+    const published = status === "PASS";
+    const requiresHumanReview = status === "REVIEW";
+
     const output = {
       evaluationId: `ev_${crypto.randomBytes(6).toString("hex")}`,
       evaluationRunId: runId,
@@ -216,9 +269,16 @@ class AssessmentHarness {
       weighted,
       feedback: result.feedback || "",
       verification: verificationResult,
+      reproducibility: hashes,
+      published,
+      requiresHumanReview,
       reliability,
       versioning: {
-        modelVersion: this.config.model.model,
+        provider: (this.provider && this.provider.name) || null,
+        model: this.config.model.model,
+        modelVersion: (this.provider && this.provider.version) || null,
+        temperature: this.config.model.temperature ?? null,
+        topP: this.config.model.topP ?? null,
         promptVersion: "v1",
         rubricVersion: (rubric && rubric.id) || "v1",
         harnessVersion: this.config.version,
@@ -227,6 +287,8 @@ class AssessmentHarness {
       trace: trace.snapshot({ result: undefined }).events,
     };
     trace.setContext("finalScore", output.finalScore);
+    trace.setContext("published", published);
+    trace.setContext("requiresHumanReview", requiresHumanReview);
     return output;
   }
 

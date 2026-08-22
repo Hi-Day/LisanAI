@@ -39,13 +39,18 @@ async function persistEvaluationTrace(snapshot) {
   // trace robust by retrying with assessment_id = NULL so the evaluation is
   // never lost, while still recording the assessment id in context.
   const verificationStatus = result && result.verification ? result.verification.status || (result.verification.valid ? "PASS" : "FAIL") : null;
+  const repro = (result && result.reproducibility) || {};
+  const published = result && typeof result.published === "boolean" ? (result.published ? 1 : 0) : null;
+  const requiresHumanReview =
+    result && typeof result.requiresHumanReview === "boolean" ? (result.requiresHumanReview ? 1 : 0) : null;
   try {
     await db.run(
       `INSERT INTO evaluation_runs
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
           prompt_version, rubric_version, harness_version, engine_version,
-          final_score, verification_valid, verification_status, verification_issues, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          final_score, verification_valid, verification_status, verification_issues,
+          input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -61,6 +66,12 @@ async function persistEvaluationTrace(snapshot) {
       result && result.verification ? (result.verification.valid ? 1 : 0) : null,
       verificationStatus,
       result && result.verification ? JSON.stringify(result.verification.issues || []) : null,
+      repro.inputHash || null,
+      repro.rubricHash || null,
+      repro.promptHash || null,
+      repro.configHash || null,
+      published,
+      requiresHumanReview,
       new Date().toISOString()
     );
   } catch (runErr) {
@@ -69,8 +80,9 @@ async function persistEvaluationTrace(snapshot) {
       `INSERT INTO evaluation_runs
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
           prompt_version, rubric_version, harness_version, engine_version,
-          final_score, verification_valid, verification_status, verification_issues, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          final_score, verification_valid, verification_status, verification_issues,
+          input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review, created_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -85,6 +97,12 @@ async function persistEvaluationTrace(snapshot) {
       result && result.verification ? (result.verification.valid ? 1 : 0) : null,
       verificationStatus,
       result && result.verification ? JSON.stringify(result.verification.issues || []) : null,
+      repro.inputHash || null,
+      repro.rubricHash || null,
+      repro.promptHash || null,
+      repro.configHash || null,
+      published,
+      requiresHumanReview,
       new Date().toISOString()
     );
     // Store the original assessment id in the trace for auditing if the schema supports it.
