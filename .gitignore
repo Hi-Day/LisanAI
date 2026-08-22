@@ -1,5 +1,6 @@
 .env
 data/
+!data/datasets/
 node_modules/
 server.out.log
 server.err.log
