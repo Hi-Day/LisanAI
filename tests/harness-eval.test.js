@@ -130,3 +130,23 @@ test("trace persister reconstructs a run from the DB", async () => {
   const critRows = await db.all("SELECT * FROM evaluation_criteria WHERE run_id = ?", result.evaluationRunId);
   assert.equal(critRows.length, result.criteria.length);
 });
+
+test("trace persists even when the assessmentId has no assessment row (FK-safe)", async () => {
+  const harness = createHarness();
+  harness.setProvider(new MockProvider()).setParser({ parse });
+  harness.setTracePersister(persistEvaluationTrace);
+
+  // assessmentId does NOT exist in assessments table -> FK would reject.
+  const result = await harness.evaluate({
+    assessmentId: "virtual-no-db-row",
+    assessment: { id: "virtual-no-db-row", topic: "t", rubric: "X 100%" },
+    rubric: { id: "r", criteria: [{ id: "q1", name: "Soal 1", weight: 1, scale: 100 }] },
+    answers: ["jawaban A"],
+    tenantId: "t-fksafe",
+    userId: "u-fksafe",
+  });
+
+  const db = getDb();
+  const runRow = await db.get("SELECT * FROM evaluation_runs WHERE run_id = ?", result.evaluationRunId);
+  assert.ok(runRow, "run harus tersimpan walaupun assessmentId tidak ada di DB");
+});
