@@ -1,0 +1,81 @@
+{
+  "version": "v1",
+  "metadata": {
+    "name": "LisanAI Multi-Rater Benchmark",
+    "description": "Benchmark with two independent human raters per sample to exercise FR-20 inter-rater reliability.",
+    "language": "id",
+    "annotators": 2,
+    "pseudonymized": true
+  },
+  "samples": [
+    {
+      "sampleId": "M1",
+      "question": "Jelaskan peran klorofil dalam fotosintesis.",
+      "rubric": {
+        "id": "bench-klorofil",
+        "criteria": [
+          { "id": "konsep", "name": "Konsep", "weight": 0.7, "scale": 100 },
+          { "id": "ketepatan", "name": "Ketepatan", "weight": 0.3, "scale": 100 }
+        ]
+      },
+      "studentAnswers": [
+        "Klorofil menyerap cahaya matahari yang digunakan untuk mengubah air dan karbon dioksida menjadi glukosa."
+      ],
+      "humanScore": 85,
+      "humanCriterionScores": {
+        "raterScores": {
+          "rater-1": 85,
+          "rater-2": 80
+        }
+      },
+      "humanFeedback": "Jawaban tepat dan mencakup fungsi klorofil.",
+      "annotatorId": "rater-1"
+    },
+    {
+      "sampleId": "M2",
+      "question": "Bagaimana respirasi seluler berbeda dari fotosintesis?",
+      "rubric": {
+        "id": "bench-respirasi",
+        "criteria": [
+          { "id": "pemahaman", "name": "Pemahaman", "weight": 0.6, "scale": 100 },
+          { "id": "kelengkapan", "name": "Kelengkapan", "weight": 0.4, "scale": 100 }
+        ]
+      },
+      "studentAnswers": [
+        "Respirasi seluler memecah glukosa menjadi energi, sedangkan fotosintesis membuat glukosa dari cahaya."
+      ],
+      "humanScore": 78,
+      "humanCriterionScores": {
+        "raterScores": {
+          "rater-1": 78,
+          "rater-2": 82
+        }
+      },
+      "humanFeedback": "Membedakan kedua proses dengan tepat.",
+      "annotatorId": "rater-1"
+    },
+    {
+      "sampleId": "M3",
+      "question": "Apa pentingnya ekosistem hutan tropis?",
+      "rubric": {
+        "id": "bench-hutan",
+        "criteria": [
+          { "id": "analisis", "name": "Analisis", "weight": 0.5, "scale": 100 },
+          { "id": "komunikasi", "name": "Komunikasi", "weight": 0.5, "scale": 100 }
+        ]
+      },
+      "studentAnswers": [
+        "Hutan tropis menyimpan karbon dan menjadi habitat bagi banyak spesies."
+      ],
+      "humanScore": 71,
+      "humanCriterionScores": {
+        "raterScores": {
+          "rater-1": 71,
+          "rater-2": 74
+        }
+      },
+      "humanFeedback": "Cakupan cukup, kurang contoh.",
+      "annotatorId": "rater-1"
+    }
+  ]
+}

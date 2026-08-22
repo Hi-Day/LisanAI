@@ -86,6 +86,7 @@ async function runSampleHarness(harness, sample, opts = {}) {
     evaluationMode: "harness",
     verification: result.verification,
     reliability: result.reliability,
+    criteria: result.criteria || [],
   };
 }
 
@@ -149,7 +150,7 @@ async function runSampleBaseline(provider, parser, sample, opts = {}) {
  *   repeats feeds consistencyMetrics.
  * @returns {Promise<object>}
  */
-async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1 }) {
+async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1, raterMap }) {
   const loaded = loadDataset(dataset);
   const validation = validateDataset(loaded.samples);
   const modes = (Array.isArray(mode) ? mode : [mode || "baseline"]).filter(Boolean);
@@ -157,6 +158,11 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
 
   const results = [];
   const perRun = {}; // mode -> { sampleId: scores[] }
+
+  // PRD FR-18/FR-20 — human inter-rater data. If the dataset already carries
+  // per-rater scores (humanCriterionScores / raterId per sample) OR the caller
+  // passes an explicit raterMap, surface inter-rater metrics.
+  const resolvedRaterMap = raterMap || buildRaterMap(loaded.samples);
 
   for (const m of modes) {
     perRun[m] = {};
@@ -208,10 +214,52 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
     repeats,
     results,
     pairs,
-    metrics: summarizeExperimentMetrics({ results }),
+    metrics: summarizeExperimentMetrics({ results, raterMap: resolvedRaterMap }),
+    raterMap: resolvedRaterMap && Object.keys(resolvedRaterMap).length >= 2 ? resolvedRaterMap : null,
     // Consistency of repeated runs (PRD §22). Present only when repeats > 1.
     consistency: buildConsistency(perRun, repeats),
   };
+}
+
+/**
+ * Build a raterMap from dataset samples that carry per-rater human scores.
+ * Each sample may provide `humanCriterionScores` keyed by raterId (or a
+ * flat `raterId` + `humanScore`). Returns { raterId: score[] } aligned to
+ * sample order, or null when <2 raters are present across the dataset.
+ */
+function buildRaterMap(samples) {
+  const map = {};
+  let any = false;
+  for (const sample of samples || []) {
+    // Only an EXPLICIT multi-rater shape is consumed: humanCriterionScores
+    // with a `raterScores` sub-object keyed by raterId (the flat
+    // {criterion:score} map is NOT treated as raters).
+    if (
+      sample &&
+      sample.humanCriterionScores &&
+      typeof sample.humanCriterionScores === "object" &&
+      sample.humanCriterionScores.raterScores &&
+      typeof sample.humanCriterionScores.raterScores === "object"
+    ) {
+      for (const [raterId, value] of Object.entries(sample.humanCriterionScores.raterScores)) {
+        const score =
+          typeof value === "number"
+            ? value
+            : value && typeof value.score === "number"
+              ? value.score
+              : null;
+        if (score !== null) {
+          (map[raterId] ||= []).push(score);
+          any = true;
+        }
+      }
+    } else if (sample && sample.raterId != null && typeof sample.humanScore === "number") {
+      (map[sample.raterId] ||= []).push(sample.humanScore);
+      any = true;
+    }
+  }
+  if (!any) return null;
+  return map;
 }
 
 /**
@@ -249,5 +297,6 @@ module.exports = {
   resolveProvider,
   resolveBaselineProvider,
   BaselineMockProvider,
+  buildRaterMap,
   clamp,
 };

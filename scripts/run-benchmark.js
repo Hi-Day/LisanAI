@@ -24,6 +24,7 @@ function parseArgs(argv) {
     else if (a === "--repeats" && next()) args.repeats = Number(argv[(i += 1)]);
     else if (a === "--provider" && next()) args.provider = argv[(i += 1)];
     else if (a === "--out" && next()) args.out = argv[(i += 1)];
+    else if (a === "--report-dir" && next()) args.reportDir = argv[(i += 1)];
     else if (a === "--help" || a === "-h") args.help = true;
   }
   const modeNormalized = args.mode === "both" ? ["baseline", "harness"] : [args.mode];
@@ -40,6 +41,7 @@ function usage() {
     --repeats <n>       Repeat each sample n times to measure consistency
     --provider <p>      mock | openrouter (default: mock)
     --out <path>        Write a JSON report to path
+    --report-dir <dir>  Write research/ deliverables into <dir> (default: research/)
   `;
 }
 
@@ -103,6 +105,84 @@ async function main() {
   } else {
     console.log("\nGunakan --out <path> untuk menyimpan laporan reproducible.");
   }
+
+  // PRD §47 — research/ deliverables (dataset→baseline→harness→metrics→report).
+  if (args.reportDir) {
+    const base = path.isAbsolute(args.reportDir) ? args.reportDir : path.join(ROOT, args.reportDir);
+    const mkp = (...p) => {
+      const d = path.join(base, ...p);
+      fs.mkdirSync(d, { recursive: true });
+      return d;
+    };
+    const writeJsonl = (rows, file) => {
+      const body = (rows || []).map((r) => JSON.stringify(r)).join("\n") + "\n";
+      fs.writeFileSync(path.join(mkp("."), file), body, "utf8");
+    };
+    writeJsonl(
+      experiment.results.filter((r) => r.evaluationMode === "baseline"),
+      "baseline.jsonl"
+    );
+    writeJsonl(
+      experiment.results.filter((r) => r.evaluationMode === "harness"),
+      "harness.jsonl"
+    );
+    fs.writeFileSync(
+      path.join(mkp("metrics"), "results.json"),
+      JSON.stringify(experiment.metrics, null, 2),
+      "utf8"
+    );
+    const reportPath = path.join(mkp("report"), "experiment-report.md");
+    fs.writeFileSync(reportPath, buildResearchReport(experiment), "utf8");
+    console.log(`\nDeliverables riset tersimpan di: ${base}`);
+    console.log(`  baseline.jsonl, harness.jsonl, metrics/results.json, report/experiment-report.md`);
+  }
+}
+
+/**
+ * Render a human-readable experiment report (PRD §47).
+ */
+function buildResearchReport(exp) {
+  const m = exp.metrics || {};
+  const lines = [];
+  lines.push("# LisanAI Research Experiment Report");
+  lines.push("");
+  lines.push(`- **Dataset:** \`${path.basename(exp.datasetName)}\` (${exp.datasetVersion})`);
+  lines.push(`- **Mode:** ${(exp.mode || []).join(", ")}`);
+  lines.push(`- **Repeats:** ${exp.repeats}`);
+  lines.push(`- **Provider:** ${exp.provider || "mock"}`);
+  lines.push(`- **Generated:** ${new Date().toISOString()}`);
+  lines.push("");
+  lines.push("## Human Agreement (AI vs human)");
+  lines.push("");
+  lines.push("| Mode | n | Pearson | Spearman | MAE | RMSE | Exact | ±5 | ±10 |");
+  lines.push("|---|---|---|---|---|---|---|---|---|");
+  const ag = m.agreement || {};
+  for (const mode of ["baseline", "harness"]) {
+    const a = ag[mode];
+    if (!a) continue;
+    const f = (v) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(3) : "—");
+    lines.push(
+      `| ${mode} | ${a.n} | ${f(a.pearson)} | ${f(a.spearman)} | ${f(a.mae)} | ${f(a.rmse)} | ${f(a.exactAgreement)} | ${f(a.plus5)} | ${f(a.plus10)} |`
+    );
+  }
+  lines.push("");
+  lines.push("## Grounding & Compliance");
+  lines.push("");
+  lines.push("```json");
+  lines.push(JSON.stringify({ grounding: m.grounding, compliance: m.compliance }, null, 2));
+  lines.push("```");
+  if (m.interRater) {
+    lines.push("");
+    lines.push("## Inter-Rater Reliability (FR-20)");
+    lines.push("");
+    lines.push("```json");
+    lines.push(JSON.stringify(m.interRater, null, 2));
+    lines.push("```");
+  }
+  lines.push("");
+  lines.push("> Catatan ilmiah: perbandingan harus melalui uji statistik berpasangan + effect size; mean difference saja belum cukup (PRD §35).");
+  lines.push("");
+  return lines.join("\n");
 }
 
 main().catch((err) => {

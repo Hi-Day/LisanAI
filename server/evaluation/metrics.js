@@ -129,6 +129,168 @@ function evaluateMetrics(ai, human) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Inter-Rater Reliability (PRD FR-20)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cohen's Kappa (unweighted) for two raters on nominal/categorical scores.
+ * Inputs: two equal-length arrays of category labels (strings or numbers).
+ * Returns a value in [-1, 1]; NaN when agreement is degenerate.
+ *
+ *   κ = (p_o - p_e) / (1 - p_e)
+ */
+function cohensKappa(a, b) {
+  if (a.length !== b.length || a.length === 0) return NaN;
+  const labels = new Set([...a, ...b]);
+  const n = a.length;
+  const row = new Map();
+  const col = new Map();
+  let observed = 0;
+  for (let i = 0; i < n; i += 1) {
+    row.set(a[i], (row.get(a[i]) || 0) + 1);
+    col.set(b[i], (col.get(b[i]) || 0) + 1);
+    if (a[i] === b[i]) observed += 1;
+  }
+  const pObserved = observed / n;
+  let pExpected = 0;
+  for (const label of labels) {
+    pExpected += (row.get(label) || 0) * (col.get(label) || 0);
+  }
+  pExpected /= n * n;
+  if (1 - pExpected === 0) return NaN;
+  return (pObserved - pExpected) / (1 - pExpected);
+}
+
+/**
+ * Weighted (quadratic) Kappa — Floyd & Cicchetti weighting for ordered
+ * categorical scales. Treats both inputs as numeric ranks over the union of
+ * observed categories; weights fall off quadratically with the distance
+ * between categories, so near-misses count more than far misses.
+ *
+ * Formula (Cohen 1968, weighted):
+ *
+ *   κ_w = 1 − Σw·observed / Σw·expected
+ */
+function weightedKappa(a, b) {
+  if (a.length !== b.length || a.length === 0) return NaN;
+  const labels = [...new Set([...a, ...b])].sort((x, y) => x - y);
+  const k = labels.length;
+  if (k < 2) return NaN;
+  const idx = new Map(labels.map((v, i) => [v, i]));
+  const n = a.length;
+
+  const W = (i, j) => {
+    const d = i - j;
+    return (d * d) / ((k - 1) * (k - 1));
+  };
+
+  const obs = Array.from({ length: k }, () => new Array(k).fill(0));
+  const iaRow = new Array(k).fill(0);
+  const ibCol = new Array(k).fill(0);
+  for (let i = 0; i < n; i += 1) {
+    const x = idx.get(a[i]);
+    const y = idx.get(b[i]);
+    obs[x][y] += 1;
+    iaRow[x] += 1;
+    ibCol[y] += 1;
+  }
+
+  let sumWObs = 0;
+  let sumWExp = 0;
+  for (let i = 0; i < k; i += 1) {
+    for (let j = 0; j < k; j += 1) {
+      const w = W(i, j);
+      sumWObs += obs[i][j] * w;
+      sumWExp += ((iaRow[i] * ibCol[j]) / n) * w;
+    }
+  }
+  // Weighted proportions: weight observed/expected disagreements.
+  const po = sumWObs / n;
+  const pe = sumWExp / n;
+  if (pe === 0) return NaN;
+  return 1 - po / pe;
+}
+
+/**
+ * Intraclass Correlation Coefficient (ICC), two-way/mixed absolute-agreement
+ * single-measures formulation (Shrout & Fleiss ICC(2,k) mean-based variant).
+ * Uses an ANOVA model over raters × subjects.
+ * @param {number[][]} matrix  rows = subjects, columns = raters
+ * @returns {{icc:number, nSubjects, nRaters, msSubjects, msError}}
+ */
+function iccTwoWay(matrix) {
+  const rows = matrix.length;
+  if (rows === 0) return { icc: NaN };
+  const cols = matrix[0].length;
+  if (cols < 2) return { icc: NaN };
+
+  const grandMean = matrix.flat().reduce((a, b) => a + b, 0) / (rows * cols);
+  // Row (subject) means.
+  const rowMeans = matrix.map((r) => mean(r));
+  // Column (rater) means.
+  const colMeans = [];
+  for (let j = 0; j < cols; j += 1) {
+    let s = 0;
+    for (let i = 0; i < rows; i += 1) s += matrix[i][j];
+    colMeans.push(s / rows);
+  }
+
+  // SS total.
+  let ssTotal = 0;
+  for (let i = 0; i < rows; i += 1) {
+    for (let j = 0; j < cols; j += 1) ssTotal += (matrix[i][j] - grandMean) ** 2;
+  }
+  // SS between subjects (rows).
+  let ssRows = 0;
+  for (let i = 0; i < rows; i += 1) ssRows += cols * (rowMeans[i] - grandMean) ** 2;
+  // SS between raters (columns).
+  let ssCols = 0;
+  for (let j = 0; j < cols; j += 1) ssCols += rows * (colMeans[j] - grandMean) ** 2;
+  // SS error = total - rows - cols.
+  const ssError = ssTotal - ssRows - ssCols;
+
+  const dfRows = rows - 1;
+  const dfCols = cols - 1;
+  const dfError = (rows - 1) * (cols - 1);
+  const msr = ssRows / dfRows; // variance between subjects
+  const msw = ssError / dfError; // error variance
+
+  const varianceBetween = (msr - msw) / cols;
+  const varianceRater = (ssCols / dfCols - msw) / rows;
+  const varianceError = msw;
+  const varianceTotal = varianceBetween + varianceRater + varianceError;
+  if (varianceTotal === 0) return { icc: NaN };
+  const icc = varianceBetween / varianceTotal;
+  return {
+    icc,
+    nSubjects: rows,
+    nRaters: cols,
+    msr,
+    msError: msw,
+  };
+}
+
+const KAPPA_DEFAULT_BANDS = [1, 5, 10];
+
+/**
+ * Convenience wrapper for two raters across continuous score bands.
+ * Produces Cohen's Kappa on discretised bands, plus Fliess-weighted agreement
+ * using ±tolerances. Accepts two equal-length numeric vectors.
+ */
+function interRaterMetrics(raterA, raterB) {
+  return {
+    n: raterA.length,
+    exactAgreement: exactAgreement(raterA, raterB),
+    adjacent5: adjacentAgreement(raterA, raterB, 5),
+    adjacent10: adjacentAgreement(raterA, raterB, 10),
+    pearson: pearson(raterA, raterB),
+    spearman: spearman(raterA, raterB),
+    cohensKappa: cohensKappa(raterA, raterB),
+    weightedKappa: weightedKappa(raterA, raterB),
+  };
+}
+
 module.exports = {
   mean,
   std,
@@ -141,4 +303,8 @@ module.exports = {
   adjacentAgreement,
   interRunVariance,
   computeMetrics: evaluateMetrics,
+  cohensKappa,
+  weightedKappa,
+  iccTwoWay,
+  interRaterMetrics,
 };

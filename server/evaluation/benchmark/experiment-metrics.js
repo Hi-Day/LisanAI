@@ -8,6 +8,10 @@ const {
   rmse,
   exactAgreement,
   adjacentAgreement,
+  cohensKappa,
+  weightedKappa,
+  iccTwoWay,
+  interRaterMetrics,
 } = require("../metrics");
 
 /**
@@ -92,12 +96,64 @@ function complianceMetrics(results) {
   if (harness.length === 0) return null;
   const n = harness.length;
   const count = (s) => harness.filter((r) => r.verification && r.verification.status === s).length;
+
+  // FR-06 evidence status rates across harness criteria.
+  const evidenceStatusCounts = { GROUNDED: 0, UNSUPPORTED: 0, MISSING: 0 };
+  let criteriaCount = 0;
+  for (const r of harness) {
+    for (const c of (r.criteria || [])) {
+      criteriaCount += 1;
+      if (c.evidenceStatus === "UNSUPPORTED") evidenceStatusCounts.UNSUPPORTED += 1;
+      else if (c.noEvidence === true || c.evidenceStatus === "MISSING") evidenceStatusCounts.MISSING += 1;
+      else evidenceStatusCounts.GROUNDED += 1;
+    }
+  }
+
   return {
     n,
     passRate: count("PASS") / n,
     reviewRate: count("REVIEW") / n,
     failRate: count("FAIL") / n,
+    evidence: criteriaCount
+      ? {
+          groundedRate: evidenceStatusCounts.GROUNDED / criteriaCount,
+          unsupportedRate: evidenceStatusCounts.UNSUPPORTED / criteriaCount,
+          missingRate: evidenceStatusCounts.MISSING / criteriaCount,
+        }
+      : null,
   };
+}
+
+/**
+ * Inter-rater reliability across human raters (PRD FR-20).
+ * Accepts an object keyed by raterId → array of scores (same length, one per
+ * sample). Returns agreement metrics for each rater pair, plus the mean.
+ */
+function interRaterAggregation(raterMap) {
+  const ids = Object.keys(raterMap || {});
+  if (ids.length < 2) return null;
+  const pairs = [];
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      pairs.push({
+        raterA: ids[i],
+        raterB: ids[j],
+        metrics: interRaterMetrics(raterMap[ids[i]], raterMap[ids[j]]),
+      });
+    }
+  }
+  // Build subject×rater matrix for ICC (requires equal rater sets).
+  const lens = new Set(ids.map((id) => (raterMap[id] || []).length));
+  let icc = null;
+  if (lens.size === 1) {
+    const nSub = [...lens][0];
+    const matrix = [];
+    for (let s = 0; s < nSub; s += 1) {
+      matrix.push(ids.map((id) => raterMap[id][s]));
+    }
+    icc = iccTwoWay(matrix);
+  }
+  return { pairs, icc, nRaters: ids.length };
 }
 
 /**
@@ -124,6 +180,9 @@ function summarizeExperimentMetrics(exp) {
 
   report.grounding = groundingMetrics(results);
   report.compliance = complianceMetrics(results);
+  if (exp && exp.raterMap) {
+    report.interRater = interRaterAggregation(exp.raterMap);
+  }
 
   // Consistency requires repeated runs, which runExperiment() does not
   // automate yet; callers can build it via consistencyMetrics().
@@ -135,5 +194,6 @@ module.exports = {
   consistencyMetrics,
   groundingMetrics,
   complianceMetrics,
+  interRaterAggregation,
   summarizeExperimentMetrics,
 };
