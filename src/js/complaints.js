@@ -189,28 +189,72 @@ export function updateComplaintBadge(ctx) {
 }
 
 /**
- * Show a notification banner to the student when a complaint is resolved/rejected.
+ * Show the student's complaint statuses in the dedicated Notifikasi tab.
  * Called after state reload so the student sees the latest status.
  */
 export function notifyStudentComplaintStatus(ctx) {
   const { els, auth } = ctx;
   if (!auth?.user || auth.user.role !== "student") return;
-  if (!els.complaintNotification) return;
+
+  // Remove the old assessment-page banner now that notifications
+  // live in their own tabs.
+  if (els.complaintNotification) {
+    els.complaintNotification.classList.add("hidden");
+    els.complaintNotification.innerHTML = "";
+  }
+
+  if (!els.studentNotifList) return;
 
   const notifications = [];
   for (const submission of ctx.state.submissions) {
     (submission.questionScores || []).forEach((qs, questionIndex) => {
       if (!qs.complaint) return;
-      const { status, response } = qs.complaint;
+      const { status, response, reason, submittedAt } = qs.complaint;
       if (status === "resolved") {
-        notifications.push(`✅ Komplain Anda untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) diterima. Skor baru: ${qs.score}.${response ? ` Guru: "${response}"` : ""}`);
+        notifications.push({
+          icon: "✅",
+          statusClass: "complaint-resolved",
+          title: `Komplain untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) diterima`,
+          detail: `Skor baru: ${qs.score}.${response ? ` Guru: "${response}"` : ""}`,
+          reason,
+          submittedAt,
+        });
       } else if (status === "rejected") {
-        notifications.push(`❌ Komplain Anda untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) ditolak. Skor dikurangi 20 poin menjadi ${qs.score}.${response ? ` Guru: "${response}"` : ""}`);
+        notifications.push({
+          icon: "❌",
+          statusClass: "complaint-rejected",
+          title: `Komplain untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) ditolak`,
+          detail: `Skor dikurangi 20 poin menjadi ${qs.score}.${response ? ` Guru: "${response}"` : ""}`,
+          reason,
+          submittedAt,
+        });
       }
     });
   }
 
-  if (!notifications.length) return;
-  els.complaintNotification.innerHTML = notifications.map((n) => `<p>${escapeHtml(n)}</p>`).join("");
-  els.complaintNotification.classList.remove("hidden");
+  if (!notifications.length) {
+    els.studentNotifList.className = "complaint-list empty-state";
+    els.studentNotifList.innerHTML = "Belum ada notifikasi komplain.";
+    return;
+  }
+
+  els.studentNotifList.className = "complaint-list";
+  els.studentNotifList.innerHTML = notifications
+    .map(
+      (n) => `
+        <article class="complaint-item ${n.statusClass}">
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <strong>${n.icon} ${escapeHtml(n.title)}</strong>
+            </div>
+            <div class="complaint-box ${n.statusClass}" style="margin: 8px 0 0;">
+              ${n.reason ? `<p><b>Isi komplain:</b> ${escapeHtml(n.reason)}</p>` : ""}
+              <p class="complaint-response">${escapeHtml(n.detail)}</p>
+              ${n.submittedAt ? `<span class="tag">${escapeHtml(new Date(n.submittedAt).toLocaleString("id-ID"))}</span>` : ""}
+            </div>
+          </div>
+        </article>
+      `
+    )
+    .join("");
 }

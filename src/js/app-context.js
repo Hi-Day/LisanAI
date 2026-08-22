@@ -237,6 +237,7 @@ export function applyRoleAccess(ctx) {
     navHtml = `
       <button class="nav-button" data-view="studentView"><span aria-hidden="true">◉</span> Kerjakan</button>
       <button class="nav-button" data-view="studentHistoryView"><span aria-hidden="true">🕒</span> Riwayat</button>
+      <button class="nav-button" data-view="studentNotifView"><span aria-hidden="true">📩</span> Notifikasi</button>
     `;
   } else if (role === "admin") {
     navHtml = `
@@ -263,7 +264,7 @@ export function applyRoleAccess(ctx) {
 export function canAccessView(ctx, viewId) {
   if (!ctx.auth.user) return false;
   const role = ctx.auth.user.role;
-  if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView";
+  if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
   if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView";
   if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView" || viewId === "complaintView";
   return false;

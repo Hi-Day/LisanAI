@@ -173,6 +173,8 @@ export function getElements() {
     complaintCount: document.querySelector("#complaintCount"),
     complaintNavBadge: document.querySelector("#complaintNavBadge"),
     complaintNotification: document.querySelector("#complaintNotification"),
+    studentNotifView: document.querySelector("#studentNotifView"),
+    studentNotifList: document.querySelector("#studentNotifList"),
     researchView: document.querySelector("#researchView"),
     researchSelect: document.querySelector("#researchSelect"),
     researchValidity: document.querySelector("#researchValidity"),
