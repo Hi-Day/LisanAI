@@ -1,0 +1,47 @@
+{
+  "version": "v1",
+  "metadata": {
+    "name": "LisanAI Sample Benchmark",
+    "description": "Small sample dataset for CI/unit tests (PRD FR-13).",
+    "language": "id",
+    "annotators": 1
+  },
+  "samples": [
+    {
+      "sampleId": "S1",
+      "question": "Jelaskan proses fotosintesis dan mengapa tumbuhan hijau penting.",
+      "rubric": {
+        "id": "bench-fotosintesis",
+        "criteria": [
+          { "id": "concept", "name": "Konsep", "weight": 0.6, "scale": 100 },
+          { "id": "application", "name": "Aplikasi", "weight": 0.4, "scale": 100 }
+        ]
+      },
+      "studentAnswers": [
+        "Fotosintesis adalah proses tumbuhan membuat makanan dari cahaya matahari dan klorofil."
+      ],
+      "humanScore": 82,
+      "humanCriterionScores": { "concept": 85, "application": 78 },
+      "humanFeedback": "Menjelaskan konsep dasar dengan benar, aplikasi cukup.",
+      "annotatorId": "rater-1"
+    },
+    {
+      "sampleId": "S2",
+      "question": "Apa dampak pemanasan global terhadap ekosistem?",
+      "rubric": {
+        "id": "bench-pemanasan",
+        "criteria": [
+          { "id": "analysis", "name": "Analisis", "weight": 0.5, "scale": 100 },
+          { "id": "communication", "name": "Komunikasi", "weight": 0.5, "scale": 100 }
+        ]
+      },
+      "studentAnswers": [
+        "Pemanasan global berdampak pada kenaikan suhu dan mencairnya es di kutub."
+      ],
+      "humanScore": 74,
+      "humanCriterionScores": { "analysis": 70, "communication": 78 },
+      "humanFeedback": "Analisis cukup, komunikasi baik.",
+      "annotatorId": "rater-1"
+    }
+  ]
+}
