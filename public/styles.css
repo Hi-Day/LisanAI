@@ -196,7 +196,7 @@ button {
   flex-shrink: 0;
 }
 
-.brand span, .sidebar-panel p, .eyebrow, .section-heading p, .assessment-item p, .analytics-panel p, .recordStatus p {
+.brand span, .eyebrow, .section-heading p, .assessment-item p, .analytics-panel p, .recordStatus p {
   color: var(--muted);
 }
 
@@ -244,29 +244,7 @@ button {
   color: var(--accent);
 }
 
-.sidebar-panel {
-  margin-top: auto;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-}
 
-.panel-label {
-  display: block;
-  margin-bottom: 12px;
-  color: var(--accent);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.sidebar-panel p {
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
 
 .main {
   min-width: 0;
@@ -1456,7 +1434,6 @@ button:disabled {
 
 /* Student Dashboard clean layout */
 body.student-mode { background-image: none; background: #f1f5f9; } /* slate-100 */
-body.student-mode .sidebar-panel { display: none; } /* Hide system status for students */
 body.student-mode .topbar { padding-bottom: 24px; border-bottom: 2px solid var(--line); margin-bottom: 32px; }
 
 @media (max-width: 960px) {
@@ -1464,7 +1441,6 @@ body.student-mode .topbar { padding-bottom: 24px; border-bottom: 2px solid var(-
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 20px; box-shadow: none; }
   .nav { grid-template-columns: repeat(3, 1fr); }
-  .sidebar-panel { display: none; }
   .teacher-grid, .student-workspace, .monitor-grid, .account-grid { grid-template-columns: 1fr; }
   .monitor-top-grid { grid-template-columns: 1fr; }
   .student-dashboard { grid-template-columns: 1fr; }
