@@ -147,6 +147,12 @@ class AssessmentHarness {
 
     if (this.persistTrace) {
       const snap = trace.snapshot({
+        meta: {
+          tenantId: input.tenantId,
+          userId: input.userId,
+          submissionId: (input.submissionId) || result.submissionId || null,
+          assessmentId: input.assessmentId,
+        },
         model: this.config.model.model,
         promptVersion: "v1",
         rubricVersion: finalResult.versioning.rubricVersion,
