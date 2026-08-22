@@ -138,35 +138,52 @@ async function runSampleBaseline(provider, parser, sample, opts = {}) {
 /**
  * Run a full experiment over a dataset for one or more modes.
  * [PRD §24 Experimental Pipeline]
+ * @param {object} params
+ * @param {string} params.dataset  dataset name or path
+ * @param {string|string[]} params.mode  "baseline" | "harness" | both
+ * @param {object} [params.harnessConfig]  harness config overrides
+ * @param {string} [params.providerName]   provider override (mock|openrouter)
+ * @param {string} [params.assessmentIdPrefix]
+ * @param {number} [params.repeats]  repeat each sample n times to measure
+ *   consistency (PRD §22 reliability) — the score vector for a sample across
+ *   repeats feeds consistencyMetrics.
  * @returns {Promise<object>}
  */
-async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix }) {
+async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1 }) {
   const loaded = loadDataset(dataset);
   const validation = validateDataset(loaded.samples);
   const modes = (Array.isArray(mode) ? mode : [mode || "baseline"]).filter(Boolean);
   if (modes.length === 0) modes.push("baseline");
 
   const results = [];
+  const perRun = {}; // mode -> { sampleId: scores[] }
+
   for (const m of modes) {
-    if (m === "harness") {
-      const harnessInst = createHarness(harnessConfig || {});
-      harnessInst.setProvider(resolveProvider(providerName)).setParser({ parse });
-      for (const sample of loaded.samples) {
-        // eslint-disable-next-line no-await-in-loop
-        results.push(
-          await runSampleHarness(harnessInst, sample, {
-            assessmentId: `${assessmentIdPrefix || "bench"}-${m}-${sample.sampleId || "s"}`,
-          })
-        );
+    perRun[m] = {};
+    for (let rep = 0; rep < repeats; rep += 1) {
+      if (m === "harness") {
+        // A fresh harness per repeat keeps each run independent (no shared state).
+        const harnessInst = createHarness(harnessConfig || {});
+        harnessInst.setProvider(resolveProvider(providerName)).setParser({ parse });
+        for (const sample of loaded.samples) {
+          // eslint-disable-next-line no-await-in-loop
+          const r = await runSampleHarness(harnessInst, sample, {
+            assessmentId: `${assessmentIdPrefix || "bench"}-${m}-${sample.sampleId || "s"}-${rep}`,
+          });
+          results.push(r);
+          (perRun[m][sample.sampleId] ||= []).push(r.score);
+        }
+      } else if (m === "baseline") {
+        const provider = resolveBaselineProvider(providerName);
+        for (const sample of loaded.samples) {
+          // eslint-disable-next-line no-await-in-loop
+          const r = await runSampleBaseline(provider, { parse }, sample);
+          results.push(r);
+          (perRun[m][sample.sampleId] ||= []).push(r.score);
+        }
+      } else {
+        throw new Error(`Mode tidak dikenal: ${m} (harapkan 'baseline' atau 'harness')`);
       }
-    } else if (m === "baseline") {
-      const provider = resolveBaselineProvider(providerName);
-      for (const sample of loaded.samples) {
-        // eslint-disable-next-line no-await-in-loop
-        results.push(await runSampleBaseline(provider, { parse }, sample));
-      }
-    } else {
-      throw new Error(`Mode tidak dikenal: ${m} (harapkan 'baseline' atau 'harness')`);
     }
   }
 
@@ -188,10 +205,29 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
     datasetVersion: loaded.version,
     validation,
     mode: modes,
+    repeats,
     results,
     pairs,
     metrics: summarizeExperimentMetrics({ results }),
+    // Consistency of repeated runs (PRD §22). Present only when repeats > 1.
+    consistency: buildConsistency(perRun, repeats),
   };
+}
+
+/**
+ * Consistency across repeats for each mode+sample. Each sample contributes a
+ * vector of scores (length = repeats); variance across repeats measures
+ * run-to-run reliability (FR-14 consistency).
+ */
+function buildConsistency(perRun, repeats) {
+  if (repeats < 2) return null;
+  const { consistencyMetrics } = require("./experiment-metrics");
+  const out = {};
+  for (const [mode, bySample] of Object.entries(perRun)) {
+    const vectors = Object.values(bySample);
+    out[mode] = consistencyMetrics(vectors);
+  }
+  return out;
 }
 
 function keyBy(rows) {

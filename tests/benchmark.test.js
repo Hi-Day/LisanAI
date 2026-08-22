@@ -3,13 +3,12 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { after } = require("node:test");
 
 process.env.NODE_ENV = "test";
 process.env.HARNESS_PROVIDER = "mock";
 process.env.TURSO_DATABASE_URL = `file:${path.join(os.tmpdir(), `lisan-bench-${Date.now()}.db`)}`;
 
-const { loadDataset, validateDataset, validateSample, DATASET_DIR } = require("../server/evaluation/benchmark/dataset");
+const { loadDataset, validateDataset, validateSample } = require("../server/evaluation/benchmark/dataset");
 const {
   runSampleHarness,
   runSampleBaseline,
@@ -120,4 +119,20 @@ test("runExperiment runs both modes over the smoke dataset and pairs them", asyn
 
 test("resolveProvider defaults to mock when openrouter not requested", () => {
   assert.ok(resolveProvider("mock") instanceof MockProvider);
+});
+
+test("runExperiment with repeats>1 produces consistency metrics", async () => {
+  const exp = await runExperiment({ dataset: "sample-bench-smoke", mode: "harness", repeats: 3 });
+  assert.equal(exp.repeats, 3);
+  assert.ok(exp.consistency, "consistency present when repeats>1");
+  // 2 samples x 3 repeats = 6 harness results.
+  const harness = exp.results.filter((r) => r.evaluationMode === "harness");
+  assert.equal(harness.length, 6);
+  assert.ok(exp.consistency.harness);
+  assert.ok(Number.isFinite(exp.consistency.harness.meanVar));
+});
+
+test("runExperiment with repeats=1 has no consistency block", async () => {
+  const exp = await runExperiment({ dataset: "sample-bench-smoke", mode: "baseline" });
+  assert.equal(exp.consistency, null);
 });
