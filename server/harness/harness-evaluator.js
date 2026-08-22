@@ -54,13 +54,14 @@ async function evaluateWithHarness(payload) {
   const criteria = result.criteria || [];
   const questionScores = Array.from({ length: n }, (_, idx) => {
     const c = criteria[idx] || criteria[0] || {};
+    const { strengths, gaps } = splitFeedback(c.rationale, c.score);
     return {
       question: (questions[idx] && questions[idx].prompt) || `Soal ${idx + 1}`,
       answer: answers[idx] || "",
       score: clamp01(c.score),
       matched: (c.evidence || []).map((ev) => ev.text),
-      strengths: splitSentences(c.rationale),
-      gaps: [],
+      strengths,
+      gaps,
       criterionId: c.criterionId,
       confidence: c.confidence,
     };
@@ -131,4 +132,34 @@ function splitSentences(rationale) {
     .slice(0, 3);
 }
 
-module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights };
+// Keywords that signal a critique / shortcoming rather than a strength.
+const GAP_KEYWORDS = [
+  "tidak", "belum", "kurang", "tidak ada", "tidak menyebut", "tidak relevan",
+  "kurangnya", "seharusnya", "sebaiknya", "perlu", "lemah", "hilang",
+  "tidak lengkap", "tidak sesuai", "tidak menjelaskan", "tidak mencakup",
+  "tidak menyertakan", "tidak menggunakan", "tidak menunjukkan",
+  "missing", "lacks", "lacking", "should", "needs", "weak", "absent",
+  "does not", "did not", "not relevant", "not mention", "not include",
+  "not explain", "not cover", "not use", "not show", "incomplete",
+];
+
+/**
+ * Split a criterion's rationale into strengths vs gaps.
+ * A sentence is treated as a gap when it contains a critique keyword OR the
+ * criterion score is low (< 70). Otherwise it is a strength.
+ */
+function splitFeedback(rationale, score) {
+  const sentences = splitSentences(rationale);
+  const strengths = [];
+  const gaps = [];
+  const lowScore = Number(score) < 70;
+  for (const sentence of sentences) {
+    const lower = sentence.toLowerCase();
+    const isCritique = GAP_KEYWORDS.some((kw) => lower.includes(kw));
+    if (isCritique || lowScore) gaps.push(sentence);
+    else strengths.push(sentence);
+  }
+  return { strengths, gaps };
+}
+
+module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback };

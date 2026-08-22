@@ -9,7 +9,7 @@ process.env.ENABLE_DEMO_SIMULATION = "false";
 process.env.HARNESS_PROVIDER = "mock";
 
 const { initDatabase, getDb } = require("../server/database");
-const { evaluateWithHarness, structuredRubric } = require("../server/harness/harness-evaluator");
+const { evaluateWithHarness, structuredRubric, splitFeedback } = require("../server/harness/harness-evaluator");
 const { persistEvaluationTrace } = require("../server/evaluation/trace-persister");
 const { createHarness } = require("../server/harness");
 const { MockProvider } = require("../server/ai/mock-provider");
@@ -56,6 +56,26 @@ test("structuredRubric parses free-text assessment rubric into weighted criteria
   assert.ok(Array.isArray(r.criteria));
   assert.ok(Math.abs(r.criteria.reduce((s, c) => s + c.weight, 0) - 1) < 1e-6);
   assert.equal(r.criteria.length, 2); // 40% + 60%
+});
+
+test("splitFeedback puts critique sentences into gaps, not strengths", () => {
+  const rationale =
+    "Jawaban tidak menyebutkan teori Piaget atau Erikson, tidak ada analisis tahapan perkembangan kognitif, dan tidak relevan dengan pertanyaan. Jawaban mencakup konsep dasar dengan benar.";
+  const { strengths, gaps } = splitFeedback(rationale, 100);
+  assert.ok(gaps.length > 0, "critique must go to gaps");
+  assert.ok(
+    gaps.some((g) => g.toLowerCase().includes("tidak menyebut")),
+    "unsupported-mention critique should be in gaps"
+  );
+  assert.ok(
+    strengths.some((s) => s.toLowerCase().includes("konsep dasar")),
+    "positive sentence should stay in strengths"
+  );
+
+  // Low score forces every sentence into gaps even without keywords.
+  const low = splitFeedback("Tidak ada kritik khusus tersurat.", 50);
+  assert.ok(low.gaps.length > 0);
+  assert.equal(low.strengths.length, 0);
 });
 
 test("evaluateWithHarness returns frontend contract + harness provenance", async () => {
