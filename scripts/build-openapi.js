@@ -226,16 +226,19 @@ const spec = {
         }
       }
     }
+  }
+};
+
+// Reusable response objects must live under components.responses for
+// $refs (#/components/responses/...) to resolve in OpenAPI 3.0.
+spec.components.responses = {
+  Unauthorized: {
+    description: "API key tidak valid atau tidak disertakan",
+    content: { "application/json": { schema: ref("Error") } }
   },
-  responses: {
-    Unauthorized: {
-      description: "API key tidak valid atau tidak disertakan",
-      content: { "application/json": { schema: ref("Error") } }
-    },
-    ServerError: {
-      description: "Terjadi kesalahan server",
-      content: { "application/json": { schema: ref("Error") } }
-    }
+  ServerError: {
+    description: "Terjadi kesalahan server",
+    content: { "application/json": { schema: ref("Error") } }
   }
 };
 

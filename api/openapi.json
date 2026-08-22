@@ -287,6 +287,28 @@
           }
         }
       }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "API key tidak valid atau tidak disertakan",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Terjadi kesalahan server",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
     }
   },
   "paths": {
@@ -479,28 +501,6 @@
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
-          }
-        }
-      }
-    }
-  },
-  "responses": {
-    "Unauthorized": {
-      "description": "API key tidak valid atau tidak disertakan",
-      "content": {
-        "application/json": {
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        }
-      }
-    },
-    "ServerError": {
-      "description": "Terjadi kesalahan server",
-      "content": {
-        "application/json": {
-          "schema": {
-            "$ref": "#/components/schemas/Error"
           }
         }
       }
