@@ -249,6 +249,30 @@ function renderRubric(els, data) {
     : '<p class="empty-state">Belum ada data rubric compliance.</p>';
 }
 
+// Human-readable labels + hover hints for reliability dimensions (PRD FR-10).
+const reliabilityDimensionDefs = {
+  evidenceGrounding: {
+    label: "Grounded Evidence",
+    desc: "Proporsi kriteria yang skornya didukung bukti yang benar-benar ter-ground di jawaban siswa. Semakin tinggi, makin kuat dasar penilaiannya.",
+  },
+  criterionCoverage: {
+    label: "Cakupan Kriteria",
+    desc: "Proporsi kriteria rubrik yang benar-benar dievaluasi pada run ini. Nilai 100% berarti seluruh aspek rubrik dinilai.",
+  },
+  rubricAlignment: {
+    label: "Kesesuaian Rubrik",
+    desc: "Seberapa konsisten keyakinan model (confidence) dengan sistem skor rubrik. Nilai rendah menandakan skor & keyakinan kurang selaras.",
+  },
+  scoreConsistency: {
+    label: "Konsistensi Skor",
+    desc: "Kekonsistenan skor: proporsi skor yang didukung bukti serta tidak ada anomali sel. Semakin tinggi semakin andal skornya.",
+  },
+  outputValidity: {
+    label: "Validitas Output",
+    desc: "Kesesuaian output model dengan skema yang diharapkan (struktur JSON valid). Menjamin hasil dapat diparse dan dipakai dengan aman.",
+  },
+};
+
 async function openTrace(ctx, runId) {
   const { els } = ctx;
   try {
@@ -326,12 +350,18 @@ async function openTrace(ctx, runId) {
             <span style="color:var(--muted);font-size:0.85rem;">Reliability sistem</span>
             <strong style="font-size:1.2rem;">${fmt(reliability.overallReliability * 100, 0)}%</strong>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
             ${Object.entries(reliability.dimensions)
-              .map(([k, v]) => `<div style="font-size:0.8rem;"><span style="color:var(--muted);display:block;">${escapeHtml(k)}</span><strong>${fmt(v * 100, 1)}%</strong></div>`)
+              .map(([k, v]) => {
+                const def = reliabilityDimensionDefs[k] || { label: prettifyId(k), desc: "" };
+                return `<div class="rt-dim" style="font-size:0.8rem;" data-tip="${escapeHtml(def.desc)}" title="${escapeHtml(def.label)}">
+                  <span class="rt-dim-label" style="color:var(--muted);display:block;">${escapeHtml(def.label)}</span>
+                  <strong>${fmt(v * 100, 1)}%</strong>
+                </div>`;
+              })
               .join("")}
           </div>
-          <p class="hint" style="font-size:0.7rem;color:var(--muted);margin-top:8px;">Pisah dari kepercayaan model: indicator keandalan keputusan (FR-10).</p>
+          <p class="hint" style="font-size:0.7rem;color:var(--muted);margin-top:8px;">Pisah dari kepercayaan model: indicator keandalan keputusan (FR-10). Arahkan kursor ke tiap dimensi untuk penjelasan.</p>
         </div>`
       : "";
 

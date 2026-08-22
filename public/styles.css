@@ -789,6 +789,45 @@ textarea[readonly] {
 #researchResultPanel h3 { margin: 0 0 4px; }
 #researchResultPanel h4 { margin: 20px 0 8px; }
 
+/* Reliability dimension cards with hover tooltip */
+#researchResultPanel .rt-dim {
+  position: relative;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: help;
+}
+#researchResultPanel .rt-dim .rt-dim-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+}
+#researchResultPanel .rt-dim::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: 220px;
+  padding: 8px 10px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+  white-space: normal;
+}
+#researchResultPanel .rt-dim:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 .result-modal {
   position: fixed;
   inset: 0;
