@@ -245,6 +245,10 @@ function defaultPrompt(plan) {
     role: "expert-academic-assessor",
     instruction:
       "Evaluate the student answers. Return a STRICT JSON object with NO markdown. " +
+      "CONTEXT: These are ORAL EXAM answers transcribed from speech (speech-to-text). " +
+      "Do NOT penalize punctuation, capitalization, run-on sentences, or lack of formal/written style — " +
+      "those are artifacts of transcription, not real oral skill gaps. " +
+      "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally. " +
       "Step 1: For every rubric criterion id in " + JSON.stringify(criteriaIds) +
       ", produce a criterion entry with {criterionId, score(0-100), evidence[exact text quoted from the student answer], rationale, confidence(0-1)}. " +
       "Step 2: Also produce questionScores (one entry per student answer) with {question, answer, score, matched, strengths, gaps}. " +

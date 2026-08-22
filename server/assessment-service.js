@@ -44,6 +44,7 @@ const RECOMMEND_CONFIG_SCHEMA =
   'Format: {"outcomes":"3-5 learning outcome dalam baris terpisah","rubric":"rubrik berbobot total 100% dalam baris terpisah"}';
 
 function buildEvaluateMessages(payload) {
+  const isOralExam = payload.assessment?.oralExamEnabled !== false;
   const qa_pairs = payload.assessment.questions.map((q, i) => ({
     question: q.prompt,
     learning_outcome: q.outcome || payload.assessment.outcomes || "",
@@ -51,11 +52,20 @@ function buildEvaluateMessages(payload) {
     student_answer: payload.answers[i] || "(Tidak ada jawaban)",
   }));
 
+  const pedomanPenilaianLisan = isOralExam
+    ? "INSTRUKSI PENTING: Ini adalah UJIAN LISAN, jawaban siswa adalah transkrip ucapan lisan (hasil speech-to-text). " +
+      "Oleh karena itu JANGAN memberi hukuman/penilaian terhadap: tanda baca, tata tulis, struktur kalimat tertulis, ragam bahasa formal, atau kalimat yang terkesan bertele/kurang rapi. " +
+      "Nilai berdasarkan: keakuratan dan kelengkapan isi, kesesuaian dengan rubrik, pemahaman konsep, serta kemampuan mengkomunikasikan ide secara lisan. " +
+      "Feedback strength dapat menyarikan; feedback tentang 'kurang' hanya boleh menyebutkan aspek SUBSTANSI (isi, pemahaman, kelengkapan, kejelasan ide) — bukan yang mengenai format tulisan."
+    : "Nilai jawaban siswa berdasarkan rubrik guru. Berikan skor objektif dan feedback personal.";
+
   return [
     {
       role: "user",
       content: JSON.stringify({
-        tugas: "Nilai jawaban lisan siswa berdasarkan rubrik guru. Berikan skor objektif dan feedback personal.",
+        tugas: "Nilai ujian lisan siswa berdasarkan rubrik guru. Berikan skor objektif dan feedback personal yang ramah.",
+        jenis_penilaian: isOralExam ? "ujian lisan / oral examination" : "jawaban tertulis",
+        pedoman_penilaian: pedomanPenilaianLisan,
         rubrik_penilaian: payload.assessment.rubric,
         topik: payload.assessment.topic,
         studentName: payload.studentName,
