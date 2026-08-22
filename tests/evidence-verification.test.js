@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const evidencePlugin = require("../server/harness/plugins/evidence");
 const verificationPlugin = require("../server/harness/plugins/verification");
+const { parseRubricText } = require("../server/harness/plugins/rubric");
 const { createHarness } = require("../server/harness");
 const { MockProvider } = require("../server/ai/mock-provider");
 const { parse } = require("../server/ai/response-parser");
@@ -279,4 +280,70 @@ test("harness emits verification.status and v2 evidence schema", async () => {
   assert.ok("groundingMethod" in ev);
   assert.ok("answerIndex" in ev);
   assert.equal(ev.grounded, true);
+});
+
+// ---------------------------------------------------------------------------
+// Regression: evidence in non-{text} shapes + tolerant grounding
+// ---------------------------------------------------------------------------
+
+test("evidence normalizes array-of-strings into v2 objects", async () => {
+  const phrase = "fotosintesis dan klorofil";
+  const context = makeContext([`Tumbuhan melakukan ${phrase}.`], []);
+  const result = {
+    criteria: [{ criterionId: "C1", score: 80, evidence: [phrase, "komponen lain"] }],
+  };
+  const out = await evidencePlugin.after(context, result);
+  const ev0 = out.criteria[0].evidence[0];
+  assert.equal(ev0.text, phrase);
+  assert.equal(ev0.grounded, true);
+  // Unmatched second string is dropped from the list (still counted).
+  assert.equal(out.criteria[0].evidence.length, 2);
+});
+
+test("evidence accepts {quote}/{content} shapes from the model", async () => {
+  const phrase = "membuat makanan dari cahaya";
+  const context = makeContext([`Tanaman ${phrase} matahari.`], []);
+  const result = {
+    criteria: [{ criterionId: "C1", score: 80, evidence: [{ quote: phrase }] }],
+  };
+  const out = await evidencePlugin.after(context, result);
+  assert.equal(out.criteria[0].evidence[0].text, phrase);
+  assert.equal(out.criteria[0].evidence[0].grounded, true);
+});
+
+test("tolerant grounding accepts a contiguous word-run of the evidence", async () => {
+  // Full evidence is not a verbatim substring, but a 2+ word run is present.
+  const context = makeContext(["jawaban membuat makanan dari fosil dan cahaya."], []);
+  const result = {
+    criteria: [{ criterionId: "C1", score: 80, evidence: [{ text: "membuat makanan dari energi" }] }],
+  };
+  const out = await evidencePlugin.after(context, result);
+  const ev = out.criteria[0].evidence[0];
+  assert.equal(ev.grounded, true, "contiguous run 'membuat makanan dari' grounds");
+});
+
+// ---------------------------------------------------------------------------
+// Rubric parsing — avoid collapsing multi-criterion rubrics into "overall"
+// ---------------------------------------------------------------------------
+
+test("parseRubricText keeps multi-line/percent rubrics as multiple criteria", () => {
+  const r = parseRubricText("Akurasi 40%\nKelengkapan 60%");
+  assert.equal(r.length, 2);
+  assert.equal(r[0].id, "akurasi");
+  assert.equal(r[1].id, "kelengkapan");
+  assert.ok(Math.abs(r.reduce((s, c) => s + c.weight, 0) - 1) < 1e-6);
+});
+
+test("parseRubricText shares weight equally when no percents given (no 'overall')", () => {
+  const r = parseRubricText("Konsep, Aplikasi, Komunikasi");
+  assert.equal(r.length, 3);
+  assert.equal(r[0].id, "konsep");
+  assert.ok(Math.abs(r.reduce((s, c) => s + c.weight, 0) - 1) < 1e-6);
+  // Not collapsed to a single 'overall'.
+  assert.ok(r.every((c) => c.id !== "overall"));
+});
+
+test("parseRubricText supports leading-percent and 'name: %' formats", () => {
+  assert.equal(parseRubricText("40% Akurasi, 60% Kelengkapan").length, 2);
+  assert.equal(parseRubricText("Akurasi: 50 PEntah; Kelengkapan: 50").length, 2);
 });

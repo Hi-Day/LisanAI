@@ -3,6 +3,12 @@ const { validateRubric } = require("../validator");
 /**
  * Best-effort parse of a free-text rubric (e.g. "Akurasi 40%, Kelengkapan 60%")
  * into structured criteria, normalized so weights sum to 1.
+ *
+ * Supported separators: commas, semicolons, newlines. Numeric weights may
+ * appear as "Nama 40%", "Nama: 40%", "Nama - 40", or "40% Nama". If some
+ * items carry weights and others do not, the unweighted ones get an equal
+ * share of the remaining weight so we do NOT collapse a multi-criterion
+ * rubric into a single "overall".
  */
 function parseRubricText(text) {
   if (!text) return [];
@@ -12,17 +18,63 @@ function parseRubricText(text) {
     .filter(Boolean);
   const criteria = [];
   for (const item of items) {
-    const match = item.match(/^(.+?)\s*[-:]?\s*(\d+(?:\.\d+)?)\s*%?$/);
-    if (!match) continue;
-    const name = (match[1] || "").trim().replace(/[-:]\s*$/, "").trim();
-    const weight = Number(match[2]) / 100;
-    criteria.push({ id: slugify(name) || `c${criteria.length + 1}`, name: name || `Criterion ${criteria.length + 1}`, weight, scale: 100 });
+    const parsed = parseRubricItem(item);
+    if (!parsed) continue;
+    criteria.push({ id: slugify(parsed.name) || `c${criteria.length + 1}`, name: parsed.name, weight: parsed.weight, scale: 100 });
   }
+
   if (criteria.length === 0) {
     // Fallback single criterion so evaluation remains valid.
     return [{ id: "overall", name: "Penilaian Keseluruhan", weight: 1, scale: 100 }];
   }
-  return criteria;
+
+  // Distribute unspecified weight equally so the total is 1 without silently
+  // dropping criteria that had no explicit percentage.
+  return distributeWeights(criteria);
+}
+
+/**
+ * Match one rubric item: name + optional trailing/leading percent weight.
+ * Returns { name, weight|null } or null when uninhabitable.
+ */
+function parseRubricItem(item) {
+  // "Nama 40%" | "Nama: 40%" | "Nama - 40%" | "Nama (40%)"
+  let m = item.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
+  if (m && m[1]) return { name: cleanName(m[1]), weight: Number(m[2]) / 100 };
+  // "40% Nama"
+  m = item.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
+  if (m) return { name: cleanName(m[2]), weight: Number(m[1]) / 100 };
+  // No weight — just a criterion name.
+  if (/[a-zA-Z]{3,}/.test(item) && !/^\d+(\.\d+)?\s*%?$/.test(item)) {
+    return { name: cleanName(item), weight: 0 };
+  }
+  return null;
+}
+
+function cleanName(s) {
+  return String(s).trim().replace(/[-:–]\s*$/, "").trim();
+}
+
+/**
+ * If the parsed weights don't sum to >0 (i.e. all unweighted), split equally.
+ * If some are weighted, keep them and ignore zero-weight dupes.
+ */
+function distributeWeights(criteria) {
+  const withWeight = criteria.filter((c) => c.weight > 0);
+  if (withWeight.length === criteria.length && Math.abs(withWeight.reduce((a, c) => a + c.weight, 0) - 1) < 1e-6) {
+    return criteria;
+  }
+  // Any criterion without a weight shares equally with the others.
+  if (withWeight.length > 0 && withWeight.length < criteria.length) {
+    // Keep explicit weights; give the remaining share to the unweighted ones equally.
+    const explicitSum = withWeight.reduce((a, c) => a + c.weight, 0);
+    const remaining = Math.max(0, 1 - explicitSum);
+    const unweightedCount = criteria.length - withWeight.length;
+    const added = remaining > 0 ? remaining / unweightedCount : 0;
+    return criteria.map((c) => (c.weight > 0 ? c : { ...c, weight: added }));
+  }
+  const equal = 1 / criteria.length;
+  return criteria.map((c) => ({ ...c, weight: c.weight > 0 ? c.weight : equal }));
 }
 
 function slugify(name) {

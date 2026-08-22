@@ -23,9 +23,14 @@ module.exports = {
     const answers = gatherAnswers(context);
     for (const criterion of result.criteria) {
       if (!Array.isArray(criterion.evidence)) continue;
-      criterion.evidence = criterion.evidence.map((ev) =>
-        buildEvidence(ev, criterion.criterionId, answers)
-      );
+      // Normalize each evidence entry to a string, then build a v2 object.
+      const normalized = [];
+      for (const ev of criterion.evidence) {
+        const text = extractEvidenceText(ev);
+        if (!text) continue;
+        normalized.push(buildEvidence(text, criterion.criterionId, answers));
+      }
+      criterion.evidence = normalized;
       criterion.evidenceCount = criterion.evidence.length;
       // FR-03: explicit no_evidence marker when a criterion has no evidence.
       if (criterion.evidence.length === 0) {
@@ -55,15 +60,36 @@ function gatherAnswers(context) {
 }
 
 /**
+ * Extract a plain text string from any evidence shape the model may return:
+ *   - string          "fragmen jawaban"
+ *   - { text }        (canonical)
+ *   - { quote }       { statement }  { evidence }
+ *   - array           ["a","b"] -> joined (defensive)
+ * Returns empty string when nothing usable.
+ */
+function extractEvidenceText(ev) {
+  if (ev == null) return "";
+  if (typeof ev === "string") return ev.trim();
+  if (typeof ev === "object") {
+    for (const key of ["text", "quote", "statement", "content", "excerpt", "snippet"]) {
+      if (typeof ev[key] === "string" && ev[key].trim()) return ev[key].trim();
+    }
+    if (Array.isArray(ev)) {
+      return ev.map((x) => extractEvidenceText(x)).filter(Boolean).join(" ");
+    }
+  }
+  return "";
+}
+
+/**
  * Build an Evidence Object v2 with full provenance.
  * Grounding is lexical (FR-02 initial groundingMethod).
  */
-function buildEvidence(ev, criterionId, answers) {
-  const text = String((ev && ev.text) || "").trim();
+function buildEvidence(text, criterionId, answers) {
   const found = findInAnswers(text, answers);
   const grounded = found !== null;
   return {
-    criterionId: criterionId || (ev && ev.criterionId) || null,
+    criterionId,
     text,
     answerIndex: grounded ? found.answerIndex : null,
     start: grounded ? found.start : null,
@@ -77,6 +103,12 @@ function buildEvidence(ev, criterionId, answers) {
 /**
  * Locate the evidence text within the student answers (case-insensitive).
  * Returns { answerIndex, start, end } or null when not found.
+ *
+ * Grounding is lexical but tolerant: first it tries the full phrase; if the
+ * exact phrase is absent, it falls back to the longest run of adjacent words
+ * (>=2) that does appear in the student answer. This keeps evidence grounded
+ * in genuinely-copied fragments without accepting paraphrases (FR-01 — never
+ * seeds from ideal answer; only the student corpus is searched).
  */
 function findInAnswers(evidenceText, answers) {
   if (!evidenceText) return null;
@@ -85,6 +117,20 @@ function findInAnswers(evidenceText, answers) {
     const idx = answers[i].text.indexOf(phrase);
     if (idx !== -1) {
       return { answerIndex: answers[i].answerIndex, start: idx, end: idx + phrase.length };
+    }
+  }
+  // Fallback: longest contiguous word-run present in a student answer.
+  const words = phrase.split(/\s+/).filter((w) => w.length > 2);
+  if (words.length < 2) return null;
+  for (let len = words.length; len >= 2; len -= 1) {
+    for (let s = 0; s + len <= words.length; s += 1) {
+      const window = words.slice(s, s + len).join(" ");
+      for (let i = 0; i < answers.length; i += 1) {
+        const idx = answers[i].text.indexOf(window);
+        if (idx !== -1) {
+          return { answerIndex: answers[i].answerIndex, start: idx, end: idx + window.length };
+        }
+      }
     }
   }
   return null;
