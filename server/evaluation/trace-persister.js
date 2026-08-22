@@ -145,6 +145,20 @@ async function persistEvaluationTrace(snapshot) {
     }
   }
 
+  // Queue the run for human approval (7-day window) so it can enter the
+  // research dataset via explicit teacher approval or auto-confirmation.
+  try {
+    const { queueForApproval } = require("./human-approval");
+    await queueForApproval({
+      runId,
+      tenantId: meta.tenantId || null,
+      finalScore: result ? result.finalScore : null,
+    });
+  } catch (approvalErr) {
+    // Non-fatal: the run is still persisted; approval can be back-filled later.
+    console.error("Queue human approval failed:", approvalErr);
+  }
+
   return { runId, persisted: true };
 }
 

@@ -1176,6 +1176,13 @@ button:disabled {
 .badge-published { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; } /* emerald */
 .badge-closed { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
 
+/* Human approval badges (research) */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+.badge-ok { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.badge-warn { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.badge-muted { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+.badge-bad { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
 /* ===== Wizard (3 langkah) ===== */
 .wizard { display: grid; gap: 20px; }
 .wizard-steps {

@@ -7,6 +7,11 @@ const {
   rubricCompliance,
 } = require("../server/evaluation/research");
 const { readRun } = require("../server/evaluation/trace-persister");
+const {
+  approveRun,
+  listApprovals,
+  processExpiredApprovals,
+} = require("../server/evaluation/human-approval");
 
 let isDbInitialized = false;
 
@@ -18,7 +23,9 @@ let isDbInitialized = false;
  * GET  /api/research?action=rubric&assessmentId=...
  * GET  /api/research?action=trace&runId=...
  * GET  /api/research?action=export&assessmentId=...
+ * GET  /api/research?action=approvals&assessmentId=...
  * POST /api/research  { action:"save-human-score", payload:{ runId, humanScore, humanFeedback } }
+ * POST /api/research  { action:"approve", payload:{ runId, humanScore?, humanFeedback? } }
  */
 module.exports = async (req, res) => {
   try {
@@ -39,19 +46,36 @@ module.exports = async (req, res) => {
       const assessmentId = url.searchParams.get("assessmentId") || url.searchParams.get("assessment_id");
       const runId = url.searchParams.get("runId") || url.searchParams.get("run_id");
 
+      // Eagerly sweep expired pending approvals so auto-approved runs have
+      // already been written to evaluation_human_scores before any read.
+      if (action !== "trace") {
+        try {
+          await processExpiredApprovals();
+        } catch (err) {
+          console.error("Sweep human approvals failed:", err);
+        }
+      }
+
       if (action === "metrics") {
         const data = await compareAiVsHuman(assessmentId, tenantId);
         return sendJson(res, 200, data);
       }
+      if (action === "approvals") {
+        const rows = await listApprovals({ tenantId, assessmentId, sweep: false });
+        return sendJson(res, 200, { approvals: rows });
+      }
       if (action === "runs") {
         const db = getDb();
         const rows = await db.all(
-          `SELECT run_id, assessment_id, submission_id, model, final_score,
-                  verification_valid, created_at
-             FROM evaluation_runs
-            WHERE tenant_id = ?
-              AND ($2 IS NULL OR assessment_id = $2)
-            ORDER BY datetime(created_at) DESC`,
+          `SELECT r.run_id, r.assessment_id, r.submission_id, r.model, r.final_score,
+                  r.verification_valid, r.created_at,
+                  a.approval_status, a.deadline_at, h.human_score
+             FROM evaluation_runs r
+             LEFT JOIN human_approvals a ON a.run_id = r.run_id
+             LEFT JOIN evaluation_human_scores h ON h.run_id = r.run_id
+            WHERE r.tenant_id = ?
+              AND ($2 IS NULL OR r.assessment_id = $2)
+            ORDER BY datetime(r.created_at) DESC`,
           tenantId,
           assessmentId || null
         );
@@ -86,6 +110,19 @@ module.exports = async (req, res) => {
           tenantId,
         });
         return sendJson(res, 200, saved);
+      }
+
+      if (action === "approve") {
+        if (!payload || !payload.runId) {
+          return sendJson(res, 400, { error: "runId wajib" });
+        }
+        const result = await approveRun({
+          runId: payload.runId,
+          reviewerId: auth.user.id,
+          humanScore: payload.humanScore,
+          humanFeedback: payload.humanFeedback,
+        });
+        return sendJson(res, 200, result);
       }
       return sendJson(res, 404, { error: "Action not found" });
     }

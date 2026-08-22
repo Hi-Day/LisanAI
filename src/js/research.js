@@ -41,6 +41,15 @@ function saveHumanScore(runId, humanScore, humanFeedback) {
   });
 }
 
+function approveRun(runId, humanScore, humanFeedback) {
+  return fetchJson("/api/research", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "approve", payload: { runId, humanScore, humanFeedback } }),
+  });
+}
+
 export function bindResearchEvents(ctx) {
   const { els } = ctx;
 
@@ -78,6 +87,27 @@ export function bindResearchEvents(ctx) {
         }
         await saveHumanScore(runId, score, feedback);
         showToast("Skor manusia disimpan", "success");
+        els.researchResultPanel.classList.add("hidden");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+    if (e.target.id === "approveAiScoreBtn") {
+      const runId = els.researchResultPanel.dataset.runId;
+      const scoreInput = els.researchResultPanel.querySelector("#humanScoreInput")?.value;
+      const feedback = els.researchResultPanel.querySelector("#humanScoreFeedback")?.value || "";
+      if (!runId) return;
+      try {
+        let humanScore;
+        if (scoreInput !== undefined && String(scoreInput).trim() !== "") {
+          humanScore = Number(scoreInput);
+          if (!Number.isFinite(humanScore) || humanScore < 0 || humanScore > 100) {
+            throw new Error("Skor koreksi harus angka 0-100, atau kosongkan untuk pakai skor AI");
+          }
+        }
+        await approveRun(runId, humanScore, feedback);
+        showToast(humanScore === undefined ? "Skor AI di-approve" : "Skor disetujui dengan koreksi", "success");
         els.researchResultPanel.classList.add("hidden");
       } catch (err) {
         showToast(err.message, "error");
@@ -147,22 +177,38 @@ function renderMetrics(els, data) {
 function renderRuns(els, runs) {
   els.researchRunsList.innerHTML = runs.length
     ? runs
-        .map(
-          (r) => `
+        .map((r) => {
+          const status = approvalBadge(r.approval_status, r.human_score);
+          return `
       <tr>
         <td>${escapeHtml(r.run_id)}</td>
         <td>${escapeHtml((r.assessment_id || "").slice(0, 20))}</td>
         <td>${escapeHtml(r.model || "-")}</td>
         <td>${r.final_score ?? "-"}</td>
         <td>${r.verification_valid ? "✓" : "✗"}</td>
+        <td>${status}</td>
         <td style="white-space:nowrap;">
           <button type="button" class="secondary-button" data-trace="${escapeHtml(r.run_id)}">Trace</button>
           <button type="button" class="secondary-button" data-export-run="${escapeHtml(r.run_id)}" title="Unduh detail lengkap">📥</button>
         </td>
-      </tr>`
-        )
+      </tr>`;
+        })
         .join("")
-    : '<tr><td colspan="6" class="empty-state">Belum ada run evaluasi.</td></tr>';
+    : '<tr><td colspan="7" class="empty-state">Belum ada run evaluasi.</td></tr>';
+
+  els.researchRunsList.style.display = "";
+}
+
+function approvalBadge(status, humanScore) {
+  const map = {
+    approved: { label: "Approved", cls: "badge-ok" },
+    auto_approved: { label: "Auto ✓", cls: "badge-warn", title: "Otomatis dikonfirmasi setelah 7 hari tanpa aksi" },
+    pending: { label: "Pending", cls: "badge-muted", title: "Menunggu tinjauan guru (jendela 7 hari)" },
+    rejected: { label: "Rejected", cls: "badge-bad" },
+  };
+  const info = map[status] || { label: status || "-", cls: "badge-muted" };
+  const hs = humanScore != null ? ` · skor ${humanScore}` : "";
+  return `<span class="badge ${info.cls}" ${info.title ? `title="${escapeHtml(info.title)}"` : ""}>${escapeHtml(info.label)}</span><span style="font-size:0.8rem;color:var(--muted);">${hs}</span>`;
 }
 
 function renderRubric(els, data) {
@@ -242,7 +288,14 @@ async function openTrace(ctx, runId) {
         <label>Ulasan
           <textarea id="humanScoreFeedback" rows="2" placeholder="Catatan penilai manusia (opsional)"></textarea>
         </label>
-        <button class="primary-button" id="saveHumanScoreBtn" type="button">Simpan skor manusia</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <button class="primary-button" id="approveAiScoreBtn" type="button">✓ Approve skor AI</button>
+          <button class="secondary-button" id="saveHumanScoreBtn" type="button">Simpan skor manual</button>
+        </div>
+        <p class="hint" style="font-size:0.8rem;color:var(--muted);margin-top:8px;">
+          Skor AI ${escapeHtml(result.finalScore ?? "-")}. Approve menyimpan skor AI sebagai penilaian manusia. 
+          Kosongkan skor manual lalu tekan "Approve skor AI" untuk konfirmasi tanpa koreksi.
+        </p>
 
         <details style="margin-top:16px;">
           <summary style="cursor:pointer;font-weight:600;">Teknis, versi &amp; events (detail lengkap)</summary>
