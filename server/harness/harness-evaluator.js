@@ -56,17 +56,36 @@ async function evaluateWithHarness(payload) {
   // applicable to it (weights renormalized within the subset). The overall
   // finalScore remains the deterministic weighted aggregate over all criteria.
   const criteria = result.criteria || [];
+  const verification = result.verification || {};
+  const status = verification.status;
+
+  // PRD FR-08 / FR-13 — Verification gate enforced at the API boundary so a
+  // failed evaluation is never surfaced as a final student score.
+  //   PASS   → returned normally.
+  //   REVIEW → returned but flagged for human review (not auto-published).
+  //   FAIL   → blocked; the student must not see a final score.
+  if (status === "FAIL") {
+    const error = new Error(
+      "Evaluasi belum dapat diselesaikan karena verifikasi gagal. Silakan coba lagi atau hubungi guru."
+    );
+    error.status = 422;
+    error.verification = verification;
+    throw error;
+  }
+
   const questionScores = buildQuestionScores(questions, answers, criteria);
 
   return {
     finalScore: Math.round(result.finalScore),
     feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${Math.round(result.finalScore)} dari 100.`,
     questionScores,
+    published: result.published !== false && status !== "FAIL",
+    requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
     // New harness provenance (extra fields; frontend ignores unknown keys).
     evaluationRunId: result.evaluationRunId,
     evaluationId: result.evaluationId,
     criteria: result.criteria,
-    verification: result.verification,
+    verification,
     versioning: result.versioning,
     reliability: result.reliability,
   };

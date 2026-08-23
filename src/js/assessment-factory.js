@@ -47,7 +47,20 @@ export function createDemoAssessment(generateQuestions) {
   return createAssessment(config, generateQuestions(config));
 }
 
-export function createSubmission({ assessment, studentName, finalScore, questionScores, feedback }) {
+export function createSubmission({
+  assessment,
+  studentName,
+  finalScore,
+  questionScores,
+  feedback,
+  status = "EVALUATED",
+  verification = null,
+  criteria = [],
+  evaluationRunId = null,
+  evaluationId = null,
+  evaluationSource = "ai",
+  insight = "",
+}) {
   return {
     id: uid("sub"),
     assessmentId: assessment.id,
@@ -58,5 +71,13 @@ export function createSubmission({ assessment, studentName, finalScore, question
     finalScore,
     questionScores,
     feedback,
+    // Trustworthy-assessment metadata (PRD: score-state semantics must be explicit).
+    status,
+    verification,
+    criteria,
+    evaluationRunId,
+    evaluationId,
+    evaluationSource,
+    insight,
   };
 }

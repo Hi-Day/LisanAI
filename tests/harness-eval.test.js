@@ -116,6 +116,59 @@ test("evaluateWithHarness returns frontend contract + harness provenance", async
   assert.ok(result.verification);
 });
 
+test("evaluateWithHarness blocks a FAIL verification gate (never surfaces final score)", async () => {
+  // Empty answer -> mock provider emits evidence: [] -> NO_EVIDENCE -> FAIL.
+  const FAIL_ASSESSMENT = {
+    id: "assess-harness-fail",
+    topic: "Rubrik dua kriteria",
+    difficulty: "Menengah",
+    rubric: { criteria: [{ id: "C1", weight: 0.5 }, { id: "C2", weight: 0.5 }] },
+    questions: [{ prompt: "Soal", focus: "konsep" }],
+  };
+  await assert.rejects(
+    () =>
+      evaluateWithHarness({
+        assessment: FAIL_ASSESSMENT,
+        answers: [""],
+        tenantId: "t-harness",
+        userId: "u-harness",
+        harnessConfig: {
+          pipeline: { evidence: false },
+          verification: { evidenceCoverage: 0.5 },
+        },
+      }),
+    (err) => {
+      assert.equal(err.status, 422);
+      assert.ok(err.message.includes("verifikasi gagal"));
+      return true;
+    }
+  );
+});
+
+test("evaluateWithHarness flags requiresHumanReview on a REVIEW gate", async () => {
+  // One criterion, no grounded evidence -> WEAK_COVERAGE -> REVIEW, not FAIL.
+  const REVIEW_ASSESSMENT = {
+    id: "assess-harness-review",
+    topic: "Rubrik satu kriteria",
+    difficulty: "Menengah",
+    rubric: { criteria: [{ id: "Q1", weight: 1 }] },
+    questions: [{ prompt: "Soal", focus: "konsep" }],
+  };
+  const result = await evaluateWithHarness({
+    assessment: REVIEW_ASSESSMENT,
+    answers: ["Jawaban singkat namun tidak memuat evidence."],
+    tenantId: "t-harness",
+    userId: "u-harness",
+    harnessConfig: {
+      pipeline: { evidence: false },
+      verification: { evidenceCoverage: 1 },
+    },
+  });
+  assert.equal(result.verification.status, "REVIEW");
+  assert.equal(result.requiresHumanReview, true);
+  assert.equal(result.published, false);
+});
+
 test("questionScores is bounded to the number of student answers (even if rubric has more criteria)", async () => {
   const ONE_ASSESSMENT = {
     id: ASSESSMENT.id,

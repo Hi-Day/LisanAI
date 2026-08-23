@@ -189,6 +189,26 @@ export function getElements() {
     apiKeyValue: document.querySelector("#apiKeyValue"),
     apiKeyList: document.querySelector("#apiKeyList"),
     apiKeysView: document.querySelector("#apiKeysView"),
+    // Trustworthy assessment dashboard (PRD UX v1.0)
+    dashboardView: document.querySelector("#dashboardView"),
+    dashboardSubtitle: document.querySelector("#dashboardSubtitle"),
+    dashboardClassFilter: document.querySelector("#dashboardClassFilter"),
+    dashboardRangeFilter: document.querySelector("#dashboardRangeFilter"),
+    dashboardKpis: document.querySelector("#dashboardKpis"),
+    performanceChart: document.querySelector("#performanceChart"),
+    scoreDistribution: document.querySelector("#scoreDistribution"),
+    competencyOverview: document.querySelector("#competencyOverview"),
+    atRiskList: document.querySelector("#atRiskList"),
+    atRiskCount: document.querySelector("#atRiskCount"),
+    recentAssessmentsList: document.querySelector("#recentAssessmentsList"),
+    assessmentListView: document.querySelector("#assessmentListView"),
+    assessmentTabFilter: document.querySelector("#assessmentTabFilter"),
+    assessmentDetailView: document.querySelector("#assessmentDetailView"),
+    detailBackBtn: document.querySelector("#detailBackBtn"),
+    assessmentDetailContent: document.querySelector("#assessmentDetailContent"),
+    studentProfileView: document.querySelector("#studentProfileView"),
+    profileStudentSelect: document.querySelector("#profileStudentSelect"),
+    studentProfileContent: document.querySelector("#studentProfileContent"),
   };
 }
 

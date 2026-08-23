@@ -258,17 +258,40 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
       duration: answers[idx]?.duration || 0,
     }));
 
+    const evaluation = data.evaluation;
     return createSubmission({
       assessment,
       studentName,
-      finalScore: data.evaluation.finalScore,
+      finalScore: evaluation.finalScore,
       questionScores: questionScoresWithMetadata,
-      feedback: data.evaluation.feedback,
+      feedback: evaluation.feedback,
+      status: evaluation.requiresHumanReview ? "NEEDS_REVIEW" : "EVALUATED",
+      verification: evaluation.verification || null,
+      criteria: evaluation.criteria || [],
+      evaluationRunId: evaluation.evaluationRunId || null,
+      evaluationId: evaluation.evaluationId || null,
+      evaluationSource: "harness",
+      insight: buildHarnessInsight(evaluation),
     });
   } catch (error) {
     showToast(`AI belum tersedia, memakai penilaian lokal. Detail: ${error.message}`);
     return evaluateFallbackAssessment(assessment, ctx.session.currentAnswers, studentName, createSubmission);
   }
+}
+
+function buildHarnessInsight(evaluation) {
+  const criteria = Array.isArray(evaluation.criteria) ? evaluation.criteria : [];
+  if (!criteria.length) return "";
+  const weakest = criteria
+    .filter((c) => Number.isFinite(Number(c.score)))
+    .sort((a, b) => Number(a.score) - Number(b.score))[0];
+  const strongest = criteria
+    .filter((c) => Number.isFinite(Number(c.score)))
+    .sort((a, b) => Number(b.score) - Number(a.score))[0];
+  const parts = [];
+  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || strongest.criterionId || "kriteria terkuat"}.`);
+  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || weakest.criterionId || "kriteria terlemah"}.`);
+  return parts.join(" ").trim();
 }
 
 function sanitizeAssessmentForEvaluation(assessment) {
