@@ -1,6 +1,88 @@
 const { callOpenRouter, streamOpenRouter } = require("./openrouter");
 
 // ---------------------------------------------------------------------------
+// Single-substance question guard
+// ---------------------------------------------------------------------------
+// Aturan: tiap soal hanya menanyakan SATU substansi. Pertanyaan bertingkat
+// (meminta beberapa hal dalam satu prompt) dilarang; konteks boleh ditulis
+// sebagai kalimat informasi awal yang deterministik, lalu SATU pertanyaan.
+
+const SINGLE_SUBSTANCE_RULES = [
+  "Setiap soal hanya menanyakan SATU substansi (satu kompetensi/tujuan pembelajaran).",
+  "DILARANG pertanyaan bertingkat yang meminta beberapa hal sekaligus dalam satu soal, misalnya gabungan 'jelaskan ... berikan contoh ... serta evaluasi ... Terakhir usulkan ...'.",
+  "Setiap soal cukup SATU kalimat tanya dengan SATU tanda tanya; hindari kata penghubung tugas ganda seperti 'serta', 'kemudian', 'lalu', 'terakhir', 'selanjutnya', 'dan berikan contoh'.",
+  "Jika konteks diperlukan, tulis konteks sebagai kalimat informasi di awal soal (deterministik), lalu akhiri dengan SATU pertanyaan/instruksi tunggal yang bisa dijawab lisan.",
+].join(". ");
+
+const TASK_VERB_PATTERN =
+  /\b(?:jelaskan|sebutkan|berikan|evaluasi|usulkan|uraikan|bandingkan|analisis|tuliskan|simpulkan|gambarkan|deskripsikan|terangkan|buktikan|hitung|identifikasi|kategorikan|rancang|ceritakan|tunjukkan)\w*/i;
+
+// Kata hubung yang memperkenalkan TUGAS tambahan di dalam satu kalimat soal.
+const MULTI_TASK_CONNECTOR_PATTERN =
+  /\b(?:serta|kemudian|lalu|terakhir|selanjutnya|berikutnya|di samping itu|selain itu|dan|juga)\b(?=[^.!?\n]*(?:jelaskan|sebutkan|berikan|evaluasi|usulkan|uraikan|bandingkan|analisis|tuliskan|simpulkan|gambarkan|deskripsikan|terangkan|buktikan|hitung|identifikasi|kategorikan|rancang|ceritakan|tunjukkan))/i;
+
+/**
+ * Deteksi apakah sebuah prompt menanyakan lebih dari satu substansi.
+ * Konteks + satu tugas tetap dianggap valid (satu substansi).
+ */
+function isMultiPartPrompt(prompt) {
+  const text = String(prompt || "").trim();
+  if (!text) return false;
+
+  if ((text.match(/\d+[\.\)]/g) || []).length > 1) return true; // daftar bernomor
+  if ((text.match(/\?/g) || []).length > 1) return true; // lebih dari satu tanda tanya
+
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  let taskCount = 0;
+  for (const sentence of sentences) {
+    const verbs = sentence.match(TASK_VERB_PATTERN) || [];
+    if (verbs.length > 1) return true;
+    if (verbs.length === 1 || sentence.includes("?")) taskCount += 1;
+    if (taskCount > 1) return true;
+    if (MULTI_TASK_CONNECTOR_PATTERN.test(sentence)) return true;
+  }
+  return false;
+}
+
+function ensureSentenceEnding(text) {
+  const trimmed = String(text || "").trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+/**
+ * Pemangkasan deterministik (last resort bila perbaikan model gagal):
+ * pertahankan kalimat tugas pertama (beserta konteks pendahulunya), atau
+ * potong pada kata hubung yang memperkenalkan tugas kedua.
+ */
+function stripToSingleSubstance(prompt) {
+  let text = String(prompt || "").trim();
+  if (!isMultiPartPrompt(text)) return text;
+
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+  if (sentences.length > 1) {
+    const firstTaskIdx = sentences.findIndex((s) => s.includes("?") || TASK_VERB_PATTERN.test(s));
+    if (firstTaskIdx >= 0) {
+      const candidate = sentences.slice(0, firstTaskIdx + 1).join(" ").trim();
+      if (!isMultiPartPrompt(candidate)) return ensureSentenceEnding(candidate);
+      text = candidate;
+    }
+  }
+
+  const cut = text.match(MULTI_TASK_CONNECTOR_PATTERN);
+  if (cut) {
+    const candidate = text.slice(0, cut.index).trim();
+    const lastToken = candidate.split(/\s+/).pop() || "";
+    const endsWithTaskVerb = TASK_VERB_PATTERN.test(lastToken);
+    const endsWithConnector = /^(?:serta|kemudian|lalu|terakhir|selanjutnya|berikutnya|dan|juga|di)$/i.test(lastToken);
+    if (candidate.length > 4 && !endsWithTaskVerb && !endsWithConnector) {
+      return ensureSentenceEnding(candidate);
+    }
+  }
+
+  return ensureSentenceEnding(text);
+}
+
+// ---------------------------------------------------------------------------
 // Request builders
 // ---------------------------------------------------------------------------
 
@@ -16,6 +98,7 @@ function buildGenerateQuestionsMessages(payload) {
         rubrik: payload.rubric,
         tingkat_kesulitan: payload.difficulty,
         contoh_soal_opsional: payload.examples || "",
+        aturan_penulisan_soal: SINGLE_SUBSTANCE_RULES,
         jumlah_soal: count,
       }),
     },
@@ -24,6 +107,69 @@ function buildGenerateQuestionsMessages(payload) {
 
 const GENERATE_QUESTIONS_SCHEMA =
   'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah questions harus sesuai jumlah_soal.';
+
+function buildRepairMessages(payload, prompts) {
+  return [
+    {
+      role: "user",
+      content: JSON.stringify({
+        tugas: "Tulis ulang soal-soal berikut agar setiap soal hanya menanyakan SATU substansi. Pertahankan esensi pertanyaan pertama.",
+        topik: payload.topic,
+        learning_outcome: payload.outcomes,
+        aturan: SINGLE_SUBSTANCE_RULES,
+        "jumlah_dan_urutan_hasil": "harus sama persis dengan jumlah input",
+        questions_bertingkat: prompts,
+      }),
+    },
+  ];
+}
+
+const REPAIR_QUESTIONS_SCHEMA =
+  'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah dan urutan questions HARUS sama dengan input.';
+
+// ---------------------------------------------------------------------------
+// Enforcement: perbaikan model + pemangkasan deterministik saat fallback
+// ---------------------------------------------------------------------------
+
+async function enforceSingleSubstance(questions, payload) {
+  const flagged = [];
+  questions.forEach((question, index) => {
+    if (isMultiPartPrompt(question.prompt)) flagged.push(index);
+  });
+  if (!flagged.length) return questions;
+
+  let repaired = null;
+  try {
+    repaired = await callOpenRouter(
+      buildRepairMessages(payload, flagged.map((index) => String(questions[index].prompt))),
+      REPAIR_QUESTIONS_SCHEMA,
+      { tenantId: payload.tenantId, userId: payload.userId, action: "repair-questions" }
+    );
+  } catch (err) {
+    console.error("Gagal memperbaiki pertanyaan bertingkat, memakai pemangkasan deterministik:", err);
+  }
+
+  if (Array.isArray(repaired?.questions)) {
+    flagged.forEach((index, position) => {
+      const repair = repaired.questions[position];
+      if (!repair) return;
+      if (isMultiPartPrompt(String(repair.prompt))) return;
+      questions[index] = {
+        ...questions[index],
+        prompt: String(repair.prompt).trim(),
+        focus: String(repair.focus || questions[index].focus || "").trim(),
+        ideal: String(repair.ideal || questions[index].ideal || "").trim(),
+      };
+    });
+  }
+
+  questions.forEach((question) => {
+    if (isMultiPartPrompt(question.prompt)) {
+      question.prompt = stripToSingleSubstance(question.prompt);
+    }
+  });
+  return questions;
+}
 
 function buildRecommendConfigMessages(payload) {
   return [
@@ -84,6 +230,8 @@ function buildImproveQuestionsMessages(payload) {
       role: "user",
       content: JSON.stringify({
         tugas: "Perbaiki question set assessment lisan agar lebih jelas, selaras dengan learning outcome dan rubrik, serta tetap sesuai tingkat kesulitan.",
+        aturan_perbaikan:
+          "Setiap soal harus hanya menanyakan SATU substansi. Jika ada soal bertingkat (meminta beberapa hal sekaligus, dihubungkan 'serta', 'kemudian', 'lalu', 'terakhir', 'selanjutnya' atau daftar bernomor), tulis ulang menjadi satu pertanyaan tunggal; konteks boleh ditulis sebagai kalimat awal yang deterministik, lalu akhiri dengan satu pertanyaan.",
         assessment_config: payload.config,
         questions: payload.questions,
       }),
@@ -143,7 +291,8 @@ async function generateQuestions(payload) {
   );
 
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
-  return result.questions.slice(0, count).map(normalizeQuestion(payload));
+  const questions = result.questions.slice(0, count).map(normalizeQuestion(payload));
+  return enforceSingleSubstance(questions, payload);
 }
 
 async function recommendAssessmentConfig(payload) {
@@ -198,7 +347,8 @@ async function improveQuestionSet(payload) {
   );
 
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
-  return result.questions.map(normalizeQuestion(payload.config || {}));
+  const questions = result.questions.map(normalizeQuestion(payload.config || {}));
+  return enforceSingleSubstance(questions, payload.config || payload);
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +380,8 @@ async function streamGenerateQuestions(payload, onChunk) {
     onChunk
   );
   if (!Array.isArray(parsed.questions)) throw new Error("Model tidak mengembalikan daftar soal");
-  return parsed.questions.slice(0, count).map(normalizeQuestion(payload));
+  const questions = parsed.questions.slice(0, count).map(normalizeQuestion(payload));
+  return enforceSingleSubstance(questions, payload);
 }
 
 async function streamRecommendAssessmentConfig(payload, onChunk) {
@@ -273,16 +424,20 @@ async function streamImproveQuestionSet(payload, onChunk) {
     onChunk
   );
   if (!Array.isArray(parsed.questions)) throw new Error("Model tidak mengembalikan daftar soal");
-  return parsed.questions.map(normalizeQuestion(payload.config || {}));
+  const questions = parsed.questions.map(normalizeQuestion(payload.config || {}));
+  return enforceSingleSubstance(questions, payload.config || payload);
 }
 
 module.exports = {
+  enforceSingleSubstance,
   evaluateAnswers,
   generateQuestions,
   improveQuestionSet,
+  isMultiPartPrompt,
   recommendAssessmentConfig,
   streamEvaluateAnswers,
   streamGenerateQuestions,
   streamImproveQuestionSet,
   streamRecommendAssessmentConfig,
+  stripToSingleSubstance,
 };

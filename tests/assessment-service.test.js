@@ -166,3 +166,58 @@ test("improveQuestionSet returns normalized questions", async () => {
   assert.equal(result.length, 1);
   assert.equal(result[0].prompt, "Perbaikan 1");
 });
+
+test("isMultiPartPrompt flags bertingkat questions but allows context + single task", () => {
+  const bertingkat =
+    "Jelaskan interaksi antara komponen biotik dan abiotik dalam sebuah ekosistem hutan hujan tropis. Berikan contoh spesifik bagaimana produsen, konsumen, dan dekomposer saling bergantung, serta evaluasi dampak penebangan liar terhadap keseimbangan ekosistem tersebut. Terakhir, usulkan satu solusi sederhana yang dapat dilakukan masyarakat lokal untuk menjaga kelestarian ekosistem hutan hujan tropis.";
+  assert.equal(assessmentService.isMultiPartPrompt(bertingkat), true);
+  assert.equal(
+    assessmentService.isMultiPartPrompt("Jelaskan X. Berikan contoh Y. Terakhir, usulkan solusi Z."),
+    true
+  );
+  assert.equal(assessmentService.isMultiPartPrompt("Jelaskan X serta evaluasi dampaknya terhadap Y."), true);
+  assert.equal(assessmentService.isMultiPartPrompt("Apa itu fotosintesis? Bagaimana prosesnya berlangsung?"), true);
+  assert.equal(assessmentService.isMultiPartPrompt("1. Jelaskan X. 2. Berikan contoh Y."), true);
+
+  assert.equal(
+    assessmentService.isMultiPartPrompt(
+      "Ekosistem hutan hujan tropis terdiri atas komponen biotik dan abiotik yang saling berinteraksi. Jelaskan bentuk interaksi antara keduanya."
+    ),
+    false
+  );
+  assert.equal(assessmentService.isMultiPartPrompt("Jelaskan proses terjadinya fotosintesis pada tumbuhan."), false);
+  assert.equal(assessmentService.isMultiPartPrompt("Jelaskan peran dekomposer dalam ekosistem hutan hujan tropis."), false);
+});
+
+test("stripToSingleSubstance keeps only the first substance", () => {
+  const bertingkat =
+    "Jelaskan interaksi antara komponen biotik dan abiotik dalam sebuah ekosistem hutan hujan tropis. Berikan contoh spesifik bagaimana produsen, konsumen, dan dekomposer saling bergantung, serta evaluasi dampak penebangan liar terhadap keseimbangan ekosistem tersebut. Terakhir, usulkan satu solusi sederhana yang dapat dilakukan masyarakat lokal untuk menjaga kelestarian ekosistem hutan hujan tropis.";
+  assert.equal(
+    assessmentService.stripToSingleSubstance(bertingkat),
+    "Jelaskan interaksi antara komponen biotik dan abiotik dalam sebuah ekosistem hutan hujan tropis."
+  );
+  assert.equal(assessmentService.stripToSingleSubstance("Jelaskan X. Berikan contoh Y."), "Jelaskan X.");
+  assert.equal(assessmentService.stripToSingleSubstance("Jelaskan X serta evaluasi dampaknya."), "Jelaskan X.");
+  assert.equal(
+    assessmentService.stripToSingleSubstance("Soal tunggal biasa tanpa beberapa tugas."),
+    "Soal tunggal biasa tanpa beberapa tugas."
+  );
+});
+
+test("generateQuestions repairs bertingkat questions into single substance", async () => {
+  const bertingkat = "Jelaskan X. Berikan contoh Y. Terakhir, usulkan solusi Z.";
+  mockOpenRouter({
+    questions: [{ prompt: bertingkat, focus: "Fokus 1", ideal: "Ideal 1" }],
+  });
+
+  const questions = await assessmentService.generateQuestions({
+    topic: "T",
+    count: 1,
+    tenantId: "tenant-1",
+    userId: "user-1",
+  });
+
+  assert.equal(questions.length, 1);
+  assert.equal(assessmentService.isMultiPartPrompt(questions[0].prompt), false);
+  assert.equal(questions[0].prompt, "Jelaskan X.");
+});

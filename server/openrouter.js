@@ -162,6 +162,19 @@ function generateMockContent(action, messages) {
       ideal: q.ideal
     }));
     return JSON.stringify({ questions });
+  } else if (action === "repair-questions") {
+    const payload = JSON.parse(messages[0].content);
+    // Simulate a single-substance rewrite: pertahankan kalimat tugas pertama
+    // lalu tutup dengan satu tanda tanya.
+    const questions = (payload.questions_bertingkat || []).map((prompt) => {
+      const first = String(prompt).trim().split(/[.!?]/).filter(Boolean).shift() || prompt;
+      return {
+        prompt: `${first.trim()}?`,
+        focus: payload.topik,
+        ideal: `Penjelasan komprehensif mengenai substansi tersebut sesuai rubrik evaluasi.`
+      };
+    });
+    return JSON.stringify({ questions });
   }
   return JSON.stringify({});
 }
