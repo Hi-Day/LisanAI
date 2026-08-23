@@ -33,7 +33,10 @@ module.exports = async (req, res) => {
 
     const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
-    if (auth.user.role !== "admin") return sendJson(res, 403, { error: "Forbidden" });
+
+    const isAdmin = auth.user.role === "admin";
+    const isTeacher = auth.user.role === "teacher";
+    if (!isAdmin && !isTeacher) return sendJson(res, 403, { error: "Forbidden" });
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     const tenantId = auth.tenant.id;
@@ -42,6 +45,13 @@ module.exports = async (req, res) => {
       const action = url.searchParams.get("action");
       const assessmentId = url.searchParams.get("assessmentId") || url.searchParams.get("assessment_id");
       const runId = url.searchParams.get("runId") || url.searchParams.get("run_id");
+
+      // Teachers get read-only diagnostic access (Assessment Trace on the
+      // assessment detail page). All other research/metrics actions stay admin-only.
+      if (isTeacher) {
+        if (action !== "trace") return sendJson(res, 403, { error: "Forbidden" });
+        return handleTeacherTrace(req, res, auth, tenantId, runId);
+      }
 
       // PRD §24 — Run a benchmark experiment over a bundled dataset.
       if (action === "benchmark") {
@@ -174,4 +184,37 @@ async function exportTraceBundle(assessmentId, tenantId) {
     count: out.length,
     runs: out,
   };
+}
+
+/**
+ * Teacher read-only trace access (Assessment Detail → Assessment Trace).
+ * A teacher may only read traces of runs whose assessment belongs to a class
+ * they own, within their own tenant.
+ */
+async function handleTeacherTrace(req, res, auth, tenantId, runId) {
+  if (!runId) return sendJson(res, 400, { error: "runId wajib" });
+  const run = await readRun(runId);
+  if (!run.available) return sendJson(res, 404, { error: "Trace tidak ditemukan" });
+  if (run.run && run.run.tenant_id && run.run.tenant_id !== tenantId) {
+    return sendJson(res, 403, { error: "Forbidden" });
+  }
+  const db = getDb();
+  const assessmentId = run.run ? run.run.assessment_id : null;
+  if (assessmentId) {
+    const assessment = await db.get(
+      "SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?",
+      assessmentId,
+      tenantId
+    );
+    if (!assessment) return sendJson(res, 403, { error: "Forbidden" });
+    const classroom = await db.get(
+      "SELECT teacher_id FROM classes WHERE id = ? AND tenant_id = ?",
+      assessment.class_id,
+      tenantId
+    );
+    if (!classroom || classroom.teacher_id !== auth.user.id) {
+      return sendJson(res, 403, { error: "Forbidden" });
+    }
+  }
+  return sendJson(res, 200, run);
 }

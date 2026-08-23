@@ -369,10 +369,11 @@ function defaultPrompt(plan) {
       "those are artifacts of transcription, not real oral skill gaps. " +
       "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally. " +
       "Step 1: For every rubric criterion id in " + JSON.stringify(criteriaIds) +
-      ", produce a criterion entry with {criterionId, score(0-100), evidence[exact text quoted from the student answer], rationale, confidence(0-1)}. " +
+      ", produce a criterion entry with {criterionId, score(0-100), evidence[exact text quoted from the student answer], strengths[name one or more concrete things the student did well], gaps[name one or more concrete things to improve], rationale[short explanation], confidence(0-1)}. " +
+      "Your strengths must reflect genuine positives in the student's answer (accurate concepts, clear reasoning, relevant examples, proper terminology) — do not leave strengths empty when the answer has merit. " +
       "Step 2: Also produce questionScores (one entry per student answer) with {question, answer, score, matched, strengths, gaps}. " +
       "Do NOT invent evidence. Do NOT calculate a finalScore — the server will.",
-    criteria: criteriaIds.map((id) => ({ criterionId: id, score: 0, evidence: [], rationale: "", confidence: 0 })),
+    criteria: criteriaIds.map((id) => ({ criterionId: id, score: 0, evidence: [], strengths: [], gaps: [], rationale: "", confidence: 0 })),
     rubric: plan.rubric,
     questions: plan.questions,
     answers: plan.answers,
