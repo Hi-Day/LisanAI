@@ -186,6 +186,10 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
   // Actual provider KV-cache metrics (from OpenRouter usage.prompt_tokens_details).
   let cacheReadInputTokens = 0;
   let cacheCreationInputTokens = 0;
+  // Whether the provider actually reported KV-cache usage for this call.
+  // When false, hits/misses are 0 because they were NOT measured, not because
+  // they were zero. (PRD §17, §37: never present unavailable as zero.)
+  let kvCacheMeasured = false;
 
   try {
     const hasApiKey = !!process.env.OPENROUTER_API_KEY && 
@@ -220,6 +224,7 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
           // Actual provider KV-cache metrics (cache hit = read, cache miss = creation).
           cacheReadInputTokens = resolveCachedInputTokens(responseData.usage);
           cacheCreationInputTokens = Math.max(0, promptTokens - cacheReadInputTokens);
+          kvCacheMeasured = hasKvCacheTelemetry(responseData.usage);
           break;
         } catch (err) {
           lastError = err;
@@ -273,8 +278,8 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
     try {
       const db = getDb();
       await db.run(
-        `INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, kv_cache_measured, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         crypto.randomUUID().replace(/-/g, ""),
         tenantId,
         userId,
@@ -291,6 +296,7 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
         cacheCreationInputTokens,
         retryCount,
         costUsd,
+        kvCacheMeasured ? 1 : 0,
         new Date().toISOString()
       );
     } catch (dbErr) {
@@ -332,6 +338,19 @@ function resolveCachedInputTokens(usage) {
   const cached = Number(promptDetails.cached_tokens);
   if (Number.isFinite(cached) && cached > 0) return cached;
   return 0;
+}
+
+/**
+ * Whether the provider reported ANY KV-cache usage telemetry for this call.
+ * Providers that never populate cache fields must NOT be displayed as
+ * "0 cache hits" (PRD §17, §37).
+ */
+function hasKvCacheTelemetry(usage) {
+  if (!usage) return false;
+  if (typeof usage.native_tokens_cached === "number") return true;
+  const promptDetails = usage.prompt_tokens_details;
+  if (!promptDetails) return false;
+  return typeof promptDetails.cached_tokens === "number";
 }
 
 /**

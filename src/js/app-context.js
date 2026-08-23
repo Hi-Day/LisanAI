@@ -3,7 +3,7 @@ import { createSession } from "./session.js";
 import { createRecorder } from "./recorder.js";
 import { loadState } from "./storage.js";
 import { listUsers, getSimulationData } from "./api.js";
-import { renderApp, renderStudentHistory, renderObservability } from "./render.js";
+import { renderApp, renderStudentHistory } from "./render.js";
 import { showToast } from "./toast.js";
 import { escapeHtml, roleLabel } from "./utils.js";
 
@@ -334,8 +334,11 @@ export async function switchView(ctx, viewId) {
     populateProfileSelect(ctx);
     const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))];
     if (names.length) {
-      const selected = ctx.profileSelectedStudent || names[0];
-      els.profileStudentSelect.value = selected;
+      const selected =
+        ctx.profileSelectedStudent && names.includes(ctx.profileSelectedStudent)
+          ? ctx.profileSelectedStudent
+          : names[0];
+      elProfileSet(ctx, selected);
       renderStudentProfile(ctx, selected);
     } else {
       els.studentProfileContent.innerHTML =
@@ -343,7 +346,8 @@ export async function switchView(ctx, viewId) {
     }
   }
   if (viewId === "observabilityView") {
-    fetchAndRenderTelemetry(ctx);
+    const { loadTelemetry } = await import("./observability.js");
+    loadTelemetry(ctx);
   }
   if (viewId === "researchView") {
     const { loadResearch } = await import("./research.js");
@@ -365,19 +369,8 @@ function populateProfileSelect(ctx) {
   }
 }
 
-export async function fetchAndRenderTelemetry(ctx) {
-  const { els } = ctx;
-  try {
-    const response = await fetch("/api/observability");
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || "Gagal memuat data telemetry");
-    }
-    const data = await response.json();
-    renderObservability(els, data);
-  } catch (err) {
-    showToast(err.message, "error");
-  }
+function elProfileSet(ctx, name) {
+  if (ctx.els.profileStudentSelect) ctx.els.profileStudentSelect.value = name;
 }
 
 export async function refreshSimulatorIfEnabled(ctx) {

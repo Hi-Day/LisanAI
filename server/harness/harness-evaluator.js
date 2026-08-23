@@ -123,9 +123,19 @@ function buildQuestionScores(questions, answers, criteria) {
     const gaps = [];
     const matched = [];
     for (const c of applicable) {
-      const { strengths: s, gaps: g } = splitFeedback(c.rationale, c.score);
-      strengths.push(...s);
-      gaps.push(...g);
+      // Prefer the model's explicitly-authored strengths/gaps; fall back to
+      // keyword classification of the rationale when they are absent.
+      if (Array.isArray(c.strengths) && c.strengths.length) {
+        strengths.push(...c.strengths.map(String).filter(Boolean));
+      }
+      if (Array.isArray(c.gaps) && c.gaps.length) {
+        gaps.push(...c.gaps.map(String).filter(Boolean));
+      }
+      if ((!Array.isArray(c.strengths) || !c.strengths.length) && (!Array.isArray(c.gaps) || !c.gaps.length)) {
+        const { strengths: s, gaps: g } = splitFeedback(c.rationale, c.score);
+        strengths.push(...s);
+        gaps.push(...g);
+      }
       matched.push(...(c.evidence || []).map((ev) => ev.text));
     }
     return {
@@ -133,8 +143,8 @@ function buildQuestionScores(questions, answers, criteria) {
       answer: answers[idx] || "",
       score: aggregateScore(applicable),
       matched,
-      strengths,
-      gaps,
+      strengths: [...new Set(strengths)],
+      gaps: [...new Set(gaps)],
       criterionIds: applicable.map((c) => c.criterionId),
       confidence: averageConfidence(applicable),
     };

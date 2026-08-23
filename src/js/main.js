@@ -11,6 +11,7 @@ import { bindDemoDataEvents } from "./demo-data.js";
 import { bindComplaintEvents } from "./complaints.js";
 import { bindApiKeyEvents, loadApiKeys } from "./api-keys.js";
 import { bindResearchEvents } from "./research.js";
+import { bindObservabilityEvents } from "./observability.js";
 import { bindDashboardEvents } from "./dashboard.js";
 
 /**
@@ -33,6 +34,7 @@ export async function initApp() {
   bindComplaintEvents(ctx);
   bindApiKeyEvents(ctx);
   bindResearchEvents(ctx);
+  bindObservabilityEvents(ctx);
   bindDashboardEvents(ctx);
 
   // Navigation: clicking a nav button switches the active view.

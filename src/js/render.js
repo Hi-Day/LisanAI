@@ -613,90 +613,366 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
 export function renderObservability(els, data) {
   const metrics = data?.metrics || {};
   const system = data?.system || {};
+  const tail = data?.tailLatency || {};
+  const prefix = data?.prefixOptimization || {};
   const logs = Array.isArray(data?.logs) ? data.logs : [];
+  const pagination = data?.pagination || {};
 
-  // 1. Metric Cards
-  if (els.telemetryTotalCalls) els.telemetryTotalCalls.textContent = metrics.totalCalls ?? 0;
-  if (els.telemetryErrorRate) els.telemetryErrorRate.textContent = `Error Rate: ${metrics.errorRate ?? 0}%`;
-  if (els.telemetryRetryRate) els.telemetryRetryRate.textContent = `Retry Rate: ${metrics.retryRate ?? 0}%`;
-  if (els.telemetryLatency) els.telemetryLatency.textContent = `${metrics.avgLatencyMs ?? 0} ms`;
-  if (els.telemetryLatencyPercentiles) {
-    els.telemetryLatencyPercentiles.textContent = `p50 ${metrics.p50LatencyMs ?? 0} | p95 ${metrics.p95LatencyMs ?? 0} | p99 ${metrics.p99LatencyMs ?? 0} ms`;
-  }
-  if (els.telemetryTokens) els.telemetryTokens.textContent = (metrics.totalTokens ?? 0).toLocaleString("id-ID");
-  if (els.telemetryTokenBreakdown) {
-    els.telemetryTokenBreakdown.textContent = `Prompt: ${(metrics.promptTokens ?? 0).toLocaleString("id-ID")} | Comp: ${(metrics.completionTokens ?? 0).toLocaleString("id-ID")}`;
-  }
-  if (els.telemetryCost) els.telemetryCost.textContent = `$${(metrics.actualCostUSD ?? 0).toFixed(5)}`;
-  if (els.telemetryCacheEfficiency) els.telemetryCacheEfficiency.textContent = `${metrics.cacheEfficiencyPercent ?? 0}%`;
-  if (els.telemetryCacheSavings) {
-    els.telemetryCacheSavings.textContent = `Saved: ${(metrics.estimatedPrefixCacheSavings ?? 0).toLocaleString("id-ID")} tokens`;
+  // ---- Last updated + loading state ----
+  if (els.telemetryLastUpdated) {
+    els.telemetryLastUpdated.textContent = data?.lastUpdated
+      ? `Last updated ${new Date(data.lastUpdated).toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })}`
+      : "—";
   }
 
-  // 2. Cache Ring & ROI
-  if (els.cacheSavingsPercentRing) {
-    els.cacheSavingsPercentRing.textContent = `${metrics.cacheEfficiencyPercent ?? 0}%`;
-    els.cacheSavingsPercentRing.style.setProperty("--score", metrics.cacheEfficiencyPercent ?? 0);
+  // ---- KPI cards (PRD §7) ----
+  if (els.telemetryTotalCalls) {
+    els.telemetryTotalCalls.textContent = metrics.totalCalls != null ? metrics.totalCalls.toLocaleString("id-ID") : "—";
   }
-  if (els.cacheSavedTokensVal) els.cacheSavedTokensVal.textContent = (metrics.estimatedPrefixCacheSavings ?? 0).toLocaleString("id-ID");
-  if (els.cacheSavedCostVal) els.cacheSavedCostVal.textContent = `$${(metrics.savedCostUSD ?? 0).toFixed(5)}`;
-  if (els.cacheReadTokensVal) els.cacheReadTokensVal.textContent = (metrics.cacheReadInputTokens ?? 0).toLocaleString("id-ID");
-  if (els.cacheCreationTokensVal) els.cacheCreationTokensVal.textContent = (metrics.cacheCreationInputTokens ?? 0).toLocaleString("id-ID");
+  if (els.telemetryCallsDelta) {
+    els.telemetryCallsDelta.textContent =
+      metrics.callsToday != null ? `+${metrics.callsToday.toLocaleString("id-ID")} today` : "—";
+  }
+  if (els.telemetryErrorRate) {
+    els.telemetryErrorRate.textContent = metrics.errorRate != null ? `${metrics.errorRate}%` : "—";
+  }
+  if (els.telemetryErrorHealth) {
+    if (metrics.errorRate == null) {
+      els.telemetryErrorHealth.textContent = "Telemetry unavailable";
+    } else {
+      const ok = metrics.errorRate === 0;
+      els.telemetryErrorHealth.textContent = ok ? "✓ Healthy" : `⚠ ${metrics.errorRate}% errors`;
+      els.telemetryErrorHealth.className = ok ? "ob-kpi-delta ob-good" : "ob-kpi-delta ob-warn";
+    }
+  }
+  if (els.telemetryP50) els.telemetryP50.textContent = formatLatency(metrics.p50LatencyMs);
+  if (els.telemetryP95) {
+    els.telemetryP95.textContent = formatLatency(metrics.p95LatencyMs);
+  }
+  if (els.telemetryP95Health) {
+    els.telemetryP95Health.textContent =
+      tail.flagged
+        ? "⚠ High tail latency"
+        : formatAvgLabel(metrics.avgLatencyMs);
+    els.telemetryP95Health.className = tail.flagged ? "ob-kpi-delta ob-warn" : "ob-kpi-delta";
+  }
 
-  // 3. Server System Status
+  // ---- Tail latency alert (PRD §10) ----
+  if (els.telemetryTailAlert) {
+    if (tail.flagged) {
+      els.telemetryTailAlert.className = "ob-alert ob-alert-warn";
+      els.telemetryTailAlert.innerHTML = `
+        <strong>⚠ High Tail Latency</strong>
+        <p>p95 latency is significantly higher than typical request latency.</p>
+        <p>p50: ${formatLatency(tail.p50)} &nbsp;·&nbsp; p95: ${formatLatency(tail.p95)}
+        ${tail.ratio != null ? ` &nbsp;·&nbsp; p95/p50 = ${tail.ratio}×` : ""}</p>
+        <span class="sem-badge sem-derived">ƒ Derived</span>`;
+    } else {
+      els.telemetryTailAlert.className = "ob-alert hidden";
+      els.telemetryTailAlert.innerHTML = "";
+    }
+  }
+
+  // ---- Latency distribution histogram (PRD §8.1) ----
+  if (els.telemetryLatencyDist) {
+    const dist = Array.isArray(data?.latencyDistribution) ? data.latencyDistribution : [];
+    if (!dist.length) {
+      els.telemetryLatencyDist.innerHTML = '<p class="empty-state">Belum ada data latency.</p>';
+    } else {
+      const max = Math.max(1, ...dist.map((b) => b.count));
+      els.telemetryLatencyDist.innerHTML = dist
+        .map(
+          (b) => `
+          <div class="ob-hist-row">
+            <span class="ob-hist-label">${escapeHtml(b.label)}</span>
+            <div class="ob-hist-track" role="img" aria-label="${escapeHtml(b.label)}: ${b.count} calls">
+              <div class="ob-hist-bar" style="width: ${Math.max(2, Math.round((b.count / max) * 100))}%"></div>
+            </div>
+            <span class="ob-hist-count">${b.count}</span>
+          </div>`
+        )
+        .join("");
+    }
+  }
+
+  // ---- Percentiles table (PRD §9) ----
+  if (els.telemetryPercentileTable) {
+    const pRows = [
+      ["p50", metrics.p50LatencyMs],
+      ["p75", metrics.p75LatencyMs],
+      ["p90", metrics.p90LatencyMs],
+      ["p95", metrics.p95LatencyMs],
+      ["p99", metrics.p99LatencyMs],
+    ];
+    els.telemetryPercentileTable.innerHTML = pRows
+      .map(
+        ([label, value]) => `
+        <tr>
+          <td><code>${label}</code></td>
+          <td><strong>${formatLatency(value)}</strong></td>
+        </tr>`
+      )
+      .join("");
+  }
+  if (els.telemetryTailRatio) {
+    els.telemetryTailRatio.innerHTML =
+      tail.ratio != null
+        ? `<span class="ob-tail-ratio-text">p95 / p50 = ${tail.ratio}× (threshold ${tail.threshold}×)</span>`
+        : "";
+  }
+
+  // ---- Latency by operation (PRD §11) ----
+  renderTableRows(els.telemetryLatencyByOp, data?.latencyByOperation, (row) => `
+    <tr>
+      <td><code>${escapeHtml(row.operation)}</code></td>
+      <td>${row.calls.toLocaleString("id-ID")}</td>
+      <td>${formatLatency(row.p50)}</td>
+      <td>${formatLatency(row.p95)}</td>
+      <td>${formatLatency(row.avg)}</td>
+      <td>${row.errorRate != null ? `${row.errorRate}%` : "—"}</td>
+    </tr>`, 7, "Belum ada data per operation.");
+
+  // ---- Token analytics (PRD §12-§13) ----
+  if (els.telemetryTokens) {
+    els.telemetryTokens.textContent = (metrics.totalTokens ?? 0).toLocaleString("id-ID");
+  }
+  if (els.telemetryTokenSplit) {
+    const total = metrics.totalTokens || 0;
+    const promptPct = total > 0 ? (metrics.promptTokenPct ?? 0) : 0;
+    const completionPct = total > 0 ? (metrics.completionTokenPct ?? 0) : 0;
+    els.telemetryTokenSplit.innerHTML = `
+      <div class="ob-split-bar" role="img" aria-label="Prompt ${promptPct}%, completion ${completionPct}%">
+        <div class="ob-split-prompt" style="width: ${promptPct}%"></div>
+        <div class="ob-split-completion" style="width: ${completionPct}%"></div>
+      </div>
+      <div class="ob-split-legend">
+        <span><i class="ob-dot ob-dot-prompt"></i>Prompt ${(metrics.promptTokens ?? 0).toLocaleString("id-ID")} (${promptPct}%)</span>
+        <span><i class="ob-dot ob-dot-completion"></i>Completion ${(metrics.completionTokens ?? 0).toLocaleString("id-ID")} (${completionPct}%)</span>
+      </div>`;
+  }
+  if (els.telemetryAvgTokens) els.telemetryAvgTokens.textContent = (metrics.avgTokensPerRequest ?? 0).toLocaleString("id-ID");
+  if (els.telemetryAvgPrompt) els.telemetryAvgPrompt.textContent = (metrics.avgPromptPerRequest ?? 0).toLocaleString("id-ID");
+  if (els.telemetryAvgCompletion) els.telemetryAvgCompletion.textContent = (metrics.avgCompletionPerRequest ?? 0).toLocaleString("id-ID");
+  if (els.telemetryTokensPerCall) els.telemetryTokensPerCall.textContent = (metrics.tokensPerApiCall ?? 0).toLocaleString("id-ID");
+  if (els.telemetryTokensPerEval) {
+    els.telemetryTokensPerEval.textContent = metrics.tokensPerEvaluation != null
+      ? metrics.tokensPerEvaluation.toLocaleString("id-ID")
+      : "—";
+  }
+
+  // ---- Cost analytics (PRD §14-§15) ----
+  if (els.telemetryCost) {
+    els.telemetryCost.textContent = metrics.estimatedCostUSD != null ? `$${metrics.estimatedCostUSD.toFixed(5)}` : "—";
+  }
+  if (els.telemetryCostPerEval) {
+    els.telemetryCostPerEval.textContent = metrics.costPerEvaluation != null ? `$${metrics.costPerEvaluation.toFixed(5)}` : "—";
+  }
+  if (els.telemetryCostPer1K) {
+    els.telemetryCostPer1K.textContent = metrics.costPer1KTokens != null ? `$${metrics.costPer1KTokens.toFixed(5)}` : "—";
+  }
+  renderTableRows(els.telemetryCostByOp, data?.costByOperation, (row) => `
+    <tr>
+      <td><code>${escapeHtml(row.operation)}</code></td>
+      <td>${row.calls.toLocaleString("id-ID")}</td>
+      <td>${row.tokens.toLocaleString("id-ID")}</td>
+      <td>$${(row.estimatedCostUSD ?? 0).toFixed(5)}</td>
+    </tr>`, 4, "Belum ada data biaya per operation.");
+
+  // ---- Prefix Optimization (PRD §16-§19) ----
+  if (els.telemetryPrefixTokens) {
+    els.telemetryPrefixTokens.textContent = `${(prefix.estimatedSavedTokens ?? 0).toLocaleString("id-ID")} tokens`;
+  }
+  if (els.telemetryPrefixPct) {
+    els.telemetryPrefixPct.textContent = `${prefix.estimatedPrefixReusePct ?? 0}%`;
+  }
+  if (els.telemetryPrefixCost) {
+    els.telemetryPrefixCost.textContent = prefix.estimatedSavedCostUSD != null
+      ? `$${prefix.estimatedSavedCostUSD.toFixed(5)}`
+      : "—";
+  }
+  if (els.telemetryCacheHits) {
+    els.telemetryCacheHits.textContent = prefix.actualCacheHits != null
+      ? prefix.actualCacheHits.toLocaleString("id-ID")
+      : "Not available";
+  }
+  if (els.telemetryCacheMisses) {
+    els.telemetryCacheMisses.textContent = prefix.actualCacheMisses != null
+      ? prefix.actualCacheMisses.toLocaleString("id-ID")
+      : "Not available";
+  }
+  if (els.telemetryKvStatus) {
+    els.telemetryKvStatus.innerHTML = prefix.kvCacheAvailable
+      ? `<span class="ob-kv-status-ok">✓ ${escapeHtml(prefix.statusNote || "Actual provider KV-cache telemetry available.")}</span>`
+      : `<span class="ob-kv-status-muted">ℹ ${escapeHtml(prefix.statusNote || "Actual provider KV-cache telemetry unavailable.")}</span>`;
+  }
+
+  // ---- AI provider performance (PRD §20) ----
+  renderTableRows(els.telemetryProviderTable, data?.providerPerformance, (row) => `
+    <tr>
+      <td><code>${escapeHtml(row.model)}</code></td>
+      <td>${row.calls.toLocaleString("id-ID")}</td>
+      <td>${formatLatency(row.p50)}</td>
+      <td>${formatLatency(row.p95)}</td>
+      <td>${row.totalTokens.toLocaleString("id-ID")}</td>
+      <td>$${(row.estimatedCostUSD ?? 0).toFixed(5)}</td>
+      <td>${row.errorRate != null ? `${row.errorRate}%` : "—"}</td>
+    </tr>`, 7, "Belum ada data provider.");
+
+  // ---- Slowest calls (PRD §21) ----
+  renderTableRows(els.telemetrySlowestCalls, data?.slowestCalls, (row, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><code>${escapeHtml(row.action)}</code></td>
+      <td><strong>${formatLatency(row.latency_ms)}</strong></td>
+      <td>${(row.total_tokens ?? 0).toLocaleString("id-ID")}</td>
+      <td style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(row.model)}</td>
+      <td><span class="status-badge ${row.status === "success" ? "success" : "error"}">${escapeHtml((row.status || "—").toUpperCase())}</span></td>
+      <td style="font-size: 0.85rem; color: var(--muted);">${formatDateTime(row.created_at)}</td>
+    </tr>`, 7, "Belum ada panggilan lambat.");
+
+  // ---- System health (PRD §24-§26) ----
+  renderSystemHealth(els, system);
+
+  // ---- Log filters population ----
+  if (els.telemetryFilterOp) {
+    const ops = data?.logFilters?.operations || [];
+    const current = els.telemetryFilterOp.value;
+    els.telemetryFilterOp.innerHTML =
+      '<option value="">Semua operation</option>' +
+      ops.map((op) => `<option value="${escapeHtml(op)}" ${op === current ? "selected" : ""}>${escapeHtml(op)}</option>`).join("");
+  }
+  if (els.telemetryFilterModel) {
+    const models = data?.logFilters?.models || [];
+    const current = els.telemetryFilterModel.value;
+    els.telemetryFilterModel.innerHTML =
+      '<option value="">Semua model</option>' +
+      models.map((m) => `<option value="${escapeHtml(m)}" ${m === current ? "selected" : ""}>${escapeHtml(m)}</option>`).join("");
+  }
+  if (els.telemetryLogCount) {
+    els.telemetryLogCount.textContent = pagination.total != null
+      ? `${pagination.total.toLocaleString("id-ID")} calls${pagination.offset > 0 ? ` (offset ${pagination.offset})` : ""}`
+      : "";
+  }
+
+  // ---- AI call log table (PRD §22-§23) ----
+  if (els.telemetryLogList) {
+    if (!logs.length) {
+      els.telemetryLogList.innerHTML = `<tr><td colspan="6" class="empty-state">Baru ada log panggilan AI. Data akan muncul setelah AI dipakai pertama kali.</td></tr>`;
+    } else {
+      els.telemetryLogList.innerHTML = logs.map(renderLogRow).join("");
+    }
+  }
+}
+
+function renderLogRow(log) {
+  const statusClass = log.status === "success" ? "success" : "error";
+  const statusLabel = log.status === "success" ? "SUCCESS" : "ERROR";
+  const hasSaved = log.estimated_prefix_cache_savings > 0;
+  const cacheHitText = log.cache_read_input_tokens > 0
+    ? ` · cache-hit ${log.cache_read_input_tokens}`
+    : "";
+  const retryText = log.retry_count > 0 ? ` · retries ${log.retry_count}` : "";
+
+  return `
+    <tr>
+      <td>
+        <strong>${escapeHtml(log.action)}</strong>
+        ${log.error_message ? `<div style="font-size: 0.75rem; color: var(--rose); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.error_message)}">${escapeHtml(log.error_message)}</div>` : ""}
+      </td>
+      <td><span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(log.model)}</span></td>
+      <td>${formatLatency(log.latency_ms)}</td>
+      <td>
+        <strong>${(log.total_tokens ?? 0).toLocaleString("id-ID")}</strong>
+        <div style="font-size: 0.75rem; color: var(--muted);">
+          Prompt: ${(log.prompt_tokens ?? 0).toLocaleString("id-ID")}
+          · Completion: ${(log.completion_tokens ?? 0).toLocaleString("id-ID")}
+          ${hasSaved ? `<div style="color: var(--emerald);">Estimated reusable prefix: ${log.estimated_prefix_cache_savings.toLocaleString("id-ID")}</div>` : ""}
+          ${cacheHitText ? `<span style="color: var(--sky);">${cacheHitText}</span>` : ""}
+          ${retryText ? `<span style="color: var(--amber);">${retryText}</span>` : ""}
+        </div>
+      </td>
+      <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+      <td><span style="font-size: 0.85rem; color: var(--muted);">${formatDateTime(log.created_at)}</span></td>
+    </tr>`;
+}
+
+function renderSystemHealth(els, system) {
+  if (els.telemetryRestartAlert && system.restart) {
+    const r = system.restart;
+    if (r.recentlyRestarted) {
+      els.telemetryRestartAlert.className = "ob-alert ob-alert-warn";
+      els.telemetryRestartAlert.innerHTML = `
+        <strong>⚠ Server recently restarted</strong>
+        <p>Current uptime: ${formatDuration(r.uptimeSeconds ?? 0)}${r.restartCount != null ? ` · Restart count: ${r.restartCount}` : ""}</p>
+        <span class="sem-badge sem-derived">ƒ Derived</span>`;
+    } else {
+      els.telemetryRestartAlert.className = "ob-alert hidden";
+      els.telemetryRestartAlert.innerHTML = "";
+    }
+  }
+
+  if (els.sysHealthList) {
+    const items = [
+      { label: "API", status: system.apiHealthy ? "✓ Healthy" : "✗ Unhealthy", ok: system.apiHealthy !== false },
+      { label: "Database", status: system.databaseHealthy ? "✓ Healthy" : "✗ Unhealthy", ok: system.databaseHealthy !== false },
+      { label: "AI Provider", status: system.providerHealthy ? "✓ Healthy" : "⚠ Degraded", ok: system.providerHealthy !== false },
+      { label: "Memory", status: `${system.memoryHeapUsedMB ?? 0} MB / ${system.memoryHeapTotalMB ?? 0} MB`, ok: null },
+      { label: "CPU Process", status: `${system.cpuUserMs ?? 0} ms`, ok: null },
+      { label: "Uptime", status: formatDuration(system.uptimeSeconds ?? 0), ok: null },
+    ];
+    els.sysHealthList.innerHTML = items
+      .map(
+        (item) => `
+        <div class="ob-block ob-sys-item">
+          <span class="ob-sys-label">${escapeHtml(item.label)}</span>
+          <strong class="${item.ok === true ? "ob-good" : item.ok === false ? "ob-warn" : ""}">${escapeHtml(item.status)}</strong>
+        </div>`
+      )
+      .join("");
+  }
+
   if (els.sysMemoryHeap) els.sysMemoryHeap.textContent = `${system.memoryHeapUsedMB ?? 0} MB`;
   if (els.sysMemoryTotal) els.sysMemoryTotal.textContent = `Allocated: ${system.memoryHeapTotalMB ?? 0} MB`;
   if (els.sysCpuUsage) els.sysCpuUsage.textContent = `${system.cpuUserMs ?? 0} ms`;
   if (els.sysCpuSystem) els.sysCpuSystem.textContent = `Kernel: ${system.cpuSystemMs ?? 0} ms`;
   if (els.sysUptime) els.sysUptime.textContent = formatDuration(system.uptimeSeconds ?? 0);
   if (els.sysNodeVersion) els.sysNodeVersion.textContent = system.nodeVersion || "-";
+}
 
-  // 4. API Logs Table
-  if (els.telemetryLogList) {
-    if (!logs.length) {
-      els.telemetryLogList.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada log panggilan AI. Data akan muncul setelah AI dipakai pertama kali.</td></tr>';
-    } else {
-      els.telemetryLogList.innerHTML = logs.map(log => {
-        const statusClass = log.status === "success" ? "success" : "error";
-        const statusLabel = log.status === "success" ? "SUCCESS" : "ERROR";
-        
-        const date = log.created_at 
-          ? new Date(log.created_at).toLocaleString("id-ID", { 
-              day: "numeric", 
-              month: "short", 
-              hour: "2-digit", 
-              minute: "2-digit", 
-              second: "2-digit" 
-            }) 
-          : "-";
-          
-        const savingsText = log.estimated_prefix_cache_savings > 0 
-          ? ` <span style="color: var(--emerald); font-weight: 600; font-size: 0.75rem;">(saved ${log.estimated_prefix_cache_savings})</span>` 
-          : "";
-        const cacheReadText = log.cache_read_input_tokens > 0
-          ? ` <span style="color: var(--sky); font-weight: 600; font-size: 0.75rem;">(cache-hit ${log.cache_read_input_tokens})</span>`
-          : "";
-        const retryText = log.retry_count > 0
-          ? ` <span style="color: var(--amber); font-weight: 600; font-size: 0.75rem;">(retries ${log.retry_count})</span>`
-          : "";
-
-        return `
-          <tr>
-            <td>
-              <strong>${escapeHtml(log.action)}</strong>
-              ${log.error_message ? `<div style="font-size: 0.75rem; color: var(--rose); margin-top: 4px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.error_message)}">${escapeHtml(log.error_message)}</div>` : ""}
-            </td>
-            <td><span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(log.model)}</span></td>
-            <td>${log.latency_ms} ms</td>
-            <td>
-              ${log.total_tokens}
-              <div style="font-size: 0.75rem; color: var(--muted);">${log.prompt_tokens} prompt / ${log.completion_tokens} comp${savingsText}${cacheReadText}${retryText}</div>
-            </td>
-            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-            <td><span style="font-size: 0.85rem; color: var(--muted);">${date}</span></td>
-          </tr>
-        `;
-      }).join("");
-    }
+function renderTableRows(container, rows, rowRenderer, colspan, emptyText) {
+  if (!container) return;
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) {
+    container.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">${emptyText}</td></tr>`;
+    return;
   }
+  container.innerHTML = list.map(rowRenderer).join("");
+}
+
+function formatLatency(ms) {
+  if (ms == null || Number.isNaN(ms)) return "—";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${Math.round(s * 10) / 10} s`;
+  return `${Math.round(s / 60 * 10) / 10} min`;
+}
+
+function formatAvgLabel(ms) {
+  if (ms == null) return "Avg n/a";
+  return `Avg ${formatLatency(ms)}`;
+}
+
+function formatDateTime(iso) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }

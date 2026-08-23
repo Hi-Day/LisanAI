@@ -27,7 +27,10 @@ export function bindDashboardEvents(ctx) {
   els.dashboardRangeFilter?.addEventListener("change", () => renderDashboard(ctx));
 
   els.profileStudentSelect?.addEventListener("change", (e) => {
-    if (e.target.value) renderStudentProfile(ctx, e.target.value, ctx.currentDetailReturnView);
+    if (e.target.value) {
+      ctx.profileSelectedStudent = e.target.value;
+      renderStudentProfile(ctx, e.target.value, ctx.currentDetailReturnView);
+    }
   });
 
   els.detailBackBtn?.addEventListener("click", () => {
@@ -151,8 +154,10 @@ export async function renderDashboard(ctx) {
 
 export function openStudentProfile(ctx, studentName) {
   if (!studentName) return;
+  ctx.profileSelectedStudent = studentName;
   ctx.currentDetailReturnView = "dashboardView";
   renderStudentProfile(ctx, studentName);
+  switchView(ctx, "studentProfileView");
 }
 
 export async function renderStudentProfile(ctx, studentName, returnView = "dashboardView") {
@@ -251,6 +256,8 @@ function renderAssessmentDetail(ctx, submission) {
   const confidencePct = confidence === null ? null : `${Math.round(confidence * 100)}%`;
   const coverage = verification?.scoreConsistency?.coverage ?? criteriaCoverage(criteria);
   const coveragePct = coverage === null ? null : `${Math.round(coverage * 100)}%`;
+  const scoredCriteria = criteria.filter((c) => Number.isFinite(Number(c.score))).length;
+  const rubricPct = criteria.length ? Math.round((scoredCriteria / criteria.length) * 100) : null;
   const verStatus = verification?.status || (verification?.valid === false ? "FAIL" : verification ? "PASS" : null);
 
   const detailMeta = `
@@ -273,8 +280,8 @@ function renderAssessmentDetail(ctx, submission) {
           : `<div class="score-badge score-muted">—</div>`}
         <div class="detail-trust-row">
           ${confidencePct ? `<span class="trust-chip">Confidence ${confidencePct}</span>` : ""}
-          ${coveragePct ? `<span class="trust-chip">Evidence coverage ${coveragePct}</span>` : ""}
-          ${coveragePct ? `<span class="trust-chip">Rubric cakupan dikriteria ${coveragePct}</span>` : ""}
+          ${coveragePct ? `<span class="trust-chip">Bukti grounded ${coveragePct}</span>` : ""}
+          ${rubricPct !== null ? `<span class="trust-chip">Cakupan rubrik ${rubricPct}%</span>` : ""}
         </div>
         ${verification ? `<div class="verification-mini">${verificationBadge(verStatus)}</div>` : ""}
       </div>
@@ -584,10 +591,6 @@ function renderTrendChart(el, submissions) {
       ${xLabels}
     </svg>
   `;
-}
-
-function buildProfileTrendForStudent(evaluated) {
-  return buildProfileTrend(evaluated);
 }
 
 function renderDistribution(el, submissions) {

@@ -74,6 +74,23 @@ module.exports = async (req, res) => {
 
       if (action === "metrics") {
         const data = await compareAiVsHuman(assessmentId, tenantId);
+        // Inter-rater reliability (PRD §33): Cohen's κ, weighted κ, ICC.
+        if (data && data.n > 0) {
+          const {
+            interRaterMetrics,
+            iccTwoWay,
+          } = require("../server/evaluation/metrics");
+          const ai = data.rows.map((r) => r.aiScore);
+          const human = data.rows.map((r) => r.humanScore);
+          const inter = interRaterMetrics(ai, human);
+          const icc = iccTwoWay([ai, human]);
+          data.interRater = {
+            n: data.n,
+            cohensKappa: Number.isNaN(inter.cohensKappa) ? null : inter.cohensKappa,
+            weightedKappa: Number.isNaN(inter.weightedKappa) ? null : inter.weightedKappa,
+            icc: Number.isNaN(icc.icc) ? null : icc.icc,
+          };
+        }
         return sendJson(res, 200, data);
       }
       if (action === "approvals") {
@@ -85,13 +102,15 @@ module.exports = async (req, res) => {
         const rows = await db.all(
           `SELECT r.run_id, r.assessment_id, r.submission_id, r.model, r.final_score,
                   r.verification_valid, r.verification_status, r.created_at,
+                  r.harness_version, r.prompt_version, r.rubric_version, r.input_hash, r.prompt_hash, r.rubric_hash,
                   a.approval_status, a.deadline_at, h.human_score
              FROM evaluation_runs r
              LEFT JOIN human_approvals a ON a.run_id = r.run_id
              LEFT JOIN evaluation_human_scores h ON h.run_id = r.run_id
             WHERE r.tenant_id = ?
               AND ($2 IS NULL OR r.assessment_id = $2)
-            ORDER BY datetime(r.created_at) DESC`,
+            ORDER BY datetime(r.created_at) DESC
+            LIMIT 200`,
           tenantId,
           assessmentId || null
         );

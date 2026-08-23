@@ -9,7 +9,7 @@ process.env.ENABLE_DEMO_SIMULATION = "false";
 process.env.HARNESS_PROVIDER = "mock";
 
 const { initDatabase, getDb } = require("../server/database");
-const { evaluateWithHarness, structuredRubric, splitFeedback } = require("../server/harness/harness-evaluator");
+const { evaluateWithHarness, structuredRubric, splitFeedback, buildQuestionScores } = require("../server/harness/harness-evaluator");
 const { persistEvaluationTrace } = require("../server/evaluation/trace-persister");
 const { createHarness } = require("../server/harness");
 const { MockProvider } = require("../server/ai/mock-provider");
@@ -167,6 +167,38 @@ test("evaluateWithHarness flags requiresHumanReview on a REVIEW gate", async () 
   assert.equal(result.verification.status, "REVIEW");
   assert.equal(result.requiresHumanReview, true);
   assert.equal(result.published, false);
+});
+
+test("questionScores carries explicit model strengths/gaps when present", async () => {
+  const harness = createHarness({ pipeline: { evidence: false, reliability: false } });
+  harness.setProvider({
+    name: "explicit-str",
+    version: "1.0.0",
+    async generate() {
+      return JSON.stringify({
+        criteria: [
+          {
+            criterionId: "Q1", score: 80, evidence: [{ text: "klorofil" }],
+            strengths: ["Menyebut klorofil dengan tepat", "Contoh relevan"],
+            gaps: ["Cara kerja panel surya belum dijelaskan"],
+          },
+        ],
+      });
+    },
+  }).setParser({ parse });
+
+  const result = await harness.evaluate({
+    assessment: { id: "a", topic: "t" },
+    rubric: { id: "r", criteria: [{ id: "Q1", weight: 1 }] },
+    answers: ["Menjawab tentang klorofil."],
+    tenantId: "t-harness",
+    userId: "u-harness",
+  });
+
+  const qs = buildQuestionScores([{ prompt: "Soal" }], ["Menjawab tentang klorofil."], result.criteria);
+  assert.ok(qs[0].strengths.some((s) => s.includes("klorofil")));
+  assert.ok(qs[0].gaps.length > 0);
+  assert.equal(qs[0].strengths.length, 2);
 });
 
 test("questionScores is bounded to the number of student answers (even if rubric has more criteria)", async () => {

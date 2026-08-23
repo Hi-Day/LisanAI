@@ -177,6 +177,8 @@ function renderMetrics(els, data) {
   if (!m) {
     els.researchValidity.innerHTML =
       '<p class="empty-state">Belum ada pasangan AI-vs-Human. Beri skor manusia pada sebuah trace untuk melihat metrik validitas.</p>';
+    els.researchInterRater.innerHTML =
+      '<p class="empty-state">Belum ada pasangan skor untuk metrik reliabilitas.</p>';
     return;
   }
   const card = (label, value, pct = false) => `
@@ -192,6 +194,27 @@ function renderMetrics(els, data) {
     card("RMSE", m.validity.rmse) +
     card("Exact agreement", m.reliability.exactAgreement, true) +
     card("Adjacent (+/-5)", m.reliability.adjacentAgreement, true);
+
+  // Inter-rater reliability (PRD §33): κ, weighted κ, ICC.
+  const ir = data.interRater;
+  if (els.researchInterRater) {
+    if (!ir || (ir.icc == null && ir.cohensKappa == null && ir.weightedKappa == null)) {
+      els.researchInterRater.innerHTML =
+        '<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">' + total + ' pasangan skor</p>' +
+        '<p class="empty-state">Metrik reliabilitas belum tersedia (butuh variasi skor).</p>';
+    } else {
+      const irCard = (label, value) => `
+        <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${label}</span>
+          <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${fmt(value)}</strong>
+        </div>`;
+      els.researchInterRater.innerHTML =
+        `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${ir.n ?? total} pasangan AI vs human</p>` +
+        irCard("Cohen's Kappa", ir.cohensKappa) +
+        irCard("Weighted Kappa", ir.weightedKappa) +
+        irCard("ICC (2-way)", ir.icc);
+    }
+  }
 }
 
 function renderRuns(els, runs) {
@@ -200,11 +223,16 @@ function renderRuns(els, runs) {
         .map((r) => {
           const status = approvalBadge(r.approval_status, r.human_score);
           const gate = gateBadge(r.verification_status, r.verification_valid);
+          const versions = [
+            r.harness_version ? `harness ${r.harness_version}` : null,
+            r.prompt_version ? `prompt ${r.prompt_version}` : null,
+          ].filter(Boolean).join(" · ");
           return `
       <tr>
         <td>${escapeHtml(r.run_id)}</td>
         <td>${escapeHtml((r.assessment_id || "").slice(0, 20))}</td>
         <td>${escapeHtml(r.model || "-")}</td>
+        <td style="font-size:0.8rem;color:var(--muted);">${versions ? escapeHtml(versions) : "—"}</td>
         <td>${r.final_score ?? "-"}</td>
         <td>${gate}</td>
         <td>${status}</td>

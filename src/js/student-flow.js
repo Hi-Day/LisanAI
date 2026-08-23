@@ -275,7 +275,13 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
     });
   } catch (error) {
     showToast(`AI belum tersedia, memakai penilaian lokal. Detail: ${error.message}`);
-    return evaluateFallbackAssessment(assessment, ctx.session.currentAnswers, studentName, createSubmission);
+    const fallback = evaluateFallbackAssessment(assessment, ctx.session.currentAnswers, studentName, createSubmission);
+    return {
+      ...fallback,
+      evaluationSource: "fallback",
+      verification: null,
+      criteria: [],
+    };
   }
 }
 
