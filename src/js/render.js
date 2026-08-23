@@ -858,6 +858,27 @@ export function renderObservability(els, data) {
       : "";
   }
 
+  // ---- AI call log pagination controls ----
+  if (els.telemetryLogPagination) {
+    const total = pagination.total != null ? pagination.total : 0;
+    const pageSize = pagination.limit || 10;
+    const offset = pagination.offset || 0;
+    const hasLogs = total > 0;
+    const currentPage = hasLogs ? Math.floor(offset / pageSize) + 1 : 0;
+    const totalPages = hasLogs ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+
+    els.telemetryLogPagination.style.display = hasLogs ? "" : "none";
+    if (els.telemetryLogPageInfo) {
+      els.telemetryLogPageInfo.textContent = hasLogs ? `Page ${currentPage} of ${totalPages}` : "—";
+    }
+    if (els.telemetryLogPrev) {
+      els.telemetryLogPrev.disabled = currentPage <= 1;
+    }
+    if (els.telemetryLogNext) {
+      els.telemetryLogNext.disabled = currentPage >= totalPages;
+    }
+  }
+
   // ---- AI call log table (PRD §22-§23) ----
   if (els.telemetryLogList) {
     if (!logs.length) {
