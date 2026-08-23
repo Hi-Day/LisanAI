@@ -9,12 +9,11 @@ const {
   streamRecommendAssessmentConfig,
 } = require("../server/assessment-service");
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
-const { initDatabase } = require("../server/database");
+const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 const { applySecurityHeaders } = require("../server/security-headers");
 const { authenticateApiKey } = require("../server/api-auth");
-
-let isDbInitialized = false;
+const { assertRateLimit } = require("../server/rate-limit");
 
 /**
  * Write an SSE event to the response.
@@ -79,10 +78,7 @@ async function handleStreamingAction(req, res, auth, action, payload) {
 
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     if (req.method !== "POST") {
       return sendJson(res, 405, { error: "Method not allowed" });
@@ -103,6 +99,9 @@ module.exports = async (req, res) => {
       }
     }
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
+
+    // Rate-limit AI actions per user/API-key to protect token spend.
+    assertRateLimit(`assessment:${auth.user.id}`, { limit: 30, windowMs: 60_000 });
 
     // CSRF is only required for browser (session) auth, not API keys.
     if (!viaApiKey) {

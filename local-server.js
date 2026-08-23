@@ -1,7 +1,10 @@
 const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
 const { PORT, ROOT, loadEnv } = require("./server/config");
 const { initDatabase } = require("./server/database");
 const { sendJson } = require("./server/http-utils");
+const { applySecurityHeaders } = require("./server/security-headers");
 const { serveStaticFile } = require("./server/static");
 
 loadEnv();
@@ -15,6 +18,15 @@ const requestHandler = async (req, res) => {
       isDbInitialized = true;
     }
     const url = new URL(req.url, `http://${req.headers.host}`);
+
+    // Serve the OpenAPI JSON spec document (it is data, not a request handler).
+    if (url.pathname === "/api/openapi.json") {
+      const specPath = path.join(ROOT, "api", "openapi.json");
+      if (!fs.existsSync(specPath)) return sendJson(res, 404, { error: "Spec not found" });
+      applySecurityHeaders(res);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      return fs.createReadStream(specPath).pipe(res);
+    }
 
     if (url.pathname.startsWith("/api/")) {
       let endpointName = url.pathname.replace("/api/", "");

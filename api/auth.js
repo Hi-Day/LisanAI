@@ -9,18 +9,13 @@ const {
   registerTenantUser,
   createCsrfToken,
 } = require("../server/auth-service");
-const { initDatabase } = require("../server/database");
+const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson, setCookie } = require("../server/http-utils");
 const { assertRateLimit } = require("../server/rate-limit");
 
-let isDbInitialized = false;
-
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     if (req.method === "GET") {
       const url = new URL(req.url, `http://${req.headers.host}`);

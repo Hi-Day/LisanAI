@@ -1,16 +1,11 @@
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
-const { initDatabase } = require("../server/database");
+const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 const { createApiKey, listApiKeys, revokeApiKey } = require("../server/api-key-service");
 
-let isDbInitialized = false;
-
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });

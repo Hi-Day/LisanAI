@@ -1,15 +1,11 @@
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
-const { getDb, initDatabase } = require("../server/database");
+const { ensureDatabase } = require("../server/bootstrap");
+const { getDb } = require("../server/database");
 const { parseCookies, sendJson } = require("../server/http-utils");
-
-let isDbInitialized = false;
 
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     // Only allow GET requests
     if (req.method !== "GET") {

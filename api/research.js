@@ -1,5 +1,6 @@
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
-const { getDb, initDatabase } = require("../server/database");
+const { ensureDatabase } = require("../server/bootstrap");
+const { getDb } = require("../server/database");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 const {
   compareAiVsHuman,
@@ -13,8 +14,6 @@ const {
   processExpiredApprovals,
 } = require("../server/evaluation/human-approval");
 const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
-
-let isDbInitialized = false;
 
 /**
  * Research API (admin only).
@@ -30,10 +29,7 @@ let isDbInitialized = false;
  */
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });

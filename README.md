@@ -33,17 +33,37 @@ Copy-Item .env.example .env
 
 3. Isi `OPENROUTER_API_KEY` di `.env`.
 
-4. Jalankan server:
+4. Opsional — aktifkan **Trustworthy Assessment Harness** (evidence verification,
+   publication gate, reproducibility, reliability). Tambahkan ke `.env`:
 
-```powershell
-npm start
-```
+   ```powershell
+   HARNESS_EVALUATION=true
+   HARNESS_PROVIDER=openrouter
+   MAX_EVALUATION_RETRIES=1
+   ```
 
-5. Buka:
+   `HARNESS_PROVIDER=mock` memakai evaluator deterministik tanpa memerlukan API key,
+   berguna untuk CI/develop. Lihat `.env.example` untuk semua variabel.
 
-```txt
-http://127.0.0.1:4173
-```
+5. Opsional — aktifkan widget simulasi peran untuk development:
+
+   ```powershell
+   ENABLE_DEMO_SIMULATION=true
+   ```
+
+6. Jalankan server:
+
+   ```powershell
+   npm start
+   ```
+
+7. Buka:
+
+   ```txt
+   http://127.0.0.1:4173
+   ```
+
+   Dokumentasi API publik (Swagger UI): `http://127.0.0.1:4173/api/docs`
 
 ## Data dan Keamanan
 

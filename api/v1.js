@@ -1,9 +1,9 @@
-const { initDatabase, getDb } = require("../server/database");
+const { ensureDatabase } = require("../server/bootstrap");
+const { getDb } = require("../server/database");
 const { readJson, sendJson } = require("../server/http-utils");
 const { authenticateApiKey } = require("../server/api-auth");
 const { generateQuestions, evaluateAnswers, recommendAssessmentConfig } = require("../server/assessment-service");
-
-let isDbInitialized = false;
+const { assertRateLimit } = require("../server/rate-limit");
 
 /**
  * Public REST API (v1) for external systems.
@@ -18,14 +18,14 @@ let isDbInitialized = false;
  */
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     // API key authentication (Bearer token).
     const apiAuth = await authenticateApiKey(req);
     if (!apiAuth) return sendJson(res, 401, { error: "Unauthorized. Sertakan Authorization: Bearer <api_key>" });
+
+    // Rate-limit external API calls per API key to protect token spend.
+    assertRateLimit(`v1:${apiAuth.keyId}`, { limit: 60, windowMs: 60_000 });
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname.replace(/^\/api\/v1/, "");

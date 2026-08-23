@@ -101,15 +101,6 @@ export async function clearDatabase() {
   await postJson("/api/database", { action: "clear-data" }, "Gagal reset database");
 }
 
-export async function generateQuestionsWithAI(config) {
-  const data = await postJson(
-    "/api/assessment",
-    { action: "generate-questions", payload: config },
-    "Gagal generate soal dengan AI"
-  );
-  return data.questions;
-}
-
 /**
  * Stream an AI action from the server via SSE.
  *
@@ -186,15 +177,6 @@ export async function streamAssessmentAction({ action, payload, onChunk, onResul
   return resultData;
 }
 
-export async function improveQuestionsWithAI(config, questions) {
-  const data = await postJson(
-    "/api/assessment",
-    { action: "improve-questions", payload: { config, questions } },
-    "Gagal memperbaiki question set"
-  );
-  return data.questions;
-}
-
 export async function createClassroom(name) {
   const data = await postJson("/api/database", { action: "create-class", payload: { name } }, "Gagal membuat kelas");
   return data.class;
@@ -243,52 +225,6 @@ export async function updateAssessment(assessmentId, payload) {
 
 export async function deleteAssessment(assessmentId) {
   return postJson("/api/database", { action: "delete-assessment", id: assessmentId }, "Gagal menghapus penilaian");
-}
-
-export async function recommendAssessmentConfig(topic, difficulty) {
-  const data = await postJson(
-    "/api/assessment",
-    { action: "recommend-assessment-config", payload: { topic, difficulty } },
-    "Gagal membuat rekomendasi kompetensi dan rubrik"
-  );
-  return data.recommendation;
-}
-
-function sanitizeAssessmentForEvaluation(assessment) {
-  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
-
-  return {
-    ...assessment,
-    questions: assessment.questions.map((question) => ({
-      prompt: question?.prompt || "",
-      focus: question?.focus || "",
-    })),
-  };
-}
-
-export async function evaluateAssessmentWithAI(assessment, answers, studentName, makeSubmission) {
-  const textAnswers = answers.map(a => a.text || "");
-  const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
-  
-  const data = await postJson(
-    "/api/assessment",
-    { action: "evaluate", payload: { assessment: safeAssessment, answers: textAnswers, studentName } },
-    "Gagal menilai jawaban dengan AI"
-  );
-
-  const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => ({
-    ...qs,
-    audio: answers[idx]?.audio || null,
-    duration: answers[idx]?.duration || 0
-  }));
-
-  return makeSubmission({
-    assessment,
-    studentName,
-    finalScore: data.evaluation.finalScore,
-    questionScores: questionScoresWithMetadata,
-    feedback: data.evaluation.feedback,
-  });
 }
 
 export async function getSimulationData() {

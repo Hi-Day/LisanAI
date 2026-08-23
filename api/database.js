@@ -14,20 +14,10 @@ const {
   updateClass,
   updateMembershipStatus,
 } = require("../server/database");
-const {
-  createTenantUser,
-  deleteTenantUser,
-  getSessionUser,
-  listTenantUsers,
-  updateTenantUser,
-  createTenantUsersBatch,
-  SESSION_COOKIE,
-} = require("../server/auth-service");
-const { initDatabase } = require("../server/database");
+const { listTenantUsers, updateTenantUser, createTenantUser, deleteTenantUser, getSessionUser, createTenantUsersBatch, SESSION_COOKIE } = require("../server/auth-service");
+const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 const crypto = require("node:crypto");
-
-let isDbInitialized = false;
 
 function cryptoRandom() {
   return crypto.randomUUID().replace(/-/g, "");
@@ -35,10 +25,7 @@ function cryptoRandom() {
 
 module.exports = async (req, res) => {
   try {
-    if (!isDbInitialized) {
-      await initDatabase();
-      isDbInitialized = true;
-    }
+    await ensureDatabase();
 
     const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
