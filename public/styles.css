@@ -2259,6 +2259,7 @@ body.admin-mode .student-only { display: none !important; }
   border-radius: 0 10px 10px 0;
   background: var(--paper);
 }
+.nav-sub-item[data-nav-view="teacherView"] { color: var(--accent-dark); font-weight: 700; }
 .nav-sub.hidden { display: none; }
 .nav-sub-item {
   width: 100%;

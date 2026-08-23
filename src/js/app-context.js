@@ -227,14 +227,14 @@ export function applyRoleAccess(ctx) {
     navHtml = `
       <button class="nav-button" data-view="dashboardView"><span aria-hidden="true">▦</span> Dashboard</button>
       <div class="nav-group">
-        <button class="nav-button" data-view="assessmentListView" aria-haspopup="true" aria-expanded="false">
+        <button class="nav-button" data-view="assessmentListView" aria-haspopup="true" aria-expanded="true">
           <span aria-hidden="true">⌘</span> Penilaian <span class="nav-caret" aria-hidden="true">▾</span>
         </button>
-        <div class="nav-sub hidden">
+        <div class="nav-sub nav-group-open">
+          <button class="nav-sub-item" data-nav-view="teacherView">✚ Buat Penilaian</button>
           <button class="nav-sub-item" data-nav-assessment-tab="all">Semua Penilaian</button>
           <button class="nav-sub-item" data-nav-assessment-tab="draft">Draft</button>
           <button class="nav-sub-item" data-nav-assessment-tab="published">Published</button>
-          <button class="nav-sub-item" data-nav-view="teacherView">Buat Penilaian</button>
         </div>
       </div>
       <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
@@ -263,11 +263,13 @@ export function applyRoleAccess(ctx) {
 
   // Penilaian submenu: expand/collapse + tab filtering.
   const penulisGroup = els.mainNav.querySelector(".nav-group");
+  const penulisSub = penulisGroup?.querySelector(".nav-sub");
   penulisGroup?.querySelector(".nav-button")?.addEventListener("click", (e) => {
     e.preventDefault();
-    const open = !penulisGroup.classList.contains("open");
-    penulisGroup.classList.toggle("open", open);
-    penulisGroup.querySelector(".nav-button")?.setAttribute("aria-expanded", String(open));
+    const collapsed = penulisSub?.classList.contains("hidden") ?? true;
+    penulisGroup.classList.toggle("open", collapsed);
+    penulisSub?.classList.toggle("hidden", !collapsed);
+    penulisGroup.querySelector(".nav-button")?.setAttribute("aria-expanded", String(collapsed));
   });
   els.mainNav.querySelectorAll("[data-nav-assessment-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {

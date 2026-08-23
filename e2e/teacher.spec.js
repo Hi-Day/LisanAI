@@ -7,6 +7,10 @@ test.describe("Teacher assessment flow", () => {
     await page.fill("#loginPassword", "password123");
     await page.click("#loginForm button[type='submit']");
     await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
+    // PRD UX v1.0: Dashboard is the teacher landing view; open the wizard
+    // through the "Buat Penilaian" entry in the Penilaian nav group.
+    await page.click("#mainNav .nav-sub-item[data-nav-view='teacherView']");
+    await expect(page.locator("#teacherView")).toBeVisible();
   });
 
   test("teacher sees the assessment wizard with class options", async ({ page }) => {

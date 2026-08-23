@@ -49,6 +49,11 @@ export function bindDashboardEvents(ctx) {
     renderAssessmentsWithTab(ctx);
   });
 
+  els.assessmentListView?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-nav-view]");
+    if (btn) switchView(ctx, btn.dataset.navView);
+  });
+
   els.recentAssessmentsList?.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-open-detail]");
     if (!btn) return;
