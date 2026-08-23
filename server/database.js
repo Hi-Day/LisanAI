@@ -174,6 +174,20 @@ async function getVisibleSubmissions(database, auth) {
     );
   }
 
+  if (auth.user.role === "teacher") {
+    // Guru hanya melihat siswa di kelasnya sendiri (bukan seluruh tenant).
+    return database.all(
+      `SELECT s.payload
+       FROM submissions s
+       JOIN assessments a ON a.id = s.assessment_id
+       WHERE s.tenant_id = ? AND a.tenant_id = ? AND a.teacher_id = ?
+       ORDER BY datetime(s.submitted_at) ASC`,
+      auth.tenant.id,
+      auth.tenant.id,
+      auth.user.id
+    );
+  }
+
   return database.all(
     "SELECT payload FROM submissions WHERE tenant_id = ? ORDER BY datetime(submitted_at) ASC",
     auth.tenant.id

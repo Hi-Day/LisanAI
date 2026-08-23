@@ -408,6 +408,40 @@ test("teacher can correct submissions in their class but not in other classes", 
   assert.match(resCorrectionForbidden.body.error, /Guru hanya boleh mengoreksi kelas miliknya/);
 });
 
+test("teacher state only exposes submissions from assessments they own (no cross-teacher student leak)", async () => {
+  const { tenant, student, teacher } = context;
+  const { getState } = require("../server/database");
+  const teacherAuth = { tenant, user: teacher };
+
+  const otherTeacher = await createTenantUser(tenant.id, {
+    name: "Guru Leak Test",
+    email: "guru.leak.test@example.com",
+    password: "password123",
+    role: "teacher",
+  });
+  const otherClass = {
+    id: "class-leak",
+    name: "Kelas Leak",
+    joinCode: "LEAKTEST1",
+    createdAt: new Date().toISOString(),
+  };
+  await createClass(tenant.id, otherTeacher.id, otherClass);
+  const otherAssessment = createAssessment("assessment-leak", otherClass.id);
+  await saveAssessment({ tenant, user: otherTeacher }, otherAssessment);
+  await requestJoinClass(tenant.id, student.id, otherClass.joinCode, {
+    id: "member-leak",
+    requestedAt: new Date().toISOString(),
+  });
+  await approveMembership(tenant.id, otherTeacher.id, "member-leak");
+  await saveSubmission(tenant.id, student.id, createSubmission(otherAssessment.id, "sub-leak-1"));
+
+  const myState = await getState(teacherAuth);
+  assert.equal(myState.submissions.some((s) => s.id === "sub-leak-1"), false, "guru tidak boleh melihat submission guru lain");
+
+  const otherState = await getState({ tenant, user: otherTeacher });
+  assert.ok(otherState.submissions.some((s) => s.id === "sub-leak-1"), "pemilik assessment tetap melihat submission-nya");
+});
+
 test("observability API endpoints enforce proper role-based authorization", async () => {
   const { admin, student } = context;
 
