@@ -5,7 +5,7 @@ import {
 } from "./api.js";
 import { renderMonitoring, renderStudentHistory, showResult } from "./render.js";
 import { showToast } from "./toast.js";
-import { renderCurrentState } from "./app-context.js";
+import { renderCurrentState, switchView } from "./app-context.js";
 
 /**
  * Monitoring & assessment management: submission review, score override,
@@ -253,9 +253,10 @@ export function bindMonitoringEvents(ctx) {
         allowRetakes: !!assessment.allowRetakes,
       };
       ctx.pendingQuestions = assessment.questions;
-      const { renderQuestionEditor, goToWizardStep } = await import("./assessment-wizard.js");
+      const { goToWizardStep, renderQuestionEditor } = await import("./assessment-wizard.js");
       renderQuestionEditor(ctx);
       goToWizardStep(ctx, 2);
+      await switchView(ctx, "teacherView");
       els.questionEditor.scrollIntoView({ behavior: "smooth" });
     } else if (event.target.classList.contains("download-grades-assessment")) {
       downloadAssessmentGrades(ctx, assessment);
