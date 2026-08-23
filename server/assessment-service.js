@@ -1,4 +1,5 @@
 const { callOpenRouter, streamOpenRouter } = require("./openrouter");
+const { parseRubricText } = require("./harness/plugins/rubric");
 
 // ---------------------------------------------------------------------------
 // Single-substance question guard
@@ -83,11 +84,165 @@ function stripToSingleSubstance(prompt) {
 }
 
 // ---------------------------------------------------------------------------
+// Question ↔ Rubric alignment
+// ---------------------------------------------------------------------------
+// Masalah: soal "sebutkan" dinilai terhadap SEMUA kriteria rubrik, termasuk
+// kriteria yang butuh analisis/sebab-akibat yang tidak pernah diminta soal,
+// sehingga jawaban yang benar tetap mendapat nilai rendah.
+//
+// Mekanisme ini memastikan tiap soal dianotasi dengan SUBSET kriteria rubrik
+// yang benar-benar diukur oleh soal itu (server-side, deterministik, saat
+// generasi). Seluruh kriteria rubrik wajib tercakup oleh minimal satu soal.
+// Evaluator memakai anotasi yang sama sehingga skor soal dan skor akhir hanya
+// dihitung dari kriteria yang memang diuji oleh soal.
+
+/** Parse rubric teacher menjadi daftar kriteria terstruktur. */
+function parseRubricCriteria(payload) {
+  const rubric = payload && payload.rubric;
+  if (rubric && Array.isArray(rubric.criteria)) {
+    return rubric.criteria
+      .map((c, i) => ({
+        id: String(c.id || c.criterionId || `k${i + 1}`),
+        name: String(c.name || c.label || c.id || `Kriteria ${i + 1}`).trim(),
+        weight: Number(c.weight || 0),
+      }))
+      .filter((c) => c.name);
+  }
+  if (Array.isArray(rubric)) {
+    return rubric
+      .map((c, i) => ({
+        id: String(c.id || c.criterionId || `k${i + 1}`),
+        name: String(c.name || c.label || c.id || `Kriteria ${i + 1}`).trim(),
+        weight: Number(c.weight || 0),
+      }))
+      .filter((c) => c.name);
+  }
+  if (typeof rubric === "string" && rubric.trim()) {
+    return parseRubricText(rubric).map((c) => ({
+      id: c.id,
+      name: c.name,
+      weight: Number(c.weight || 0),
+    }));
+  }
+  return [];
+}
+
+function normalizeCriterionName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Cocokkan nama kriteria yang ditulis model/soal dengan kriteria rubrik. */
+function matchCriterionId(candidate, criteria) {
+  const target = normalizeCriterionName(candidate);
+  if (!target) return null;
+  for (const c of criteria) {
+    const name = normalizeCriterionName(c.name);
+    if (name === target || name.includes(target) || target.includes(name)) return c.id;
+  }
+  return null;
+}
+
+/** Bobot overlap kata antara prompt/fokus dan nama kriteria. */
+function criterionOverlap(a, b) {
+  const tokensA = new Set(normalizeCriterionName(a).split(" ").filter((t) => t.length > 2));
+  const tokensB = new Set(normalizeCriterionName(b).split(" ").filter((t) => t.length > 2));
+  let shared = 0;
+  tokensA.forEach((t) => {
+    if (tokensB.has(t)) shared += 1;
+  });
+  return shared;
+}
+
+/** Pilih kriteria terdekat dgn prompt/fokus; seri → bobot & id terkecil. */
+function bestFittedCriterion(prompt, focus, outcome, criteria) {
+  const source = `${prompt || ""} ${focus || ""} ${outcome || ""}`;
+  let best = null;
+  let bestScore = -1;
+  for (const c of criteria) {
+    const score = criterionOverlap(source, c.name);
+    if (
+      score > bestScore ||
+      (score === bestScore &&
+        best &&
+        (Number(c.weight) > Number(best.weight) ||
+          (Number(c.weight) === Number(best.weight) && String(c.id).localeCompare(String(best.id)) < 0)))
+    ) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  if (!best) {
+    criteria = criteria.slice().sort(
+      (a, b) => Number(b.weight) - Number(a.weight) || String(a.id).localeCompare(String(b.id))
+    );
+    best = criteria[0];
+  }
+  return best;
+}
+
+/**
+ * Enforce alignment: setiap soal hanya boleh memetakan ke kriteria rubrik
+ * yang benar-benar diukur soal tsb; seluruh kriteria wajib tercakup.
+ * Mengembalikan soal dengan field `criteria` = [{ id, name }].
+ */
+function enforceRubricAlignment(questions, payload) {
+  const criteria = parseRubricCriteria(payload) || [];
+  if (criteria.length === 0) return questions;
+  const byId = new Map(criteria.map((c) => [c.id, c.name]));
+
+  const aligned = (questions || []).map((question) => {
+    if (!question) return question;
+    if (!String(question.prompt || "").trim()) return { ...question, criteria: [] };
+    const declared = Array.isArray(question.criteria) ? question.criteria.map(String) : [];
+    const ids = [];
+    for (const d of declared) {
+      const id = matchCriterionId(d, criteria);
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    if (ids.length === 0) {
+      const fit = bestFittedCriterion(question.prompt, question.focus, question.outcome, criteria);
+      if (fit) ids.push(fit.id);
+    }
+    return { ...question, criteria: ids };
+  });
+
+  // Coverage: kriteria yang belum dipetakan oleh model diberikan ke soal yang
+// paling cocok secara KONTEN (overlap kata prompt/fokus/outcome vs nama
+// kriteria). Bila tidak ada soal yang cocok, kriteria TIDAK dipaksa menempel
+// ke soal sebutkan — lebih baik kriteria dikeluarkan dari skor + diperingatkan
+// di UI daripada menghukum siswa atas kompetensi yang tidak pernah ditanyakan
+// soal.
+const covered = new Set();
+  aligned.forEach((q) => (q.criteria || []).forEach((id) => covered.add(id)));
+  for (const c of criteria) {
+    if (covered.has(c.id)) continue;
+    const target = aligned
+      .filter((q) => String(q.prompt || "").trim())
+      .map((q) => ({ q, score: criterionOverlap(`${q.prompt} ${q.focus || ""} ${q.outcome || ""}`, c.name) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || String(a.q.id).localeCompare(String(b.q.id)))[0];
+    if (!target) continue; // tidak cocok → biarkan terbuka; UI menampilkan peringatan
+    target.q.criteria.push(c.id);
+    covered.add(c.id);
+  }
+
+  return aligned.map((q) => ({
+    ...q,
+    criteria: (q.criteria || []).map((id) => ({ id, name: byId.get(id) || id })),
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Request builders
 // ---------------------------------------------------------------------------
 
 function buildGenerateQuestionsMessages(payload) {
   const count = Number(payload.count || 5);
+  const rubricCriteria = parseRubricCriteria(payload) || [];
   return [
     {
       role: "user",
@@ -96,6 +251,17 @@ function buildGenerateQuestionsMessages(payload) {
         topik: payload.topic,
         learning_outcome: payload.outcomes,
         rubrik: payload.rubric,
+        kriteria_rubrik_yang_tersedia: rubricCriteria.map((c) => ({
+          id: c.id,
+          nama: c.name,
+          bobot: c.weight,
+        })),
+        aturan_penyelarasan_soal_dengan_rubrik: [
+          "Tulis setiap soal agar isi yang ditanyakan persis dapat dinilai oleh SUBSET kriteria rubrik (field criteria).",
+          "Isi field criteria dengan nama kriteria yang BENAR-BENAR diuji oleh soal itu. Contoh: soal bertipe 'sebutkan/identifikasi' HANYA boleh memetakan kriteria yang terukur dari penyebutan (mis. ketepatan konsep) dan DILARANG memetakan kriteria yang butuh penjelasan, sebab-akibat, analisis, atau penerapan kecuali soal benar-benar memintanya.",
+          "Soal tidak boleh menanyakan hal yang tidak diukur oleh kriteria mana pun.",
+          "Seluruh kriteria dalam daftar kriteria_rubrik_yang_tersedia wajib muncul di setidaknya satu soal.",
+        ].join(". "),
         tingkat_kesulitan: payload.difficulty,
         contoh_soal_opsional: payload.examples || "",
         aturan_penulisan_soal: SINGLE_SUBSTANCE_RULES,
@@ -106,7 +272,7 @@ function buildGenerateQuestionsMessages(payload) {
 }
 
 const GENERATE_QUESTIONS_SCHEMA =
-  'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah questions harus sesuai jumlah_soal.';
+  'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"...","criteria":["nama_kriteria1","nama_kriteria2"]}]}. Field criteria memakai nama kriteria rubrik yang tersedia; gabungan kriteria semua soal wajib mencakup seluruh rubrik. Jumlah questions harus sesuai jumlah_soal.';
 
 function buildRepairMessages(payload, prompts) {
   return [
@@ -254,6 +420,7 @@ function normalizeQuestion(payload) {
     outcome: String(question.outcome || payload.outcomes || "").trim(),
     rubric: String(question.rubric || payload.rubric || "").trim(),
     ideal: String(question.ideal || "Jawaban kuat sesuai rubrik guru.").trim(),
+    criteria: Array.isArray(question.criteria) ? question.criteria.map(String) : [],
   });
 }
 
@@ -292,7 +459,8 @@ async function generateQuestions(payload) {
 
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = result.questions.slice(0, count).map(normalizeQuestion(payload));
-  return enforceSingleSubstance(questions, payload);
+  const singleSubstance = await enforceSingleSubstance(questions, payload);
+  return enforceRubricAlignment(singleSubstance, payload);
 }
 
 async function recommendAssessmentConfig(payload) {
@@ -348,7 +516,8 @@ async function improveQuestionSet(payload) {
 
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = result.questions.map(normalizeQuestion(payload.config || {}));
-  return enforceSingleSubstance(questions, payload.config || payload);
+  const singleSubstance = await enforceSingleSubstance(questions, payload.config || payload);
+  return enforceRubricAlignment(singleSubstance, payload.config || payload);
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +550,8 @@ async function streamGenerateQuestions(payload, onChunk) {
   );
   if (!Array.isArray(parsed.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = parsed.questions.slice(0, count).map(normalizeQuestion(payload));
-  return enforceSingleSubstance(questions, payload);
+  const singleSubstance = await enforceSingleSubstance(questions, payload);
+  return enforceRubricAlignment(singleSubstance, payload);
 }
 
 async function streamRecommendAssessmentConfig(payload, onChunk) {
@@ -425,15 +595,18 @@ async function streamImproveQuestionSet(payload, onChunk) {
   );
   if (!Array.isArray(parsed.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = parsed.questions.map(normalizeQuestion(payload.config || {}));
-  return enforceSingleSubstance(questions, payload.config || payload);
+  const singleSubstance = await enforceSingleSubstance(questions, payload.config || payload);
+  return enforceRubricAlignment(singleSubstance, payload.config || payload);
 }
 
 module.exports = {
+  enforceRubricAlignment,
   enforceSingleSubstance,
   evaluateAnswers,
   generateQuestions,
   improveQuestionSet,
   isMultiPartPrompt,
+  parseRubricCriteria,
   recommendAssessmentConfig,
   streamEvaluateAnswers,
   streamGenerateQuestions,

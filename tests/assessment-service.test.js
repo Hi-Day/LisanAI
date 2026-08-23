@@ -221,3 +221,100 @@ test("generateQuestions repairs bertingkat questions into single substance", asy
   assert.equal(assessmentService.isMultiPartPrompt(questions[0].prompt), false);
   assert.equal(questions[0].prompt, "Jelaskan X.");
 });
+
+test("enforceRubricAlignment tags each soal with the criteria it actually measures and covers the rubric", () => {
+  const rubric = "Ketepatan konsep 40%, hubungan sebab-akibat 25%, contoh relevan 20%, kejelasan komunikasi 15%";
+  const questions = [
+    {
+      prompt: "Sebutkan tiga contoh komponen biotik yang ada di dalam ekosistem sawah.",
+      focus: "komponen biotik",
+      ideal: "",
+      criteria: ["Ketepatan konsep", "Contoh relevan"],
+    },
+    {
+      prompt: "Jelaskan mengapa perubahan cuaca mempengaruhi populasi tikus di sawah.",
+      focus: "hubungan sebab-akibat",
+      ideal: "",
+    },
+  ];
+
+  const aligned = assessmentService.enforceRubricAlignment(questions, {
+    rubric,
+    outcomes: "Siswa menganalisis ekosistem",
+  });
+
+  // Kriteria yang benar-benar cocok dgn konten soal harus tercakup.
+  const covered = new Set(aligned.flatMap((q) => q.criteria.map((c) => c.id)));
+  assert.ok(covered.has("ketepatan_konsep"), "ketepatan konsep harus tercakup");
+  assert.ok(covered.has("contoh_relevan"), "contoh relevan harus tercakup");
+  assert.ok(covered.has("hubungan_sebab_akibat"), "sebab-akibat harus tercakup oleh soal 'mengapa'");
+
+  // "Kejelasan komunikasi" tidak punya soal yang cocok → TIDAK dipaksa menempel
+  // ke soal sebutkan (biarkan terbuka untuk peringatan UI, bukan menghukum
+  // siswa atas kriteria yang tidak ditanyakan).
+  assert.ok(
+    !covered.has("kejelasan_komunikasi"),
+    "kriteria yang tidak cocok dgn soal manapun tidak boleh dipaksakan ke soal sebutkan"
+  );
+
+  // Setiap soal punya mapping non-kosong yg valid terhadap rubrik.
+  const allNames = new Set(parseRubricTextForTest(rubric).map((c) => c.name));
+  for (const q of aligned) {
+    assert.ok(q.criteria.length > 0, "setiap soal harus memetakan minimal satu kriteria");
+    for (const c of q.criteria) {
+      assert.ok(c.id, "criteria wajib punya id");
+      assert.ok(c.name, "criteria wajib punya nama");
+      assert.ok([...allNames].some((n) => n.toLowerCase().includes(c.name.toLowerCase())), `criteria ${c.name} harus dari rubrik`);
+    }
+  }
+
+  // Soal "sebutkan" tidak boleh dinilai terhadap kriteria yang butuh analisis.
+  const q1 = aligned[0].criteria.map((c) => c.name.toLowerCase()).join(" | ");
+  assert.ok(
+    !q1.includes("sebab-akibat"),
+    "soal sebutkan tidak boleh memetakan kriteria sebab-akibat: " + q1
+  );
+});
+
+function parseRubricTextFor(text) {
+  const { parseRubricText } = require("../server/harness/plugins/rubric");
+  return parseRubricText(text);
+}
+
+function parseRubricTextForTest(text) {
+  return parseRubricTextFor(text);
+}
+
+test("generateQuestions preserves the model's criteria mapping through enforcement", async () => {
+  mockOpenRouter({
+    questions: [
+      {
+        prompt: "Sebutkan tiga contoh komponen biotik dalam ekosistem sawah.",
+        focus: "biotik",
+        ideal: "tikus, ular, padi",
+        criteria: ["Ketepatan konsep"],
+      },
+      {
+        prompt: "Jelaskan bagaimana perubahan cuaca dapat mempengaruhi ekosistem sawah.",
+        focus: "sebab-akibat",
+        ideal: "penjelasan logis",
+        criteria: ["Hubungan sebab-akibat"],
+      },
+    ],
+  });
+
+  const questions = await assessmentService.generateQuestions({
+    topic: "Ekosistem",
+    rubric: "Ketepatan konsep 40%, Hubungan sebab-akibat 25%, Kejelasan 35%",
+    count: 2,
+    tenantId: "tenant-1",
+    userId: "user-1",
+  });
+
+  assert.equal(questions.length, 2);
+  assert.ok(Array.isArray(questions[0].criteria) && questions[0].criteria.length > 0);
+  assert.ok(
+    questions[0].criteria.some((c) => String(c.name).toLowerCase().includes("ketepatan")),
+    "kriteria model harus dipertahankan"
+  );
+});

@@ -13,6 +13,7 @@ const {
   APPROVAL_WINDOW_MS,
   queueForApproval,
   approveRun,
+  markHumanReviewed,
   processExpiredApprovals,
   getApproval,
   listApprovals,
@@ -164,4 +165,86 @@ test("persistEvaluationTrace queues a run for approval automatically", async () 
   // must have been queued.
   const approval = await getApproval("run-persist-88");
   assert.ok(!approval || approval.approval_status === "pending");
+});
+
+test("markHumanReviewed moves a pending run to human_reviewed", async () => {
+  await insertRun("run-mark-reviewed-45", 45);
+  await queueForApproval({ runId: "run-mark-reviewed-45", tenantId: "t1", finalScore: 45 });
+
+  const result = await markHumanReviewed({ runId: "run-mark-reviewed-45", reviewerId: "guru-1" });
+  assert.equal(result.approval_status, "human_reviewed");
+  assert.equal(result.approved_by, "guru-1");
+
+  const row = await getApproval("run-mark-reviewed-45");
+  assert.equal(row.approval_status, "human_reviewed");
+});
+
+test("markHumanReviewed does not touch an already-approved run", async () => {
+  await insertRun("run-mark-approved-7", 70);
+  await queueForApproval({ runId: "run-mark-approved-7", tenantId: "t1", finalScore: 70 });
+  await approveRun({ runId: "run-mark-approved-7", reviewerId: "guru-1" });
+
+  await markHumanReviewed({ runId: "run-mark-approved-7", reviewerId: "guru-2" });
+  const row = await getApproval("run-mark-approved-7");
+  assert.equal(row.approval_status, "approved");
+});
+
+test("processExpiredApprovals never overwrites an existing manual human score", async () => {
+  // Teacher saved a manual score long ago that differs from the AI score.
+  await insertRun("run-manual-guard-3", 30, { createdAt: isoDaysAgo(8), tenantId: "t1" });
+  await queueForApproval({ runId: "run-manual-guard-3", tenantId: "t1", finalScore: 30 });
+  await getDb().run(
+    "UPDATE human_approvals SET deadline_at = ? WHERE run_id = ?",
+    isoDaysAgo(1),
+    "run-manual-guard-3"
+  );
+  await getDb().run(
+    `INSERT INTO evaluation_human_scores (run_id, human_score, human_feedback, reviewed_at, reviewer_id)
+     VALUES (?, 85, 'Koreksi guru: skor AI 30 -> manusia 85', ?, ?)`,
+    "run-manual-guard-3",
+    new Date().toISOString(),
+    "guru-1"
+  );
+
+  const count = await processExpiredApprovals();
+  // The run may have been promoted to human_reviewed, but must NOT be auto_approved.
+  const after = await getApproval("run-manual-guard-3");
+  assert.notEqual(after.approval_status, "auto_approved");
+  assert.equal(after.human_score, 85, "manual human score must survive the sweep");
+});
+
+test("processExpiredApprovals still auto-approves pending runs with no human score", async () => {
+  await insertRun("run-no-human-9", 60, { createdAt: isoDaysAgo(9), tenantId: "t1" });
+  await queueForApproval({ runId: "run-no-human-9", tenantId: "t1", finalScore: 60 });
+  await getDb().run(
+    "UPDATE human_approvals SET deadline_at = ? WHERE run_id = ?",
+    isoDaysAgo(1),
+    "run-no-human-9"
+  );
+
+  await processExpiredApprovals();
+  const row = await getApproval("run-no-human-9");
+  assert.equal(row.approval_status, "auto_approved");
+  assert.equal(row.human_score, 60, "AI score auto-promoted for untouched runs");
+});
+
+test("manual human score flows into AI-vs-human research metrics", async () => {
+  const { compareAiVsHuman } = require("../server/evaluation/research");
+  await insertRun("run-metrics-manual-8", 20, { tenantId: "t-metrics" });
+  await queueForApproval({ runId: "run-metrics-manual-8", tenantId: "t-metrics", finalScore: 20 });
+  await getDb().run(
+    `INSERT INTO evaluation_human_scores (run_id, human_score, human_feedback, reviewed_at, reviewer_id)
+     VALUES (?, 92, 'Koreksi guru', ?, 'guru-1')`,
+    "run-metrics-manual-8",
+    new Date().toISOString()
+  );
+
+  const data = await compareAiVsHuman(null, "t-metrics");
+  const pair = data.rows.find((r) => r.runId === "run-metrics-manual-8");
+  assert.ok(pair, "AI-vs-human pair present");
+  assert.equal(pair.aiScore, 20);
+  assert.equal(pair.humanScore, 92);
+  assert.ok(data.n >= 1);
+  assert.ok(typeof data.metrics.validity.pearson === "number");
+  assert.ok(typeof data.metrics.validity.mae === "number");
 });

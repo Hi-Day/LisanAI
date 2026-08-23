@@ -108,9 +108,55 @@ function mean(xs) {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
+/**
+ * Record a teacher's corrected final score as the human score for a harness
+ * evaluation run (so it counts in AI-vs-human research metrics) and mark the
+ * approval as `human_reviewed` so the 7-day auto-approval sweep can never
+ * overwrite the correction with the AI score.
+ *
+ * Triggers (handled by the caller):
+ *  - teacher accepted a student complaint and re-scored the submission;
+ *  - teacher corrected the score directly (manual override).
+ *
+ * Returns { runId, humanScore, approvalStatus } or null when there is no
+ * eligible run or the score did not actually change.
+ */
+async function recordTeacherScoreChange({ runId, finalScore, tenantId, reviewerId, reviewNote }) {
+  const { markHumanReviewed } = require("./human-approval");
+  if (!runId || finalScore === undefined || finalScore === null) return null;
+
+  const db = getDb();
+  const run = await db.get(
+    "SELECT run_id, final_score FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
+    runId,
+    tenantId || null
+  );
+  if (!run || run.final_score === undefined || run.final_score === null) return null;
+  if (Number(run.final_score) === Number(finalScore)) return null;
+
+  const previous = Number(run.final_score);
+  const note = reviewNote ? ` ${reviewNote}` : "";
+  const feedback = `Koreksi guru: skor AI ${previous} → manusia ${finalScore}.${note}`.slice(0, 2000);
+
+  await saveHumanScore({
+    runId,
+    humanScore: finalScore,
+    humanFeedback: feedback,
+    reviewerId,
+  });
+  const approval = await markHumanReviewed({ runId, reviewerId });
+  return {
+    runId,
+    previousScore: previous,
+    humanScore: Number(finalScore),
+    approvalStatus: (approval && approval.approval_status) || "human_reviewed",
+  };
+}
+
 module.exports = {
   compareAiVsHuman,
   compareBaselineVsHarness,
   saveHumanScore,
+  recordTeacherScoreChange,
   rubricCompliance,
 };

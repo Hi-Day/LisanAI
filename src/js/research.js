@@ -267,6 +267,8 @@ function approvalBadge(status, humanScore) {
   const map = {
     approved: { label: "Approved", cls: "badge-ok" },
     auto_approved: { label: "Auto ✓", cls: "badge-warn", title: "Otomatis dikonfirmasi setelah 7 hari tanpa aksi" },
+    approved_human_correction: { label: "Dikoreksi Manusia", cls: "badge-ok", title: "Skor diperbaiki oleh manusia — nilai manusia dipakai, bukan skor AI" },
+    human_reviewed: { label: "Ditinjau Manusia", cls: "badge-ok", title: "Ditinjau/dikoreksi oleh manusia — tidak lagi memakai skor AI" },
     pending: { label: "Pending", cls: "badge-muted", title: "Menunggu tinjauan guru (jendela 7 hari)" },
     rejected: { label: "Rejected", cls: "badge-bad" },
   };

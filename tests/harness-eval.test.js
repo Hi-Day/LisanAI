@@ -9,7 +9,7 @@ process.env.ENABLE_DEMO_SIMULATION = "false";
 process.env.HARNESS_PROVIDER = "mock";
 
 const { initDatabase, getDb } = require("../server/database");
-const { evaluateWithHarness, structuredRubric, splitFeedback, buildQuestionScores } = require("../server/harness/harness-evaluator");
+const { evaluateWithHarness, structuredRubric, splitFeedback, buildQuestionScores, calculateAlignedFinalScore } = require("../server/harness/harness-evaluator");
 const { persistEvaluationTrace } = require("../server/evaluation/trace-persister");
 const { createHarness } = require("../server/harness");
 const { MockProvider } = require("../server/ai/mock-provider");
@@ -269,4 +269,96 @@ test("trace persists even when the assessmentId has no assessment row (FK-safe)"
   const db = getDb();
   const runRow = await db.get("SELECT * FROM evaluation_runs WHERE run_id = ?", result.evaluationRunId);
   assert.ok(runRow, "run harus tersimpan walaupun assessmentId tidak ada di DB");
+});
+
+test("buildQuestionScores only applies the rubric criteria a soal actually measures (alignment)", () => {
+  const rubric = {
+    id: "r",
+    criteria: [
+      { id: "ketepatan_konsep", name: "Ketepatan konsep", weight: 0.4 },
+      { id: "sebab_akibat", name: "Hubungan sebab-akibat", weight: 0.25 },
+      { id: "contoh_relevan", name: "Contoh relevan", weight: 0.2 },
+      { id: "kejelasan", name: "Kejelasan komunikasi", weight: 0.15 },
+    ],
+  };
+  const criteria = [
+    { criterionId: "ketepatan_konsep", score: 90, evidence: [{ text: "tikus" }], rationale: "Benar menyebut tiga komponen." },
+    { criterionId: "sebab_akibat", score: 10, evidence: [], rationale: "Tidak menjelaskan hubungan sebab-akibat." },
+    { criterionId: "contoh_relevan", score: 80, evidence: [{ text: "padi" }], rationale: "Contoh relevan." },
+    { criterionId: "kejelasan", score: 60, evidence: [{ text: "tikus" }], rationale: "Cukup jelas." },
+  ];
+
+  // Soal "sebutkan" hanya memetakan kriteria yang terukur dari penyebutan.
+  const questions = [
+    {
+      prompt: "Sebutkan tiga contoh komponen biotik dalam ekosistem sawah.",
+      criteria: [
+        { id: "ketepatan_konsep", name: "Ketepatan konsep" },
+        { id: "contoh_relevan", name: "Contoh relevan" },
+      ],
+    },
+  ];
+  const qs = buildQuestionScores(questions, ["tikus ular padi"], criteria, rubric);
+
+  // Skor soal = agregat berbobot hanya atas 2 kriteria yg dipetakan (90*0.4/0.6 + 80*0.2/0.6 ≈ 86.7).
+  assert.ok(Math.abs(qs[0].score - 86.67) < 0.1);
+  assert.deepEqual(new Set(qs[0].criterionIds), new Set(["ketepatan_konsep", "contoh_relevan"]));
+  assert.ok(
+    qs[0].gaps.every((g) => !g.toLowerCase().includes("sebab-akibat")),
+    "gap dari kriteria yang tidak ditanyakan soal tidak boleh muncul"
+  );
+
+  // Tanpa mapping (soal manual/lama) → semua kriteria berlaku (perilaku legacy).
+  const legacy = buildQuestionScores(
+    [{ prompt: "Sebutkan komponen biotik" }],
+    ["tikus"],
+    criteria,
+    rubric
+  );
+  assert.equal(legacy[0].criterionIds.length, 4);
+});
+
+test("calculateAlignedFinalScore excludes rubric criteria that no soal asks and renormalizes", () => {
+  const rubric = {
+    id: "r",
+    criteria: [
+      { id: "ketepatan_konsep", name: "Ketepatan konsep", weight: 0.4 },
+      { id: "sebab_akibat", name: "Hubungan sebab-akibat", weight: 0.25 },
+      { id: "kejelasan", name: "Kejelasan komunikasi", weight: 0.35 },
+    ],
+  };
+  const criteriaEvals = [
+    { criterionId: "ketepatan_konsep", score: 90 },
+    { criterionId: "sebab_akibat", score: 10 }, // dihukum, padahal tidak ada soal menanyakan ini
+    { criterionId: "kejelasan", score: 80 },
+  ];
+  const questions = [
+    {
+      prompt: "Sebutkan tiga contoh komponen biotik dalam ekosistem sawah.",
+      criteria: [{ id: "ketepatan_konsep", name: "Ketepatan konsep" }],
+    },
+    {
+      prompt: "Jelaskan penyebab perubahan populasi tikus.",
+      criteria: [
+        { id: "ketepatan_konsep", name: "Ketepatan konsep" },
+        { id: "kejelasan", name: "Kejelasan komunikasi" },
+      ],
+    },
+  ];
+
+  const aligned = calculateAlignedFinalScore(criteriaEvals, rubric, questions);
+  assert.ok(aligned, "harus ada hasil teraligned");
+  assert.ok(aligned.excludedCriterionIds.includes("sebab_akibat"), "kriteria yang tidak diukur soal harus dikeluarkan");
+  // 90*0.4/0.75 + 80*0.35/0.75 = 48 + 37.33 = 85.33
+  assert.equal(aligned.finalScore, Math.round(48 + 37.33));
+});
+
+test("calculateAlignedFinalScore falls back to null when no soal declares mapping", () => {
+  const rubric = { id: "r", criteria: [{ id: "c1", name: "C1", weight: 1 }] };
+  const aligned = calculateAlignedFinalScore(
+    [{ criterionId: "c1", score: 75 }],
+    rubric,
+    [{ prompt: "Soal tanpa mapping" }]
+  );
+  assert.equal(aligned, null, "tanpa mapping harus memakai agregat mentah (legacy)");
 });

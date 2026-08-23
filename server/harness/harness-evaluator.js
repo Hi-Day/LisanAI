@@ -73,11 +73,15 @@ async function evaluateWithHarness(payload) {
     throw error;
   }
 
-  const questionScores = buildQuestionScores(questions, answers, criteria);
+  const questionScores = buildQuestionScores(questions, answers, criteria, rubric);
 
+  // Question ↔ Rubrik alignment: skor akhir hanya dihitung dari kriteria yang
+  // benar-benar diukur oleh soal (deterministik, server-side). Tanpa mapping
+  // apa pun, memakai agregat mentah harness (perilaku lama).
+  const aligned = calculateAlignedFinalScore(criteria, rubric, questions);
   return {
-    finalScore: Math.round(result.finalScore),
-    feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${Math.round(result.finalScore)} dari 100.`,
+    finalScore: aligned ? aligned.finalScore : Math.round(result.finalScore),
+    feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${aligned ? aligned.finalScore : Math.round(result.finalScore)} dari 100.`,
     questionScores,
     published: result.published !== false && status !== "FAIL",
     requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
@@ -88,6 +92,10 @@ async function evaluateWithHarness(payload) {
     verification,
     versioning: result.versioning,
     reliability: result.reliability,
+    rubricAlignment:
+      aligned && aligned.excludedCriterionIds.length > 0
+        ? { active: true, excludedCriterionIds: aligned.excludedCriterionIds }
+        : null,
   };
 }
 
@@ -105,11 +113,18 @@ function clamp01(score) {
  * the question's index. If a criterion has no answerIndex, it is treated as
  * applicable to every question (assessment-level criterion).
  *
- * Partial applicability: a question may map to only a subset of criteria. The
- * question score is the weighted aggregate over its applicable criteria, with
- * weights renormalized within the subset so the result stays on the 0–100 scale.
+ * Question ↔ Rubric alignment (P0): a question MAY declare which rubric
+ * criteria it actually measures (question.criteria = [{id,name}], stamped at
+ * generation time by enforceRubricAlignment). When present, only the matching
+ * criteria are used to score that question — a "sebutkan" question is never
+ * penalized for criteria the question never asked (sebab-akibat, penerapan,
+ * dst). Questions without a mapping keep the legacy "all criteria apply"
+ * behavior.
+ *
+ * Partial applicability: weights are renormalized within the applicable subset
+ * so the result stays on the 0–100 scale.
  */
-function buildQuestionScores(questions, answers, criteria) {
+function buildQuestionScores(questions, answers, criteria, rubric) {
   const n = answers.length;
   const byAnswer = new Map();
   for (const c of criteria || []) {
@@ -117,8 +132,24 @@ function buildQuestionScores(questions, answers, criteria) {
     if (!byAnswer.has(key)) byAnswer.set(key, []);
     byAnswer.get(key).push(c);
   }
+  const allCriteria = byAnswer.get("all") || [];
   return Array.from({ length: n }, (_, idx) => {
-    const applicable = [...(byAnswer.get(idx) || []), ...(byAnswer.get("all") || [])];
+    const explicit = byAnswer.get(idx) || [];
+    const declaredKeys = questionCriterionKeys(questions[idx], rubric);
+    let applicable;
+    if (declaredKeys && declaredKeys.length > 0) {
+      // Aligned: only criteria the question actually asks about. Fall back to
+      // all criteria only when NONE of the declared keys match anything
+      // (protects against a broken mapping silently zeroing a question).
+      const matched = allCriteria.filter((c) => criterionMatches(c, declaredKeys));
+      applicable = [...explicit, ...(matched.length > 0 ? matched : allCriteria)];
+    } else {
+      applicable = [...explicit, ...allCriteria];
+    }
+    // Evaluasi kriterial dari model biasanya tidak membawa weight; bobot
+    // diambil dari rubrik supaya skor per soal konsisten dgn skor akhir
+    // (weight di-renormalisasi di dalam aggregateScore).
+    applicable = applicable.map((c) => withRubricWeight(c, rubric));
     const strengths = [];
     const gaps = [];
     const matched = [];
@@ -152,6 +183,61 @@ function buildQuestionScores(questions, answers, criteria) {
 }
 
 /**
+ * Normalized keys a question declares for its rubric criteria.
+ * Returns null when the question has no explicit mapping (legacy behavior:
+ * every criterion applies). Accepts strings or {id,name} objects.
+ */
+function questionCriterionKeys(question, rubric) {
+  const raw = (question && question.criteria) || [];
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const keys = [];
+  for (const v of raw) {
+    if (typeof v === "string") keys.push(normKey(v));
+    else if (v && typeof v === "object") keys.push(normKey(v.id || v.name || v.criterionId || ""));
+  }
+  return keys.filter(Boolean);
+}
+
+function normKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether a criterion evaluation (criterionId/label) belongs to one of the
+ * declared alignment keys. Weight suffixes like "40" or "40%" in a declared
+ * name ("Ketepatan konsep 40%") are tolerated.
+ */
+function criterionMatches(criterion, keys) {
+  const idKey = normKey(criterion.criterionId || "");
+  const labelKey = normKey(criterion.label || criterion.name || "");
+  const stripWeight = (k) => k.replace(/\s\d+$/, "").replace(/%/g, "").trim();
+  return keys.some((k) => {
+    const ks = stripWeight(k) || k;
+    return (
+      (idKey && (idKey === ks || idKey.includes(ks) || ks.includes(idKey))) ||
+      (labelKey && (labelKey === ks || labelKey.includes(ks) || ks.includes(labelKey)))
+    );
+  });
+}
+
+/**
+ * Attach the rubric weight to a criterion evaluation when the model did not
+ * provide one (so per-question aggregation matches the weighted final score).
+ */
+function withRubricWeight(criterion, rubric) {
+  if (Number(criterion.weight) > 0) return criterion;
+  const def = ((rubric && rubric.criteria) || []).find(
+    (c) => normKey(c.id) === normKey(criterion.criterionId)
+  );
+  if (!def) return criterion;
+  return { ...criterion, weight: Number(def.weight || 0) };
+}
+
+/**
  * Weighted aggregate of a question's applicable criteria, renormalizing weights
  * within the subset. Falls back to the mean when no weights are available.
  */
@@ -171,6 +257,57 @@ function averageConfidence(criteria) {
   const confs = (criteria || []).map((c) => Number(c.confidence)).filter((v) => Number.isFinite(v));
   if (confs.length === 0) return 0;
   return confs.reduce((a, b) => a + b, 0) / confs.length;
+}
+
+/**
+ * Deterministic final score that respects question ↔ rubric alignment.
+ *
+ * When at least one question declares which rubric criteria it measures, any
+ * criterion that NO question actually asks about is excluded and the remaining
+ * weights are renormalized — a "sebutkan" soal is never dragged down by a
+ * "sebab-akibat" criterion that no question tested.
+ *
+ * Returns null (legacy behavior: raw aggregate over all criteria) when no
+ * question carries an explicit mapping.
+ */
+function calculateAlignedFinalScore(criteria, rubric, questions) {
+  const mappedKeys = new Set();
+  let hasMapping = false;
+  for (const q of questions || []) {
+    const keys = questionCriterionKeys(q, rubric);
+    if (!keys || keys.length === 0) continue;
+    hasMapping = true;
+    keys.forEach((k) => mappedKeys.add(k));
+  }
+  if (!hasMapping) return null;
+
+  const keyList = [...mappedKeys];
+  const keptCriteria = (criteria || []).filter((c) => criterionMatches(c, keyList));
+  const keptIds = new Set(keptCriteria.map((c) => normKey(c.criterionId)));
+  const keptRubricCriteria = ((rubric && rubric.criteria) || []).filter((c) => keptIds.has(normKey(c.id)));
+  if (keptCriteria.length === 0 || keptRubricCriteria.length === 0) return null;
+
+  // Renormalize weights over the effective (kept) criteria subset.
+  const totalWeight = keptRubricCriteria.reduce((acc, c) => acc + Number(c.weight || 0), 0);
+  const weightedRubric = {
+    ...rubric,
+    criteria:
+      totalWeight > 0
+        ? keptRubricCriteria.map((c) => ({ ...c, weight: (Number(c.weight) || 0) / totalWeight }))
+        : keptRubricCriteria,
+  };
+  try {
+    const { calculateFinalScore } = require("../evaluation/scoring");
+    const weighted = calculateFinalScore(keptCriteria, weightedRubric);
+    return {
+      finalScore: Math.round(weighted.finalScore),
+      excludedCriterionIds: ((rubric && rubric.criteria) || [])
+        .map((c) => c.id)
+        .filter((id) => !keptIds.has(normKey(id))),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -266,4 +403,15 @@ function splitFeedback(rationale, score) {
   return { strengths, gaps };
 }
 
-module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence };
+module.exports = {
+  evaluateWithHarness,
+  structuredRubric,
+  normalizeWeights,
+  splitFeedback,
+  buildQuestionScores,
+  aggregateScore,
+  averageConfidence,
+  calculateAlignedFinalScore,
+  questionCriterionKeys,
+  criterionMatches,
+};

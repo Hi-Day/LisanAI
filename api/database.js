@@ -17,6 +17,7 @@ const {
 const { listTenantUsers, updateTenantUser, createTenantUser, deleteTenantUser, getSessionUser, createTenantUsersBatch, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
+const { recordTeacherScoreChange } = require("../server/evaluation/research");
 const crypto = require("node:crypto");
 
 function cryptoRandom() {
@@ -123,6 +124,42 @@ module.exports = async (req, res) => {
           }
 
           await saveSubmission(auth.tenant.id, existing.user_id, payload, true);
+
+          // Teacher corrected the score (direct override or accepted a
+          // complaint). Record the new value as the human score for the
+          // linked harness run so it enters the AI-vs-human research dataset,
+          // and stop the 7-day auto-approval from overwriting it.
+          try {
+            const prev = (() => {
+              try {
+                return JSON.parse(existing.payload || "{}");
+              } catch {
+                return {};
+              }
+            })();
+            const runId = payload.evaluationRunId || prev.evaluationRunId;
+            if (runId && payload.finalScore !== undefined && payload.finalScore !== null) {
+              const record = await recordTeacherScoreChange({
+                runId,
+                finalScore: payload.finalScore,
+                tenantId: auth.tenant.id,
+                reviewerId: auth.user.id,
+                reviewNote:
+                  (payload.questionScores || []).find((qs) => qs && qs.complaint && qs.complaint.status === "resolved")
+                    ? "Komplain siswa diterima."
+                    : "",
+              });
+              if (record) {
+                console.log(
+                  `[research] human score recorded for run ${record.runId}: ${record.previousScore} -> ${record.humanScore} (${record.approvalStatus})`
+                );
+              }
+            }
+          } catch (recErr) {
+            // Recording the human score must never block the teacher's save.
+            console.error("[research] recordTeacherScoreChange failed:", recErr);
+          }
+
           return sendJson(res, 200, { submission: payload });
         } else {
           return sendJson(res, 403, { error: "Forbidden" });

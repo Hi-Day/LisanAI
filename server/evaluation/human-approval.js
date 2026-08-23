@@ -111,18 +111,62 @@ async function saveHumanScoreInternal({ runId, humanScore, humanFeedback, review
 }
 
 /**
- * Sweep runs whose deadline has passed and who are still pending. Their AI
- * score is auto-promoted to a human-confirmed score (`auto_approved`).
+ * Mark a run as explicitly reviewed/corrected by a human (status
+ * `human_reviewed`). This is set when a manual human score is saved. The
+ * automatic sweep can never touch such runs, so the AI score will not
+ * overwrite the human's correction after the 7-day window.
+ */
+async function markHumanReviewed({ runId, reviewerId }) {
+  if (!runId) return null;
+  const db = getDb();
+  const appliedAt = nowIso();
+  await db.run(
+    `UPDATE human_approvals
+        SET approval_status = 'human_reviewed',
+            approved_by = ?,
+            approved_at = ?
+      WHERE run_id = ?
+        AND approval_status = 'pending'`,
+    reviewerId || null,
+    appliedAt,
+    runId
+  );
+  return getApproval(runId);
+}
+
+/**
+ * Sweep approval queue for runs whose deadline has passed and who are still
+ * pending WITHOUT any human score. Their AI score is auto-promoted to a
+ * human-confirmed score (`auto_approved`).
+ *
+ * Two guards protect human corrections:
+ * 1. Any pending row that already has a human score (e.g. legacy "Simpan skor
+ *    manual" flow) is promoted to `human_reviewed` and never auto-approved.
+ * 2. The expiry query joins `evaluation_human_scores` and skips rows that
+ *    already carry a human score (defense in depth).
+ *
  * Returns the number of runs auto-approved in this pass.
  */
 async function processExpiredApprovals(now = new Date()) {
   const db = getDb();
   const ts = toIso(now);
-  const expired = await db.all(
-    `SELECT run_id, final_score, tenant_id
-       FROM human_approvals
+
+  await db.run(
+    `UPDATE human_approvals
+        SET approval_status = 'human_reviewed',
+            approved_at = COALESCE(approved_at, ?)
       WHERE approval_status = 'pending'
-        AND deadline_at <= ?`,
+        AND run_id IN (SELECT run_id FROM evaluation_human_scores)`,
+    ts
+  );
+
+  const expired = await db.all(
+    `SELECT a.run_id, a.final_score, a.tenant_id
+       FROM human_approvals a
+       LEFT JOIN evaluation_human_scores h ON h.run_id = a.run_id
+      WHERE a.approval_status = 'pending'
+        AND a.deadline_at <= ?
+        AND h.run_id IS NULL`,
     ts
   );
   for (const row of expired) {
@@ -187,6 +231,7 @@ module.exports = {
   APPROVAL_WINDOW_MS,
   queueForApproval,
   approveRun,
+  markHumanReviewed,
   processExpiredApprovals,
   getApproval,
   listApprovals,

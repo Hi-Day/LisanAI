@@ -11,6 +11,7 @@ const { readRun } = require("../server/evaluation/trace-persister");
 const {
   approveRun,
   listApprovals,
+  markHumanReviewed,
   processExpiredApprovals,
 } = require("../server/evaluation/human-approval");
 const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
@@ -25,6 +26,8 @@ const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
  * GET  /api/research?action=export&assessmentId=...
  * GET  /api/research?action=approvals&assessmentId=...
  * POST /api/research  { action:"save-human-score", payload:{ runId, humanScore, humanFeedback } }
+ *   → saves the human score AND marks the approval `human_reviewed` so the
+ *     7-day auto-approval sweep never overwrites it with the AI score.
  * POST /api/research  { action:"approve", payload:{ runId, humanScore?, humanFeedback? } }
  */
 module.exports = async (req, res) => {
@@ -144,7 +147,16 @@ module.exports = async (req, res) => {
           reviewerId: auth.user.id,
           tenantId,
         });
-        return sendJson(res, 200, saved);
+        // Mark the approval as explicitly reviewed by a human so the 7-day
+        // auto-approval sweep never overwrites the correction with the AI score.
+        const approval = await markHumanReviewed({
+          runId: payload.runId,
+          reviewerId: auth.user.id,
+        });
+        return sendJson(res, 200, {
+          ...saved,
+          approvalStatus: approval?.approval_status || "human_reviewed",
+        });
       }
 
       if (action === "approve") {

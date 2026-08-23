@@ -239,6 +239,8 @@ export function syncQuestionsFromEditor(ctx) {
     outcome: item.querySelector("[data-field='outcome']").value.trim(),
     rubric: item.querySelector("[data-field='rubric']").value.trim(),
     ideal: item.querySelector("[data-field='ideal']").value.trim(),
+    // Pemetaan soal↔rubrik dipertahankan saat diedit ulang (mekanisme alignment).
+    criteria: ctx.pendingQuestions[index]?.criteria || [],
   }));
 }
 
@@ -267,6 +269,14 @@ export function renderQuestionEditor(ctx) {
       </div>
       <label>Pertanyaan<textarea data-field="prompt" rows="3">${escapeHtml(question.prompt)}</textarea></label>
       <label>Fokus<input data-field="focus" value="${escapeHtml(question.focus || "")}" /></label>
+      ${
+        Array.isArray(question.criteria) && question.criteria.length
+          ? `<div class="q-criteria-chip">Rubrik yang diukur soal ini: ${question.criteria
+              .map((c) => (typeof c === "string" ? c : c.name || c.id))
+              .map(escapeHtml)
+              .join(" · ")}</div>`
+          : ""
+      }
       <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
       <label>Rubrik penilaian soal ini<textarea data-field="rubric" rows="3">${escapeHtml(question.rubric || "")}</textarea></label>
       <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
@@ -301,6 +311,7 @@ export function renderReviewSummary(ctx) {
     <div class="review-block">
       <h4>Soal</h4>
       <p class="review-count">${answered} dari ${total} soal sudah diisi.</p>
+      ${renderAlignmentCoverage(ctx)}
       <ol class="review-questions">
         ${ctx.pendingQuestions.map((q, i) => `
           <li class="${(q.prompt || "").trim() ? "" : "review-empty"}">
@@ -310,6 +321,36 @@ export function renderReviewSummary(ctx) {
         `).join("")}
       </ol>
     </div>
+  `;
+}
+
+/**
+ * Ringkasan cakupan rubrik: kriteria mana yang diukur oleh soal mana.
+ * Peringatan muncul bila ada kriteria rubrik guru yang tidak diukur soal
+ * manapun (align dgn mekanisme enforceRubricAlignment).
+ */
+function renderAlignmentCoverage(ctx) {
+  const config = ctx.pendingAssessmentConfig;
+  if (!config) return "";
+  const questionsWithCriteria = ctx.pendingQuestions.filter(
+    (q) => Array.isArray(q.criteria) && q.criteria.length > 0
+  );
+  if (questionsWithCriteria.length === 0) return "";
+  const covered = new Set();
+  questionsWithCriteria.forEach((q) =>
+    q.criteria.forEach((c) => covered.add(String(typeof c === "string" ? c : c.name || c.id).toLowerCase()))
+  );
+  const rubricCriteria = String(config.rubric || "")
+    .split(/[;\n,]+/)
+    .map((s) => s.replace(/^\d+(\.\d+)?\s*%?\s*/, "").replace(/\s*[-:–]\s*(\d+(\.\d+)?\s*%?)?$/, "").replace(/\s*\(?\d+(\.\d+)?\s*%?\s*\)?$/, "").trim())
+    .filter((s) => s.length > 2);
+  if (rubricCriteria.length === 0) return "";
+  const uncovered = rubricCriteria.filter((name) => !covered.has(name.toLowerCase()));
+  if (uncovered.length === 0) return "";
+  return `
+    <p class="review-align-warning">⚠ Kriteria rubrik berikut belum diukur oleh soal manapun:
+      <strong>${uncovered.map((n) => escapeHtml(n)).join("; ")}</strong>.
+      Soal baru sebaiknya menanyakannya agar penilaian mencakup seluruh rubrik.</p>
   `;
 }
 
