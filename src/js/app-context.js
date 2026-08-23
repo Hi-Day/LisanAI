@@ -225,8 +225,20 @@ export function applyRoleAccess(ctx) {
   let navHtml = "";
   if (role === "teacher") {
     navHtml = `
-      <button class="nav-button" data-view="teacherView"><span aria-hidden="true">⌘</span> Penilaian</button>
+      <button class="nav-button" data-view="dashboardView"><span aria-hidden="true">▦</span> Dashboard</button>
+      <div class="nav-group">
+        <button class="nav-button" data-view="assessmentListView" aria-haspopup="true" aria-expanded="false">
+          <span aria-hidden="true">⌘</span> Penilaian <span class="nav-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="nav-sub hidden">
+          <button class="nav-sub-item" data-nav-assessment-tab="all">Semua Penilaian</button>
+          <button class="nav-sub-item" data-nav-assessment-tab="draft">Draft</button>
+          <button class="nav-sub-item" data-nav-assessment-tab="published">Published</button>
+          <button class="nav-sub-item" data-nav-view="teacherView">Buat Penilaian</button>
+        </div>
+      </div>
       <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
+      <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">◉</span> Siswa</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
       <button class="nav-button" data-view="complaintView">
         <span aria-hidden="true">📩</span> Komplain
@@ -249,6 +261,24 @@ export function applyRoleAccess(ctx) {
   }
   els.mainNav.innerHTML = navHtml;
 
+  // Penilaian submenu: expand/collapse + tab filtering.
+  const penulisGroup = els.mainNav.querySelector(".nav-group");
+  penulisGroup?.querySelector(".nav-button")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const open = !penulisGroup.classList.contains("open");
+    penulisGroup.classList.toggle("open", open);
+    penulisGroup.querySelector(".nav-button")?.setAttribute("aria-expanded", String(open));
+  });
+  els.mainNav.querySelectorAll("[data-nav-assessment-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setAssessmentTab(ctx, btn.dataset.navAssessmentTab);
+      switchView(ctx, "assessmentListView");
+    });
+  });
+  els.mainNav.querySelectorAll("[data-nav-view]").forEach((btn) => {
+    btn.addEventListener("click", () => switchView(ctx, btn.dataset.navView));
+  });
+
   if (role === "student") {
     document.body.classList.add("student-mode");
     switchView(ctx, "studentView");
@@ -257,8 +287,18 @@ export function applyRoleAccess(ctx) {
     switchView(ctx, "observabilityView");
   } else {
     document.body.classList.add("teacher-mode");
-    switchView(ctx, "teacherView");
+    switchView(ctx, "dashboardView");
   }
+}
+
+export function setAssessmentTab(ctx, tab) {
+  const { els } = ctx;
+  if (!els.assessmentTabFilter) return;
+  els.assessmentTabFilter.querySelectorAll(".tab-filter-btn").forEach((b) => {
+    const active = b.dataset.tab === tab;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
 }
 
 export function canAccessView(ctx, viewId) {
@@ -266,7 +306,12 @@ export function canAccessView(ctx, viewId) {
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
   if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView";
-  if (role === "teacher") return viewId === "teacherView" || viewId === "monitorView" || viewId === "manageClassView" || viewId === "complaintView";
+  if (role === "teacher") {
+    return [
+      "dashboardView", "teacherView", "assessmentListView", "assessmentDetailView",
+      "monitorView", "manageClassView", "studentProfileView", "complaintView",
+    ].includes(viewId);
+  }
   return false;
 }
 
@@ -276,6 +321,27 @@ export async function switchView(ctx, viewId) {
   const navBtns = els.mainNav.querySelectorAll(".nav-button");
   navBtns.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
   els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
+  if (viewId === "dashboardView") {
+    const { renderDashboard } = await import("./dashboard.js");
+    renderDashboard(ctx);
+  }
+  if (viewId === "assessmentListView") {
+    const { renderAssessmentsWithTab } = await import("./dashboard.js");
+    renderAssessmentsWithTab(ctx);
+  }
+  if (viewId === "studentProfileView") {
+    const { renderStudentProfile } = await import("./dashboard.js");
+    populateProfileSelect(ctx);
+    const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))];
+    if (names.length) {
+      const selected = ctx.profileSelectedStudent || names[0];
+      els.profileStudentSelect.value = selected;
+      renderStudentProfile(ctx, selected);
+    } else {
+      els.studentProfileContent.innerHTML =
+        '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
+    }
+  }
   if (viewId === "observabilityView") {
     fetchAndRenderTelemetry(ctx);
   }
@@ -286,6 +352,16 @@ export async function switchView(ctx, viewId) {
   if (viewId === "apiKeysView") {
     const { loadApiKeys } = await import("./api-keys.js");
     loadApiKeys(ctx);
+  }
+}
+
+function populateProfileSelect(ctx) {
+  const { els } = ctx;
+  if (!els.profileStudentSelect) return;
+  const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))].sort((a, b) => a.localeCompare(b));
+  const options = names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  if (els.profileStudentSelect.innerHTML !== options) {
+    els.profileStudentSelect.innerHTML = options;
   }
 }
 

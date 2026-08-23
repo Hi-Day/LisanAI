@@ -1,5 +1,10 @@
 import { average, compactText, escapeHtml } from "./utils.js";
 import { showEmpty } from "./dom.js";
+import {
+  getSubmissionStatus,
+  hasValidScore,
+  renderStatusBadge,
+} from "./status.js";
 
 const EMPTY_ASSESSMENTS = "Buat penilaian pertama agar soal dapat ditinjau dan dibagikan ke kelas.";
 const EMPTY_STUDENT = "Guru belum menugaskan penilaian untuk kelas ini.";
@@ -13,14 +18,24 @@ export function renderApp(els, state, session) {
 }
 
 export function renderAssessments(els, state) {
-  els.assessmentCount.textContent = state.assessments.length;
-  if (!state.assessments.length) {
-    showEmpty(els.assessmentList, "list-stack empty-state", EMPTY_ASSESSMENTS);
+  const activeTab =
+    document.querySelector("#assessmentTabFilter .tab-filter-btn.active")?.dataset.tab || "all";
+  let list = state.assessments;
+  if (activeTab === "draft") list = list.filter((a) => a.status === "draft");
+  if (activeTab === "published") list = list.filter((a) => a.status !== "draft");
+
+  els.assessmentCount.textContent = list.length;
+  if (!list.length) {
+    const message =
+      activeTab === "draft"
+        ? "Penilaian yang belum dipublish akan muncul di sini."
+        : "Buat penilaian pertama agar dapat ditinjau dan dibagikan ke kelas.";
+    showEmpty(els.assessmentList, "list-stack empty-state", message);
     return;
   }
 
   els.assessmentList.className = "list-stack";
-  els.assessmentList.innerHTML = state.assessments.map(renderAssessmentItem).join("");
+  els.assessmentList.innerHTML = list.map(renderAssessmentItem).join("");
 }
 
 export function renderStudentArea(els, state, session) {
@@ -183,19 +198,22 @@ export function renderMonitoring(els, state) {
   }
 
   if (!visibleSubmissions.length) {
-    els.classAverage.textContent = "0";
+    els.classAverage.textContent = "—";
     els.classAverage.style.setProperty('--score', '0');
     if (els.trendAssessmentCount) els.trendAssessmentCount.textContent = "0 penilaian";
     showEmpty(els.trendList, "trend-list empty-state", EMPTY_TRENDS);
     els.submissionList.className = "";
-    els.submissionList.innerHTML = `<tr><td colspan="5" class="empty-state">${EMPTY_SUBMISSIONS}</td></tr>`;
+    els.submissionList.innerHTML = `<tr><td colspan="6" class="empty-state">${EMPTY_SUBMISSIONS}</td></tr>`;
     return;
   }
 
-  const avg = average(visibleSubmissions, (submission) => submission.finalScore);
-  els.classAverage.textContent = avg;
-  els.classAverage.style.setProperty('--score', avg);
-  renderTrend(els, visibleSubmissions);
+  // P0: only EVALUATED assessments contribute to academic aggregates.
+  const evaluated = visibleSubmissions.filter(hasValidScore);
+  const avg = average(evaluated, (submission) => submission.finalScore);
+  const avgText = evaluated.length ? String(avg) : "—";
+  els.classAverage.textContent = avgText;
+  els.classAverage.style.setProperty('--score', avg || 0);
+  renderTrend(els, evaluated);
   renderSubmissions(els, visibleSubmissions);
 }
 
@@ -279,7 +297,7 @@ function buildResultSummary(submission) {
   };
 }
 
-function renderAssessmentItem(assessment) {
+export function renderAssessmentItem(assessment) {
   const isOralExam = assessment.oralExamEnabled !== false;
   const isClosed = assessment.status === "closed";
   const statusBadge = isClosed
@@ -345,12 +363,17 @@ function renderSubmissions(els, submissions) {
 
 function renderSubmissionItem(submission) {
   const date = submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "-";
+  const status = getSubmissionStatus(submission);
+  const scoreHtml = hasValidScore(submission)
+    ? `<span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span>`
+    : `<span class="score-muted-text" title="Tidak diterbitkan — evaluasi belum valid">—</span>`;
   return `
     <tr class="submission-row" data-id="${submission.id}">
       <td data-label="Siswa"><strong>${escapeHtml(submission.studentName)}</strong></td>
       <td data-label="Topik">${escapeHtml(submission.assessmentTitle)}</td>
       <td data-label="Tanggal">${date}</td>
-      <td data-label="Skor AI"><span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span></td>
+      <td data-label="Skor AI">${scoreHtml}</td>
+      <td data-label="Status">${renderStatusBadge(status)}</td>
       <td data-label="Aksi">
         <button type="button" class="secondary-button view-submission-btn" style="min-height: 36px; font-size: 0.9rem;">Lihat Detail</button>
       </td>
