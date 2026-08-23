@@ -318,3 +318,53 @@ test("generateQuestions preserves the model's criteria mapping through enforceme
     "kriteria model harus dipertahankan"
   );
 });
+
+test("enforceRubricAlignment stamps a per-question rubric subset aligned to the soal substance", () => {
+  const rubric = "Ketepatan konsep 40%, contoh relevan 25%, hubungan sebab-akibat 20%, kejelasan komunikasi 15%";
+  const questions = [
+    {
+      prompt: "Sebutkan tiga contoh komponen biotik yang ada di dalam ekosistem sawah.",
+      focus: "komponen biotik",
+      ideal: "",
+      criteria: ["Ketepatan konsep", "Contoh relevan"],
+    },
+  ];
+
+  const aligned = assessmentService.enforceRubricAlignment(questions, { rubric });
+
+  // Rubrik per soal harus mencerminkan SUBSET yang benar diukur — bukan seluruh rubric.
+  const subset = String(aligned[0].rubric || "").toLowerCase();
+  assert.ok(subset.includes("ketepatan konsep"), "subset harus memuat ketepatan konsep");
+  assert.ok(subset.includes("contoh relevan"), "subset harus memuat contoh relevan");
+  assert.ok(
+    !subset.includes("sebab-akibat") && !subset.includes("kejelasan komunikasi"),
+    "subset TIDAK boleh memuat kriteria yang tidak diukur soal sebutkan"
+  );
+});
+
+test("calibrateRubricSet aligns criteria via AI and still enforces deterministic coverage", async () => {
+  mockOpenRouter({
+    questions: [
+      { index: 0, prompt: "Sebutkan contoh komponen biotik ekosistem sawah.", criteria: ["Ketepatan konsep"] },
+      { index: 1, prompt: "Mengapa perubahan cuaca mempengaruhi populasi tikus?", criteria: ["Hubungan sebab-akibat"] },
+    ],
+  });
+
+  const result = await assessmentService.calibrateRubricSet({
+    config: { topic: "Ekosistem", rubric: "Ketepatan konsep 40%, hubungan sebab-akibat 30%, contoh relevan 30%" },
+    questions: [
+      { id: "q1", prompt: "Sebutkan contoh komponen biotik ekosistem sawah.", focus: "biotik" },
+      { id: "q2", prompt: "Mengapa perubahan cuaca mempengaruhi populasi tikus?", focus: "sebab-akibat" },
+    ],
+    tenantId: "tenant-1",
+    userId: "user-1",
+  });
+
+  assert.equal(result.length, 2);
+  const combined = result.flatMap((q) => q.criteria.map((c) => c.id));
+  assert.ok(combined.includes("ketepatan_konsep"), "kriteria ketepatan konsep harus dipertahankan");
+  assert.ok(combined.includes("hubungan_sebab_akibat"), "kriteria sebab-akibat harus dipertahankan");
+  for (const q of result) {
+    assert.ok(q.criteria.length > 0, "setiap soal harus memetakan minimal satu kriteria");
+  }
+});

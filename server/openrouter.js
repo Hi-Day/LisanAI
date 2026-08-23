@@ -154,6 +154,18 @@ function generateMockContent(action, messages) {
       feedback: `Evaluasi Lisan: Siswa menunjukkan pemahaman yang baik tentang ${payload.topik || 'materi'}. Struktur kalimat sudah bagus, hanya perlu sedikit penguatan pada kedalaman contoh.`,
       questionScores
     });
+  } else if (action === "align-rubric") {
+    const payload = JSON.parse(messages[0].content);
+    const criteria = (payload.kriteria_rubrik_yang_tersedia || []).map((c) => c.nama);
+    const questions = (payload.questions || []).map((q, i) => ({
+      index: i,
+      prompt: q.prompt,
+      focus: q.focus || q.prompt,
+      // Mock: kalibrasi deterministik — petakan kisaran kriteria secara round-robin.
+      criteria: criteria.length ? [criteria[i % criteria.length]] : [],
+      reason: "Penjadwalan mock berbasis kategori."
+    }));
+    return JSON.stringify({ questions });
   } else if (action === "improve-questions") {
     const payload = JSON.parse(messages[0].content);
     const questions = (payload.questions || []).map((q, i) => ({

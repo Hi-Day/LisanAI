@@ -12,6 +12,7 @@ const rubric = require("./plugins/rubric");
 const evidence = require("./plugins/evidence");
 const evaluation = require("./plugins/evaluation");
 const verification = require("./plugins/verification");
+const rubricAlignment = require("./alignment");
 
 /**
  * Build a fully-wired harness with all default plugins registered.
@@ -25,6 +26,7 @@ function createHarness(config = {}) {
   harness.register(evidence);
   harness.register(evaluation);
   harness.register(verification);
+  harness.register(rubricAlignment);
   return harness;
 }
 
@@ -45,5 +47,6 @@ module.exports = {
     evidence,
     evaluation,
     verification,
+    rubricAlignment,
   },
 };

@@ -215,10 +215,11 @@ export async function improvePendingQuestionSet(ctx) {
   const { els } = ctx;
   if (!ctx.pendingAssessmentConfig) return;
   syncQuestionsFromEditor(ctx);
-  setButtonLoading(els.improveQuestionSet, true, "Memperbaiki...", "Perbaiki dengan AI");
+  const defaultText = "AI Rubric Alignment";
+  setButtonLoading(els.improveQuestionSet, true, "Menyelaraskan rubrik & soal...", defaultText);
   showQuestionStreamPlaceholder(ctx);
   try {
-    ctx.pendingQuestions = await improveQuestionsWithFallback(ctx, ctx.pendingAssessmentConfig, ctx.pendingQuestions);
+    ctx.pendingQuestions = await alignRubricWithFallback(ctx, ctx.pendingAssessmentConfig, ctx.pendingQuestions);
     finishQuestionStream(ctx);
     await new Promise((resolve) => setTimeout(resolve, 500));
     hideStreamPanel(ctx, els.aiStreamPanel);
@@ -226,7 +227,7 @@ export async function improvePendingQuestionSet(ctx) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setButtonLoading(els.improveQuestionSet, false, "Memperbaiki...", "Perbaiki dengan AI");
+    setButtonLoading(els.improveQuestionSet, false, "Menyelaraskan rubrik & soal...", defaultText);
   }
 }
 
@@ -524,6 +525,35 @@ export async function improveQuestionsWithFallback(ctx, config, questions) {
     return improved;
   } catch (error) {
     showToast(`AI belum tersedia, memakai question set sebelumnya. Detail: ${error.message}`);
+    return questions;
+  }
+}
+
+/**
+ * AI Rubric Alignment — kalibrasi soal↔rubrik. Server meminta model menandai
+ * SUBSET kriteria rubrik yang sungguh diukur tiap soal (dan memperbaiki
+ * substansi soal bila tak selaras), lalu enforcement deterministik menjamin
+ * cakupan rubrik utuh tanpa menghukum soal "sebutkan" atas kriteria yang tak
+ * ditanyakannya.
+ */
+export async function alignRubricWithFallback(ctx, config, questions) {
+  let raw = "";
+  let aligned = null;
+  try {
+    await streamAssessmentAction({
+      action: "align-rubric",
+      payload: { config, questions },
+      onChunk: (text) => {
+        raw += text;
+        renderStreamedQuestionsFromRaw(ctx, raw);
+      },
+      onResult: (data) => {
+        aligned = Array.isArray(data?.questions) ? data.questions : null;
+      },
+    });
+    return aligned;
+  } catch (error) {
+    showToast(`AI belum tersedia, memakai alignment deterministik. Detail: ${error.message}`);
     return questions;
   }
 }

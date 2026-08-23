@@ -3,6 +3,7 @@ const {
   generateQuestions,
   improveQuestionSet,
   recommendAssessmentConfig,
+  streamAlignRubricSet,
   streamEvaluateAnswers,
   streamGenerateQuestions,
   streamImproveQuestionSet,
@@ -47,6 +48,9 @@ async function handleStreamingAction(req, res, auth, action, payload) {
     if (action === "generate-questions") {
       result = await streamGenerateQuestions(payload, onChunk);
       writeSse(res, { type: "result", data: { questions: result } });
+    } else if (action === "align-rubric") {
+      result = await streamAlignRubricSet(payload, onChunk);
+      writeSse(res, { type: "result", data: { questions: result, aligned: true } });
     } else if (action === "improve-questions") {
       result = await streamImproveQuestionSet(payload, onChunk);
       writeSse(res, { type: "result", data: { questions: result } });
@@ -166,6 +170,12 @@ module.exports = async (req, res) => {
     if (action === "generate-questions") {
       const questions = await generateQuestions(payload);
       return sendJson(res, 200, { questions, model: process.env.OPENROUTER_MODEL });
+    }
+
+    if (action === "align-rubric") {
+      const { calibrateRubricSet } = require("../server/assessment-service");
+      const questions = await calibrateRubricSet(payload);
+      return sendJson(res, 200, { questions, model: process.env.OPENROUTER_MODEL, aligned: true });
     }
 
     if (action === "improve-questions") {
