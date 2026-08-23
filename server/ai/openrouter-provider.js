@@ -13,9 +13,18 @@ class OpenRouterProvider extends AIProvider {
   }
 
   async generate(request) {
-    const content = request.prompt;
+    // Prefer an explicit stable system block when the harness provided one.
+    // Putting the reuseable instruction/rubric/schema in the system message
+    // (first in the array) is what gives provider KV prefix caches a hit —
+    // the volatile student answers stay confined to the last user message.
+    let messages = [];
+    if (request.systemPrompt) {
+      messages.push({ role: "system", content: request.systemPrompt });
+    }
+    messages.push({ role: "user", content: request.userMessage || request.prompt });
+
     const result = await callOpenRouter(
-      [{ role: "user", content }],
+      messages,
       request.schemaHint || "Balas JSON valid.",
       {
         tenantId: request.tenantId,

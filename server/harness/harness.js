@@ -182,12 +182,25 @@ class AssessmentHarness {
       };
 
       // Let plugins inject a custom prompt BEFORE hitting the provider.
-      let effectivePrompt = ctx.prompt || defaultPrompt(evidencePlan);
-      if (ctx.buildPrompt) effectivePrompt = await ctx.buildPrompt(ctx);
-      ctx.promptForHash = effectivePrompt;
+      // The prompt is split into a STABLE system prefix (instruction + rubric
+      // + question set + output schema, identical across all submissions of
+      // the same assessment) and a VOLATILE user tail (student answers, which
+      // differ per run). Keeping the stable block first lets provider KV
+      // prefix caches hit on repeated calls, while only the last message
+      // changes between consecutive evaluations.
+      const parts = (ctx.promptParts && (await ctx.promptParts(ctx))) || buildPromptParts(evidencePlan);
+      const combined = defaultPrompt(evidencePlan);
+      ctx.systemPrompt = parts.system || ctx.prompt || "";
+      ctx.userMessage = parts.user || "";
+      // The combined JSON is hashed for reproducibility — it contains both the
+      // stable system block and the volatile answers, so two runs only compare
+      // equal when their full input was identical.
+      ctx.promptForHash = combined;
 
       const rawContent = await this.provider.generate({
-        prompt: effectivePrompt,
+        prompt: combined, // preserved for the mock provider + legacy consumers
+        systemPrompt: ctx.systemPrompt,
+        userMessage: ctx.userMessage,
         model: this.config.model.model,
         tenantId: input.tenantId,
         userId: input.userId,
@@ -202,7 +215,7 @@ class AssessmentHarness {
       trace.event("MODEL_RESPONSE", { modelTokenEstimate: rawContent ? rawContent.length : 0 });
       trace.setContext("rawContentLength", rawContent ? rawContent.length : 0);
 
-      const parsed = await this.parser.parse(rawContent, { prompt: effectivePrompt, context: ctx });
+      const parsed = await this.parser.parse(rawContent, { prompt: combined, context: ctx });
       trace.event("OUTPUT_PARSED");
 
       // Standardize: harness always produces criteria on the canonical shape.
@@ -354,9 +367,46 @@ class AssessmentHarness {
 }
 
 /**
- * Default evaluator prompt used when no persona/context plugin overrides it.
- * Explicitly demands a `criteria` array keyed by rubric criterionId and a
- * per-question `questionScores` array (to preserve the legacy shape).
+ * Build the STABLE system block: persona/instruction + scoring rubric +
+ * question set + output schema. This block is byte-identical across every
+ * evaluation of the same assessment, so provider KV prefix caching can reuse
+ * it. It deliberately contains NO student-specific answers.
+ */
+function buildSystemPrompt(plan) {
+  const criteriaIds = (plan.rubric && plan.rubric.criteria && plan.rubric.criteria.map((c) => c.id)) || [];
+  return [
+    "Role: expert-academic-assessor. You evaluate student ORAL EXAM answers.",
+    "CONTEXT: Answers are transcribed from speech (speech-to-text). Do NOT penalize punctuation, capitalization, run-on sentences, or lack of formal/written style — those are artifacts of transcription, not real oral skill gaps.",
+    "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally.",
+    "RUBRIC: " + JSON.stringify(plan.rubric),
+    "QUESTION SET: " + JSON.stringify(plan.questions),
+    "CRITERION IDS: " + JSON.stringify(criteriaIds),
+    "OUTPUT: Return STRICT JSON only, no markdown. Step 1: for every criterion id above emit a criterion entry {criterionId, score(0-100), evidence[exact text quoted from the student answer], strengths[name concrete positives], gaps[name concrete improvements], rationale[short], confidence(0-1)}. Strengths must reflect genuine positives in the answer — never leave them empty when the answer has merit. Step 2: also emit a questionScores array (one entry per student answer) {question, answer, score, matched, strengths, gaps}. Do NOT invent evidence. Do NOT compute a finalScore.",
+  ].join("\n\n");
+}
+
+/**
+ * Split prompt for the provider: a stable system prefix (cacheable across
+ * runs of the same assessment) plus a volatile user tail (student answers,
+ * which change on every evaluation). Keeping the stable block first is what
+ * allows provider KV prefix caches to hit.
+ */
+function buildPromptParts(plan) {
+  return {
+    system: buildSystemPrompt(plan),
+    user: JSON.stringify({
+      task: "Evaluate the student's oral exam answers below against the rubric criteria.",
+      studentName: plan.studentName || null,
+      answers: plan.answers || [],
+    }),
+  };
+}
+
+/**
+ * Combined default evaluator prompt (single JSON object) — kept for the mock
+ * provider, trace/prompt hashing, and legacy consumers. The stable fields
+ * (role, instruction, criteria, rubric, questions) appear before the volatile
+ * `answers` so the serialized prefix is also cacheable when sent as one block.
  */
 function defaultPrompt(plan) {
   const criteriaIds = (plan.rubric && plan.rubric.criteria && plan.rubric.criteria.map((c) => c.id)) || [];
@@ -428,4 +478,4 @@ function harnessOutput(ctx, parsed, { runId, input }) {
   };
 }
 
-module.exports = { AssessmentHarness };
+module.exports = { AssessmentHarness, defaultPrompt, buildPromptParts, buildSystemPrompt };
