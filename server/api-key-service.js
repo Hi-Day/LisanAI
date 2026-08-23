@@ -52,7 +52,7 @@ async function createApiKey(tenantId, { name, createdBy }) {
 async function listApiKeys(tenantId) {
   const rows = await getDb().all(
     `SELECT id, tenant_id, name, prefix, created_by, created_at, last_used_at, revoked_at
-     FROM api_keys WHERE tenant_id = ? AND revoked_at IS NULL ORDER BY datetime(created_at) DESC`,
+     FROM api_keys WHERE tenant_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`,
     tenantId
   );
   return rows.map((row) => ({

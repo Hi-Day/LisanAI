@@ -92,7 +92,7 @@ async function createTenantUser(tenantId, { name, email, password, role }) {
 
 async function listTenantUsers(tenantId) {
   const rows = await getDb().all(
-    "SELECT id, tenant_id, name, email, role, created_at FROM users WHERE tenant_id = ? ORDER BY datetime(created_at) DESC",
+    "SELECT id, tenant_id, name, email, role, created_at FROM users WHERE tenant_id = ? ORDER BY created_at DESC",
     tenantId
   );
   return rows.map(mapUser);

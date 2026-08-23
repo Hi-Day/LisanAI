@@ -34,7 +34,7 @@ module.exports = async (req, res) => {
     if (req.method === "GET" && path === "/assessments") {
       const db = getDb();
       const rows = await db.all(
-        "SELECT id, topic, difficulty, status, created_at FROM assessments WHERE tenant_id = ? ORDER BY datetime(created_at) DESC",
+        "SELECT id, topic, difficulty, status, created_at FROM assessments WHERE tenant_id = ? ORDER BY created_at DESC",
         apiAuth.tenantId
       );
       return sendJson(res, 200, { assessments: rows });
@@ -44,7 +44,7 @@ module.exports = async (req, res) => {
     if (req.method === "GET" && path === "/submissions") {
       const db = getDb();
       const rows = await db.all(
-        "SELECT id, assessment_id, student_name, final_score, submitted_at FROM submissions WHERE tenant_id = ? ORDER BY datetime(submitted_at) DESC",
+        "SELECT id, assessment_id, student_name, final_score, submitted_at FROM submissions WHERE tenant_id = ? ORDER BY submitted_at DESC",
         apiAuth.tenantId
       );
       return sendJson(res, 200, { submissions: rows });

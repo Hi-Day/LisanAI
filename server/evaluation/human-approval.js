@@ -220,7 +220,7 @@ async function listApprovals({ tenantId, assessmentId, sweep = true } = {}) {
        LEFT JOIN evaluation_runs r ON r.run_id = a.run_id
       WHERE ($1 IS NULL OR a.tenant_id = $1)
         AND ($2 IS NULL OR r.assessment_id = $2)
-      ORDER BY datetime(a.deadline_at) ASC`,
+      ORDER BY a.deadline_at ASC`,
     tenantId || null,
     assessmentId || null
   );

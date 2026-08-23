@@ -112,7 +112,7 @@ module.exports = async (req, res) => {
              LEFT JOIN evaluation_human_scores h ON h.run_id = r.run_id
             WHERE r.tenant_id = ?
               AND ($2 IS NULL OR r.assessment_id = $2)
-            ORDER BY datetime(r.created_at) DESC
+            ORDER BY r.created_at DESC
             LIMIT 200`,
           tenantId,
           assessmentId || null
@@ -192,7 +192,7 @@ async function exportTraceBundle(assessmentId, tenantId) {
             harness_version, engine_version, final_score, verification_valid, verification_issues, created_at
        FROM evaluation_runs
       WHERE tenant_id = $1 AND ($2 IS NULL OR assessment_id = $2)
-      ORDER BY datetime(created_at) ASC`,
+      ORDER BY created_at ASC`,
     tenantId,
     assessmentId || null
   );

@@ -7,6 +7,7 @@ import {
 } from "./status.js";
 import { renderAssessmentItem } from "./render.js";
 import { switchView } from "./app-context.js";
+import { getSubmissionDetail } from "./api.js";
 
 /**
  * Trustworthy assessment intelligence dashboard (PRD UX v1.0).
@@ -54,10 +55,10 @@ export function bindDashboardEvents(ctx) {
     if (btn) switchView(ctx, btn.dataset.navView);
   });
 
-  els.recentAssessmentsList?.addEventListener("click", (e) => {
+  els.recentAssessmentsList?.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-open-detail]");
     if (!btn) return;
-    openAssessmentDetail(ctx, btn.dataset.openDetail);
+    await openAssessmentDetail(ctx, btn.dataset.openDetail);
   });
 
   els.atRiskList?.addEventListener("click", (e) => {
@@ -78,10 +79,10 @@ export function bindDashboardEvents(ctx) {
     }
   });
 
-  els.studentProfileContent?.addEventListener("click", (e) => {
+  els.studentProfileContent?.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-open-detail]");
     if (!btn) return;
-    openAssessmentDetail(ctx, btn.dataset.openDetail, "studentProfileView");
+    await openAssessmentDetail(ctx, btn.dataset.openDetail, "studentProfileView");
   });
 }
 
@@ -237,11 +238,17 @@ export async function renderStudentProfile(ctx, studentName, returnView = "dashb
 
 // ---- Assessment Detail ---------------------------------------------------
 
-export function openAssessmentDetail(ctx, submissionId, fromView = "dashboardView") {
-  const submission = ctx.state?.submissions?.find((s) => s.id === submissionId);
-  if (!submission) {
+export async function openAssessmentDetail(ctx, submissionId, fromView = "dashboardView") {
+  const summary = ctx.state?.submissions?.find((s) => s.id === submissionId);
+  if (!summary) {
     showToast("Penilaian tidak ditemukan.", "error");
     return;
+  }
+  let submission = summary;
+  try {
+    submission = await getSubmissionDetail(submissionId);
+  } catch {
+    // Fall back to the in-state summary so the detail view still renders.
   }
   const { els } = ctx;
   ctx.currentDetailSubmissionId = submission.id;

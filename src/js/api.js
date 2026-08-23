@@ -81,6 +81,21 @@ export async function loadStateFromDatabase() {
   };
 }
 
+/**
+ * Full submission payload (with audio/criteria/evidence) for detail views.
+ * The list state intentionally carries lightweight summaries, so detail/open
+ * views fetch the complete record on demand.
+ */
+export async function getSubmissionDetail(submissionId) {
+  const response = await fetch(
+    `/api/database?action=submission&id=${encodeURIComponent(submissionId)}`,
+    { credentials: "include" }
+  );
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal memuat detail submission");
+  return data.submission;
+}
+
 export async function saveAssessmentToDatabase(assessment) {
   await postJson("/api/database", { action: "save-assessment", payload: assessment }, "Gagal menyimpan penilaian");
 }

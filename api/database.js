@@ -6,6 +6,7 @@ const {
   deleteClass,
   deleteMembership,
   getState,
+  getSubmissionDetail,
   getDb,
   requestJoinClass,
   saveAssessment,
@@ -37,6 +38,12 @@ module.exports = async (req, res) => {
 
       if (action === "state") {
         return sendJson(res, 200, await getState(auth));
+      }
+
+      if (action === "submission") {
+        const submissionId = url.searchParams.get("id");
+        if (!submissionId) return sendJson(res, 400, { error: "Parameter id wajib" });
+        return sendJson(res, 200, { submission: await getSubmissionDetail(auth, submissionId) });
       }
 
       if (action === "users") {

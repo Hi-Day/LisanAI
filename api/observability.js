@@ -324,7 +324,7 @@ module.exports = async (req, res) => {
               retry_count, cost_usd, created_at
          FROM ai_logs
         WHERE ${whereSql}
-        ORDER BY datetime(created_at) DESC
+        ORDER BY created_at DESC
         LIMIT ? OFFSET ?`,
       [...filterParams, limit, offset]
     );

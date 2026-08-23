@@ -117,10 +117,63 @@ async function getState(auth) {
 
   return {
     assessments: assessments.map((row) => sanitizeAssessmentForRole(JSON.parse(row.payload), studentView)),
-    submissions: submissions.map((row) => JSON.parse(row.payload)),
+    submissions: submissions.map((row) => stripSubmissionAudio(JSON.parse(row.payload))),
     classes,
     memberships,
   };
+}
+
+/**
+ * Lightweight list shape: drop base64 audio blobs from questionScores so the
+ * state response stays small as recordings accumulate. The full payload
+ * (with audio) is still served on demand via getSubmissionDetail.
+ */
+function stripSubmissionAudio(submission) {
+  if (!submission || typeof submission !== "object") return submission;
+  const { audio: rootAudio, ...rest } = submission;
+  const out = { ...rest };
+  if (rootAudio !== undefined) out.hasAudio = true;
+  if (Array.isArray(out.questionScores)) {
+    out.questionScores = out.questionScores.map((item) => {
+      if (!item || item.audio === undefined) return item;
+      const { audio, ...itemRest } = item;
+      void audio;
+      return { ...itemRest, hasAudio: true };
+    });
+  }
+  return out;
+}
+
+/**
+ * Full submission payload (including audio) for the detail/result views.
+ * Role-scoped: students only their own, teachers only their own classes.
+ */
+async function getSubmissionDetail(auth, submissionId) {
+  const database = getDb();
+  const row = await database.get(
+    "SELECT * FROM submissions WHERE id = ? AND tenant_id = ?",
+    submissionId,
+    auth.tenant.id
+  );
+  if (!row) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+  if (auth.user.role === "student") {
+    if (!row.user_id || row.user_id !== auth.user.id) {
+      throw Object.assign(new Error("Siswa hanya dapat buka submission miliknya"), { status: 403 });
+    }
+  } else if (auth.user.role === "teacher") {
+    const classroom = row.assessment_id
+      ? await database.get(
+          `SELECT teacher_id FROM classes
+           WHERE id = (SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?)`,
+          row.assessment_id,
+          auth.tenant.id
+        )
+      : null;
+    if (!classroom || classroom.teacher_id !== auth.user.id) {
+      throw Object.assign(new Error("Guru hanya bisa buka submission miliknya"), { status: 403 });
+    }
+  }
+  return JSON.parse(row.payload);
 }
 
 function sanitizeAssessmentForRole(assessment, isStudentView) {
@@ -145,7 +198,7 @@ async function getVisibleAssessments(database, auth) {
          AND class_memberships.student_id = ?
          AND class_memberships.status = 'approved'
          AND COALESCE(assessments.status, 'published') = 'published'
-       ORDER BY datetime(assessments.created_at) DESC`,
+       ORDER BY assessments.created_at DESC`,
       auth.tenant.id,
       auth.user.id
     );
@@ -153,14 +206,14 @@ async function getVisibleAssessments(database, auth) {
 
   if (auth.user.role === "teacher") {
     return database.all(
-      "SELECT payload FROM assessments WHERE tenant_id = ? AND teacher_id = ? ORDER BY datetime(created_at) DESC",
+      "SELECT payload FROM assessments WHERE tenant_id = ? AND teacher_id = ? ORDER BY created_at DESC",
       auth.tenant.id,
       auth.user.id
     );
   }
 
   return database.all(
-    "SELECT payload FROM assessments WHERE tenant_id = ? ORDER BY datetime(created_at) DESC",
+    "SELECT payload FROM assessments WHERE tenant_id = ? ORDER BY created_at DESC",
     auth.tenant.id
   );
 }
@@ -168,7 +221,7 @@ async function getVisibleAssessments(database, auth) {
 async function getVisibleSubmissions(database, auth) {
   if (auth.user.role === "student") {
     return database.all(
-      "SELECT payload FROM submissions WHERE tenant_id = ? AND user_id = ? ORDER BY datetime(submitted_at) ASC",
+      "SELECT payload FROM submissions WHERE tenant_id = ? AND user_id = ? ORDER BY submitted_at ASC",
       auth.tenant.id,
       auth.user.id
     );
@@ -181,7 +234,7 @@ async function getVisibleSubmissions(database, auth) {
        FROM submissions s
        JOIN assessments a ON a.id = s.assessment_id
        WHERE s.tenant_id = ? AND a.tenant_id = ? AND a.teacher_id = ?
-       ORDER BY datetime(s.submitted_at) ASC`,
+       ORDER BY s.submitted_at ASC`,
       auth.tenant.id,
       auth.tenant.id,
       auth.user.id
@@ -189,7 +242,7 @@ async function getVisibleSubmissions(database, auth) {
   }
 
   return database.all(
-    "SELECT payload FROM submissions WHERE tenant_id = ? ORDER BY datetime(submitted_at) ASC",
+    "SELECT payload FROM submissions WHERE tenant_id = ? ORDER BY submitted_at ASC",
     auth.tenant.id
   );
 }
@@ -201,7 +254,7 @@ async function getVisibleClasses(database, auth) {
        FROM class_memberships
        JOIN classes ON classes.id = class_memberships.class_id
        WHERE class_memberships.tenant_id = ? AND class_memberships.student_id = ?
-       ORDER BY datetime(classes.created_at) DESC`,
+       ORDER BY classes.created_at DESC`,
       auth.tenant.id,
       auth.user.id
     );
@@ -209,14 +262,14 @@ async function getVisibleClasses(database, auth) {
 
   if (auth.user.role === "teacher") {
     return database.all(
-      "SELECT *, 'teacher' AS status FROM classes WHERE tenant_id = ? AND teacher_id = ? ORDER BY datetime(created_at) DESC",
+      "SELECT *, 'teacher' AS status FROM classes WHERE tenant_id = ? AND teacher_id = ? ORDER BY created_at DESC",
       auth.tenant.id,
       auth.user.id
     );
   }
 
   return database.all(
-    "SELECT *, 'admin' AS status FROM classes WHERE tenant_id = ? ORDER BY datetime(created_at) DESC",
+    "SELECT *, 'admin' AS status FROM classes WHERE tenant_id = ? ORDER BY created_at DESC",
     auth.tenant.id
   );
 }
@@ -229,7 +282,7 @@ async function getVisibleMemberships(database, auth) {
      JOIN users ON users.id = class_memberships.student_id
      JOIN classes ON classes.id = class_memberships.class_id
      WHERE class_memberships.tenant_id = ? AND classes.teacher_id = ?
-     ORDER BY datetime(class_memberships.requested_at) DESC`,
+     ORDER BY class_memberships.requested_at DESC`,
     auth.tenant.id,
     auth.user.id
   );
@@ -508,6 +561,7 @@ module.exports = {
   deleteMembership,
   getDb,
   getState,
+  getSubmissionDetail,
   initDatabase,
   requestJoinClass,
   saveAssessment,
@@ -516,4 +570,5 @@ module.exports = {
   updateClass,
   updateMembershipStatus,
   assertCanSubmitAssessment,
+  stripSubmissionAudio,
 };

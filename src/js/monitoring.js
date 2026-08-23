@@ -1,5 +1,6 @@
 import {
   deleteAssessment,
+  getSubmissionDetail,
   saveSubmissionToDatabase,
   updateAssessment,
 } from "./api.js";
@@ -14,27 +15,33 @@ import { renderCurrentState, switchView } from "./app-context.js";
 export function bindMonitoringEvents(ctx) {
   const { els } = ctx;
 
-  els.submissionList.addEventListener("click", (e) => {
+  els.submissionList.addEventListener("click", async (e) => {
     const viewBtn = e.target.closest(".view-submission-btn");
     if (!viewBtn) return;
     const item = viewBtn.closest(".submission-row");
     const submissionId = item.dataset.id;
-    const submission = ctx.state.submissions.find((s) => s.id === submissionId);
-    if (submission) {
-      showResult(els, submission, ctx.auth);
-    }
+    await openSubmissionForReview(ctx, submissionId);
   });
 
-  els.studentHistoryList.addEventListener("click", (e) => {
+  els.studentHistoryList.addEventListener("click", async (e) => {
     const viewBtn = e.target.closest(".view-submission-btn");
     if (!viewBtn) return;
     const item = viewBtn.closest(".submission-row");
     const submissionId = item.dataset.id;
-    const submission = ctx.state.submissions.find((s) => s.id === submissionId);
-    if (submission) {
-      showResult(els, submission, ctx.auth);
-    }
+    await openSubmissionForReview(ctx, submissionId);
   });
+
+  async function openSubmissionForReview(ctx, submissionId) {
+    const summary = ctx.state.submissions.find((s) => s.id === submissionId);
+    if (!summary) return;
+    let submission = summary;
+    try {
+      submission = await getSubmissionDetail(submissionId);
+    } catch {
+      // Fall back to the summary already in state so detail views still work.
+    }
+    showResult(ctx.els, submission, ctx.auth);
+  }
 
   els.resultPanel.addEventListener("click", async (e) => {
     if (e.target.closest(".close-result-btn") || e.target === els.resultPanel) {
