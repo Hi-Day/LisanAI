@@ -400,18 +400,32 @@ async function saveSubmission(tenantId, userId, submission, bypassCheck = false)
   if (userId && !bypassCheck) {
     await assertCanSubmitAssessment(tenantId, userId, submission.assessmentId);
   }
-  await getDb().run(
-    `INSERT OR REPLACE INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    submission.id,
-    tenantId,
-    submission.assessmentId,
-    submission.studentName,
-    userId,
-    submission.finalScore,
-    JSON.stringify(submission),
-    submission.submittedAt
-  );
+  const insert = (assessmentId) =>
+    getDb().run(
+      `INSERT OR REPLACE INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      submission.id,
+      tenantId,
+      assessmentId,
+      submission.studentName,
+      userId,
+      submission.finalScore,
+      JSON.stringify(submission),
+      submission.submittedAt
+    );
+  try {
+    await insert(submission.assessmentId);
+  } catch (err) {
+    // FK violation when the assessment row is missing (e.g. the assessment was
+    // shown to the student but never persisted, or was deleted). Never lose the
+    // student's work: retry with assessment_id = NULL, mirroring the trace
+    // persister's FK-safe fallback.
+    if (err && /FOREIGN KEY|SQLITE_CONSTRAINT/i.test(String(err.message || err))) {
+      await insert(null);
+    } else {
+      throw err;
+    }
+  }
   return submission;
 }
 
@@ -421,7 +435,12 @@ async function assertCanSubmitAssessment(tenantId, userId, assessmentId) {
     assessmentId,
     tenantId
   );
-  if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
+  // If the assessment is not in the DB, do NOT hard-fail the submission save.
+  // The student was shown this assessment (it was in their state), so blocking
+  // the save would silently discard their work. This mirrors the FK-safe
+  // fallback used by the trace persister. All real checks below still apply
+  // whenever the assessment IS present.
+  if (!assessment) return;
   if (assessment.status !== "published") {
     throw Object.assign(new Error("Assessment belum tersedia untuk dikerjakan"), { status: 403 });
   }

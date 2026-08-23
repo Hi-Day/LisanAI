@@ -214,6 +214,17 @@ test("student can submit up to maxAttempts, then is blocked", async () => {
   );
 });
 
+test("submission to an assessment missing from the DB is still saved (no data loss)", async () => {
+  const { tenant, student } = context;
+  // The assessment id does not exist in the assessments table. The student was
+  // shown it (it was in their state), so the save must not hard-fail with 404.
+  const submission = createSubmission("ghost-assessment-not-in-db", "ghost-sub-1");
+  const saved = await saveSubmission(tenant.id, student.id, submission);
+  assert.equal(saved.id, "ghost-sub-1");
+  const row = await getDb().get("SELECT * FROM submissions WHERE id = ?", "ghost-sub-1");
+  assert.ok(row, "submission must be persisted even when the assessment is missing");
+});
+
 test("student-facing state API omits ideal answers from assessment questions", async () => {
   const { student, tenant, publishedAssessment } = context;
   const session = await createSession(student.id);
