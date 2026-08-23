@@ -1431,7 +1431,7 @@ button:disabled {
   background: var(--accent);
   opacity: 0.75;
 }
-.trend-point-score { font-size: 0.7rem; color: var(--muted); font-weight: 600; }
+.trend-point-score { display: none; }
 .monitor-filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .monitor-top-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
 
