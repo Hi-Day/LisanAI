@@ -4,7 +4,8 @@
  */
 class AIProvider {
   /**
-   * Generate. Request: { prompt, model, tenantId, userId, runId }.
+   * Generate. Request: { prompt, model, tenantId, userId, runId,
+   *                      temperature, topP, maxTokens }.
    * @returns {Promise<string>} raw content string.
    */
   async generate() {

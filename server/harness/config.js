@@ -6,12 +6,18 @@ const ENGINE_VERSION = "1.0.0";
  * Change configuration → change harness behavior, no core rewrite.
  */
 function defaultConfig(overrides = {}) {
-  return {
+  const defaults = {
     version: HARNESS_VERSION,
     engineVersion: ENGINE_VERSION,
     model: {
       provider: "openrouter",
       model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash",
+      // Generation parameters (FR-16 / P0). These are recorded in the trace
+      // versioning metadata and hashed into configHash so two runs are only
+      // reproducible when they used identical sampling settings.
+      temperature: Number(process.env.HARNESS_TEMPERATURE ?? 0.25),
+      topP: Number(process.env.HARNESS_TOPP ?? 1),
+      maxTokens: Number(process.env.HARNESS_MAX_TOKENS ?? 4000),
     },
     // Which plugins are active, v1..v3 research modes.
     // Per-plugin feature flags allow rollback without redeploy (PRD §27).
@@ -35,8 +41,34 @@ function defaultConfig(overrides = {}) {
       rounding: "half-up", // how final score is rounded
       clamp: true, // keep final score in [0, 100]
     },
-    ...overrides,
   };
+  return deepMerge(defaults, overrides || {});
+}
+
+/**
+ * Recursively merge plain-object overrides into defaults so a partial config
+ * (e.g. { model: { temperature: 0.1 } }) preserves the rest of each nested
+ * group (provider, model name, topP, maxTokens). Arrays and scalars replace
+ * wholesale. Returns a new object; does not mutate inputs.
+ */
+function deepMerge(base, override) {
+  const out = { ...base };
+  for (const [key, value] of Object.entries(override || {})) {
+    const baseValue = base[key];
+    if (
+      baseValue &&
+      typeof baseValue === "object" &&
+      !Array.isArray(baseValue) &&
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
+      out[key] = deepMerge(baseValue, value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
 }
 
 function validateConfig(config) {

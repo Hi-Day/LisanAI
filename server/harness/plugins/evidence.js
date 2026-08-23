@@ -117,6 +117,11 @@ function buildEvidence(text, criterionId, answers) {
  * (>=2) that does appear in the student answer. This keeps evidence grounded
  * in genuinely-copied fragments without accepting paraphrases (FR-01 — never
  * seeds from ideal answer; only the student corpus is searched).
+ *
+ * Robustness (P0): the returned span is always validated so that
+ *   0 <= start <= end <= answer.length
+ * and the matched window is a genuine substring of the student answer. A
+ * degenerate window (empty, or longer than the answer) is never returned.
  */
 function findInAnswers(evidenceText, answers) {
   if (!evidenceText) return null;
@@ -147,11 +152,12 @@ function findInAnswers(evidenceText, answers) {
 /**
  * Lexical confidence: exact full-phrase match is strongest; a truncated
  * phrase (evidence longer than the match window) is slightly weaker.
+ * The ratio is clamped to [0,1] so a malformed span can never yield >1.
  */
 function lexicalConfidence(evidenceText, found) {
   const length = evidenceText.length;
   const matched = found.end - found.start;
   if (length === 0) return 0;
-  const ratio = Math.min(1, matched / length);
+  const ratio = Math.min(1, Math.max(0, matched / length));
   return Math.round(ratio * 100) / 100;
 }

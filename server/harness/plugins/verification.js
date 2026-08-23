@@ -15,6 +15,12 @@
  *
  * PRD FR-06 (Evidence-Score Consistency):
  *   A high score with weak evidence coverage triggers REVIEW.
+ *
+ * Single Verification Engine (P0):
+ *   This plugin is the single source of truth for the gate decision. Issues are
+ *   emitted with a structured `type` (MISSING_CRITERION, UNGROUNDED_EVIDENCE,
+ *   INVALID_SCORE, NO_EVIDENCE, WEAK_COVERAGE, HIGH_SCORE_WEAK_EVIDENCE,
+ *   SCHEMA_INVALID) so consumers can act on them deterministically.
  */
 const { validateCriterionEvaluation } = require("../validator");
 
@@ -26,7 +32,7 @@ const DEFAULT_THRESHOLDS = {
 
 module.exports = {
   name: "verification",
-  version: "2.0.0",
+  version: "2.1.0",
   async after(context, result) {
     const thresholds = {
       ...DEFAULT_THRESHOLDS,
@@ -45,8 +51,8 @@ module.exports = {
     for (const rid of rubricIds) {
       if (!resultIds.has(rid)) {
         const msg = `Criterion '${rid}' tidak dievaluasi`;
-        fatalIssues.push(msg);
-        issues.push(msg);
+        fatalIssues.push({ type: "MISSING_CRITERION", criterionId: rid, message: msg });
+        issues.push({ type: "MISSING_CRITERION", criterionId: rid, message: msg });
       }
     }
 
@@ -54,18 +60,24 @@ module.exports = {
     for (const criterion of result.criteria || []) {
       const check = validateCriterionEvaluation(criterion, rubric);
       if (!check.valid) {
-        fatalIssues.push(...check.issues);
-        issues.push(...check.issues);
+        for (const issue of check.issues) {
+          fatalIssues.push({ type: "SCHEMA_INVALID", criterionId: criterion.criterionId, message: issue });
+          issues.push({ type: "SCHEMA_INVALID", criterionId: criterion.criterionId, message: issue });
+        }
       }
       if (!Array.isArray(criterion.evidence) || criterion.evidence.length === 0) {
         const msg = `Criterion '${criterion.criterionId}' tidak memiliki evidence`;
-        fatalIssues.push(msg);
-        issues.push(msg);
+        fatalIssues.push({ type: "NO_EVIDENCE", criterionId: criterion.criterionId, message: msg });
+        issues.push({ type: "NO_EVIDENCE", criterionId: criterion.criterionId, message: msg });
       } else {
         const ungrounded = criterion.evidence.filter((ev) => ev && ev.grounded === false);
         if (ungrounded.length > 0) {
           // Not fatal on its own — lowers coverage → likely REVIEW.
-          issues.push(`Criterion '${criterion.criterionId}' punya evidence yang tidak grounded`);
+          issues.push({
+            type: "UNGROUNDED_EVIDENCE",
+            criterionId: criterion.criterionId,
+            message: `Criterion '${criterion.criterionId}' punya evidence yang tidak grounded`,
+          });
         }
       }
     }
@@ -108,9 +120,11 @@ function checkScoreConsistency(criteria, thresholds) {
   for (const c of scored) {
     const hasGrounded = Array.isArray(c.evidence) && c.evidence.some((ev) => ev && ev.grounded === true);
     if (!hasGrounded && c.score >= thresholds.highScoreThreshold) {
-      anomalies.push(
-        `Criterion '${c.criterionId}' score ${c.score} tinggi tanpa evidence grounded`
-      );
+      anomalies.push({
+        type: "HIGH_SCORE_WEAK_EVIDENCE",
+        criterionId: c.criterionId,
+        message: `Criterion '${c.criterionId}' score ${c.score} tinggi tanpa evidence grounded`,
+      });
     }
   }
   return { coverage, anomalies };
@@ -130,9 +144,10 @@ function decideGate(fatalIssues, issues, scoreConsistency, thresholds) {
     return { status: "FAIL", reasons };
   }
   if (scoreConsistency.coverage < thresholds.evidenceCoverage) {
-    reasons.push(
-      `Evidence coverage ${(scoreConsistency.coverage * 100).toFixed(0)}% di bawah threshold ${(thresholds.evidenceCoverage * 100).toFixed(0)}%`
-    );
+    reasons.push({
+      type: "WEAK_COVERAGE",
+      message: `Evidence coverage ${(scoreConsistency.coverage * 100).toFixed(0)}% di bawah threshold ${(thresholds.evidenceCoverage * 100).toFixed(0)}%`,
+    });
   }
   reasons.push(...scoreConsistency.anomalies);
   if (reasons.length > 0) {

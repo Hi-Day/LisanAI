@@ -48,24 +48,15 @@ async function evaluateWithHarness(payload) {
 
   // Adapt harness canonical output to the existing frontend contract.
   // The frontend contract is PER-QUESTION: exactly one entry per student answer.
-  // Map rubric-level criteria to per-question feedback, bounded by answers.length
-  // so an over-eager model cannot inflate the number of returned questions.
-  const n = answers.length;
+  //
+  // Question ↔ Criterion mapping (P0): a question maps to a SUBSET of rubric
+  // criteria (partial applicability — e.g. 2 of 3 criteria apply to one
+  // question). Criterion evaluations are atomic and tied to an answer
+  // (answerIndex). A question's score is the weighted aggregate of the criteria
+  // applicable to it (weights renormalized within the subset). The overall
+  // finalScore remains the deterministic weighted aggregate over all criteria.
   const criteria = result.criteria || [];
-  const questionScores = Array.from({ length: n }, (_, idx) => {
-    const c = criteria[idx] || criteria[0] || {};
-    const { strengths, gaps } = splitFeedback(c.rationale, c.score);
-    return {
-      question: (questions[idx] && questions[idx].prompt) || `Soal ${idx + 1}`,
-      answer: answers[idx] || "",
-      score: clamp01(c.score),
-      matched: (c.evidence || []).map((ev) => ev.text),
-      strengths,
-      gaps,
-      criterionId: c.criterionId,
-      confidence: c.confidence,
-    };
-  });
+  const questionScores = buildQuestionScores(questions, answers, criteria);
 
   return {
     finalScore: Math.round(result.finalScore),
@@ -85,6 +76,72 @@ function clamp01(score) {
   const s = Number(score);
   if (!Number.isFinite(s)) return 0;
   return Math.max(0, Math.min(100, s));
+}
+
+/**
+ * Build the per-question frontend contract from atomic criterion evaluations.
+ *
+ * Each criterion evaluation carries an `answerIndex` (which student answer it
+ * judged). A question's applicable criteria are those whose answerIndex matches
+ * the question's index. If a criterion has no answerIndex, it is treated as
+ * applicable to every question (assessment-level criterion).
+ *
+ * Partial applicability: a question may map to only a subset of criteria. The
+ * question score is the weighted aggregate over its applicable criteria, with
+ * weights renormalized within the subset so the result stays on the 0–100 scale.
+ */
+function buildQuestionScores(questions, answers, criteria) {
+  const n = answers.length;
+  const byAnswer = new Map();
+  for (const c of criteria || []) {
+    const key = Number.isInteger(c.answerIndex) ? c.answerIndex : "all";
+    if (!byAnswer.has(key)) byAnswer.set(key, []);
+    byAnswer.get(key).push(c);
+  }
+  return Array.from({ length: n }, (_, idx) => {
+    const applicable = [...(byAnswer.get(idx) || []), ...(byAnswer.get("all") || [])];
+    const strengths = [];
+    const gaps = [];
+    const matched = [];
+    for (const c of applicable) {
+      const { strengths: s, gaps: g } = splitFeedback(c.rationale, c.score);
+      strengths.push(...s);
+      gaps.push(...g);
+      matched.push(...(c.evidence || []).map((ev) => ev.text));
+    }
+    return {
+      question: (questions[idx] && questions[idx].prompt) || `Soal ${idx + 1}`,
+      answer: answers[idx] || "",
+      score: aggregateScore(applicable),
+      matched,
+      strengths,
+      gaps,
+      criterionIds: applicable.map((c) => c.criterionId),
+      confidence: averageConfidence(applicable),
+    };
+  });
+}
+
+/**
+ * Weighted aggregate of a question's applicable criteria, renormalizing weights
+ * within the subset. Falls back to the mean when no weights are available.
+ */
+function aggregateScore(criteria) {
+  const scored = (criteria || []).filter((c) => Number.isFinite(Number(c.score)));
+  if (scored.length === 0) return 0;
+  const weightSum = scored.reduce((acc, c) => acc + Number(c.weight || 0), 0);
+  if (weightSum <= 0) {
+    return clamp01(scored.reduce((acc, c) => acc + Number(c.score), 0) / scored.length);
+  }
+  const weighted = scored.reduce((acc, c) => acc + Number(c.score) * (Number(c.weight) / weightSum), 0);
+  return clamp01(weighted);
+}
+
+/** Average confidence across a question's applicable criteria (0 when none). */
+function averageConfidence(criteria) {
+  const confs = (criteria || []).map((c) => Number(c.confidence)).filter((v) => Number.isFinite(v));
+  if (confs.length === 0) return 0;
+  return confs.reduce((a, b) => a + b, 0) / confs.length;
 }
 
 /**
@@ -180,4 +237,4 @@ function splitFeedback(rationale, score) {
   return { strengths, gaps };
 }
 
-module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback };
+module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence };

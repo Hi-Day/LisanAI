@@ -193,6 +193,11 @@ class AssessmentHarness {
         userId: input.userId,
         runId,
         schemaHint: ctx.evaluationHint || "Balas JSON valid.",
+        // Generation parameters (FR-16 / P0) — forwarded so the provider can
+        // apply them and so the trace records exactly what was used.
+        temperature: this.config.model.temperature,
+        topP: this.config.model.topP,
+        maxTokens: this.config.model.maxTokens,
       });
       trace.event("MODEL_RESPONSE", { modelTokenEstimate: rawContent ? rawContent.length : 0 });
       trace.setContext("rawContentLength", rawContent ? rawContent.length : 0);
@@ -224,8 +229,6 @@ class AssessmentHarness {
     });
 
     const verificationResult = this.runVerification(result, rubric, criteria);
-
-    // PRD FR-10 — Reliability Vector (separate from modelConfidence).
     let reliability = null;
     if (this.config.pipeline && this.config.pipeline.reliability !== false && verificationResult) {
       const { reliabilityVector } = require("./scoring/reliability");
@@ -279,6 +282,7 @@ class AssessmentHarness {
         modelVersion: (this.provider && this.provider.version) || null,
         temperature: this.config.model.temperature ?? null,
         topP: this.config.model.topP ?? null,
+        maxTokens: this.config.model.maxTokens ?? null,
         promptVersion: "v1",
         rubricVersion: (rubric && rubric.id) || "v1",
         harnessVersion: this.config.version,
@@ -292,31 +296,44 @@ class AssessmentHarness {
     return output;
   }
 
+  /**
+   * Single Verification Engine (P0).
+   *
+   * The verification PLUGIN (plugins/verification.js) is the single source of
+   * truth for the gate decision (PASS/REVIEW/FAIL). This method only adapts the
+   * plugin's result into the canonical shape and provides a minimal structural
+   * fallback when the plugin is disabled — it never re-implements a competing
+   * set of rules. All consumers (publication rule, reliability, trace) read the
+   * same `verification` object produced here.
+   */
   runVerification(result, rubric, weighted) {
+    const pluginVerification = (result && result.verification) || {};
+    // The plugin already computed the authoritative gate. Surface it unchanged.
+    if (pluginVerification.status && pluginVerification.valid !== undefined) {
+      return {
+        valid: pluginVerification.valid,
+        issues: pluginVerification.issues || [],
+        status: pluginVerification.status,
+        reasons: pluginVerification.reasons || [],
+        scoreConsistency: pluginVerification.scoreConsistency,
+      };
+    }
+    // Fallback (plugin disabled): minimal structural gate only.
     const fatalIssues = [];
     if (!rubric || !Array.isArray(rubric.criteria)) fatalIssues.push("Rubric tidak tersedia/tidak valid");
     if (!Array.isArray(result.criteria) || result.criteria.length === 0) fatalIssues.push("Tidak ada criterion score");
-    const issues = [...fatalIssues];
     const out = validateOutput({
       evaluationId: "pending",
       criteria: result.criteria,
       finalScore: weighted.finalScore,
     });
-    if (!out.valid) {
-      fatalIssues.push(...out.issues);
-      issues.push(...out.issues);
-    }
-
-    // Preserve the gate decision produced by the verification plugin (PASS/REVIEW/FAIL).
-    const pluginVerification = result.verification || {};
-    const status = pluginVerification.status || (fatalIssues.length === 0 ? "PASS" : "FAIL");
-    const reasons = pluginVerification.reasons || fatalIssues;
+    if (!out.valid) fatalIssues.push(...out.issues);
     return {
       valid: fatalIssues.length === 0,
-      issues,
-      status,
-      reasons,
-      scoreConsistency: pluginVerification.scoreConsistency,
+      issues: fatalIssues,
+      status: fatalIssues.length === 0 ? "PASS" : "FAIL",
+      reasons: fatalIssues,
+      scoreConsistency: null,
     };
   }
 
@@ -374,6 +391,7 @@ function harnessOutput(ctx, parsed, { runId, input }) {
       criteria: parsed.criteria,
       feedback: parsed.feedback || "",
       submissionId: parsed.submissionId || null,
+      promptForHash: ctx.promptForHash || null,
     };
   }
   const qs = Array.isArray(parsed && parsed.questionScores) ? parsed.questionScores : [];
@@ -405,6 +423,7 @@ function harnessOutput(ctx, parsed, { runId, input }) {
     criteria,
     feedback: parsed.feedback || "",
     submissionId: parsed.submissionId || null,
+    promptForHash: ctx.promptForHash || null,
   };
 }
 

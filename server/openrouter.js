@@ -35,7 +35,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
  * Perform a single model request with retry + exponential backoff.
  * Returns { ok, status, data } or throws on non-retryable failure.
  */
-async function requestModel(model, messages, schemaHint) {
+async function requestModel(model, messages, schemaHint, gen = {}) {
   let lastError = null;
   let retries = 0;
 
@@ -53,8 +53,11 @@ async function requestModel(model, messages, schemaHint) {
           },
           body: JSON.stringify({
             model,
-            temperature: 0.25,
-            max_tokens: 4000,
+            // Generation parameters (FR-16 / P0). Defaults preserve the
+            // existing baseline behavior when none are supplied.
+            temperature: gen.temperature ?? 0.25,
+            top_p: gen.topP ?? 1,
+            max_tokens: gen.maxTokens ?? 4000,
             reasoning: {
               effort: "none",
               exclude: true,
@@ -168,6 +171,7 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
   const tenantId = context.tenantId || "system";
   const userId = context.userId || "system";
   const action = context.action || "unknown";
+  const gen = context.gen || {}; // generation parameters (temperature/topP/maxTokens)
   const primaryModel = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
   const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
   let model = primaryModel;
@@ -205,7 +209,7 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
         model = candidateModel;
 
         try {
-          const result = await requestModel(candidateModel, messages, schemaHint);
+          const result = await requestModel(candidateModel, messages, schemaHint, gen);
           responseData = result.data;
           content = responseData.choices?.[0]?.message?.content;
           if (!content) throw new Error("Respons model kosong");

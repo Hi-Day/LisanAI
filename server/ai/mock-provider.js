@@ -50,6 +50,10 @@ class MockProvider extends AIProvider {
         rationale: `Evaluasi deterministik mock menurut '${c.name}'.`,
         confidence: 0.9,
         runId,
+        // Generation parameters are recorded for trace fidelity (FR-16).
+        temperature: request.temperature,
+        topP: request.topP,
+        maxTokens: request.maxTokens,
       };
     });
     return JSON.stringify({ criteria, rubric });

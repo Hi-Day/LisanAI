@@ -21,6 +21,12 @@ class OpenRouterProvider extends AIProvider {
         tenantId: request.tenantId,
         userId: request.userId,
         action: "evaluate-harness",
+        // Generation parameters (FR-16 / P0) forwarded to the provider.
+        gen: {
+          temperature: request.temperature,
+          topP: request.topP,
+          maxTokens: request.maxTokens,
+        },
       }
     );
     // callOpenRouter returns the parsed data object; stringify raw for the parser.
