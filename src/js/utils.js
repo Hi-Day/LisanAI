@@ -51,3 +51,13 @@ export function formatTime(seconds) {
   const s = (seconds % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
 }
+
+/** Turn a slug criterionId like "ketepatan_konsep_arsitektur_30" into readable text. */
+export function prettifyId(id) {
+  return String(id || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\d{2,3}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}

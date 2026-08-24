@@ -8,7 +8,7 @@ import { evaluateFallbackAssessment } from "./fallback-assessment.js";
 import { createMicCheck } from "./mic-check.js";
 import { formatDuration, renderMonitoring, renderQuestion, renderStudentHistory, showResult } from "./render.js";
 import { showToast } from "./toast.js";
-import { escapeHtml, formatTime } from "./utils.js";
+import { escapeHtml, formatTime, prettifyId } from "./utils.js";
 import { isAssessmentLocked, renderCurrentState } from "./app-context.js";
 
 /**
@@ -512,8 +512,8 @@ function buildHarnessInsight(evaluation) {
     .filter((c) => Number.isFinite(Number(c.score)))
     .sort((a, b) => Number(b.score) - Number(a.score))[0];
   const parts = [];
-  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || strongest.criterionId || "kriteria terkuat"}.`);
-  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || weakest.criterionId || "kriteria terlemah"}.`);
+  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "kriteria terkuat"}.`);
+  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "kriteria terlemah"}.`);
   return parts.join(" ").trim();
 }
 
