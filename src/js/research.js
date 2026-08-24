@@ -181,19 +181,20 @@ function renderMetrics(els, data) {
       '<p class="empty-state">Belum ada pasangan skor untuk metrik reliabilitas.</p>';
     return;
   }
-  const card = (label, value, pct = false) => `
-    <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;">
+  const card = (label, value, pct, hint) => `
+    <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;" title="${escapeHtml(hint || "")}">
       <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${label}</span>
       <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${pct ? fmt(value * 100, 1) + "%" : fmt(value)}</strong>
+      <span class="metric-hint" style="font-size:0.72rem;color:var(--muted);line-height:1.35;">${escapeHtml(hint || "")}</span>
     </div>`;
   els.researchValidity.innerHTML =
     `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${total} pasangan AI vs human</p>` +
-    card("Pearson", m.validity.pearson) +
-    card("Spearman", m.validity.spearman) +
-    card("MAE", m.validity.mae) +
-    card("RMSE", m.validity.rmse) +
-    card("Exact agreement", m.reliability.exactAgreement, true) +
-    card("Adjacent (+/-5)", m.reliability.adjacentAgreement, true);
+    card("Pearson", m.validity.pearson, false, "Seberapa erat arah hubungan skor AI dan skor manusia. Mendekati 1 = sangat sejalan, mendekati 0 = tidak ada hubungan.") +
+    card("Spearman", m.validity.spearman, false, "Sama seperti Pearson tapi berdasarkan urutan/peringkat, lebih tahan terhadap nilai ekstrem.") +
+    card("MAE", m.validity.mae, false, "Rata-rata selisih mutlak antara skor AI dan manusia. Semakin kecil (idealnya di bawah 5) makin akurat.") +
+    card("RMSE", m.validity.rmse, false, "Akar rata-rata selisih kuadrat. Sama seperti MAE tapi memberi penalti lebih besar pada selisih besar.") +
+    card("Exact agreement", m.reliability.exactAgreement, true, "Persentase penilaian di mana AI dan manusia memberi skor yang persis sama.") +
+    card("Adjacent (+/-5)", m.reliability.adjacentAgreement, true, "Persentase penilaian di mana selisih skor AI dan manusia maksimal 5 poin.");
 
   // Inter-rater reliability (PRD §33): κ, weighted κ, ICC.
   const ir = data.interRater;
@@ -203,16 +204,17 @@ function renderMetrics(els, data) {
         '<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">' + total + ' pasangan skor</p>' +
         '<p class="empty-state">Metrik reliabilitas belum tersedia (butuh variasi skor).</p>';
     } else {
-      const irCard = (label, value) => `
-        <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;">
+      const irCard = (label, value, hint) => `
+        <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;" title="${escapeHtml(hint || "")}">
           <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${label}</span>
           <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${fmt(value)}</strong>
+          <span class="metric-hint" style="font-size:0.72rem;color:var(--muted);line-height:1.35;">${escapeHtml(hint || "")}</span>
         </div>`;
       els.researchInterRater.innerHTML =
         `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${ir.n ?? total} pasangan AI vs human</p>` +
-        irCard("Cohen's Kappa", ir.cohensKappa) +
-        irCard("Weighted Kappa", ir.weightedKappa) +
-        irCard("ICC (2-way)", ir.icc);
+        irCard("Cohen's Kappa", ir.cohensKappa, "Seberapa setuju AI dan manusia setelah dikurangi peluang kebetulan. 0.6+ dianggap kesepakatan baik.") +
+        irCard("Weighted Kappa", ir.weightedKappa, "Sama seperti Cohen's Kappa, tapi selisih skor kecil diberi penalti lebih kecil daripada selisih besar.") +
+        irCard("ICC (2-way)", ir.icc, "Konsistensi antar-penilai. Mendekati 1 = sangat konsisten, di bawah 0.5 = kurang konsisten.");
     }
   }
 }
@@ -284,8 +286,11 @@ function renderRubric(els, data) {
   els.researchRubricPanel.innerHTML = n
     ? `
       <p>Rata-rata criterion per run: <strong>${coverage.toFixed(2)}</strong></p>
+      <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Rata-rata jumlah aspek rubrik yang dievaluasi pada tiap run evaluasi.</p>
       <p>Total criterion rows: <strong>${data.totalCriterionRows || 0}</strong></p>
-      <p>Jumlah run: <strong>${n}</strong></p>`
+      <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Total seluruh penilaian aspek rubrik yang dicatat di semua run.</p>
+      <p>Jumlah run: <strong>${n}</strong></p>
+      <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Banyaknya evaluasi (run) yang pernah dijalankan oleh sistem.</p>`
     : '<p class="empty-state">Belum ada data rubric compliance.</p>';
 }
 
