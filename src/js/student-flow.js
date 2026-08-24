@@ -5,7 +5,8 @@ import {
 import { createSubmission } from "./assessment-factory.js";
 import { setButtonLoading } from "./dom.js";
 import { evaluateFallbackAssessment } from "./fallback-assessment.js";
-import { renderMonitoring, renderQuestion, renderStudentHistory, showResult } from "./render.js";
+import { createMicCheck } from "./mic-check.js";
+import { formatDuration, renderMonitoring, renderQuestion, renderStudentHistory, showResult } from "./render.js";
 import { showToast } from "./toast.js";
 import { escapeHtml, formatTime } from "./utils.js";
 import { isAssessmentLocked, renderCurrentState } from "./app-context.js";
@@ -16,30 +17,33 @@ import { isAssessmentLocked, renderCurrentState } from "./app-context.js";
 export function bindStudentFlowEvents(ctx) {
   const { els } = ctx;
 
-  if (els.studentAssessmentGrid) {
-    els.studentAssessmentGrid.addEventListener("click", async (e) => {
-      const btn = e.target.closest(".start-assessment-btn") || e.target.closest(".assessment-card");
-      if (btn) {
-        const assessment = ctx.state.assessments.find((item) => item.id === btn.dataset.id);
-        if (assessment && isAssessmentLocked(ctx, assessment)) {
-          if (assessment.status === "closed") {
-            showToast("Akses ke penilaian ini sedang ditutup oleh guru.");
-          } else {
-            showToast("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
-          }
-          return;
-        }
+  ctx.micCheck = createMicCheck({
+    volumeIndicator: els.preExamVolume,
+    playback: els.preExamPlayback,
+  });
 
-        ctx.recorder.stop();
-        ctx.session.selectAssessment(btn.dataset.id);
-        els.resultPanel.classList.add("hidden");
-        await renderCurrentState(ctx);
-        await startRecorderForCurrentAssessment(ctx);
-        startQuestionTimer(ctx);
-        ctx.questionStartTime = Date.now();
+  if (els.studentAssessmentGrid) {
+    els.studentAssessmentGrid.addEventListener("click", (e) => {
+      const btn = e.target.closest(".start-assessment-btn") || e.target.closest(".assessment-card");
+      if (!btn) return;
+
+      const assessment = ctx.state.assessments.find((item) => item.id === btn.dataset.id);
+      if (!assessment) return;
+      if (isAssessmentLocked(ctx, assessment)) {
+        if (assessment.status === "closed") {
+          showToast("Akses ke penilaian ini sedang ditutup oleh guru.");
+        } else {
+          showToast("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
+        }
+        return;
       }
+
+      // Soal dan timer belum jalan di sini: siswa harus lewat modal persiapan dulu.
+      openPreExamModal(ctx, assessment, btn);
     });
   }
+
+  bindPreExamEvents(ctx);
 
   if (els.backToDashboard) {
     els.backToDashboard.addEventListener("click", async () => {
@@ -78,6 +82,219 @@ export function bindStudentFlowEvents(ctx) {
       renderMicDiagnostics(ctx, result);
     });
   }
+}
+
+/* ---------- Modal persiapan sebelum ujian dimulai ---------- */
+
+function bindPreExamEvents(ctx) {
+  const { els } = ctx;
+  if (!els.preExamModal) return;
+
+  els.preExamMicTest?.addEventListener("click", () => runPreExamMicTest(ctx));
+  els.preExamStart?.addEventListener("click", () => startExamFromModal(ctx));
+  els.preExamCancel?.addEventListener("click", () => closePreExamModal(ctx));
+  els.preExamClose?.addEventListener("click", () => closePreExamModal(ctx));
+  els.preExamModal.addEventListener("click", (event) => {
+    if (event.target === els.preExamModal) closePreExamModal(ctx);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || els.preExamModal.classList.contains("hidden")) return;
+    event.preventDefault();
+    closePreExamModal(ctx);
+  });
+}
+
+export function openPreExamModal(ctx, assessment, trigger = null) {
+  const { els } = ctx;
+  ctx.pendingExamAssessmentId = assessment.id;
+
+  // Tanpa markup modal (mis. halaman lama), jangan sampai siswa terkunci.
+  if (!els.preExamModal) {
+    startExam(ctx, assessment.id);
+    return;
+  }
+
+  ctx.preExamTrigger = trigger;
+  ctx.micCheck?.reset();
+  if (els.preExamTitle) els.preExamTitle.textContent = assessment.topic || "Penilaian";
+  if (els.preExamMeta) els.preExamMeta.innerHTML = buildPreExamMeta(ctx, assessment);
+  resetPreExamMicUi(ctx);
+
+  const isOralExam = assessment.oralExamEnabled !== false;
+  els.preExamMicSection?.classList.toggle("hidden", !isOralExam);
+  if (els.preExamStart) {
+    els.preExamStart.textContent = "Mulai ujian sekarang";
+    els.preExamStart.disabled = isOralExam;
+  }
+  setPreExamNote(
+    ctx,
+    isOralExam
+      ? "Tes mikrofon dulu agar jawaban lisan Anda terekam. Timer belum berjalan."
+      : "Penilaian ini tidak memerlukan mikrofon. Timer mulai setelah Anda menekan tombol mulai.",
+    false,
+  );
+
+  els.preExamModal.classList.remove("hidden");
+  (isOralExam ? els.preExamMicTest : els.preExamStart)?.focus();
+}
+
+function closePreExamModal(ctx, { returnFocus = true } = {}) {
+  const { els } = ctx;
+  if (!els.preExamModal) return;
+  els.preExamModal.classList.add("hidden");
+  ctx.micCheck?.reset();
+  ctx.pendingExamAssessmentId = null;
+  if (returnFocus && ctx.preExamTrigger instanceof HTMLElement && document.contains(ctx.preExamTrigger)) {
+    ctx.preExamTrigger.focus();
+  }
+  ctx.preExamTrigger = null;
+}
+
+function buildPreExamMeta(ctx, assessment) {
+  const total = assessment.questions?.length || 0;
+  const timeLimit = Number(assessment.timeLimit) || 0;
+  const used = ctx.state.submissions.filter((submission) => submission.assessmentId === assessment.id).length;
+  const maxAttempts = assessment.allowRetakes ? Infinity : Number(assessment.maxAttempts) || 1;
+  const attempts = Number.isFinite(maxAttempts)
+    ? `${Math.max(0, maxAttempts - used)} percobaan tersisa`
+    : "Percobaan tak terbatas";
+
+  return [
+    `📝 ${total} soal`,
+    timeLimit > 0 ? `⏱ ${formatDuration(timeLimit)} / soal` : "⏱ Tanpa batas waktu",
+    `🔄 ${attempts}`,
+    `🎚 ${assessment.difficulty || "-"}`,
+  ]
+    .map((text) => `<span>${escapeHtml(text)}</span>`)
+    .join("");
+}
+
+function resetPreExamMicUi(ctx) {
+  const { els } = ctx;
+  if (els.preExamMicTest) {
+    els.preExamMicTest.disabled = false;
+    els.preExamMicTest.textContent = "Tes mikrofon";
+  }
+  setPreExamMicStatus(ctx, "Mikrofon belum dites", "");
+  if (els.preExamMicDiagnostics) {
+    els.preExamMicDiagnostics.innerHTML = "";
+    els.preExamMicDiagnostics.classList.add("hidden");
+  }
+}
+
+function setPreExamMicStatus(ctx, text, variant) {
+  const { els } = ctx;
+  if (!els.preExamMicStatus) return;
+  els.preExamMicStatus.textContent = text;
+  els.preExamMicStatus.className = `mic-status${variant ? ` ${variant}` : ""}`;
+}
+
+function setPreExamNote(ctx, text, warn) {
+  const { els } = ctx;
+  if (!els.preExamStartNote) return;
+  els.preExamStartNote.textContent = text;
+  els.preExamStartNote.className = `pre-exam-note${warn ? " warn" : ""}`;
+}
+
+async function runPreExamMicTest(ctx) {
+  const { els } = ctx;
+  if (!ctx.micCheck || ctx.micCheck.isRunning()) return;
+
+  if (els.preExamMicTest) els.preExamMicTest.disabled = true;
+  if (els.preExamStart) els.preExamStart.disabled = true;
+  if (els.preExamMicDiagnostics) els.preExamMicDiagnostics.classList.add("hidden");
+  setPreExamMicStatus(ctx, "Menyiapkan mikrofon...", "");
+  setPreExamNote(ctx, "Bicara dengan suara normal selama beberapa detik.", false);
+
+  const result = await ctx.micCheck.run((secondsLeft) => {
+    if (secondsLeft > 0) setPreExamMicStatus(ctx, `Bicara sekarang... ${secondsLeft}s`, "");
+  });
+
+  if (els.preExamMicTest) {
+    els.preExamMicTest.disabled = false;
+    els.preExamMicTest.textContent = "Tes ulang mikrofon";
+  }
+  // Setelah tes selesai siswa selalu boleh mulai: mikrofon gagal pun jawaban
+  // masih bisa diketik, jadi jangan sampai ujian terkunci.
+  if (els.preExamStart) els.preExamStart.disabled = false;
+  renderPreExamMicResult(ctx, result);
+}
+
+function renderPreExamMicResult(ctx, result) {
+  const { els } = ctx;
+  const box = els.preExamMicDiagnostics;
+
+  if (!result.ok) {
+    setPreExamMicStatus(ctx, "✕ Mikrofon bermasalah", "error");
+    if (box) {
+      box.classList.remove("hidden", "ok");
+      box.classList.add("error");
+      box.innerHTML = `
+        <strong>Mikrofon belum bisa dipakai.</strong>
+        <p>${escapeHtml(result.message)}</p>
+        ${buildMicHelp(result.name)}
+      `;
+    }
+    if (els.preExamStart) els.preExamStart.textContent = "Mulai tanpa mikrofon";
+    setPreExamNote(ctx, "Mikrofon gagal. Anda tetap bisa mulai dan mengetik jawaban di kolom transkripsi.", true);
+    return;
+  }
+
+  if (!result.heard) {
+    setPreExamMicStatus(ctx, "⚠ Suara tidak terdengar", "error");
+    if (box) {
+      box.classList.remove("hidden", "ok");
+      box.classList.add("error");
+      box.innerHTML = `
+        <strong>Mikrofon terbaca, tetapi tidak ada suara masuk.</strong>
+        <p>${escapeHtml(result.message)}</p>
+        <ul>
+          <li>Pastikan mikrofon tidak dalam kondisi mute (hardware maupun sistem).</li>
+          <li>Pilih perangkat input yang benar di pengaturan suara.</li>
+          <li>Dekatkan mikrofon lalu klik <b>Tes ulang mikrofon</b>.</li>
+        </ul>
+      `;
+    }
+    setPreExamNote(ctx, "Sebaiknya tes ulang dulu sebelum mulai agar jawaban lisan Anda terekam.", true);
+    return;
+  }
+
+  setPreExamMicStatus(ctx, "✓ Mikrofon siap", "ok");
+  if (box) {
+    box.classList.remove("hidden", "error");
+    box.classList.add("ok");
+    box.innerHTML = `
+      <strong>Mikrofon siap digunakan.</strong>
+      <p>${escapeHtml(result.message)}</p>
+      ${result.hasPlayback ? "<p>Putar rekaman di atas untuk memastikan suara Anda jelas.</p>" : ""}
+    `;
+  }
+  setPreExamNote(ctx, "Mikrofon siap. Timer akan mulai begitu Anda menekan tombol mulai.", false);
+}
+
+async function startExamFromModal(ctx) {
+  const assessmentId = ctx.pendingExamAssessmentId;
+  if (!assessmentId || ctx.isStartingExam) return;
+  ctx.isStartingExam = true;
+  if (ctx.els.preExamStart) ctx.els.preExamStart.disabled = true;
+  try {
+    closePreExamModal(ctx, { returnFocus: false });
+    await startExam(ctx, assessmentId);
+  } finally {
+    ctx.isStartingExam = false;
+  }
+}
+
+/** Titik tunggal yang benar-benar memulai ujian: soal tampil dan timer berjalan. */
+export async function startExam(ctx, assessmentId) {
+  const { els } = ctx;
+  ctx.recorder.stop();
+  ctx.session.selectAssessment(assessmentId);
+  els.resultPanel.classList.add("hidden");
+  await renderCurrentState(ctx);
+  await startRecorderForCurrentAssessment(ctx);
+  startQuestionTimer(ctx);
+  ctx.questionStartTime = Date.now();
 }
 
 export async function saveCurrentAnswer(ctx) {

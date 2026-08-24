@@ -1163,6 +1163,46 @@
         </div>
       </section>
     </main>
+    <div id="preExamModal" class="modal pre-exam-modal hidden" role="dialog" aria-modal="true"
+      aria-labelledby="preExamTitle">
+      <div class="modal-card pre-exam-card">
+        <button class="modal-close" id="preExamClose" type="button" aria-label="Tutup">&times;</button>
+        <span class="pre-exam-eyebrow">Persiapan sebelum mulai</span>
+        <h2 id="preExamTitle">Penilaian</h2>
+        <div id="preExamMeta" class="pre-exam-meta"></div>
+
+        <div id="preExamMicSection" class="pre-exam-mic">
+          <h3>Tes mikrofon</h3>
+          <p class="pre-exam-hint">Klik <b>Tes mikrofon</b>, lalu bicara dengan suara normal. Rekaman singkat akan
+            diputar ulang supaya Anda yakin suara terdengar jelas sebelum ujian dimulai.</p>
+          <div class="pre-exam-mic-row">
+            <button id="preExamMicTest" class="secondary-button" type="button">Tes mikrofon</button>
+            <div id="preExamVolume" class="volume-indicator" aria-hidden="true">
+              <span class="volume-bar"></span>
+              <span class="volume-bar"></span>
+              <span class="volume-bar"></span>
+              <span class="volume-bar"></span>
+              <span class="volume-bar"></span>
+            </div>
+            <span id="preExamMicStatus" class="mic-status" role="status">Mikrofon belum dites</span>
+          </div>
+          <audio id="preExamPlayback" class="pre-exam-playback hidden" controls></audio>
+          <div id="preExamMicDiagnostics" class="mic-diagnostics hidden" role="alert"></div>
+        </div>
+
+        <ul class="pre-exam-rules">
+          <li>Timer <b>baru berjalan</b> setelah Anda menekan tombol mulai.</li>
+          <li>Setiap soal punya batas waktunya sendiri dan jawaban tersimpan otomatis saat waktu habis.</li>
+          <li>Jika mikrofon bermasalah, Anda masih bisa mengetik jawaban di kolom transkripsi.</li>
+        </ul>
+
+        <p id="preExamStartNote" class="pre-exam-note"></p>
+        <div class="pre-exam-actions">
+          <button id="preExamCancel" class="secondary-button" type="button">Nanti dulu</button>
+          <button id="preExamStart" class="primary-button" type="button">Mulai ujian sekarang</button>
+        </div>
+      </div>
+    </div>
     <div id="resultPanel" class="result-modal hidden"></div>
     <div id="researchResultPanel" class="result-modal hidden" role="dialog" aria-modal="true" aria-labelledby="researchResultTitle"></div>
     <div id="evaluationLoadingModal" class="evaluation-loading-modal hidden" role="dialog" aria-modal="true" aria-live="assertive" aria-labelledby="evaluationLoadingTitle">

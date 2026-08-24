@@ -320,27 +320,51 @@ export function renderReviewSummary(ctx) {
 }
 
 /**
+ * Parser ringan teks rubrik menjadi daftar nama kriteria. Memakai pola yang
+ * sama dengan enforcement soal↔rubrik: hilangkan angka/bobot diawal/akhir.
+ */
+function parseRubricNames(text) {
+  return String(text || "")
+    .split(/[;\n,]+/)
+    .map((s) =>
+      s
+        .replace(/^\d+(\.\d+)?\s*%?\s*/, "")
+        .replace(/\s*[-:–]\s*(\d+(\.\d+)?\s*%?)?$/, "")
+        .replace(/\s*\(?\d+(\.\d+)?\s*%?\s*\)?$/, "")
+        .trim()
+    )
+    .filter((s) => s.length > 2);
+}
+
+/** Normalisasi nama kriteria untuk perbandingan case/whitespace-insensitive. */
+function normalizeCoverageKey(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
  * Ringkasan cakupan rubrik: kriteria mana yang diukur oleh soal mana.
- * Peringatan muncul bila ada kriteria rubrik guru yang tidak diukur soal
- * manapun (align dgn mekanisme enforceRubricAlignment).
+ * Peringatan muncul bila ada kriteria pada rubrik per-soal (yang benar-benar
+ * dipakai penilaian) yang tidak diukur soal manapun. Sumber kriteria diambil
+ * dari rubrik per-soal saat ini, BUKAN config.rubric global yang bisa basi —
+ * sehingga ketika guru menghapus satu kriteria dari teks rubrik soal, peringatan
+ * langsung menyesuaikan (align dgn mekanisme enforceRubricAlignment).
  */
 function renderAlignmentCoverage(ctx) {
-  const config = ctx.pendingAssessmentConfig;
-  if (!config) return "";
-  const questionsWithCriteria = ctx.pendingQuestions.filter(
+  const { pendingQuestions } = ctx;
+  const questionsWithCriteria = pendingQuestions.filter(
     (q) => Array.isArray(q.criteria) && q.criteria.length > 0
   );
   if (questionsWithCriteria.length === 0) return "";
   const covered = new Set();
   questionsWithCriteria.forEach((q) =>
-    q.criteria.forEach((c) => covered.add(String(typeof c === "string" ? c : c.name || c.id).toLowerCase()))
+    q.criteria.forEach((c) => covered.add(normalizeCoverageKey(typeof c === "string" ? c : c.name || c.id)))
   );
-  const rubricCriteria = String(config.rubric || "")
-    .split(/[;\n,]+/)
-    .map((s) => s.replace(/^\d+(\.\d+)?\s*%?\s*/, "").replace(/\s*[-:–]\s*(\d+(\.\d+)?\s*%?)?$/, "").replace(/\s*\(?\d+(\.\d+)?\s*%?\s*\)?$/, "").trim())
-    .filter((s) => s.length > 2);
+  // Kriteria yang "diharapkan" = penyatuan nama kriteria dari seluruh rubrik
+  // per-soal terkini (apa yang dipakai evaluator). Tidak memakai config.rubric
+  // global karena nilainya bisa basi dari saat penilaian dibuka.
+  const rubricCriteria = [...new Set(pendingQuestions.flatMap((q) => parseRubricNames(q.rubric)))];
   if (rubricCriteria.length === 0) return "";
-  const uncovered = rubricCriteria.filter((name) => !covered.has(name.toLowerCase()));
+  const uncovered = rubricCriteria.filter((name) => !covered.has(normalizeCoverageKey(name)));
   if (uncovered.length === 0) return "";
   return `
     <p class="review-align-warning">⚠ Kriteria rubrik berikut belum diukur oleh soal manapun:

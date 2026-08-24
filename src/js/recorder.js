@@ -341,7 +341,7 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
   return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio, setEnabled, testMicrophone };
 }
 
-function getMicrophoneErrorMessage(error) {
+export function getMicrophoneErrorMessage(error) {
   const name = error?.name || "";
   if (name === "NotAllowedError" || name === "SecurityError") {
     return "Izin mikrofon diblokir. Klik ikon izin di address bar, pilih Allow microphone, lalu reload halaman.";

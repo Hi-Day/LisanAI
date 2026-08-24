@@ -402,7 +402,7 @@ function renderTrendItem(trend) {
   `;
 }
 
-function formatDuration(seconds) {
+export function formatDuration(seconds) {
   if (!seconds) return "0 detik";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;

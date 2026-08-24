@@ -33,6 +33,11 @@ export function createAppContext() {
     pendingQuestions: [],
     isEvaluating: false,
     lastModalTrigger: null,
+    // Pre-exam readiness modal (mic check + tombol mulai)
+    micCheck: null,
+    pendingExamAssessmentId: null,
+    preExamTrigger: null,
+    isStartingExam: false,
     currentWizardStep: 1,
     // Pagination state for members
     memberSearchQuery: "",
