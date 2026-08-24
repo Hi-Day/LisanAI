@@ -24,7 +24,6 @@ test.describe("Teacher assessment flow", () => {
     // Fill the context form
     await page.fill("#topic", "Fotosintesis");
     await page.fill("#outcomes", "Siswa mampu menjelaskan proses fotosintesis.");
-    await page.fill("#rubric", "Akurasi 40%, Kelengkapan 60%");
     await page.selectOption("#classSelect", { label: "Kelas E2E" });
 
     // Click "Lanjut ke Soal"
@@ -36,7 +35,6 @@ test.describe("Teacher assessment flow", () => {
   test("teacher can create a manual assessment and publish it", async ({ page }) => {
     await page.fill("#topic", "Hukum Newton");
     await page.fill("#outcomes", "Siswa mampu menerapkan hukum Newton.");
-    await page.fill("#rubric", "Konsep 50%, Contoh 50%");
     await page.selectOption("#classSelect", { label: "Kelas E2E" });
 
     // Navigate to step 2 first

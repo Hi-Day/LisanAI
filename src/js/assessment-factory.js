@@ -5,7 +5,7 @@ export function readAssessmentForm(els) {
     id: uid("assess"),
     topic: els.topic.value.trim(),
     outcomes: els.outcomes.value.trim(),
-    rubric: els.rubric.value.trim(),
+    rubric: "",
     difficulty: els.difficulty.value,
     examples: els.examples.value.trim(),
     classId: els.classSelect.value,
@@ -20,11 +20,17 @@ export function readAssessmentForm(els) {
   };
 }
 
-export function createAssessment(config, questions) {
-  const { count, ...assessment } = config;
+export function createAssessment(config, questions = []) {
+  const { count, rubric, ...assessment } = config;
+  // Rubrica global no se define al inicio: se deriva de las rubricas de cada
+  // pregunta para que el eval/scoring continúe teniendo criterios.
+  const derived = (questions || [])
+    .map((q) => String(q.rubric || "").trim())
+    .filter((r) => r.length > 0);
   return {
     ...assessment,
-    questions,
+    rubric: String(rubric || "").trim() || derived.join("\n"),
+    questions: questions || [],
   };
 }
 

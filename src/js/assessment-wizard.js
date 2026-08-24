@@ -49,11 +49,6 @@ export function bindAssessmentWizardEvents(ctx) {
         els.outcomes.focus();
         return;
       }
-      if (!config.rubric) {
-        showToast("Isi rubrik penilaian terlebih dahulu.");
-        els.rubric.focus();
-        return;
-      }
       if (!config.classId) {
         showToast("Pilih kelas tujuan terlebih dahulu.");
         els.classSelect.focus();
@@ -109,7 +104,6 @@ export function bindAssessmentWizardEvents(ctx) {
   }
 
   els.recommendOutcomes.addEventListener("click", () => fillRecommendedFields(ctx, "outcomes"));
-  els.recommendRubric.addEventListener("click", () => fillRecommendedFields(ctx, "rubric"));
 }
 
 export async function handleAssessmentSubmit(ctx, event) {
@@ -384,14 +378,13 @@ export async function fillRecommendedFields(ctx, target) {
     return;
   }
 
-  const button = target === "rubric" ? els.recommendRubric : els.recommendOutcomes;
-  const defaultText = target === "rubric" ? "Rekomendasikan rubrik" : "Rekomendasikan kompetensi";
+  const button = els.recommendOutcomes;
+  const defaultText = "Rekomendasikan kompetensi";
   setButtonLoading(button, true, "Membuat rekomendasi...", defaultText);
   showRecommendStreamPlaceholder(ctx);
   try {
     const recommendation = await recommendConfigWithFallback(ctx, topic, els.difficulty.value);
     if (target === "outcomes" || target === "both") els.outcomes.value = recommendation.outcomes;
-    if (target === "rubric" || target === "both") els.rubric.value = recommendation.rubric;
     hideStreamPanel(ctx, els.recommendStreamPanel);
   } finally {
     setButtonLoading(button, false, "Membuat rekomendasi...", defaultText);
