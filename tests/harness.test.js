@@ -58,6 +58,18 @@ test("MockProvider is deterministic and produces no random values", async () => 
   assert.deepEqual(a.criteria, b.criteria);
 });
 
+test("parser normalizes a bare criteria array into { criteria }", async () => {
+  const bare = JSON.stringify([
+    { criterionId: "ketepatan_konsep", score: 85, evidence: ["fotosintesis adalah proses"] },
+    { criterionId: "aplikasi", score: 76, evidence: ["aplikasi nyata"] },
+  ]);
+  const parsed = await parse(bare);
+  assert.ok(Array.isArray(parsed.criteria), "bare array must be wrapped in criteria");
+  assert.equal(parsed.criteria.length, 2);
+  assert.equal(parsed.criteria[0].criterionId, "ketepatan_konsep");
+  assert.equal(parsed.criteria[1].score, 76);
+});
+
 // ---------------------------------------------------------------------------
 // Harness end-to-end
 // ---------------------------------------------------------------------------

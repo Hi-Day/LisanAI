@@ -16,7 +16,8 @@ const { initDatabase } = require("../server/database");
 const { sendJson } = require("../server/http-utils");
 const { serveStaticFile } = require("../server/static");
 const { registerTenantUser, createTenantUser } = require("../server/auth-service");
-const { createClass, requestJoinClass, approveMembership } = require("../server/database");
+const { createClass, requestJoinClass, approveMembership, saveAssessment } = require("../server/database");
+const { assessmentPayload, ORAL_ID, WRITTEN_ID } = require("./seed-assessment");
 
 let isDbInitialized = false;
 
@@ -82,6 +83,11 @@ async function seedDemoData() {
     requestedAt: new Date().toISOString(),
   });
   await approveMembership(tenant.id, teacher.id, "e2e-member-1");
+
+  // Penilaian siap pakai untuk spec pra-ujian (lisan + non-lisan).
+  const teacherAuth = { tenant, user: teacher };
+  await saveAssessment(teacherAuth, assessmentPayload(ORAL_ID, "Ujian Lisan E2E", true));
+  await saveAssessment(teacherAuth, assessmentPayload(WRITTEN_ID, "Ujian Tulis E2E", false));
 
   console.log("E2E demo data seeded.");
 }
