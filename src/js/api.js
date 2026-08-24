@@ -112,10 +112,6 @@ export async function submitComplaint(submissionId, questionIndex, reason) {
   );
 }
 
-export async function clearDatabase() {
-  await postJson("/api/database", { action: "clear-data" }, "Gagal reset database");
-}
-
 export async function seedDemoData(target) {
   return postJson(
     "/api/database",

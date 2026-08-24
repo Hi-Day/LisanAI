@@ -1,10 +1,10 @@
-import { clearDatabase, seedDemoData } from "./api.js";
+import { seedDemoData } from "./api.js";
 import { showToast } from "./toast.js";
-import { renderCurrentState, refreshSimulatorIfEnabled } from "./app-context.js";
+import { refreshSimulatorIfEnabled } from "./app-context.js";
 
 /**
- * Demo data utilities: seed demo data for the teacher or admin role and
- * reset all data.
+ * Demo data utilities: seed demo data for the teacher or admin role, and
+ * remove ONLY the seeded dummy data (original data is never touched).
  */
 export function bindDemoDataEvents(ctx) {
   const { els } = ctx;
@@ -14,7 +14,7 @@ export function bindDemoDataEvents(ctx) {
   if (els.seedDemoTeacher) {
     els.seedDemoTeacher.addEventListener("click", async () => {
       if (ctx.state.assessments.length) {
-        showToast("Data contoh sudah ada. Atur ulang data untuk mengisi ulang.");
+        showToast("Data contoh sudah ada. Gunakan 'Hapus data dummy' untuk mengisi ulang.");
         return;
       }
       try {
@@ -46,16 +46,6 @@ export function bindDemoDataEvents(ctx) {
       }
     });
   }
-
-  els.resetData.addEventListener("click", async () => {
-    if (!confirm("Reset semua penilaian dan hasil?")) return;
-    await clearDatabase();
-    ctx.state.assessments = [];
-    ctx.state.submissions = [];
-    ctx.session.ensureAssessmentSelected();
-    await renderCurrentState(ctx);
-    await refreshSimulatorIfEnabled(ctx);
-  });
 
   // Remove ONLY the demo (dummy) data — keeps original/organic data intact.
   if (els.removeDemoData) {

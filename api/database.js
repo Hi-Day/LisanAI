@@ -1,6 +1,5 @@
 const {
   approveMembership,
-  clearData,
   createClass,
   deleteAssessment,
   deleteClass,
@@ -70,12 +69,6 @@ module.exports = async (req, res) => {
       const isAdmin = auth.user.role === "admin";
       const isTeacher = auth.user.role === "teacher";
       const isStudent = auth.user.role === "student";
-
-      if (action === "clear-data") {
-        if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-        await clearData(auth.tenant.id);
-        return sendJson(res, 200, { ok: true });
-      }
 
       // Seed dummy data so every menu can be presented during a demo.
       // target: "teacher" | "admin" (admin also seeds observability/research/api keys).

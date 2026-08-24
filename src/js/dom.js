@@ -99,7 +99,6 @@ export function getElements() {
     seedDemoTeacher: document.querySelector("#seedDemoTeacher"),
     seedDemoAdmin: document.querySelector("#seedDemoAdmin"),
     removeDemoData: document.querySelector("#removeDemoData"),
-    resetData: document.querySelector("#resetData"),
     recommendOutcomes: document.querySelector("#recommendOutcomes"),
     topic: document.querySelector("#topic"),
     outcomes: document.querySelector("#outcomes"),

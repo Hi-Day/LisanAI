@@ -232,7 +232,6 @@ export async function renderCurrentState(ctx) {
 export function applyRoleAccess(ctx) {
   const { els, auth } = ctx;
   const role = auth.user.role;
-  els.resetData.classList.toggle("hidden", role === "student");
   if (els.seedDemo) els.seedDemo.classList.toggle("hidden", role === "student");
   // Both role demo buttons are hidden for students; the admin-only button is
   // hidden for teachers.
