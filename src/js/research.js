@@ -189,12 +189,12 @@ function renderMetrics(els, data) {
     </div>`;
   els.researchValidity.innerHTML =
     `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${total} pasangan AI vs human</p>` +
-    card("Pearson", m.validity.pearson, false, "Seberapa erat arah hubungan skor AI dan skor manusia. Mendekati 1 = sangat sejalan, mendekati 0 = tidak ada hubungan.") +
-    card("Spearman", m.validity.spearman, false, "Sama seperti Pearson tapi berdasarkan urutan/peringkat, lebih tahan terhadap nilai ekstrem.") +
-    card("MAE", m.validity.mae, false, "Rata-rata selisih mutlak antara skor AI dan manusia. Semakin kecil (idealnya di bawah 5) makin akurat.") +
-    card("RMSE", m.validity.rmse, false, "Akar rata-rata selisih kuadrat. Sama seperti MAE tapi memberi penalti lebih besar pada selisih besar.") +
-    card("Exact agreement", m.reliability.exactAgreement, true, "Persentase penilaian di mana AI dan manusia memberi skor yang persis sama.") +
-    card("Adjacent (+/-5)", m.reliability.adjacentAgreement, true, "Persentase penilaian di mana selisih skor AI dan manusia maksimal 5 poin.");
+    card("Pearson", m.validity.pearson, false, "Koefisien korelasi linier antara skor AI dan skor manusia. Nilai mendekati 1 menandakan keselarasan yang kuat; mendekati 0 menandakan tidak ada korelasi.") +
+    card("Spearman", m.validity.spearman, false, "Korelasi berbasis peringkat yang lebih tahan terhadap nilai ekstrem dibandingkan Pearson, mengukur konsistensi urutan antar-penilai.") +
+    card("MAE", m.validity.mae, false, "Rata-rata absolut selisih antara skor AI dan skor manusia. Semakin rendah (idealnya di bawah 5) semakin akurat prediksi AI.") +
+    card("RMSE", m.validity.rmse, false, "Akar rata-rata kuadrat selisih skor. Memberi bobot lebih besar pada selisih yang besar sehingga sensitif terhadap anomali penilaian.") +
+    card("Exact agreement", m.reliability.exactAgreement, true, "Proporsi penilaian di mana skor AI dan skor manusia bernilai identik.") +
+    card("Adjacent (+/-5)", m.reliability.adjacentAgreement, true, "Proporsi penilaian dengan selisih skor maksimal 5 poin antara AI dan manusia.");
 
   // Inter-rater reliability (PRD §33): κ, weighted κ, ICC.
   const ir = data.interRater;
@@ -212,9 +212,9 @@ function renderMetrics(els, data) {
         </div>`;
       els.researchInterRater.innerHTML =
         `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${ir.n ?? total} pasangan AI vs human</p>` +
-        irCard("Cohen's Kappa", ir.cohensKappa, "Seberapa setuju AI dan manusia setelah dikurangi peluang kebetulan. 0.6+ dianggap kesepakatan baik.") +
-        irCard("Weighted Kappa", ir.weightedKappa, "Sama seperti Cohen's Kappa, tapi selisih skor kecil diberi penalti lebih kecil daripada selisih besar.") +
-        irCard("ICC (2-way)", ir.icc, "Konsistensi antar-penilai. Mendekati 1 = sangat konsisten, di bawah 0.5 = kurang konsisten.");
+        irCard("Cohen's Kappa", ir.cohensKappa, "Indeks kesepakatan antara AI dan manusia setelah dikurangi peluang kebetulan. Nilai di atas 0,6 menandakan kesepakatan yang baik.") +
+        irCard("Weighted Kappa", ir.weightedKappa, "Varian Cohen's Kappa yang memperhitungkan besarnya selisih; selisih kecil dikenai penalti lebih ringan dibanding selisih besar.") +
+        irCard("ICC (2-way)", ir.icc, "Konsistensi antar-penilai. Nilai mendekati 1 menandakan konsistensi tinggi; di bawah 0,5 menandakan konsistensi rendah.");
     }
   }
 }
