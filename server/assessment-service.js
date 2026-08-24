@@ -121,6 +121,7 @@ function buildGenerateQuestionsMessages(payload) {
           "Soal tidak boleh menanyakan hal yang tidak diukur oleh kriteria mana pun.",
           "Seluruh kriteria dalam daftar kriteria_rubrik_yang_tersedia wajib muncul di setidaknya satu soal.",
         ].join(". "),
+        aturan_rubrik_per_soal: "Buat rubric khusus untuk setiap soal berdasarkan pertanyaan yang dibuat dan learning_outcome. Rubrik harus berisi 3-4 indikator yang dapat diamati, lengkap dengan bobot total 100%, dan hanya menilai isi yang benar-benar diminta oleh pertanyaan serta selaras dengan learning outcome.",
         tingkat_kesulitan: payload.difficulty,
         contoh_soal_opsional: payload.examples || "",
         aturan_penulisan_soal: SINGLE_SUBSTANCE_RULES,
@@ -131,7 +132,7 @@ function buildGenerateQuestionsMessages(payload) {
 }
 
 const GENERATE_QUESTIONS_SCHEMA =
-  'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"...","criteria":["nama_kriteria1","nama_kriteria2"]}]}. Field criteria memakai nama kriteria rubrik yang tersedia; gabungan kriteria semua soal wajib mencakup seluruh rubrik. Jumlah questions harus sesuai jumlah_soal.';
+  'Format: {"questions":[{"prompt":"...","focus":"...","outcome":"...","rubric":"indikator 40%\\nindikator 35%\\nindikator 25%","ideal":"...","criteria":["nama_kriteria1","nama_kriteria2"]}]}. rubric WAJIB dibuat khusus untuk setiap soal dari prompt dan learning_outcome, berisi indikator terukur dengan total bobot 100%. Field criteria memakai nama kriteria rubrik yang tersedia; gabungan kriteria semua soal wajib mencakup seluruh rubrik. Jumlah questions harus sesuai jumlah_soal.';
 
 function buildRepairMessages(payload, prompts) {
   return [
@@ -301,13 +302,25 @@ async function streamCalibrateRubricSet(payload, onChunk) {
 // Normalizers
 // ---------------------------------------------------------------------------
 
+function buildQuestionRubricFallback(question, payload) {
+  const prompt = String(question.prompt || "").trim();
+  const outcome = String(question.outcome || payload.outcomes || "").trim();
+  const focus = String(question.focus || payload.topic || "konsep").trim();
+  return [
+    `Ketepatan menjawab pertanyaan tentang ${focus}: 40%`,
+    `Keselarasan dengan learning outcome (${outcome || "kompetensi pembelajaran"}): 30%`,
+    `Kelengkapan isi yang diminta dalam pertanyaan (${prompt || "pertanyaan"}): 20%`,
+    "Kejelasan penyampaian jawaban: 10%",
+  ].join("\n");
+}
+
 function normalizeQuestion(payload) {
   return (question, index) => ({
     id: `q-ai-${Date.now()}-${index}`,
     prompt: String(question.prompt || "").trim(),
     focus: String(question.focus || payload.topic || "konsep").trim(),
     outcome: String(question.outcome || payload.outcomes || "").trim(),
-    rubric: String(question.rubric || payload.rubric || "").trim(),
+    rubric: String(question.rubric || payload.rubric || "").trim() || buildQuestionRubricFallback(question, payload),
     ideal: String(question.ideal || "Jawaban kuat sesuai rubrik guru.").trim(),
     criteria: Array.isArray(question.criteria) ? question.criteria.map(String) : [],
   });

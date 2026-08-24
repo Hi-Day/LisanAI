@@ -319,6 +319,29 @@ test("generateQuestions preserves the model's criteria mapping through enforceme
   );
 });
 
+test("generateQuestions creates an aligned per-question rubric when AI omits rubric", async () => {
+  mockOpenRouter({
+    questions: [{
+      prompt: "Jelaskan proses fotosintesis pada tumbuhan.",
+      focus: "proses fotosintesis",
+      ideal: "Tumbuhan mengubah cahaya menjadi energi kimia.",
+    }],
+  });
+
+  const questions = await assessmentService.generateQuestions({
+    topic: "Fotosintesis",
+    outcomes: "Siswa mampu menjelaskan tahapan fotosintesis dengan bahasa sendiri.",
+    rubric: "",
+    count: 1,
+    tenantId: "tenant-1",
+    userId: "user-1",
+  });
+
+  assert.match(questions[0].rubric, /proses fotosintesis/i);
+  assert.match(questions[0].rubric, /tahapan fotosintesis/i);
+  assert.match(questions[0].rubric, /40%|30%|20%|10%/i);
+});
+
 test("enforceRubricAlignment stamps a per-question rubric subset aligned to the soal substance", () => {
   const rubric = "Ketepatan konsep 40%, contoh relevan 25%, hubungan sebab-akibat 20%, kejelasan komunikasi 15%";
   const questions = [
