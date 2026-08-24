@@ -77,6 +77,27 @@ module.exports = async (req, res) => {
         return sendJson(res, 200, { ok: true });
       }
 
+      // Seed dummy data so every menu can be presented during a demo.
+      // target: "teacher" | "admin" (admin also seeds observability/research/api keys).
+      if (action === "seed-demo") {
+        if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+        const { seedDemoData } = require("../server/seed-demo");
+        const target = payload && payload.target;
+        if (target !== "teacher" && target !== "admin") {
+          return sendJson(res, 400, { error: "target wajib 'teacher' atau 'admin'" });
+        }
+        const result = await seedDemoData(auth, target);
+        return sendJson(res, 200, result);
+      }
+
+      // Remove ONLY the demo (dummy) data, leaving original data intact.
+      if (action === "remove-demo-data") {
+        if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+        const { removeDemoData } = require("../server/seed-demo");
+        const result = await removeDemoData(auth.tenant.id);
+        return sendJson(res, 200, result);
+      }
+
       // Assessments
       if (action === "save-assessment") {
         if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });

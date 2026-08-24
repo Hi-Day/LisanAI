@@ -203,9 +203,19 @@ export async function renderCurrentState(ctx) {
     notifyStudentComplaintStatus(ctx);
   }
 
-  // Hide the "Isi data contoh" button once there is at least one assessment.
-  if (els.seedDemo) {
-    els.seedDemo.classList.toggle("hidden", state.assessments.length > 0);
+  // Hide the seed buttons once there is at least one assessment. The
+  // admin button stays hidden for teachers; both are hidden for students.
+  const hasData = state.assessments.length > 0;
+  if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", hasData);
+  if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", hasData);
+  if (els.seedDemo) els.seedDemo.classList.toggle("hidden", hasData);
+  // "Remove dummy data" appears ONLY when demo data exists, and never for
+  // students. It removes exactly the seeded rows (not organic data).
+  if (els.removeDemoData) {
+    els.removeDemoData.classList.toggle(
+      "hidden",
+      auth.user?.role === "student" || !hasData
+    );
   }
 
   if (auth.user?.role === "student") {
@@ -223,8 +233,15 @@ export function applyRoleAccess(ctx) {
   const { els, auth } = ctx;
   const role = auth.user.role;
   els.resetData.classList.toggle("hidden", role === "student");
-  els.seedDemo.classList.toggle("hidden", role === "student");
-
+  if (els.seedDemo) els.seedDemo.classList.toggle("hidden", role === "student");
+  // Both role demo buttons are hidden for students; the admin-only button is
+  // hidden for teachers.
+  if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", role === "student");
+  if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", role !== "admin");  // "Remove dummy data" is visible only when demo data exists (and never
+  // for students) — handled in renderCurrentState which has the data.
+  if (els.removeDemoData) {
+    els.removeDemoData.classList.toggle("hidden", role === "student");
+  }
   document.body.classList.remove("teacher-mode", "student-mode", "admin-mode");
 
   let navHtml = "";

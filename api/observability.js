@@ -66,7 +66,9 @@ module.exports = async (req, res) => {
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     const range = url.searchParams.get("range") || "24h";
-    const rangeMs = RANGE_MS[range] ?? RANGE_MS["24h"];
+    // "all" maps to null (no time filter). Use `in` so null stays null and we
+    // only fall back to 24h for genuinely unknown ranges.
+    const rangeMs = range in RANGE_MS ? RANGE_MS[range] : RANGE_MS["24h"];
     const operation = url.searchParams.get("operation") || "";
     const modelFilter = url.searchParams.get("model") || "";
     const statusFilter = url.searchParams.get("status") || "";

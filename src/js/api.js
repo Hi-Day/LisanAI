@@ -116,6 +116,22 @@ export async function clearDatabase() {
   await postJson("/api/database", { action: "clear-data" }, "Gagal reset database");
 }
 
+export async function seedDemoData(target) {
+  return postJson(
+    "/api/database",
+    { action: "seed-demo", payload: { target } },
+    "Gagal mengisi data contoh"
+  );
+}
+
+export async function removeDemoData() {
+  return postJson(
+    "/api/database",
+    { action: "remove-demo-data" },
+    "Gagal menghapus data dummy"
+  );
+}
+
 /**
  * Stream an AI action from the server via SSE.
  *
