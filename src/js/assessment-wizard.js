@@ -11,6 +11,7 @@ import { showToast } from "./toast.js";
 import { compactText, escapeHtml, formatTime } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 import { saveCurrentQuestionsToBank } from "./question-bank.js";
+import { renderRubricTable } from "./render.js";
 
 /**
  * Assessment creation wizard: context form, AI question generation,
@@ -296,6 +297,7 @@ export function renderQuestionEditor(ctx) {
       <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
       <label>Rubrik penilaian soal ini
   <textarea data-field="rubric" rows="3">${escapeHtml(question.rubric || "")}</textarea>
+  <div class="rubrik-preview" style="margin-top:6px;">${question.rubric ? renderRubricTable(question.rubric) : ""}</div>
   <button type="button" class="secondary-button rubrik-builder-toggle" data-index="${index}" style="margin-top: 6px; font-size: 0.85rem;">✏️ Buka Builder Rubrik</button>
 </label>
 <div class="rubrik-builder rubrik-builder-${index}" style="display: none;"></div>

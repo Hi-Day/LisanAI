@@ -5,7 +5,7 @@ import {
   hasValidScore,
   renderStatusBadge,
 } from "./status.js";
-import { renderAssessmentItem } from "./render.js";
+import { renderAssessmentItem, renderRubricTable } from "./render.js";
 import { switchView } from "./app-context.js";
 import { getSubmissionDetail } from "./api.js";
 
@@ -260,7 +260,7 @@ export async function openAssessmentDetail(ctx, submissionId, fromView = "dashbo
 }
 
 function renderAssessmentDetail(ctx, submission) {
-  const { els } = ctx;
+  const { els, state } = ctx;
   const status = getSubmissionStatus(submission);
   const evaluated = hasValidScore(submission);
   const verification = submission.verification || null;
@@ -272,6 +272,20 @@ function renderAssessmentDetail(ctx, submission) {
   const scoredCriteria = criteria.filter((c) => Number.isFinite(Number(c.score))).length;
   const rubricPct = criteria.length ? Math.round((scoredCriteria / criteria.length) * 100) : null;
   const verStatus = verification?.status || (verification?.valid === false ? "FAIL" : verification ? "PASS" : null);
+
+  // Find the assessment to get per-question rubrics
+  const assessment = state.assessments.find((a) => a.id === submission.assessmentId);
+  const rubricHtml = assessment && Array.isArray(assessment.questions)
+    ? assessment.questions.map((q, i) => {
+        const rubricText = q.rubric || "";
+        if (!rubricText) return "";
+        return `
+          <div class="analytics-panel" style="margin-top:16px;">
+            <h4>Soal ${i + 1}: ${escapeHtml(q.prompt || "")}</h4>
+            ${renderRubricTable(rubricText)}
+          </div>`;
+      }).filter(Boolean).join("")
+    : "";
 
   const detailMeta = `
     <div class="detail-hero">
@@ -346,6 +360,7 @@ function renderAssessmentDetail(ctx, submission) {
         </div>
       </div>
     </div>
+    ${rubricHtml}
     ${traceHtml}
   `;
 }

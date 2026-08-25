@@ -152,8 +152,8 @@ export function renderQuestion(els, assessment, session) {
     els.activeOutcome.classList.toggle("hidden", !els.activeOutcome.textContent);
   }
   if (els.activeRubric) {
-    const rubricText = question.rubric || assessment.rubric || "";
-    els.activeRubric.innerHTML = renderRubricTable(rubricText);
+    const rubricText = question.rubric || "";
+    els.activeRubric.innerHTML = rubricText ? renderRubricTable(rubricText) : "";
     els.activeRubric.classList.toggle("hidden", !rubricText);
   }
   
