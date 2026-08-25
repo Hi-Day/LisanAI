@@ -253,6 +253,12 @@ export function getElements() {
     studentProfileView: document.querySelector("#studentProfileView"),
     profileStudentSelect: document.querySelector("#profileStudentSelect"),
     studentProfileContent: document.querySelector("#studentProfileContent"),
+    questionBankView: document.querySelector("#questionBankView"),
+    questionBankList: document.querySelector("#questionBankList"),
+    questionBankCount: document.querySelector("#questionBankCount"),
+    questionBankFilter: document.querySelector("#questionBankFilter"),
+    questionBankImportBtn: document.querySelector("#questionBankImportBtn"),
+    saveToBankBtn: document.querySelector("#saveToBankBtn"),
   };
 }
 

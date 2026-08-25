@@ -10,6 +10,7 @@ import { generateFallbackQuestions, recommendFallbackConfig } from "./fallback-a
 import { showToast } from "./toast.js";
 import { compactText, escapeHtml, formatTime } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
+import { saveCurrentQuestionsToBank } from "./question-bank.js";
 
 /**
  * Assessment creation wizard: context form, AI question generation,
@@ -26,6 +27,9 @@ export function bindAssessmentWizardEvents(ctx) {
   els.improveQuestionSet.addEventListener("click", () => improvePendingQuestionSet(ctx));
   if (els.addManualQuestion) {
     els.addManualQuestion.addEventListener("click", () => handleAddManualQuestion(ctx));
+  }
+  if (els.saveToBankBtn) {
+    els.saveToBankBtn.addEventListener("click", () => saveCurrentQuestionsToBank(ctx));
   }
 
   // Delete a single question from the editor (event delegation).

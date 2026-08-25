@@ -266,6 +266,7 @@ export function applyRoleAccess(ctx) {
       <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
       <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">◉</span> Siswa</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
+      <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
       <button class="nav-button" data-view="complaintView">
         <span aria-hidden="true">📩</span> Komplain
         <span id="complaintNavBadge" class="nav-badge hidden">0</span>
@@ -283,6 +284,7 @@ export function applyRoleAccess(ctx) {
       <button class="nav-button" data-view="researchView"><span aria-hidden="true">🧪</span> Riset</button>
       <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">👤</span> Akun</button>
       <button class="nav-button" data-view="apiKeysView"><span aria-hidden="true">🔑</span> API Keys</button>
+      <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
     `;
   }
   els.mainNav.innerHTML = navHtml;
@@ -333,11 +335,12 @@ export function canAccessView(ctx, viewId) {
   if (!ctx.auth.user) return false;
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
-  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView";
+  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView" || viewId === "questionBankView";
   if (role === "teacher") {
     return [
       "dashboardView", "teacherView", "assessmentListView", "assessmentDetailView",
       "monitorView", "manageClassView", "studentProfileView", "complaintView",
+      "questionBankView",
     ].includes(viewId);
   }
   return false;
@@ -384,6 +387,10 @@ export async function switchView(ctx, viewId) {
   if (viewId === "apiKeysView") {
     const { loadApiKeys } = await import("./api-keys.js");
     loadApiKeys(ctx);
+  }
+  if (viewId === "questionBankView") {
+    const { loadQuestionBank } = await import("./question-bank.js");
+    loadQuestionBank(ctx);
   }
 }
 

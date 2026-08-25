@@ -264,3 +264,17 @@ export async function getSimulationData() {
 export async function simulateLogin(userId) {
   return postJson("/api/auth", { action: "simulate-login", payload: { userId } }, "Gagal simulasi login");
 }
+
+export async function saveQuestionToBank(question) {
+  const data = await postJson("/api/database", { action: "save-question-bank", payload: question }, "Gagal menyimpan soal");
+  return data.id;
+}
+
+export async function listQuestionBank(filter) {
+  const data = await postJson("/api/database", { action: "list-question-bank", payload: filter || {} }, "Gagal memuat bank soal");
+  return data.questions;
+}
+
+export async function deleteQuestionFromBank(questionId) {
+  return postJson("/api/database", { action: "delete-question-bank", id: questionId }, "Gagal menghapus soal");
+}

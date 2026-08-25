@@ -13,6 +13,9 @@ const {
   updateAssessment,
   updateClass,
   updateMembershipStatus,
+  saveQuestionToBank,
+  listQuestionBank,
+  deleteQuestionFromBank,
 } = require("../server/database");
 const { listTenantUsers, updateTenantUser, createTenantUser, deleteTenantUser, getSessionUser, createTenantUsersBatch, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
@@ -105,6 +108,23 @@ module.exports = async (req, res) => {
       if (action === "delete-assessment") {
         if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
         await deleteAssessment(auth, id);
+        return sendJson(res, 200, { ok: true });
+      }
+
+      // Question Bank
+      if (action === "save-question-bank") {
+        if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+        const result = await saveQuestionToBank(auth, payload);
+        return sendJson(res, 201, { id: result.id });
+      }
+      if (action === "list-question-bank") {
+        if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+        const questions = await listQuestionBank(auth, payload || {});
+        return sendJson(res, 200, { questions });
+      }
+      if (action === "delete-question-bank") {
+        if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+        await deleteQuestionFromBank(auth, id);
         return sendJson(res, 200, { ok: true });
       }
 

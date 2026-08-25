@@ -13,6 +13,7 @@ import { bindApiKeyEvents, loadApiKeys } from "./api-keys.js";
 import { bindResearchEvents } from "./research.js";
 import { bindObservabilityEvents } from "./observability.js";
 import { bindDashboardEvents } from "./dashboard.js";
+import { bindQuestionBankEvents } from "./question-bank.js";
 
 /**
  * Application entry point. Creates the shared context, wires up all feature
@@ -36,11 +37,18 @@ export async function initApp() {
   bindResearchEvents(ctx);
   bindObservabilityEvents(ctx);
   bindDashboardEvents(ctx);
+  bindQuestionBankEvents(ctx);
 
   // Navigation: clicking a nav button switches the active view.
   ctx.els.mainNav.addEventListener("click", (e) => {
     const btn = e.target.closest(".nav-button");
     if (btn) switchView(ctx, btn.dataset.view);
+  });
+
+  // Global handler for data-nav-view buttons (e.g. wizard "Import dari Bank Soal").
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-nav-view]");
+    if (btn) switchView(ctx, btn.dataset.navView);
   });
 
   // Global "more-menu" close behavior (shared across views).
