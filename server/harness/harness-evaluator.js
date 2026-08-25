@@ -78,10 +78,23 @@ async function evaluateWithHarness(payload) {
   // Question ↔ Rubrik alignment: skor akhir hanya dihitung dari kriteria yang
   // benar-benar diukur oleh soal (deterministik, server-side). Tanpa mapping
   // apa pun, memakai agregat mentah harness (perilaku lama).
-  const aligned = calculateAlignedFinalScore(criteria, rubric, questions);
+  const { computeFinalScore } = require("../evaluation/scoring");
+  let aligned;
+  try {
+    aligned = calculateAlignedFinalScore(criteria, rubric, questions);
+  } catch (alignErr) {
+    // Alignment error is non-fatal — fall back to deterministic computeFinalScore
+    // on the full criteria set. Never silently fall back to model-provided score.
+    console.error("calculateAlignedFinalScore failed, using computeFinalScore rescue:", alignErr.message);
+    aligned = null;
+  }
+  const rescueScore =
+    aligned
+      ? aligned.finalScore
+      : computeFinalScore({ criteria, rubric }).finalScore;
   return {
-    finalScore: aligned ? aligned.finalScore : Math.round(result.finalScore),
-    feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${aligned ? aligned.finalScore : Math.round(result.finalScore)} dari 100.`,
+    finalScore: rescueScore,
+    feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${rescueScore} dari 100.`,
     questionScores,
     published: result.published !== false && status !== "FAIL",
     requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
@@ -305,8 +318,11 @@ function calculateAlignedFinalScore(criteria, rubric, questions) {
         .map((c) => c.id)
         .filter((id) => !keptIds.has(normKey(id))),
     };
-  } catch {
-    return null;
+  } catch (err) {
+    // Never silently fall back to model-provided finalScore. A rubric error is
+    // a server-side fault that must be surfaced, not masked.
+    console.error("calculateAlignedFinalScore gagal:", err);
+    throw err;
   }
 }
 
