@@ -1,4 +1,4 @@
-import { showToast } from "./toast.js";
+import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml } from "./utils.js";
 
 /**
@@ -36,7 +36,7 @@ export function bindApiKeyEvents(ctx) {
       const revokeBtn = e.target.closest(".revoke-api-key-btn");
       if (!revokeBtn) return;
       const keyId = revokeBtn.dataset.keyId;
-      if (!confirm("Revoke API key ini? Sistem eksternal yang memakainya tidak akan bisa mengakses lagi.")) return;
+      if (!await showConfirmDialog("Revoke API key ini? Sistem eksternal yang memakainya tidak akan bisa mengakses lagi.", "Revoke API Key")) return;
       try {
         const { postJson } = await import("./api.js");
         await postJson("/api/apikeys", { action: "revoke", payload: { keyId } }, "Gagal revoke API key");

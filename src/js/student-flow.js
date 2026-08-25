@@ -7,7 +7,7 @@ import { setButtonLoading } from "./dom.js";
 import { evaluateFallbackAssessment } from "./fallback-assessment.js";
 import { createMicCheck } from "./mic-check.js";
 import { formatDuration, renderMonitoring, renderQuestion, renderStudentHistory, showResult } from "./render.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml, formatTime, prettifyId } from "./utils.js";
 import { isAssessmentLocked, renderCurrentState } from "./app-context.js";
 
@@ -295,6 +295,18 @@ export async function startExam(ctx, assessmentId) {
   await startRecorderForCurrentAssessment(ctx);
   startQuestionTimer(ctx);
   ctx.questionStartTime = Date.now();
+
+  // Warn before closing tab during active exam.
+  window.addEventListener("beforeunload", beforeUnloadHandler);
+}
+
+function beforeUnloadHandler(e) {
+  e.preventDefault();
+  e.returnValue = "";
+}
+
+function clearBeforeUnload() {
+  window.removeEventListener("beforeunload", beforeUnloadHandler);
 }
 
 export async function saveCurrentAnswer(ctx) {
@@ -392,34 +404,35 @@ function buildMicHelp(errorName) {
   `;
 }
 
-export function confirmAndFinishAssessment(ctx) {
+export async function confirmAndFinishAssessment(ctx) {
   const assessment = ctx.session.getCurrentAssessment();
   if (!assessment) return;
 
   const unanswered = getUnansweredCount(ctx);
   const total = assessment.questions.length;
 
-  saveCurrentAnswer(ctx).then(() => {
-    const unansweredAfterSave = getUnansweredCount(ctx);
+  await saveCurrentAnswer(ctx);
+  const unansweredAfterSave = getUnansweredCount(ctx);
 
-    if (unansweredAfterSave > 0) {
-      const message = unansweredAfterSave === total
-        ? "Belum ada satu pun soal yang dijawab. Anda akan mengumpulkan penilaian tanpa jawaban."
-        : `${unansweredAfterSave} dari ${total} soal belum dijawab. Soal kosong akan dinilai 0.`;
-      const proceed = confirm(`${message}\n\nYakin ingin menyelesaikan dan mengumpulkan penilaian sekarang?`);
-      if (!proceed) return;
-    } else {
-      const proceed = confirm(`Semua ${total} soal sudah dijawab. Yakin ingin menyelesaikan dan mengumpulkan penilaian?`);
-      if (!proceed) return;
-    }
+  let message;
+  if (unansweredAfterSave > 0) {
+    message = unansweredAfterSave === total
+      ? "Belum ada satu pun soal yang dijawab. Anda akan mengumpulkan penilaian tanpa jawaban."
+      : `${unansweredAfterSave} dari ${total} soal belum dijawab. Soal kosong akan dinilai 0.`;
+  } else {
+    message = `Semua ${total} soal sudah dijawab. Yakin ingin menyelesaikan dan mengumpulkan penilaian?`;
+  }
 
-    handleFinishAssessment(ctx);
-  });
+  const proceed = await showConfirmDialog(message, 'Selesaikan Penilaian');
+  if (!proceed) return;
+
+  handleFinishAssessment(ctx);
 }
 
 export async function handleFinishAssessment(ctx) {
   const { els } = ctx;
   if (ctx.isEvaluating) return;
+  clearBeforeUnload();
   const assessment = ctx.session.getCurrentAssessment();
   if (!assessment) return;
 

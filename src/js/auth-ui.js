@@ -70,6 +70,31 @@ export function bindAuthEvents(ctx) {
     }
   });
 
+  // Password strength indicator
+  if (els.registerPassword) {
+    els.registerPassword.addEventListener("input", () => {
+      const val = els.registerPassword.value;
+      const bars = document.querySelectorAll("#registerPasswordStrength .password-strength-bar");
+      const label = document.getElementById("registerPasswordStrengthLabel");
+      if (!bars.length) return;
+      let score = 0;
+      if (val.length >= 8) score += 1;
+      if (/[a-z]/.test(val) && /[A-Z]/.test(val)) score += 1;
+      if (/\d/.test(val)) score += 1;
+      if (/[^a-zA-Z0-9]/.test(val)) score += 1;
+      const level = val.length === 0 ? -1 : score <= 1 ? 0 : score <= 2 ? 1 : 2;
+      const levels = ["weak", "medium", "strong"];
+      const labels = ["", "Lemah", "Sedang", "Kuat"];
+      bars.forEach((bar, i) => {
+        bar.className = "password-strength-bar" + (i <= level && level >= 0 ? " " + levels[level] : "");
+      });
+      if (label) {
+        label.textContent = level >= 0 ? labels[level + 1] : "";
+        label.className = "password-strength-label" + (level >= 0 ? " " + levels[level] : "");
+      }
+    });
+  }
+
   els.logoutButton.addEventListener("click", async () => {
     await logout();
     ctx.auth = { authenticated: false };

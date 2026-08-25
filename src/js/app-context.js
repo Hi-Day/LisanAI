@@ -206,6 +206,11 @@ export async function renderCurrentState(ctx) {
   // Hide the seed buttons once there is at least one assessment. The
   // admin button stays hidden for teachers; both are hidden for students.
   const hasData = state.assessments.length > 0;
+  // Hide dev tools in production (when demo simulation is not enabled).
+  const isDev = window.ENABLE_DEMO_SIMULATION === "true" || window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+  const devTools = document.querySelectorAll(".sidebar-settings");
+  devTools.forEach((el) => el.classList.toggle("hidden", !isDev));
+
   if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", hasData);
   if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", hasData);
   if (els.seedDemo) els.seedDemo.classList.toggle("hidden", hasData);

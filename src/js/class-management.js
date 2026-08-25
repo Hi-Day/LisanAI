@@ -7,7 +7,7 @@ import {
   updateClassroom,
   updateMembership,
 } from "./api.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 
@@ -67,7 +67,7 @@ export function bindClassManagementEvents(ctx) {
     els.approvedMemberList.addEventListener("click", async (event) => {
       const id = event.target.dataset.id;
       if (!id || !event.target.classList.contains("remove-member")) return;
-      if (!confirm("Keluarkan siswa dari kelas ini?")) return;
+      if (!await showConfirmDialog("Keluarkan siswa dari kelas ini?", "Hapus Anggota")) return;
 
       await deleteMembership(id);
       await reloadState(ctx);
@@ -129,7 +129,7 @@ export function bindClassManagementEvents(ctx) {
         await renderCurrentState(ctx);
       }
     } else if (event.target.classList.contains("delete-class")) {
-      if (!confirm("Hapus kelas beserta semua datanya?")) return;
+      if (!await showConfirmDialog("Hapus kelas beserta semua datanya?", "Hapus Kelas")) return;
       await deleteClassroom(id);
       await reloadState(ctx);
       await renderCurrentState(ctx);
@@ -203,7 +203,7 @@ export function bindClassManagementEvents(ctx) {
 
         if (invalid.length) {
           const sample = invalid.slice(0, 5).map((i) => `Baris ${i.row}: ${i.email} (${i.errors.join("; ")})`).join("\n");
-          const proceed = confirm(`Ditemukan ${invalid.length} baris bermasalah. Contoh:\n${sample}\n\nLanjutkan dan lewati baris bermasalah?`);
+          const proceed = await showConfirmDialog(`Ditemukan ${invalid.length} baris bermasalah. Contoh:\n${sample}\n\nLanjutkan dan lewati baris bermasalah?`, "Baris Bermasalah");
           if (!proceed) {
             setButtonLoading(els.bulkAddCsvUpload, false, "Mengunggah...", "Upload CSV");
             return;

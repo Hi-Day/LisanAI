@@ -5,7 +5,7 @@ import {
   updateAssessment,
 } from "./api.js";
 import { renderMonitoring, renderStudentHistory, showResult } from "./render.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirmDialog } from "./toast.js";
 import { renderCurrentState, switchView } from "./app-context.js";
 
 /**
@@ -60,7 +60,7 @@ export function bindMonitoringEvents(ctx) {
 
       const qs = submission.questionScores[idx];
       const warning = `⚠️ PERHATIAN\n\nAnda akan mengajukan komplain untuk Soal ${idx + 1} (skor ${qs.score}).\n\nJika guru menilai bahwa skor yang diberikan sudah sesuai, maka skor soal ini akan dikurangi 20 poin (menjadi ${Math.max(0, qs.score - 20)}).\n\nApakah Anda yakin ingin melanjutkan komplain?`;
-      if (!confirm(warning)) return;
+      if (!await showConfirmDialog(warning, "Komplain")) return;
 
       const reason = prompt(`Komplain untuk Soal ${idx + 1} (skor ${qs.score}):\nJelaskan alasan Anda merasa nilai kurang sesuai.`);
       if (reason === null) return;
@@ -231,7 +231,7 @@ export function bindMonitoringEvents(ctx) {
       const impact = studentSubmissions.length
         ? `${studentSubmissions.length} siswa sudah mengumpulkan. Nilai mereka tetap tersimpan, tetapi siswa lain tidak bisa memulai penilaian ini.`
         : "Belum ada siswa yang mengumpulkan. Siswa tidak akan bisa memulai penilaian ini.";
-      const proceed = confirm(`Tutup akses siswa para penilaian ini?\n\n${impact}\n\nAnda bisa membukanya kembali kapan saja.`);
+      const proceed = await showConfirmDialog(`Tutup akses siswa para penilaian ini?\n\n${impact}\n\nAnda bisa membukanya kembali kapan saja.`, "Tutup Penilaian");
       if (!proceed) return;
       await updateAssessment(id, { status: "closed", classId: assessment.classId });
       await reloadState(ctx);
@@ -243,7 +243,7 @@ export function bindMonitoringEvents(ctx) {
       await renderCurrentState(ctx);
       showToast("Akses siswa dibuka kembali.", "success");
     } else if (event.target.classList.contains("delete-assessment")) {
-      if (!confirm("Hapus penilaian beserta semua submission? Tindakan ini tidak bisa dibatalkan.")) return;
+      if (!await showConfirmDialog("Hapus penilaian beserta semua submission? Tindakan ini tidak bisa dibatalkan.", "Hapus Penilaian")) return;
       await deleteAssessment(id);
       await reloadState(ctx);
       await renderCurrentState(ctx);

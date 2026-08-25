@@ -99,7 +99,7 @@ export function renderStudentArea(els, state, session) {
         }
 
         return `
-          <div class="assessment-card" data-id="${assessment.id}">
+          <div class="assessment-card" data-id="${assessment.id}" tabindex="0" role="button" aria-label="${escapeHtml(assessment.topic)} - ${assessment.difficulty} - ${assessment.questions.length} soal">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
               <h4>${escapeHtml(assessment.topic)}</h4>
               ${statusHtml}
@@ -162,7 +162,7 @@ export function renderQuestion(els, assessment, session) {
     els.recordButton.disabled = false;
     els.recorderPanel?.classList.remove("hidden");
     if (els.recordInstructions) {
-      els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).";
+      els.recordInstructions.textContent = "Gunakan Chrome/Edge di " + window.location.origin + " dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).";
     }
   } else {
     els.answerText.placeholder = "Transkripsi otomatis atau jawaban manual siswa akan muncul di sini";
@@ -170,7 +170,7 @@ export function renderQuestion(els, assessment, session) {
     els.recordButton.disabled = false;
     els.recorderPanel?.classList.remove("hidden");
     if (els.recordInstructions) {
-      els.recordInstructions.textContent = "Gunakan Chrome/Edge di http://127.0.0.1:4173 dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.";
+      els.recordInstructions.textContent = "Gunakan Chrome/Edge di " + window.location.origin + " dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.";
     }
   }
 

@@ -1,5 +1,5 @@
 import { seedDemoData } from "./api.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirmDialog } from "./toast.js";
 import { refreshSimulatorIfEnabled } from "./app-context.js";
 
 /**
@@ -50,7 +50,7 @@ export function bindDemoDataEvents(ctx) {
   // Remove ONLY the demo (dummy) data — keeps original/organic data intact.
   if (els.removeDemoData) {
     els.removeDemoData.addEventListener("click", async () => {
-      if (!confirm("Hapus data dummy (data contoh) saja? Data asli Anda tetap aman.")) return;
+      if (!await showConfirmDialog("Hapus data dummy (data contoh) saja? Data asli Anda tetap aman.", "Hapus Data Dummy")) return;
       try {
         const { removeDemoData } = await import("./api.js");
         const result = await removeDemoData();

@@ -5,7 +5,7 @@ import {
   updateUser,
 } from "./api.js";
 import { setButtonLoading } from "./dom.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml, roleLabel } from "./utils.js";
 import { loadUsers, refreshSimulatorIfEnabled } from "./app-context.js";
 
@@ -44,7 +44,7 @@ export function bindUserManagementEvents(ctx) {
         showToast("Role tidak valid. Harus student, teacher, atau admin.");
       }
     } else if (event.target.classList.contains("delete-user")) {
-      if (!confirm("Hapus user ini?")) return;
+      if (!await showConfirmDialog("Hapus user ini?", "Hapus User")) return;
       await deleteUser(id);
       ctx.users = await loadUsers(ctx);
       renderUsers(ctx);
@@ -58,7 +58,7 @@ export function bindUserManagementEvents(ctx) {
         showToast("Pilih akun terlebih dahulu", "error");
         return;
       }
-      if (!confirm(`Hapus ${selected.length} akun terpilih? Tindakan ini tidak bisa dibatalkan.`)) return;
+      if (!await showConfirmDialog(`Hapus ${selected.length} akun terpilih? Tindakan ini tidak bisa dibatalkan.`, "Hapus Akun")) return;
 
       els.deleteSelectedUsers.disabled = true;
       try {

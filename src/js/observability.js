@@ -17,6 +17,21 @@ let telemetryLogOffset = 0;
 export function bindObservabilityEvents(ctx) {
   const { els } = ctx;
 
+  // Observability tab switching
+  document.querySelectorAll(".ob-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".ob-tab-btn").forEach((b) => {
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
+      document.querySelectorAll(".ob-section").forEach((s) => s.classList.remove("active"));
+      const section = document.getElementById("ob-section-" + btn.dataset.obSection);
+      if (section) section.classList.add("active");
+    });
+  });
+
   els.refreshTelemetryBtn?.addEventListener("click", () => {
     telemetryLogOffset = 0;
     loadTelemetry(ctx);
