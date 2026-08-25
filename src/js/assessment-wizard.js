@@ -25,7 +25,6 @@ export function bindAssessmentWizardEvents(ctx) {
     els.createManualAssessment.addEventListener("click", (event) => handleCreateManualAssessment(ctx, event));
   }
   els.saveQuestionSet.addEventListener("click", () => savePendingQuestionSet(ctx));
-  els.improveQuestionSet.addEventListener("click", () => improvePendingQuestionSet(ctx));
   if (els.addManualQuestion) {
     els.addManualQuestion.addEventListener("click", () => handleAddManualQuestion(ctx));
   }
@@ -137,9 +136,11 @@ export async function handleAssessmentSubmit(ctx, event) {
   try {
     const questions = await generateQuestionsWithFallback(ctx, config);
     ctx.pendingAssessmentConfig = config;
-    ctx.pendingQuestions = questions;
+    ctx.pendingQuestions = questions.map((q) => ({
+      ...q,
+      rubric: q.rubric ? convertLegacyRubricToJson(q.rubric) : "",
+    }));
     finishQuestionStream(ctx);
-    // Brief pause so the user sees the completed stream before switching.
     await new Promise((resolve) => setTimeout(resolve, 600));
     hideStreamPanel(ctx, els.aiStreamPanel);
     renderQuestionEditor(ctx);
@@ -700,7 +701,7 @@ export function parseRubricToCriteria(text) {
       }
     } catch { /* fall through */ }
   }
-  const lines = t.split(/\n+/).filter((l) => l.trim());
+  const lines = t.split(/[;\n,]+/).filter((l) => l.trim());
   if (!lines.length) lines.push("");
   return lines.map((line, i) => {
     let name = line.trim(), weight = 0;
@@ -796,4 +797,20 @@ function updateRubrik(el) {
   const questionEl = el.closest(".editable-question");
   const rubricTextarea = questionEl?.querySelector("[data-field='rubric']");
   if (rubricTextarea) rubricTextarea.value = formatCriteriaToJson(criteria);
+}
+
+/**
+ * Convert a legacy text rubric ("Nama 40%") to JSON v2 format.
+ * If already JSON v2, returns as-is.
+ */
+function convertLegacyRubricToJson(text) {
+  if (!text || !text.trim()) return "";
+  const t = text.trim();
+  if (t.startsWith("{")) return t; // already JSON
+  try {
+    const criteria = parseRubricToCriteria(t);
+    return formatCriteriaToJson(criteria);
+  } catch {
+    return t;
+  }
 }
