@@ -663,118 +663,135 @@ function finishQuestionStream(ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// Rubrik Visual Builder (#5)
+// Rubrik Visual Builder with Gradation Table (#5 v2)
 // ---------------------------------------------------------------------------
 
+const DEFAULT_LEVELS = [
+  { score: 4, label: "Sangat Baik", descriptor: "" },
+  { score: 3, label: "Baik", descriptor: "" },
+  { score: 2, label: "Cukup", descriptor: "" },
+  { score: 1, label: "Kurang", descriptor: "" },
+];
+
 /**
- * Convert a free-text rubric into structured criteria rows.
- * Tolerant parser: "Nama 40%", "Nama: 40%", "40% Nama".
+ * Convert a rubric string (JSON v2 or legacy text) into structured criteria.
+ * JSON v2: {"version":"2","criteria":[{id,name,weight,levels:[{score,label,descriptor}]}]}
+ * Legacy: "Nama 40%"
  */
 export function parseRubricToCriteria(text) {
-  const lines = String(text || "").split(/\n+/).filter((l) => l.trim());
-  if (!lines.length) {
-    lines.push("");
+  if (!text || !text.trim()) {
+    return [{ id: "c1", name: "", weight: 0, levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)) }];
   }
-  return lines.map((line, i) => {
-    let name = line.trim();
-    let weight = 0;
-    let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
-    if (m) {
-      name = m[1].trim();
-      weight = Number(m[2]);
-    } else {
-      m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
-      if (m) {
-        weight = Number(m[1]);
-        name = m[2].trim();
+  const t = text.trim();
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria)) {
+        return p.criteria.map((c, i) => ({
+          id: c.id || `c${i + 1}`,
+          name: c.name || "",
+          weight: c.weight || 0,
+          levels: Array.isArray(c.levels) && c.levels.length === 4
+            ? c.levels.map((l) => ({ score: l.score, label: l.label || "", descriptor: l.descriptor || "" }))
+            : JSON.parse(JSON.stringify(DEFAULT_LEVELS)),
+        }));
       }
-    }
-    return { id: `c${i + 1}`, name, weight };
+    } catch { /* fall through */ }
+  }
+  const lines = t.split(/\n+/).filter((l) => l.trim());
+  if (!lines.length) lines.push("");
+  return lines.map((line, i) => {
+    let name = line.trim(), weight = 0;
+    let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
+    if (m) { name = m[1].trim(); weight = Number(m[2]); }
+    else { m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/); if (m) { weight = Number(m[1]); name = m[2].trim(); } }
+    return { id: `c${i + 1}`, name, weight, levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)) };
   });
 }
 
-/** Format criteria as free-text rubric for the hidden textarea. */
-function formatCriteriaToText(criteria) {
-  return criteria.map((c) => `${c.name} ${c.weight}%`).join("\n");
+function formatCriteriaToJson(criteria) {
+  return JSON.stringify({ version: "2", criteria });
 }
 
 /**
- * Render the structured rubrik builder for a question.
- * Updates the hidden rubric textarea as the user edits weights.
+ * Render the gradation table rubrik builder.
+ * Table: rows = criteria, cols = Sangat Baik | Baik | Cukup | Kurang + descriptor textareas.
  */
 export function renderRubrikBuilder(el, rubricText) {
   const criteria = parseRubricToCriteria(rubricText);
+  const levels = criteria[0]?.levels || DEFAULT_LEVELS;
   el.dataset.ready = "1";
   el.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <strong style="font-size:0.9rem;">Kriteria Rubrik</strong>
-      <button type="button" class="secondary-button rubrik-add" style="padding:4px 12px; font-size:0.85rem;">+ Tambah</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong style="font-size:0.9rem;">Rubrik dengan Gradasi</strong>
+      <button type="button" class="secondary-button rubrik-add" style="padding:4px 12px; font-size:0.85rem;">+ Tambah Kriteria</button>
     </div>
-    <div class="rubrik-rows">
-      ${criteria.map((c, i) => rubrikRowHtml(c, i)).join("")}
+    <div class="rubrik-gradation-wrap">
+      <table class="rubrik-gradation">
+        <thead>
+          <tr>
+            <th style="min-width:140px;">Kriteria</th>
+            <th style="min-width:40px;">Bobot</th>
+            ${levels.map((l) => `<th class="rubrik-level-${l.score}">${escapeHtml(l.label)} (${l.score})</th>`).join("")}
+            <th style="width:32px;"></th>
+          </tr>
+        </thead>
+        <tbody class="rubrik-rows">
+          ${criteria.map((c, i) => rubrikGradationRow(c, i, levels)).join("")}
+        </tbody>
+      </table>
     </div>
     <div class="rubrik-weight-sum" data-sum></div>
   `;
 
   el.querySelector(".rubrik-add").addEventListener("click", () => {
-    const rows = el.querySelector(".rubrik-rows");
-    const idx = rows.children.length;
-    const row = document.createElement("div");
-    row.innerHTML = rubrikRowHtml({ id: `c${idx + 1}`, name: "", weight: 0 }, idx);
-    rows.appendChild(row.firstElementChild);
+    const tbody = el.querySelector(".rubrik-rows");
+    const idx = tbody.children.length;
+    const row = document.createElement("tr");
+    row.innerHTML = rubrikGradationRow({ id: `c${idx + 1}`, name: "", weight: 0, levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)) }, idx, levels);
+    tbody.appendChild(row);
     updateRubrik(el);
   });
-
-  el.querySelector(".rubrik-rows").addEventListener("input", (e) => updateRubrik(el));
+  el.querySelector(".rubrik-rows").addEventListener("input", () => updateRubrik(el));
   el.querySelector(".rubrik-rows").addEventListener("click", (e) => {
-    if (e.target.closest(".rubrik-delete")) {
-      const row = e.target.closest(".rubrik-criterion");
-      const idx = row.querySelector(".rubrik-index").dataset.index;
-      row.remove();
-      // Re-index
-      el.querySelectorAll(".rubrik-criterion").forEach((r, i) => {
-        r.querySelector(".rubrik-index").dataset.index = i;
-        r.querySelector(".rubrik-drag-num").textContent = i + 1;
-      });
-      updateRubrik(el);
-    }
+    if (e.target.closest(".rubrik-delete")) { e.target.closest("tr").remove(); updateRubrik(el); }
   });
   updateRubrik(el);
 }
 
-function rubrikRowHtml(c, idx) {
+function rubrikGradationRow(c, idx, levels) {
   return `
-    <div class="rubrik-criterion" draggable="true">
-      <span class="rubrik-index" data-index="${idx}" aria-hidden="true"></span>
-      <input type="text" class="rubrik-name" placeholder="Nama kriteria (mis. Ketepatan konsep)" value="${escapeHtml(c.name || "")}" ${idx === 0 ? "autofocus" : ""} />
-      <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; color:var(--muted);">
-        <input type="number" class="weight-input rubrik-weight" min="0" max="100" step="1" value="${c.weight}" aria-label="Bobot %" />
-        %
-      </label>
-      <button type="button" class="action-button danger-button rubrik-delete" aria-label="Hapus kriteria">&times;</button>
-    </div>
+    <tr class="rubrik-row">
+      <td><input type="text" class="rubrik-name" placeholder="Nama kriteria" value="${escapeHtml(c.name || "")}" style="width:100%;" /></td>
+      <td><input type="number" class="rubrik-weight" min="0" max="100" step="1" value="${c.weight}" aria-label="Bobot %" style="width:50px;" />%</td>
+      ${levels.map((l, li) => `
+        <td class="rubrik-level-cell rubrik-level-${l.score}">
+          <textarea class="rubrik-desc" rows="2" placeholder="Deskripsi ${l.label.toLowerCase()}..." aria-label="${escapeHtml(l.label)}">${escapeHtml((c.levels && c.levels[li]?.descriptor) || "")}</textarea>
+        </td>
+      `).join("")}
+      <td><button type="button" class="action-button danger-button rubrik-delete" aria-label="Hapus">&times;</button></td>
+    </tr>
   `;
 }
 
-/** Rebuild the text from rows and sync to the question's rubric textarea. */
 function updateRubrik(el) {
-  const rows = [...el.querySelectorAll(".rubrik-criterion")];
-  const sum = rows.reduce((acc, r) => {
-    const w = Number(r.querySelector(".rubrik-weight").value || 0);
-    return acc + (isFinite(w) ? w : 0);
-  }, 0);
+  const rows = [...el.querySelectorAll(".rubrik-rows tr")];
+  const levels = DEFAULT_LEVELS;
+  const criteria = rows.map((r, i) => ({
+    id: `c${i + 1}`,
+    name: r.querySelector(".rubrik-name").value.trim(),
+    weight: Number(r.querySelector(".rubrik-weight").value || 0),
+    levels: levels.map((l, li) => ({
+      score: l.score,
+      label: l.label,
+      descriptor: r.querySelectorAll(".rubrik-desc")[li]?.value?.trim() || "",
+    })),
+  }));
+  const sum = criteria.reduce((a, c) => a + (isFinite(c.weight) ? c.weight : 0), 0);
   const sumEl = el.querySelector("[data-sum]");
   sumEl.textContent = `Total bobot: ${sum}% ${sum === 100 ? "✓" : sum > 100 ? "(kelebihan)" : "(kurang)"}`;
   sumEl.className = `rubrik-weight-sum ${sum === 100 ? "valid" : "invalid"}`;
-
-  // Write back to the hidden rubric textarea of this question.
   const questionEl = el.closest(".editable-question");
   const rubricTextarea = questionEl?.querySelector("[data-field='rubric']");
-  if (rubricTextarea) {
-    const criteria = rows.map((r) => ({
-      name: r.querySelector(".rubrik-name").value.trim(),
-      weight: Number(r.querySelector(".rubrik-weight").value || 0),
-    }));
-    rubricTextarea.value = formatCriteriaToText(criteria);
-  }
+  if (rubricTextarea) rubricTextarea.value = formatCriteriaToJson(criteria);
 }

@@ -2764,16 +2764,92 @@ body.admin-mode .student-only { display: none !important; }
   .feedback-card { break-inside: avoid; }
 }
 
-/* ---- Rubrik Builder ---- */
-.rubrik-builder { display: grid; gap: 12px; margin-top: 8px; }
-.rubrik-criterion { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
-.rubrik-criterion.dragging { opacity: 0.5; }
-.rubrik-criterion .drag-handle { cursor: grab; color: var(--muted); font-size: 1.2rem; user-select: none; }
-.rubrik-criterion input[type="text"] { width: 100%; }
-.rubrik-criterion .weight-input { width: 80px; }
-.rubrik-weight-sum { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
-.rubrik-weight-sum.valid { color: var(--emerald); }
-.rubrik-weight-sum.invalid { color: var(--rose); }
+/* ---- Rubrik Gradation Table ---- */
+.rubrik-gradation-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.rubrik-gradation {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.rubrik-gradation th {
+  background: var(--paper);
+  color: var(--muted);
+  font-weight: 600;
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 2px solid var(--line);
+  white-space: nowrap;
+}
+.rubrik-gradation th.rubrik-level-4 { background: #ecfdf5; color: #065f46; }
+.rubrik-gradation th.rubrik-level-3 { background: #eff6ff; color: #1e40af; }
+.rubrik-gradation th.rubrik-level-2 { background: #fefce8; color: #92400e; }
+.rubrik-gradation th.rubrik-level-1 { background: #fef2f2; color: #991b1b; }
+.rubrik-gradation td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.rubrik-gradation .rubrik-row:last-child td {
+  border-bottom: none;
+}
+.rubrik-level-cell textarea {
+  width: 100%;
+  min-width: 120px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  resize: vertical;
+  background: var(--panel);
+}
+.rubrik-level-cell.rubrik-level-4 textarea:focus { border-color: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,0.15); }
+.rubrik-level-cell.rubrik-level-3 textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+.rubrik-level-cell.rubrik-level-2 textarea:focus { border-color: #d97706; box-shadow: 0 0 0 2px rgba(217,119,6,0.15); }
+.rubrik-level-cell.rubrik-level-1 textarea:focus { border-color: #e11d48; box-shadow: 0 0 0 2px rgba(225,29,72,0.15); }
+
+/* Rubrik display table (student view / assessment detail) */
+.rubrik-display {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+.rubrik-display th {
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--line);
+  color: var(--muted);
+}
+.rubrik-display td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  line-height: 1.4;
+}
+.rubrik-display .rubrik-lev-4 { background: #f0fdf4; }
+.rubrik-display .rubrik-lev-3 { background: #eff6ff; }
+.rubrik-display .rubrik-lev-2 { background: #fefce8; }
+.rubrik-display .rubrik-lev-1 { background: #fef2f2; }
+.rubrik-score-badge {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: white;
+}
+.rubrik-score-badge.sb-4 { background: #059669; }
+.rubrik-score-badge.sb-3 { background: #2563eb; }
+.rubrik-score-badge.sb-2 { background: #d97706; }
+.rubrik-score-badge.sb-1 { background: #e11d48; }
 
 /* ---- Tryout badge ---- */
 .tag-tryout { background: #fef3c7; color: #92400e; }

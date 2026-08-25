@@ -152,8 +152,9 @@ export function renderQuestion(els, assessment, session) {
     els.activeOutcome.classList.toggle("hidden", !els.activeOutcome.textContent);
   }
   if (els.activeRubric) {
-    els.activeRubric.textContent = question.rubric || assessment.rubric || "";
-    els.activeRubric.classList.toggle("hidden", !els.activeRubric.textContent);
+    const rubricText = question.rubric || assessment.rubric || "";
+    els.activeRubric.innerHTML = renderRubricTable(rubricText);
+    els.activeRubric.classList.toggle("hidden", !rubricText);
   }
   
   const isOralExam = assessment.oralExamEnabled !== false;
@@ -1006,4 +1007,46 @@ function formatDateTime(iso) {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+/**
+ * Render a rubric JSON v2 string as an HTML gradation table.
+ * Falls back to plain text when the format is legacy.
+ */
+export function renderRubricTable(rubricText) {
+  if (!rubricText) return "";
+  const t = rubricText.trim();
+
+  // Try JSON v2 format
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria) && p.criteria.length > 0) {
+        const levels = p.criteria[0].levels;
+        return `
+          <table class="rubrik-display">
+            <thead>
+              <tr>
+                <th>Kriteria</th>
+                <th>Bobot</th>
+                ${levels.map((l) => `<th class="rubrik-lev-${l.score}">${escapeHtml(l.label)}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${p.criteria.map((c) => `
+                <tr>
+                  <td><strong>${escapeHtml(c.name)}</strong></td>
+                  <td>${c.weight}%</td>
+                  ${c.levels.map((l) => `<td class="rubrik-lev-${l.score}">${escapeHtml(l.descriptor || "—")}</td>`).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Legacy: render as pre-formatted text
+  return `<pre style="white-space:pre-wrap;font-size:0.85rem;color:var(--muted);margin:0;">${escapeHtml(t)}</pre>`;
 }
