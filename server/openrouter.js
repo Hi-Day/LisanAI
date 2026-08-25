@@ -49,7 +49,7 @@ async function requestModel(model, messages, schemaHint, gen = {}) {
           headers: {
             Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "http://127.0.0.1:4173",
+            "HTTP-Referer": process.env.OPENROUTER_REFERER || "http://127.0.0.1:4173",
             "X-Title": "Lisan.ai",
           },
           body: JSON.stringify({
@@ -532,7 +532,7 @@ async function streamRequestModel(model, messages, schemaHint, onChunk) {
           headers: {
             Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "http://127.0.0.1:4173",
+            "HTTP-Referer": process.env.OPENROUTER_REFERER || "http://127.0.0.1:4173",
             "X-Title": "Lisan.ai",
           },
           body: JSON.stringify({
