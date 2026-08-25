@@ -132,6 +132,17 @@ module.exports = async (req, res) => {
       if (action === "save-submission") {
         if (isStudent) {
           await saveSubmission(auth.tenant.id, auth.user.id, payload);
+          // Broadcast notification to teachers
+          try {
+            const { broadcast } = require("./notifications");
+            broadcast({
+              type: "submission",
+              title: "Penilaian baru",
+              message: `${auth.user.name} mengumpulkan "${payload.assessmentTitle || "penilaian"}"`,
+              assessmentId: payload.assessmentId,
+              tenantId: auth.tenant.id,
+            });
+          } catch { /* non-fatal */ }
           return sendJson(res, 201, { submission: payload });
         } else if (isTeacherOrAdmin) {
           const { getDb } = require("../server/database");

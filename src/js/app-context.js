@@ -267,6 +267,10 @@ export function applyRoleAccess(ctx) {
       <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">◉</span> Siswa</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
       <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
+      <button class="nav-button" data-view="notifView">
+        <span aria-hidden="true">🔔</span> Notifikasi
+        <span id="notifBadge" class="nav-badge hidden">0</span>
+      </button>
       <button class="nav-button" data-view="complaintView">
         <span aria-hidden="true">📩</span> Komplain
         <span id="complaintNavBadge" class="nav-badge hidden">0</span>
@@ -340,7 +344,7 @@ export function canAccessView(ctx, viewId) {
     return [
       "dashboardView", "teacherView", "assessmentListView", "assessmentDetailView",
       "monitorView", "manageClassView", "studentProfileView", "complaintView",
-      "questionBankView",
+      "questionBankView", "notifView",
     ].includes(viewId);
   }
   return false;
@@ -391,6 +395,10 @@ export async function switchView(ctx, viewId) {
   if (viewId === "questionBankView") {
     const { loadQuestionBank } = await import("./question-bank.js");
     loadQuestionBank(ctx);
+  }
+  if (viewId === "notifView") {
+    const { clearNotificationBadge } = await import("./notifications.js");
+    clearNotificationBadge();
   }
 }
 

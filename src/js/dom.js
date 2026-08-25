@@ -259,6 +259,13 @@ export function getElements() {
     questionBankFilter: document.querySelector("#questionBankFilter"),
     questionBankImportBtn: document.querySelector("#questionBankImportBtn"),
     saveToBankBtn: document.querySelector("#saveToBankBtn"),
+    isTryout: document.querySelector("#isTryout"),
+    editIsTryout: document.querySelector("#editIsTryout"),
+    notifBadge: document.querySelector("#notifBadge"),
+    notifList: document.querySelector("#notifList"),
+    notifView: document.querySelector("#notifView"),
+    compTrendChart: document.querySelector("#compTrendChart"),
+    compTrendLegend: document.querySelector("#compTrendLegend"),
   };
 }
 

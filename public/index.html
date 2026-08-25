@@ -171,6 +171,15 @@
         </div>
 
         <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
+          <div style="padding: 24px 24px 16px;">
+            <h3 style="margin:0 0 8px;">Tren Kompetensi (Longitudinal)</h3>
+            <p class="panel-hint">Perkembangan skor per kriteria rubrik dari waktu ke waktu.</p>
+            <div id="compTrendLegend" class="comp-trend-legend"></div>
+            <div id="compTrendChart" class="comp-trend-chart"></div>
+          </div>
+        </div>
+
+        <div class="analytics-panel wide" style="padding: 0; overflow: hidden;">
           <h3 style="padding: 24px 24px 16px;">Penilaian Terbaru</h3>
           <div class="table-container" style="overflow-x: auto;">
             <table class="data-table">
@@ -345,6 +354,10 @@
                     <input type="checkbox" id="allowRetakes" />
                     <span>Izinkan retake penilaian untuk siswa</span>
                   </label>
+                  <label class="check-row">
+                    <input type="checkbox" id="isTryout" />
+                    <span>Mode Tryout / Latihan (hasil tidak masuk nilai resmi)</span>
+                  </label>
                 </div>
 
                 <label>
@@ -399,6 +412,10 @@
                         <label class="check-row">
                           <input type="checkbox" id="editAllowRetakes" />
                           <span>Izinkan retake penilaian untuk siswa</span>
+                        </label>
+                        <label class="check-row">
+                          <input type="checkbox" id="editIsTryout" />
+                          <span>Mode Tryout / Latihan</span>
                         </label>
                       </div>
                     </div>
@@ -485,7 +502,14 @@
         <div id="studentDashboard" class="student-dashboard">
           <div class="student-dashboard-main">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 style="margin: 0;">Penilaian tersedia</h3>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <h3 style="margin: 0;">Penilaian tersedia</h3>
+                <div class="notif-tab" style="margin-bottom:0;">
+                  <button type="button" class="notif-tab-btn active" data-student-filter="all">Semua</button>
+                  <button type="button" class="notif-tab-btn" data-student-filter="tryout">Tryout</button>
+                  <button type="button" class="notif-tab-btn" data-student-filter="assessment">Assessment</button>
+                </div>
+              </div>
               <select id="studentClassFilter"
                 style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;">
                 <option value="">Semua Kelas</option>
@@ -778,6 +802,17 @@
           <h3 style="padding: 24px 24px 16px;">Daftar Komplain Siswa</h3>
           <div id="complaintList" class="complaint-list empty-state">Belum ada komplain.</div>
         </div>
+      </section>
+
+      <section id="notifView" class="view" aria-labelledby="notifTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="notifTitle">Notifikasi</h2>
+            <p>Notifikasi real-time saat siswa mengumpulkan penilaian atau mengajukan komplain.</p>
+          </div>
+          <span class="metric-pill"><strong id="notifCount">0</strong> notifikasi</span>
+        </div>
+        <div id="notifList" class="list-stack empty-state">Belum ada notifikasi. Notifikasi muncul saat siswa mengumpulkan penilaian.</div>
       </section>
 
       <section id="observabilityView" class="view" aria-labelledby="observabilityTitle">

@@ -2752,7 +2752,44 @@ body.admin-mode .student-only { display: none !important; }
 /* ---- Empty state subhint ---- */
 .empty-state .sub { display: block; margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
 
-/* ---- Responsive ---- */
+/* ---- Print styles for PDF export ---- */
+@media print {
+  body { background: white; color: black; }
+  .sidebar, .topbar, .result-close-btn, .result-footer, .nav, .simulator-widget, .toast-container { display: none !important; }
+  .result-modal { position: static; background: none; backdrop-filter: none; padding: 0; overflow: visible; }
+  .result-modal-content { box-shadow: none; border: 1px solid #ddd; max-width: 100%; }
+  .score-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .comp-fill, .dist-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .status-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .feedback-card { break-inside: avoid; }
+}
+
+/* ---- Rubrik Builder ---- */
+.rubrik-builder { display: grid; gap: 12px; margin-top: 8px; }
+.rubrik-criterion { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.rubrik-criterion.dragging { opacity: 0.5; }
+.rubrik-criterion .drag-handle { cursor: grab; color: var(--muted); font-size: 1.2rem; user-select: none; }
+.rubrik-criterion input[type="text"] { width: 100%; }
+.rubrik-criterion .weight-input { width: 80px; }
+.rubrik-weight-sum { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+.rubrik-weight-sum.valid { color: var(--emerald); }
+.rubrik-weight-sum.invalid { color: var(--rose); }
+
+/* ---- Tryout badge ---- */
+.tag-tryout { background: #fef3c7; color: #92400e; }
+.tag-practice { background: #dbeafe; color: #1e40af; }
+
+/* ---- Notifikasi ---- */
+.notif-tab { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.notif-tab-btn { padding: 8px 16px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); cursor: pointer; font-size: 0.9rem; }
+.notif-tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+.notif-badge { background: var(--rose); color: white; border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; margin-left: 6px; }
+
+/* ---- Kompetensi Longitudinal ---- */
+.comp-trend-chart { height: 200px; position: relative; margin: 16px 0; }
+.comp-trend-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; margin-bottom: 8px; }
+.comp-trend-legend span { display: flex; align-items: center; gap: 4px; }
+.comp-trend-legend .swatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
 @media (max-width: 1200px) {
   .dash-grid-2, .detail-grid { grid-template-columns: 1fr; }
 }

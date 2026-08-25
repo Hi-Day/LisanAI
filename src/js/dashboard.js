@@ -155,6 +155,7 @@ export async function renderDashboard(ctx) {
   renderDistribution(els.scoreDistribution, evaluated);
   renderCompetencies(els.competencyOverview, evaluated);
   renderAtRisk(els.atRiskList, atRisk);
+  renderCompTrend(ctx, evaluated);
   renderRecentAssessments(els.recentAssessmentsList, recentSubmissions(scope, 8));
 }
 
@@ -1013,6 +1014,110 @@ function escapeHtmlSup(text) {
 
 function escapeXml(text) {
   return String(text) .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
+// ---------------------------------------------------------------------------
+// #6: Longitudinal Competency Trend Chart
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a longitudinal chart showing how each criterion score changes over
+ * time (by submission date). Uses inline SVG.
+ */
+function renderCompTrend(ctx, evaluated) {
+  const { els } = ctx;
+  if (!els.compTrendChart) return;
+
+  const sorted = evaluated.slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  if (sorted.length < 2) {
+    els.compTrendChart.innerHTML = '<p class="empty-state">Butuh minimal 2 submission untuk melihat tren kompetensi.</p>';
+    return;
+  }
+
+  // Aggregate criteria scores per submission
+  const compMap = new Map(); // criterionName -> [{ date, score }]
+  for (const sub of sorted) {
+    const date = new Date(sub.submittedAt).toLocaleDateString("id-ID", { month: "short", day: "numeric" });
+    (sub.criteria || []).forEach((c) => {
+      if (!Number.isFinite(Number(c.score))) return;
+      const name = c.name || prettifyId(c.criterionId) || "Kriteria";
+      if (!compMap.has(name)) compMap.set(name, []);
+      compMap.get(name).push({ date, score: Number(c.score) });
+    });
+  }
+
+  if (compMap.size === 0) {
+    els.compTrendChart.innerHTML = '<p class="empty-state">Belum ada data kriteria. Evaluasi perlu memakai rubrik.</p>';
+    return;
+  }
+
+  const COLORS = ["#2563eb", "#059669", "#d97706", "#e11d48", "#0ea5e9", "#8b5cf6", "#f59e0b", "#10b981"];
+  const entries = [...compMap.entries()];
+  const W = 600, H = 180, PAD = 30;
+  const allDates = [...new Set(sorted.map((s) => new Date(s.submittedAt).toLocaleDateString("id-ID", { month: "short", day: "numeric" })))];
+
+  // Build legend
+  els.compTrendLegend.innerHTML = entries.map(([name], i) =>
+    `<span><span class="swatch" style="background:${COLORS[i % COLORS.length]}"></span>${escapeHtml(name)}</span>`
+  ).join("");
+
+  // Build SVG
+  let paths = "";
+  entries.forEach(([name, points], i) => {
+    const color = COLORS[i % COLORS.length];
+    const xScale = (idx) => PAD + (idx / Math.max(1, allDates.length - 1)) * (W - 2 * PAD);
+    const yScale = (score) => H - PAD - (score / 100) * (H - 2 * PAD);
+
+    // Group by date (average if multiple submissions same date)
+    const byDate = new Map();
+    points.forEach((p) => {
+      if (!byDate.has(p.date)) byDate.set(p.date, []);
+      byDate.get(p.date).push(p.score);
+    });
+    const avgPoints = [...byDate.entries()].map(([date, scores]) => ({
+      date,
+      score: scores.reduce((a, b) => a + b, 0) / scores.length,
+    }));
+
+    const line = avgPoints.map((p, idx) => {
+      const x = xScale(allDates.indexOf(p.date));
+      const y = yScale(p.score);
+      return `${idx === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+
+    paths += `<path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    paths += avgPoints.map((p, idx) => {
+      const x = xScale(allDates.indexOf(p.date));
+      const y = yScale(p.score);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+    }).join("");
+  });
+
+  // X-axis labels
+  const xLabels = allDates.map((d, idx) => {
+    const x = PAD + (idx / Math.max(1, allDates.length - 1)) * (W - 2 * PAD);
+    return `<text x="${x.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="#94a3b8">${d}</text>`;
+  }).join("");
+
+  // Y-axis labels
+  const yLabels = [0, 25, 50, 75, 100].map((v) => {
+    const y = H - PAD - (v / 100) * (H - 2 * PAD);
+    return `<text x="${PAD - 5}" y="${y.toFixed(1) + 4}" text-anchor="end" font-size="9" fill="#94a3b8">${v}</text>`;
+  }).join("");
+
+  els.compTrendChart.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%;" role="img" aria-label="Grafik tren kompetensi">
+      <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="#e2e8f0" stroke-width="1"/>
+      <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="#e2e8f0" stroke-width="1"/>
+      ${[25, 50, 75].map((v) => {
+        const y = H - PAD - (v / 100) * (H - 2 * PAD);
+        return `<line x1="${PAD}" y1="${y}" x2="${W - PAD}" y2="${y}" stroke="#f1f5f9" stroke-width="1"/>`;
+      }).join("")}
+      ${paths}
+      ${xLabels}
+      ${yLabels}
+    </svg>
+  `;
 }
 
 export { renderAssessmentsWithTab };

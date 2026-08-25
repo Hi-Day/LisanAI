@@ -16,6 +16,7 @@ export function readAssessmentForm(els) {
     disableManualTyping: els.disableManualTyping.checked,
     allowRetakes: els.allowRetakes.checked,
     maxAttempts: Number(els.maxAttempts?.value || 0),
+    isTryout: els.isTryout ? els.isTryout.checked : false,
     createdAt: new Date().toISOString(),
   };
 }

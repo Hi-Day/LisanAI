@@ -447,8 +447,14 @@ export async function handleFinishAssessment(ctx) {
       ? ctx.auth.user.name
       : els.studentName.value.trim() || "Siswa tanpa nama";
     const submission = await evaluateWithFallback(ctx, assessment, studentName);
-    await saveSubmissionToDatabase(submission);
-    ctx.state.submissions.push(submission);
+    // Skip DB persistence for tryout/practice assessments
+    if (!assessment.isTryout) {
+      await saveSubmissionToDatabase(submission);
+      ctx.state.submissions.push(submission);
+    } else {
+      submission.isTryout = true;
+      showToast("Hasil tryout ditampilkan di sini (tidak disimpan ke database)", "info");
+    }
     renderMonitoring(els, ctx.state);
     renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
     showResult(els, submission, ctx.auth);

@@ -39,6 +39,18 @@ export function bindAssessmentWizardEvents(ctx) {
     handleDeleteQuestion(ctx, Number(deleteBtn.dataset.index));
   });
 
+  // Rubrik builder toggle (event delegation).
+  els.editableQuestionList.addEventListener("click", (event) => {
+    const toggle = event.target.closest(".rubrik-builder-toggle");
+    if (!toggle) return;
+    const index = toggle.dataset.index;
+    const builder = document.querySelector(`.rubrik-builder-${index}`);
+    if (!builder) return;
+    const isHidden = builder.style.display === "none" || !builder.style.display;
+    builder.style.display = isHidden ? "grid" : "none";
+    if (isHidden) renderRubrikBuilder(builder, ctx.pendingQuestions[index]?.rubric || "");
+  });
+
   // Wizard navigation
   if (els.wizardToQuestions) {
     els.wizardToQuestions.addEventListener("click", () => {
@@ -189,6 +201,8 @@ export async function savePendingQuestionSet(ctx) {
   const { els } = ctx;
   if (!ctx.pendingAssessmentConfig) return;
   syncQuestionsFromEditor(ctx);
+  // Sync wizard edit fields back to config
+  if (els.editIsTryout) ctx.pendingAssessmentConfig.isTryout = els.editIsTryout.checked;
   const assessment = createAssessment(ctx.pendingAssessmentConfig, ctx.pendingQuestions);
 
   const existingIndex = ctx.state.assessments.findIndex((a) => a.id === assessment.id);
@@ -260,6 +274,9 @@ export function renderQuestionEditor(ctx) {
   if (els.editAllowRetakes) {
     els.editAllowRetakes.checked = !!ctx.pendingAssessmentConfig.allowRetakes;
   }
+  if (els.editIsTryout) {
+    els.editIsTryout.checked = !!ctx.pendingAssessmentConfig.isTryout;
+  }
   els.editableQuestionList.innerHTML = ctx.pendingQuestions.map((question, index) => `
     <article class="feedback-card editable-question">
       <div class="question-card-header">
@@ -277,8 +294,12 @@ export function renderQuestionEditor(ctx) {
           : ""
       }
       <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
-      <label>Rubrik penilaian soal ini<textarea data-field="rubric" rows="3">${escapeHtml(question.rubric || "")}</textarea></label>
-      <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
+      <label>Rubrik penilaian soal ini
+  <textarea data-field="rubric" rows="3">${escapeHtml(question.rubric || "")}</textarea>
+  <button type="button" class="secondary-button rubrik-builder-toggle" data-index="${index}" style="margin-top: 6px; font-size: 0.85rem;">✏️ Buka Builder Rubrik</button>
+</label>
+<div class="rubrik-builder rubrik-builder-${index}" style="display: none;"></div>
+<label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
     </article>
   `).join("");
   renderReviewSummary(ctx);
@@ -638,5 +659,122 @@ function finishQuestionStream(ctx) {
   if (first) {
     first.scrollIntoView({ behavior: "smooth", block: "center" });
     first.classList.add("ai-stream-focus");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rubrik Visual Builder (#5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a free-text rubric into structured criteria rows.
+ * Tolerant parser: "Nama 40%", "Nama: 40%", "40% Nama".
+ */
+export function parseRubricToCriteria(text) {
+  const lines = String(text || "").split(/\n+/).filter((l) => l.trim());
+  if (!lines.length) {
+    lines.push("");
+  }
+  return lines.map((line, i) => {
+    let name = line.trim();
+    let weight = 0;
+    let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
+    if (m) {
+      name = m[1].trim();
+      weight = Number(m[2]);
+    } else {
+      m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
+      if (m) {
+        weight = Number(m[1]);
+        name = m[2].trim();
+      }
+    }
+    return { id: `c${i + 1}`, name, weight };
+  });
+}
+
+/** Format criteria as free-text rubric for the hidden textarea. */
+function formatCriteriaToText(criteria) {
+  return criteria.map((c) => `${c.name} ${c.weight}%`).join("\n");
+}
+
+/**
+ * Render the structured rubrik builder for a question.
+ * Updates the hidden rubric textarea as the user edits weights.
+ */
+export function renderRubrikBuilder(el, rubricText) {
+  const criteria = parseRubricToCriteria(rubricText);
+  el.dataset.ready = "1";
+  el.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong style="font-size:0.9rem;">Kriteria Rubrik</strong>
+      <button type="button" class="secondary-button rubrik-add" style="padding:4px 12px; font-size:0.85rem;">+ Tambah</button>
+    </div>
+    <div class="rubrik-rows">
+      ${criteria.map((c, i) => rubrikRowHtml(c, i)).join("")}
+    </div>
+    <div class="rubrik-weight-sum" data-sum></div>
+  `;
+
+  el.querySelector(".rubrik-add").addEventListener("click", () => {
+    const rows = el.querySelector(".rubrik-rows");
+    const idx = rows.children.length;
+    const row = document.createElement("div");
+    row.innerHTML = rubrikRowHtml({ id: `c${idx + 1}`, name: "", weight: 0 }, idx);
+    rows.appendChild(row.firstElementChild);
+    updateRubrik(el);
+  });
+
+  el.querySelector(".rubrik-rows").addEventListener("input", (e) => updateRubrik(el));
+  el.querySelector(".rubrik-rows").addEventListener("click", (e) => {
+    if (e.target.closest(".rubrik-delete")) {
+      const row = e.target.closest(".rubrik-criterion");
+      const idx = row.querySelector(".rubrik-index").dataset.index;
+      row.remove();
+      // Re-index
+      el.querySelectorAll(".rubrik-criterion").forEach((r, i) => {
+        r.querySelector(".rubrik-index").dataset.index = i;
+        r.querySelector(".rubrik-drag-num").textContent = i + 1;
+      });
+      updateRubrik(el);
+    }
+  });
+  updateRubrik(el);
+}
+
+function rubrikRowHtml(c, idx) {
+  return `
+    <div class="rubrik-criterion" draggable="true">
+      <span class="rubrik-index" data-index="${idx}" aria-hidden="true"></span>
+      <input type="text" class="rubrik-name" placeholder="Nama kriteria (mis. Ketepatan konsep)" value="${escapeHtml(c.name || "")}" ${idx === 0 ? "autofocus" : ""} />
+      <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; color:var(--muted);">
+        <input type="number" class="weight-input rubrik-weight" min="0" max="100" step="1" value="${c.weight}" aria-label="Bobot %" />
+        %
+      </label>
+      <button type="button" class="action-button danger-button rubrik-delete" aria-label="Hapus kriteria">&times;</button>
+    </div>
+  `;
+}
+
+/** Rebuild the text from rows and sync to the question's rubric textarea. */
+function updateRubrik(el) {
+  const rows = [...el.querySelectorAll(".rubrik-criterion")];
+  const sum = rows.reduce((acc, r) => {
+    const w = Number(r.querySelector(".rubrik-weight").value || 0);
+    return acc + (isFinite(w) ? w : 0);
+  }, 0);
+  const sumEl = el.querySelector("[data-sum]");
+  sumEl.textContent = `Total bobot: ${sum}% ${sum === 100 ? "✓" : sum > 100 ? "(kelebihan)" : "(kurang)"}`;
+  sumEl.className = `rubrik-weight-sum ${sum === 100 ? "valid" : "invalid"}`;
+
+  // Write back to the hidden rubric textarea of this question.
+  const questionEl = el.closest(".editable-question");
+  const rubricTextarea = questionEl?.querySelector("[data-field='rubric']");
+  if (rubricTextarea) {
+    const criteria = rows.map((r) => ({
+      name: r.querySelector(".rubrik-name").value.trim(),
+      weight: Number(r.querySelector(".rubrik-weight").value || 0),
+    }));
+    rubricTextarea.value = formatCriteriaToText(criteria);
   }
 }

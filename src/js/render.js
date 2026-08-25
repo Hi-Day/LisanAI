@@ -40,9 +40,15 @@ export function renderAssessments(els, state) {
 
 export function renderStudentArea(els, state, session) {
   const selectedClassId = els.studentClassFilter?.value;
+  const studentFilter = document.querySelector("[data-student-filter].active")?.dataset?.studentFilter || "all";
   let visibleAssessments = state.assessments.filter(a => a.status !== "closed");
   if (selectedClassId) {
     visibleAssessments = visibleAssessments.filter(a => a.classId === selectedClassId);
+  }
+  if (studentFilter === "tryout") {
+    visibleAssessments = visibleAssessments.filter(a => a.isTryout);
+  } else if (studentFilter === "assessment") {
+    visibleAssessments = visibleAssessments.filter(a => !a.isTryout);
   }
 
   if (!visibleAssessments.length) {
@@ -102,7 +108,10 @@ export function renderStudentArea(els, state, session) {
           <div class="assessment-card" data-id="${assessment.id}" tabindex="0" role="button" aria-label="${escapeHtml(assessment.topic)} - ${assessment.difficulty} - ${assessment.questions.length} soal">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
               <h4>${escapeHtml(assessment.topic)}</h4>
-              ${statusHtml}
+              <div style="display:flex; gap:4px; align-items:center;">
+                ${assessment.isTryout ? '<span class="tag tag-tryout">Tryout</span>' : ''}
+                ${statusHtml}
+              </div>
             </div>
             <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
             <div class="assessment-meta">
@@ -220,7 +229,7 @@ export function renderMonitoring(els, state) {
 export function showResult(els, submission, auth = null) {
   els.resultPanel._returnFocus = document.activeElement;
   els.resultPanel.classList.remove("hidden");
-  els.resultPanel.dataset.submissionId = submission.id; // Store ID for override
+  els.resultPanel.dataset.submissionId = submission.id;
   const summary = buildResultSummary(submission);
   els.resultPanel.innerHTML = `
     <div class="result-modal-content">
@@ -268,6 +277,7 @@ export function showResult(els, submission, auth = null) {
       </div>
 
       <div class="result-footer">
+        <button class="secondary-button" type="button" onclick="window.print()" style="margin-right: auto;">🖨️ Cetak/PDF</button>
         <button class="primary-button close-result-btn" type="button">Tutup hasil</button>
       </div>
     </div>
