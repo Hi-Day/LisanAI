@@ -13,11 +13,14 @@ import { renderCurrentState } from "./app-context.js";
 import { saveCurrentQuestionsToBank } from "./question-bank.js";
 import { renderRubricTable } from "./render.js";
 
+let _wizardCtx = null;
+
 /**
  * Assessment creation wizard: context form, AI question generation,
  * manual editing, review summary, and publish.
  */
 export function bindAssessmentWizardEvents(ctx) {
+  _wizardCtx = ctx;
   const { els } = ctx;
 
   els.form.addEventListener("submit", (event) => handleAssessmentSubmit(ctx, event));
@@ -48,7 +51,16 @@ export function bindAssessmentWizardEvents(ctx) {
     if (!builder) return;
     const isHidden = builder.style.display === "none" || !builder.style.display;
     builder.style.display = isHidden ? "grid" : "none";
-    if (isHidden) renderRubrikBuilder(builder, ctx.pendingQuestions[index]?.rubric || "");
+    if (isHidden) {
+      builder.dataset.qIndex = index;
+      renderRubrikBuilder(builder, ctx.pendingQuestions[index]?.rubric || "");
+    } else {
+      // Builder closed: refresh the preview table from updated data
+      const preview = toggle.closest("label")?.querySelector(".rubrik-preview");
+      if (preview && ctx.pendingQuestions[index]?.rubric) {
+        preview.innerHTML = renderRubricTable(ctx.pendingQuestions[index].rubric);
+      }
+    }
   });
 
   // Wizard navigation
@@ -252,9 +264,8 @@ export function syncQuestionsFromEditor(ctx) {
     prompt: item.querySelector("[data-field='prompt']").value.trim(),
     focus: item.querySelector("[data-field='focus']").value.trim(),
     outcome: item.querySelector("[data-field='outcome']").value.trim(),
-    rubric: item.querySelector("[data-field='rubric']").value.trim(),
+    rubric: ctx.pendingQuestions[index]?.rubric || "",
     ideal: item.querySelector("[data-field='ideal']").value.trim(),
-    // Pemetaan soal↔rubrik dipertahankan saat diedit ulang (mekanisme alignment).
     criteria: ctx.pendingQuestions[index]?.criteria || [],
   }));
 }
@@ -296,8 +307,7 @@ export function renderQuestionEditor(ctx) {
           : ""
       }
       <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
-      <label>Rubrik penilaian soal ini
-  <textarea data-field="rubric" rows="3" style="display:none;">${escapeHtml(question.rubric || "")}</textarea>
+<label>Rubrik penilaian soal ini
   <div class="rubrik-preview" style="margin-top:6px;">${question.rubric ? renderRubricTable(question.rubric) : ""}</div>
   <button type="button" class="secondary-button rubrik-builder-toggle" data-index="${index}" style="margin-top: 6px; font-size: 0.85rem;">✏️ Edit Rubrik</button>
 </label>
@@ -812,9 +822,11 @@ function updateRubrik(el) {
   const sumEl = el.querySelector("[data-sum]");
   sumEl.textContent = `Total bobot: ${sum}% ${sum === 100 ? "✓" : sum > 100 ? "(kelebihan)" : "(kurang)"}`;
   sumEl.className = `rubrik-weight-sum ${sum === 100 ? "valid" : "invalid"}`;
-  const questionEl = el.closest(".editable-question");
-  const rubricTextarea = questionEl?.querySelector("[data-field='rubric']");
-  if (rubricTextarea) rubricTextarea.value = formatCriteriaToJson(criteria);
+
+  const qIndex = el.dataset.qIndex;
+  if (_wizardCtx && qIndex !== undefined && _wizardCtx.pendingQuestions[qIndex]) {
+    _wizardCtx.pendingQuestions[qIndex].rubric = formatCriteriaToJson(criteria);
+  }
 }
 
 /**
