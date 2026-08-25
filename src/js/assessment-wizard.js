@@ -676,6 +676,21 @@ const DEFAULT_LEVELS = [
   { score: 1, label: "Kurang", descriptor: "" },
 ];
 
+function fillLevelDescriptors(criterionName, levels) {
+  const name = criterionName || "Kriteria";
+  const lower = name.toLowerCase();
+  const templates = [
+    `${name} sangat baik, lengkap, dan tepat`,
+    `${name} baik dan memadai`,
+    `${name} cukup, namun masih perlu pengembangan`,
+    `${name} kurang, perlu perbaikan signifikan`,
+  ];
+  return levels.map((l, i) => ({
+    ...l,
+    descriptor: l.descriptor || templates[i] || "",
+  }));
+}
+
 /**
  * Convert a rubric string (JSON v2 or legacy text) into structured criteria.
  * JSON v2: {"version":"2","criteria":[{id,name,weight,levels:[{score,label,descriptor}]}]}
@@ -683,7 +698,7 @@ const DEFAULT_LEVELS = [
  */
 export function parseRubricToCriteria(text) {
   if (!text || !text.trim()) {
-    return [{ id: "c1", name: "", weight: 0, levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)) }];
+    return [{ id: "c1", name: "", weight: 0, levels: fillLevelDescriptors("", JSON.parse(JSON.stringify(DEFAULT_LEVELS))) }];
   }
   const t = text.trim();
   if (t.startsWith("{")) {
@@ -695,8 +710,8 @@ export function parseRubricToCriteria(text) {
           name: c.name || "",
           weight: c.weight || 0,
           levels: Array.isArray(c.levels) && c.levels.length === 4
-            ? c.levels.map((l) => ({ score: l.score, label: l.label || "", descriptor: l.descriptor || "" }))
-            : JSON.parse(JSON.stringify(DEFAULT_LEVELS)),
+            ? fillLevelDescriptors(c.name || "", c.levels.map((l) => ({ score: l.score, label: l.label || "", descriptor: l.descriptor || "" })))
+            : fillLevelDescriptors(c.name || "", JSON.parse(JSON.stringify(DEFAULT_LEVELS))),
         }));
       }
     } catch { /* fall through */ }
@@ -708,7 +723,7 @@ export function parseRubricToCriteria(text) {
     let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
     if (m) { name = m[1].trim(); weight = Number(m[2]); }
     else { m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/); if (m) { weight = Number(m[1]); name = m[2].trim(); } }
-    return { id: `c${i + 1}`, name, weight, levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)) };
+    return { id: `c${i + 1}`, name, weight, levels: fillLevelDescriptors(name, JSON.parse(JSON.stringify(DEFAULT_LEVELS))) };
   });
 }
 

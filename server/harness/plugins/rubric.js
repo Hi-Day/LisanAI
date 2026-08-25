@@ -12,6 +12,23 @@ const { validateRubric } = require("../validator");
  */
 function parseRubricText(text) {
   if (!text) return [];
+
+  // Handle JSON v2 format (from the gradation table builder)
+  const t = String(text).trim();
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria) && p.criteria.length > 0) {
+        return p.criteria.map((c, i) => ({
+          id: slugify(c.name) || `c${i + 1}`,
+          name: c.name || `Kriteria ${i + 1}`,
+          weight: (c.weight || 0) / 100,
+          scale: 100,
+        }));
+      }
+    } catch { /* fall through to legacy parser */ }
+  }
+
   const items = String(text)
     .split(/[;\n,]+/)
     .map((s) => s.trim())
