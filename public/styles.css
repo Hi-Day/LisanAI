@@ -46,9 +46,20 @@ body {
   100% { background-position: -200% 0; }
 }
 
-/* Dark mode support */
+/* Dark mode support — class-based */
+:root.dark-mode,
+html[data-theme="dark"] {
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --line: #334155;
+  --paper: #0f172a;
+  --panel: #1e293b;
+  --accent-light: #1e3a5f;
+  --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
+}
 @media (prefers-color-scheme: dark) {
-  :root:not(.light-mode) {
+  :root:not(.light-mode):not(.dark-mode):not([data-theme="dark"]) {
     --ink: #e2e8f0;
     --muted: #94a3b8;
     --line: #334155;
@@ -58,16 +69,6 @@ body {
     --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
     --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
   }
-}
-:root.dark-mode {
-  --ink: #e2e8f0;
-  --muted: #94a3b8;
-  --line: #334155;
-  --paper: #0f172a;
-  --panel: #1e293b;
-  --accent-light: #1e3a5f;
-  --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
 }
 
 /* Reduced motion */

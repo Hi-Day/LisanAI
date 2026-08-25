@@ -86,17 +86,24 @@ export async function initApp() {
 
   // Dark mode toggle
   const savedTheme = localStorage.getItem("lisan-theme");
-  if (savedTheme === "dark") document.documentElement.classList.add("dark-mode");
-  if (savedTheme === "light") document.documentElement.classList.remove("dark-mode");
+  if (savedTheme === "dark") {
+    document.documentElement.classList.add("dark-mode");
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+  if (savedTheme === "light") {
+    document.documentElement.classList.remove("dark-mode");
+    document.documentElement.removeAttribute("data-theme");
+  }
   if (ctx.els.darkModeToggle) {
     ctx.els.darkModeToggle.addEventListener("click", () => {
       document.documentElement.classList.toggle("dark-mode");
       const isDark = document.documentElement.classList.contains("dark-mode");
+      if (isDark) document.documentElement.setAttribute("data-theme", "dark");
+      else document.documentElement.removeAttribute("data-theme");
       localStorage.setItem("lisan-theme", isDark ? "dark" : "light");
       ctx.els.darkModeToggle.querySelector("span:first-child").textContent = isDark ? "☀️" : "🌙";
       ctx.els.darkModeToggle.querySelector("span:last-child").textContent = isDark ? "Mode Terang" : "Mode Gelap";
     });
-    // Sync button text on load
     const isDark = document.documentElement.classList.contains("dark-mode");
     ctx.els.darkModeToggle.querySelector("span:first-child").textContent = isDark ? "☀️" : "🌙";
     ctx.els.darkModeToggle.querySelector("span:last-child").textContent = isDark ? "Mode Terang" : "Mode Gelap";
