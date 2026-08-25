@@ -76,6 +76,12 @@ async function persistEvaluationTrace(snapshot) {
     );
   } catch (runErr) {
     // FK violation when assessment_id references a missing assessment row.
+    // Only retry with NULL assessment_id for actual FK violations, not for
+    // UNIQUE, CHECK, or other constraint errors.
+    const msg = String(runErr.message || runErr);
+    if (!msg.includes("FOREIGN KEY constraint failed") && !msg.includes("SQLITE_CONSTRAINT_FOREIGNKEY")) {
+      throw runErr;
+    }
     await db.run(
       `INSERT INTO evaluation_runs
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
