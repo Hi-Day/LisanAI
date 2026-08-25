@@ -552,6 +552,15 @@ async function assertCanSubmitAssessment(tenantId, userId, assessmentId) {
 
 async function clearData(tenantId) {
   const database = getDb();
+  // Delete evaluation data first (FK-referenced by submissions/assessments).
+  await database.run("DELETE FROM evaluation_events WHERE run_id IN (SELECT run_id FROM evaluation_runs WHERE tenant_id = ?)", tenantId);
+  await database.run("DELETE FROM evaluation_results WHERE run_id IN (SELECT run_id FROM evaluation_runs WHERE tenant_id = ?)", tenantId);
+  await database.run("DELETE FROM evaluation_criteria WHERE run_id IN (SELECT run_id FROM evaluation_runs WHERE tenant_id = ?)", tenantId);
+  await database.run("DELETE FROM evaluation_versions WHERE run_id IN (SELECT run_id FROM evaluation_runs WHERE tenant_id = ?)", tenantId);
+  await database.run("DELETE FROM evaluation_human_scores WHERE run_id IN (SELECT run_id FROM evaluation_runs WHERE tenant_id = ?)", tenantId);
+  await database.run("DELETE FROM human_approvals WHERE tenant_id = ?", tenantId);
+  await database.run("DELETE FROM evaluation_runs WHERE tenant_id = ?", tenantId);
+  await database.run("DELETE FROM ai_logs WHERE tenant_id = ?", tenantId);
   await database.run("DELETE FROM submissions WHERE tenant_id = ?", tenantId);
   await database.run("DELETE FROM assessments WHERE tenant_id = ?", tenantId);
 }
