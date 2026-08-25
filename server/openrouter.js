@@ -1,6 +1,7 @@
 const { OPENROUTER_URL } = require("./config");
 const { getDb } = require("./database");
 const crypto = require("node:crypto");
+const { MockProvider } = require("./ai/mock-provider");
 
 // Timeout for a single OpenRouter request (ms). Prevents hanging requests.
 const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 60_000);
@@ -138,7 +139,7 @@ function generateMockContent(action, messages) {
   } else if (action === "evaluate") {
     const payload = JSON.parse(messages[0].content);
     const questionScores = (payload.qa_pairs || []).map((pair, idx) => {
-      const score = 75 + Math.floor(Math.random() * 21); // 75 - 95
+      const score = MockProvider.hashScore(pair.student_answer || "", idx); // 72..95 deterministic
       return {
         question: pair.question,
         answer: pair.student_answer,
