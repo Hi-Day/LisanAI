@@ -2911,25 +2911,6 @@ body.admin-mode .student-only { display: none !important; }
 .comp-trend-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; margin-bottom: 8px; }
 .comp-trend-legend span { display: flex; align-items: center; gap: 4px; }
 .comp-trend-legend .swatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
-@media (max-width: 1200px) {
-  .dash-grid-2, .detail-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 900px) {
-  .app-shell { grid-template-columns: 1fr; }
-  .sidebar { position: sticky; top: 0; height: auto; flex-direction: column; z-index: 100; }
-  .brand { padding: 12px 20px; border-bottom: 1px solid var(--line); margin: -20px -24px 0; }
-  .hamburger { display: block; }
-  .nav, .dark-mode-toggle, .sidebar-settings { display: none; }
-  .sidebar.nav-open .nav,
-  .sidebar.nav-open .dark-mode-toggle,
-  .sidebar.nav-open .sidebar-settings { display: flex; }
-  .sidebar.nav-open { height: auto; max-height: 100vh; overflow-y: auto; }
-  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-  .detail-hero { flex-direction: column; }
-  .detail-score-block { text-align: left; min-width: 0; }
-  .detail-score-block .score-badge { margin: 0 0 10px; }
-}
-
 /* ---- Hamburger menu ---- */
 .hamburger {
   display: none;
@@ -2952,6 +2933,25 @@ body.admin-mode .student-only { display: none !important; }
 .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
 .hamburger.open span:nth-child(2) { opacity: 0; }
 .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+@media (max-width: 1200px) {
+  .dash-grid-2, .detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { position: sticky; top: 0; height: auto; flex-direction: column; z-index: 100; }
+  .brand { padding: 12px 20px; border-bottom: 1px solid var(--line); margin: -20px -24px 0; }
+  .hamburger { display: block; }
+  .nav, .dark-mode-toggle, .sidebar-settings { display: none; }
+  .sidebar.nav-open .nav,
+  .sidebar.nav-open .dark-mode-toggle,
+  .sidebar.nav-open .sidebar-settings { display: flex; }
+  .sidebar.nav-open { height: auto; max-height: 100vh; overflow-y: auto; }
+  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .detail-hero { flex-direction: column; }
+  .detail-score-block { text-align: left; min-width: 0; }
+  .detail-score-block .score-badge { margin: 0 0 10px; }
+}
 
 /* ---- Dark mode comprehensive ---- */
 html.dark-mode { color-scheme: dark; }
