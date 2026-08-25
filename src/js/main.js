@@ -102,6 +102,27 @@ export async function initApp() {
       : '<span aria-hidden="true">🌙</span><span>Mode Gelap</span>';
   }
 
+  // Hamburger menu for mobile
+  if (ctx.els.hamburgerBtn) {
+    ctx.els.hamburgerBtn.addEventListener("click", () => {
+      const sidebar = document.querySelector(".sidebar");
+      sidebar.classList.toggle("nav-open");
+      ctx.els.hamburgerBtn.classList.toggle("open");
+      ctx.els.hamburgerBtn.setAttribute("aria-expanded",
+        sidebar.classList.contains("nav-open") ? "true" : "false");
+    });
+    // Close nav on nav click (mobile)
+    document.querySelector(".sidebar")?.addEventListener("click", (e) => {
+      if (e.target.closest(".nav-button") || e.target.closest(".nav-sub-item")) {
+        if (window.innerWidth <= 900) {
+          document.querySelector(".sidebar").classList.remove("nav-open");
+          ctx.els.hamburgerBtn.classList.remove("open");
+          ctx.els.hamburgerBtn.setAttribute("aria-expanded", "false");
+        }
+      }
+    });
+  }
+
   if (ctx.auth.authenticated) {
     await bootstrapAuthenticatedApp(ctx, ctx.auth);
   } else {

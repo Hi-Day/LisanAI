@@ -1683,7 +1683,7 @@ button:disabled {
 .monitor-top-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
 
 /* Student Dashboard clean layout */
-body.student-mode { background-image: none; background: #f1f5f9; } /* slate-100 */
+body.student-mode { background-image: none; background: var(--paper); }
 body.student-mode .topbar { padding-bottom: 24px; border-bottom: 2px solid var(--line); margin-bottom: 32px; }
 
 @media (max-width: 960px) {
@@ -2916,41 +2916,93 @@ body.admin-mode .student-only { display: none !important; }
 }
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; flex-direction: column; }
+  .sidebar { position: sticky; top: 0; height: auto; flex-direction: column; z-index: 100; }
+  .brand { padding: 12px 20px; border-bottom: 1px solid var(--line); margin: -20px -24px 0; }
+  .hamburger { display: block; }
+  .nav, .dark-mode-toggle, .sidebar-settings { display: none; }
+  .sidebar.nav-open .nav,
+  .sidebar.nav-open .dark-mode-toggle,
+  .sidebar.nav-open .sidebar-settings { display: flex; }
+  .sidebar.nav-open { height: auto; max-height: 100vh; overflow-y: auto; }
   .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
   .detail-hero { flex-direction: column; }
   .detail-score-block { text-align: left; min-width: 0; }
   .detail-score-block .score-badge { margin: 0 0 10px; }
 }
 
-/* ---- Dark mode structural overrides (at end to override hardcoded backgrounds) ---- */
+/* ---- Hamburger menu ---- */
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.hamburger span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--ink);
+  margin: 5px 0;
+  transition: all 0.3s ease;
+  border-radius: 1px;
+}
+.hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+.hamburger.open span:nth-child(2) { opacity: 0; }
+.hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+/* ---- Dark mode comprehensive ---- */
+html.dark-mode { color-scheme: dark; }
 html.dark-mode body,
 html.dark-mode body.student-mode,
 html.dark-mode body.teacher-mode,
-html.dark-mode body.admin-mode {
-  background: var(--paper) !important;
-}
-html.dark-mode .sidebar { background: var(--panel) !important; }
+html.dark-mode body.admin-mode { background: var(--paper) !important; }
 html.dark-mode .main { background: var(--paper) !important; }
+html.dark-mode .sidebar { background: var(--panel) !important; }
+html.dark-mode .topbar { background: var(--panel) !important; }
+html.dark-mode .brand span { color: var(--muted) !important; }
 html.dark-mode .form-panel,
 html.dark-mode .preview-panel,
 html.dark-mode .question-card,
 html.dark-mode .session-panel,
-html.dark-mode .analytics-panel { background: var(--panel) !important; }
-html.dark-mode .topbar { background: var(--panel) !important; }
-html.dark-mode .modal-card { background: var(--panel) !important; }
-html.dark-mode .auth-form { background: var(--panel) !important; }
-html.dark-mode .evaluation-loading-card { background: var(--panel) !important; }
-html.dark-mode .feedback-card { background: var(--panel) !important; }
-html.dark-mode .assessment-card { background: var(--panel) !important; }
+html.dark-mode .analytics-panel,
+html.dark-mode .feedback-card,
+html.dark-mode .assessment-card,
+html.dark-mode .auth-form,
+html.dark-mode .modal-card,
+html.dark-mode .evaluation-loading-card,
+html.dark-mode .review-block,
+html.dark-mode .result-modal-content,
+html.dark-mode .ai-stream-panel,
+html.dark-mode .complaint-box,
+html.dark-mode .question-editor,
+html.dark-mode .review-summary,
+html.dark-mode .wizard-panel,
+html.dark-mode .wizard-form,
+html.dark-mode .more-menu-dropdown,
+html.dark-mode .simulator-panel,
+html.dark-mode .api-key-result,
+html.dark-mode .rubrik-gradation-wrap,
+html.dark-mode .visual-card,
+html.dark-mode .detail-hero,
+html.dark-mode .pre-exam-card,
+html.dark-mode .confirm-dialog,
+html.dark-mode .nav-sub,
+html.dark-mode .brand { background: var(--panel) !important; }
 html.dark-mode .nav-button:hover,
-html.dark-mode .nav-button.active { background: var(--accent-light) !important; }
+html.dark-mode .nav-button.active,
+html.dark-mode .nav-sub-item:hover,
+html.dark-mode .nav-sub-item.active { background: var(--accent-light) !important; }
 html.dark-mode input,
 html.dark-mode textarea,
-html.dark-mode select { background: #0f172a; color: #e2e8f0; border-color: #334155; }
-html.dark-mode .ai-stream-panel { background: #0f172a !important; }
-html.dark-mode .complaint-box { background: #0f172a !important; }
-html.dark-mode .review-block { background: var(--panel) !important; }
-html.dark-mode .result-modal-content { background: var(--panel) !important; }
-html.dark-mode .ai-skeleton-card { background: #1e293b !important; }
-html.dark-mode .toast { background: #1e293b !important; box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important; }
+html.dark-mode select { background: #0f172a !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+html.dark-mode table,
+html.dark-mode th,
+html.dark-mode td { border-color: #334155 !important; }
+html.dark-mode .data-table th { background: #0f172a !important; }
+html.dark-mode .data-table tbody td { background: var(--panel) !important; }
+html.dark-mode .toast { background: #1e293b !important; color: #e2e8f0 !important; }
+html.dark-mode .brand-mark { filter: brightness(1.2); }
+html.dark-mode .rubrik-display td { background: transparent !important; }

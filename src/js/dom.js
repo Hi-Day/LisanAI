@@ -267,6 +267,7 @@ export function getElements() {
     compTrendChart: document.querySelector("#compTrendChart"),
     compTrendLegend: document.querySelector("#compTrendLegend"),
     darkModeToggle: document.querySelector("#darkModeToggle"),
+    hamburgerBtn: document.querySelector("#hamburgerBtn"),
   };
 }
 
