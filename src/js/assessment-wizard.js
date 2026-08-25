@@ -726,12 +726,29 @@ export function parseRubricToCriteria(text) {
       }
     } catch { /* fall through */ }
   }
-  const lines = t.split(/[;\n,]+/).filter((l) => l.trim());
+  // Smart split: only split on commas/semicolons that are followed by a word character
+  // (not commas inside parentheses). This prevents splitting criterion names that
+  // contain commas in parenthetical descriptions.
+  const lines = [];
+  const raw = t;
+  let depth = 0, start = 0;
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] === '(' || raw[i] === '[' || raw[i] === '{') depth++;
+    else if (raw[i] === ')' || raw[i] === ']' || raw[i] === '}') depth--;
+    else if (depth === 0 && (raw[i] === ',' || raw[i] === ';' || raw[i] === '\n')) {
+      const seg = raw.slice(start, i).trim();
+      if (seg) lines.push(seg);
+      start = i + 1;
+    }
+  }
+  const last = raw.slice(start).trim();
+  if (last) lines.push(last);
   if (!lines.length) lines.push("");
   return lines.map((line, i) => {
     let name = line.trim();
-    // Strip leading bullet markers and trailing punctuation
     name = name.replace(/^[•\-*]\s*/, "").replace(/[.!]+$/, "").trim();
+    // Strip trailing comma before percentage (e.g. "Ketepatan konsep, 40%")
+    name = name.replace(/,\s*(?=\d+\s*%?$)/, " ").trim();
     let weight = 0;
     let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
     if (m) { name = m[1].trim(); weight = Number(m[2]); }

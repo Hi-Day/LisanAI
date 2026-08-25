@@ -30,11 +30,27 @@ function parseRubricText(text) {
   }
 
   const items = String(text)
-    .split(/[;\n,]+/)
+    .split(/[;\n]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const criteria = [];
+  // Flatten comma-separated items: split on commas only when outside parentheses
+  const flat = [];
   for (const item of items) {
+    let depth = 0, start = 0;
+    for (let i = 0; i < item.length; i++) {
+      if (item[i] === '(' || item[i] === '[' || item[i] === '{') depth++;
+      else if (item[i] === ')' || item[i] === ']' || item[i] === '}') depth--;
+      else if (depth === 0 && item[i] === ',') {
+        const seg = item.slice(start, i).trim();
+        if (seg) flat.push(seg);
+        start = i + 1;
+      }
+    }
+    const last = item.slice(start).trim();
+    if (last) flat.push(last);
+  }
+  const criteria = [];
+  for (const item of flat) {
     const parsed = parseRubricItem(item);
     if (!parsed) continue;
     criteria.push({ id: slugify(parsed.name) || `c${criteria.length + 1}`, name: parsed.name, weight: parsed.weight, scale: 100 });
@@ -56,6 +72,8 @@ function parseRubricText(text) {
  */
 function parseRubricItem(item) {
   let s = item.replace(/^[•\-*]\s*/, "").replace(/[.!]+$/, "").trim();
+  // Strip trailing comma before percentage (e.g. "Ketepatan konsep, 40%")
+  s = s.replace(/,\s*(?=\d+\s*%?$)/, " ").trim();
   // "Nama 40%" | "Nama: 40%" | "Nama - 40%" | "Nama (40%)"
   let m = s.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
   if (m && m[1]) return { name: cleanName(m[1]), weight: Number(m[2]) / 100 };
