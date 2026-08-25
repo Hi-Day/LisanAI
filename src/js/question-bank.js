@@ -3,6 +3,7 @@ import { showToast, showConfirmDialog } from "./toast.js";
 import { showEmpty, setButtonLoading } from "./dom.js";
 import { escapeHtml } from "./utils.js";
 import { renderCurrentState, switchView } from "./app-context.js";
+import { renderRubricTable } from "./render.js";
 
 export function bindQuestionBankEvents(ctx) {
   const { els } = ctx;
@@ -78,7 +79,7 @@ export async function loadQuestionBank(ctx) {
             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 6px;">
               Fokus: ${escapeHtml(q.focus)}${q.outcome ? ` · ${escapeHtml(q.outcome)}` : ""}
             </p>
-            ${q.rubric ? `<p style="color: var(--muted); font-size: 0.85rem;">Rubrik: ${escapeHtml(q.rubric)}</p>` : ""}
+            ${q.rubric ? `<div style="margin-top:8px;">${renderRubricTable(q.rubric)}</div>` : ""}
           </div>
           <div style="display: flex; gap: 6px; flex-shrink: 0;">
             <button type="button" class="secondary-button import-question-btn" data-id="${q.id}" title="Gunakan soal ini di wizard">Gunakan</button>
