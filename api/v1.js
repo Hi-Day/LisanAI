@@ -6,6 +6,32 @@ const { generateQuestions, evaluateAnswers, recommendAssessmentConfig } = requir
 const { assertRateLimit } = require("../server/rate-limit");
 
 /**
+ * Validate that required fields are present and of correct type.
+ * Returns null on success, or a 400 error response object on failure.
+ */
+function validateRequired(payload, fields) {
+  for (const { name, type, label } of fields) {
+    const value = payload[name];
+    if (value == null || value === "") {
+      return { error: `${label || name} wajib diisi` };
+    }
+    if (type === "string" && typeof value !== "string") {
+      return { error: `${label || name} harus berupa teks` };
+    }
+    if (type === "number" && (typeof value !== "number" || !Number.isFinite(value))) {
+      return { error: `${label || name} harus berupa angka` };
+    }
+    if (type === "array" && !Array.isArray(value)) {
+      return { error: `${label || name} harus berupa array` };
+    }
+    if (type === "array" && Array.isArray(value) && value.length === 0) {
+      return { error: `${label || name} tidak boleh kosong` };
+    }
+  }
+  return null;
+}
+
+/**
  * Public REST API (v1) for external systems.
  * Authenticated via `Authorization: Bearer <api_key>`.
  *
@@ -63,18 +89,30 @@ module.exports = async (req, res) => {
 
     // POST /assessments/generate
     if (path === "/assessments/generate") {
+      const err = validateRequired(payload, [
+        { name: "topic", type: "string", label: "Topik" },
+      ]);
+      if (err) return sendJson(res, 400, { error: err.error });
       const questions = await generateQuestions(payload);
       return sendJson(res, 200, { questions });
     }
 
     // POST /assessments/evaluate
     if (path === "/assessments/evaluate") {
+      const err = validateRequired(payload, [
+        { name: "answers", type: "array", label: "Jawaban siswa" },
+      ]);
+      if (err) return sendJson(res, 400, { error: err.error });
       const evaluation = await evaluateAnswers(payload);
       return sendJson(res, 200, { evaluation });
     }
 
     // POST /assessments/recommend
     if (path === "/assessments/recommend") {
+      const err = validateRequired(payload, [
+        { name: "topic", type: "string", label: "Topik" },
+      ]);
+      if (err) return sendJson(res, 400, { error: err.error });
       const recommendation = await recommendAssessmentConfig(payload);
       return sendJson(res, 200, { recommendation });
     }
