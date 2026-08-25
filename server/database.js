@@ -487,7 +487,9 @@ async function saveSubmission(tenantId, userId, submission, bypassCheck = false)
     // shown to the student but never persisted, or was deleted). Never lose the
     // student's work: retry with assessment_id = NULL, mirroring the trace
     // persister's FK-safe fallback.
-    if (err && /FOREIGN KEY|SQLITE_CONSTRAINT/i.test(String(err.message || err))) {
+    // Only retry with NULL for actual FK violations, not UNIQUE/CHECK/etc.
+    const msg = String(err.message || err);
+    if (msg.includes("FOREIGN KEY constraint failed") || msg.includes("SQLITE_CONSTRAINT_FOREIGNKEY")) {
       await insert(null);
     } else {
       throw err;
