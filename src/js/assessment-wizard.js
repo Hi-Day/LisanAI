@@ -358,11 +358,23 @@ export function renderReviewSummary(ctx) {
 }
 
 /**
- * Parser ringan teks rubrik menjadi daftar nama kriteria. Memakai pola yang
- * sama dengan enforcement soal↔rubrik: hilangkan angka/bobot diawal/akhir.
+ * Parser ringan teks rubrik menjadi daftar nama kriteria.
+ * Mendukung JSON v2 (dari gradation table) dan legacy text format.
  */
 function parseRubricNames(text) {
-  return String(text || "")
+  if (!text) return [];
+  const t = String(text).trim();
+  // JSON v2 format
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria)) {
+        return p.criteria.map((c) => c.name || "").filter(Boolean);
+      }
+    } catch { /* fall through */ }
+  }
+  // Legacy text format
+  return t
     .split(/[;\n,]+/)
     .map((s) =>
       s
