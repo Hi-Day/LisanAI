@@ -58,8 +58,9 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRecommendAssessmentConfig(payload, onChunk);
       writeSse(res, { type: "result", data: { recommendation: result } });
     } else if (action === "evaluate") {
-      // Harness streaming path (opt-in via env to preserve baseline).
-      if (process.env.HARNESS_EVALUATION === "true" && payload) {
+      // Harness is the default evaluation engine. HARNESS_EVALUATION=legacy
+      // restores the legacy path for backward compatibility.
+      if (process.env.HARNESS_EVALUATION !== "legacy" && payload) {
         const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
         const combined = { ...payload, auth };
         const evaluation = await evaluateWithHarness(combined);
@@ -151,8 +152,9 @@ module.exports = async (req, res) => {
           return sendJson(res, authError.status || 403, { error: authError.message });
         }
       }
-      // Harness path (opt-in via env to preserve baseline).
-      if (process.env.HARNESS_EVALUATION === "true") {
+      // Harness is the default evaluation engine. HARNESS_EVALUATION=legacy
+      // restores the legacy path for backward compatibility.
+      if (process.env.HARNESS_EVALUATION !== "legacy") {
         const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
         const harnessPayload = { ...payload, auth };
         const evaluation = await evaluateWithHarness(harnessPayload);

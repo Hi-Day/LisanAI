@@ -394,7 +394,7 @@ async function evaluateAnswers(payload) {
   );
 
   if (!Array.isArray(result.questionScores)) throw new Error("Model tidak mengembalikan penilaian per soal");
-  return {
+  const evaluation = {
     finalScore: clampScore(result.finalScore),
     feedback: String(result.feedback || "Feedback belum tersedia."),
     questionScores: result.questionScores.map((item, index) => {
@@ -403,6 +403,8 @@ async function evaluateAnswers(payload) {
       return normalized;
     }),
   };
+  validateLegacyEvaluation(evaluation);
+  return evaluation;
 }
 
 async function improveQuestionSet(payload) {
@@ -477,7 +479,7 @@ async function streamEvaluateAnswers(payload, onChunk) {
     onChunk
   );
   if (!Array.isArray(parsed.questionScores)) throw new Error("Model tidak mengembalikan penilaian per soal");
-  return {
+  const evaluation = {
     finalScore: clampScore(parsed.finalScore),
     feedback: String(parsed.feedback || "Feedback belum tersedia."),
     questionScores: parsed.questionScores.map((item, index) => {
@@ -486,6 +488,29 @@ async function streamEvaluateAnswers(payload, onChunk) {
       return normalized;
     }),
   };
+  validateLegacyEvaluation(evaluation);
+  return evaluation;
+}
+
+/**
+ * Validate the structure of a legacy evaluation output before returning it.
+ * Throws if the output fails basic integrity checks.
+ */
+function validateLegacyEvaluation(evaluation) {
+  if (!evaluation || typeof evaluation !== "object") {
+    throw new Error("Hasil evaluasi tidak valid");
+  }
+  if (!Number.isFinite(evaluation.finalScore) || evaluation.finalScore < 0 || evaluation.finalScore > 100) {
+    throw new Error("Skor akhir evaluasi tidak valid");
+  }
+  if (!Array.isArray(evaluation.questionScores) || evaluation.questionScores.length === 0) {
+    throw new Error("Evaluasi tidak memiliki penilaian per soal");
+  }
+  for (const qs of evaluation.questionScores) {
+    if (!Number.isFinite(qs.score) || qs.score < 0 || qs.score > 100) {
+      throw new Error(`Skor soal tidak valid: ${qs.score}`);
+    }
+  }
 }
 
 async function streamImproveQuestionSet(payload, onChunk) {

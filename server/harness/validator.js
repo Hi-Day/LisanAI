@@ -55,7 +55,7 @@ function validateOutput(output) {
   if (!Array.isArray(output.criteria) || output.criteria.length === 0) {
     issues.push("output.criteria wajib non-empty array");
   }
-  if (!output.criteria) issues.push("output.finalScore wajib");
+  if (output.finalScore == null) issues.push("output.finalScore wajib");
   return { valid: issues.length === 0, issues };
 }
 
