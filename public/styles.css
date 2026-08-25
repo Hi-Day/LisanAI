@@ -48,7 +48,7 @@ body {
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light-mode) {
     --ink: #e2e8f0;
     --muted: #94a3b8;
     --line: #334155;
@@ -58,6 +58,16 @@ body {
     --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
     --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
   }
+}
+:root.dark-mode {
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --line: #334155;
+  --paper: #0f172a;
+  --panel: #1e293b;
+  --accent-light: #1e3a5f;
+  --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
 }
 
 /* Reduced motion */
@@ -2810,6 +2820,39 @@ body.admin-mode .student-only { display: none !important; }
 .rubrik-level-cell.rubrik-level-3 textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
 .rubrik-level-cell.rubrik-level-2 textarea:focus { border-color: #d97706; box-shadow: 0 0 0 2px rgba(217,119,6,0.15); }
 .rubrik-level-cell.rubrik-level-1 textarea:focus { border-color: #e11d48; box-shadow: 0 0 0 2px rgba(225,29,72,0.15); }
+
+/* Rubrik dark mode */
+:root.dark-mode .rubrik-display .rubrik-lev-4,
+:root.dark-mode .rubrik-gradation th.rubrik-level-4 { background: #064e3b; color: #a7f3d0; }
+:root.dark-mode .rubrik-display .rubrik-lev-3,
+:root.dark-mode .rubrik-gradation th.rubrik-level-3 { background: #1e3a5f; color: #93c5fd; }
+:root.dark-mode .rubrik-display .rubrik-lev-2,
+:root.dark-mode .rubrik-gradation th.rubrik-level-2 { background: #78350f; color: #fde68a; }
+:root.dark-mode .rubrik-display .rubrik-lev-1,
+:root.dark-mode .rubrik-gradation th.rubrik-level-1 { background: #7f1d1d; color: #fca5a5; }
+:root.dark-mode .rubrik-level-cell textarea { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+
+/* Pre-exam topic/outcome */
+.pre-exam-topic { font-size: 1rem; margin-bottom: 4px; }
+.pre-exam-outcome { font-size: 0.9rem; color: var(--muted); margin-bottom: 8px; padding: 8px 12px; background: var(--accent-light); border-radius: 8px; }
+.pre-exam-stats { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.9rem; }
+.pre-exam-stats span { color: var(--muted); }
+
+/* Dark mode toggle */
+.dark-mode-toggle {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.dark-mode-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Rubrik display table (student view / assessment detail) */
 .rubrik-display {

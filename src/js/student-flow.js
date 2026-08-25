@@ -159,14 +159,22 @@ function buildPreExamMeta(ctx, assessment) {
     ? `${Math.max(0, maxAttempts - used)} percobaan tersisa`
     : "Percobaan tak terbatas";
 
-  return [
-    `📝 ${total} soal`,
-    timeLimit > 0 ? `⏱ ${formatDuration(timeLimit)} / soal` : "⏱ Tanpa batas waktu",
-    `🔄 ${attempts}`,
-    `🎚 ${assessment.difficulty || "-"}`,
-  ]
-    .map((text) => `<span>${escapeHtml(text)}</span>`)
-    .join("");
+  return `
+    <div class="pre-exam-topic">
+      <strong>Topik:</strong> ${escapeHtml(assessment.topic || "-")}
+    </div>
+    ${assessment.outcomes ? `<div class="pre-exam-outcome"><strong>Kompetensi:</strong> ${escapeHtml(assessment.outcomes)}</div>` : ""}
+    <div class="pre-exam-stats">
+      ${[
+        `📝 ${total} soal`,
+        timeLimit > 0 ? `⏱ ${formatDuration(timeLimit)} / soal` : "⏱ Tanpa batas waktu",
+        `🔄 ${attempts}`,
+        `🎚 ${assessment.difficulty || "-"}`,
+      ]
+        .map((text) => `<span>${escapeHtml(text)}</span>`)
+        .join("")}
+    </div>
+  `;
 }
 
 function resetPreExamMicUi(ctx) {

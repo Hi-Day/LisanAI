@@ -84,6 +84,24 @@ export async function initApp() {
   const { refreshSimulatorIfEnabled } = await import("./app-context.js");
   refreshSimulatorIfEnabled(ctx);
 
+  // Dark mode toggle
+  const savedTheme = localStorage.getItem("lisan-theme");
+  if (savedTheme === "dark") document.documentElement.classList.add("dark-mode");
+  if (savedTheme === "light") document.documentElement.classList.remove("dark-mode");
+  if (ctx.els.darkModeToggle) {
+    ctx.els.darkModeToggle.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark-mode");
+      const isDark = document.documentElement.classList.contains("dark-mode");
+      localStorage.setItem("lisan-theme", isDark ? "dark" : "light");
+      ctx.els.darkModeToggle.querySelector("span:first-child").textContent = isDark ? "☀️" : "🌙";
+      ctx.els.darkModeToggle.querySelector("span:last-child").textContent = isDark ? "Mode Terang" : "Mode Gelap";
+    });
+    // Sync button text on load
+    const isDark = document.documentElement.classList.contains("dark-mode");
+    ctx.els.darkModeToggle.querySelector("span:first-child").textContent = isDark ? "☀️" : "🌙";
+    ctx.els.darkModeToggle.querySelector("span:last-child").textContent = isDark ? "Mode Terang" : "Mode Gelap";
+  }
+
   if (ctx.auth.authenticated) {
     await bootstrapAuthenticatedApp(ctx, ctx.auth);
   } else {

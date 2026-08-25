@@ -266,6 +266,7 @@ export function getElements() {
     notifView: document.querySelector("#notifView"),
     compTrendChart: document.querySelector("#compTrendChart"),
     compTrendLegend: document.querySelector("#compTrendLegend"),
+    darkModeToggle: document.querySelector("#darkModeToggle"),
   };
 }
 
