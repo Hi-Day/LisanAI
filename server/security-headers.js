@@ -16,7 +16,7 @@ const CSP = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
   "media-src 'self' blob: data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://api.openrouter.ai",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
