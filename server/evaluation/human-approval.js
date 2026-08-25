@@ -151,41 +151,54 @@ async function processExpiredApprovals(now = new Date()) {
   const db = getDb();
   const ts = toIso(now);
 
-  await db.run(
-    `UPDATE human_approvals
-        SET approval_status = 'human_reviewed',
-            approved_at = COALESCE(approved_at, ?)
-      WHERE approval_status = 'pending'
-        AND run_id IN (SELECT run_id FROM evaluation_human_scores)`,
-    ts
-  );
-
-  const expired = await db.all(
-    `SELECT a.run_id, a.final_score, a.tenant_id
-       FROM human_approvals a
-       LEFT JOIN evaluation_human_scores h ON h.run_id = a.run_id
-      WHERE a.approval_status = 'pending'
-        AND a.deadline_at <= ?
-        AND h.run_id IS NULL`,
-    ts
-  );
-  for (const row of expired) {
-    await saveHumanScoreInternal({
-      runId: row.run_id,
-      humanScore: row.final_score,
-      humanFeedback: "Otomatis dikonfirmasi: guru tidak memberi keputusan dalam 7 hari.",
-      reviewerId: null,
-      reviewedAt: ts,
-    });
+  // Wrap sweep in IMMEDIATE transaction to prevent race with approveRun.
+  await db.exec("BEGIN IMMEDIATE");
+  try {
+    // First, promote pending rows WITH a human score whose deadline has passed.
+    // Only rows past deadline are touched — rows the teacher is actively reviewing
+    // (still within deadline) are left alone.
     await db.run(
       `UPDATE human_approvals
-          SET approval_status = 'auto_approved', approved_at = ?
-        WHERE run_id = ?`,
+          SET approval_status = 'human_reviewed',
+              approved_at = COALESCE(approved_at, ?)
+        WHERE approval_status = 'pending'
+          AND deadline_at <= ?
+          AND run_id IN (SELECT run_id FROM evaluation_human_scores)`,
       ts,
-      row.run_id
+      ts
     );
+
+    const expired = await db.all(
+      `SELECT a.run_id, a.final_score, a.tenant_id
+         FROM human_approvals a
+         LEFT JOIN evaluation_human_scores h ON h.run_id = a.run_id
+        WHERE a.approval_status = 'pending'
+          AND a.deadline_at <= ?
+          AND h.run_id IS NULL`,
+      ts
+    );
+    for (const row of expired) {
+      await saveHumanScoreInternal({
+        runId: row.run_id,
+        humanScore: row.final_score,
+        humanFeedback: "Otomatis dikonfirmasi: guru tidak memberi keputusan dalam 7 hari.",
+        reviewerId: null,
+        reviewedAt: ts,
+      });
+      await db.run(
+        `UPDATE human_approvals
+            SET approval_status = 'auto_approved', approved_at = ?
+          WHERE run_id = ?`,
+        ts,
+        row.run_id
+      );
+    }
+    await db.exec("COMMIT");
+    return expired.length;
+  } catch (err) {
+    await db.exec("ROLLBACK");
+    throw err;
   }
-  return expired.length;
 }
 
 /**
