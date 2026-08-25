@@ -39,10 +39,12 @@ async function initDatabase() {
       return rs.rows[0];
     },
     async run(sql, ...params) {
+      await libsqlClient.execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
       const rs = await libsqlClient.execute({ sql, args: normalizeParams(params) });
       return { changes: rs.rowsAffected, lastInsertRowid: rs.lastInsertRowid };
     },
     async exec(sql) {
+      await libsqlClient.execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
       await libsqlClient.executeMultiple(sql);
     }
   };
