@@ -297,9 +297,9 @@ export function renderQuestionEditor(ctx) {
       }
       <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label>
       <label>Rubrik penilaian soal ini
-  <textarea data-field="rubric" rows="3">${escapeHtml(question.rubric || "")}</textarea>
+  <textarea data-field="rubric" rows="3" style="display:none;">${escapeHtml(question.rubric || "")}</textarea>
   <div class="rubrik-preview" style="margin-top:6px;">${question.rubric ? renderRubricTable(question.rubric) : ""}</div>
-  <button type="button" class="secondary-button rubrik-builder-toggle" data-index="${index}" style="margin-top: 6px; font-size: 0.85rem;">✏️ Buka Builder Rubrik</button>
+  <button type="button" class="secondary-button rubrik-builder-toggle" data-index="${index}" style="margin-top: 6px; font-size: 0.85rem;">✏️ Edit Rubrik</button>
 </label>
 <div class="rubrik-builder rubrik-builder-${index}" style="display: none;"></div>
 <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
