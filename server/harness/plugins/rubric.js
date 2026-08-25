@@ -55,15 +55,16 @@ function parseRubricText(text) {
  * Returns { name, weight|null } or null when uninhabitable.
  */
 function parseRubricItem(item) {
+  let s = item.replace(/^[•\-*]\s*/, "").replace(/[.!]+$/, "").trim();
   // "Nama 40%" | "Nama: 40%" | "Nama - 40%" | "Nama (40%)"
-  let m = item.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
+  let m = s.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
   if (m && m[1]) return { name: cleanName(m[1]), weight: Number(m[2]) / 100 };
   // "40% Nama"
-  m = item.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
+  m = s.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
   if (m) return { name: cleanName(m[2]), weight: Number(m[1]) / 100 };
   // No weight — just a criterion name.
-  if (/[a-zA-Z]{3,}/.test(item) && !/^\d+(\.\d+)?\s*%?$/.test(item)) {
-    return { name: cleanName(item), weight: 0 };
+  if (/[a-zA-Z]{3,}/.test(s) && !/^\d+(\.\d+)?\s*%?$/.test(s)) {
+    return { name: cleanName(s), weight: 0 };
   }
   return null;
 }

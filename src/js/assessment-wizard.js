@@ -719,7 +719,10 @@ export function parseRubricToCriteria(text) {
   const lines = t.split(/[;\n,]+/).filter((l) => l.trim());
   if (!lines.length) lines.push("");
   return lines.map((line, i) => {
-    let name = line.trim(), weight = 0;
+    let name = line.trim();
+    // Strip leading bullet markers and trailing punctuation
+    name = name.replace(/^[•\-*]\s*/, "").replace(/[.!]+$/, "").trim();
+    let weight = 0;
     let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
     if (m) { name = m[1].trim(); weight = Number(m[2]); }
     else { m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/); if (m) { weight = Number(m[1]); name = m[2].trim(); } }
