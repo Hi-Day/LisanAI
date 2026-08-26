@@ -32,6 +32,93 @@ function uid(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+// ---- Dynamic strengths/gaps derived from the answer -----------------------
+
+const INDONESIAN_STOPWORDS = /\b(?:yang|dengan|untuk|karena|sebab|sudah|belum|adalah|dan|dari|harus|para|pada|itu|ini|supaya|agar|kita|saya|kami|kepada|telah|akan|lebih|sangat|juga|dapat|bisa|adanya)\b/i;
+const PAST_TENSE_WORDS = /\b(?:went|visited|ate|swam|swum|enjoyed|was|were|had|took|saw|played|stayed|bought|did)\b/i;
+const REASONING_WORDS = /\b(?:karena|sebab|sehingga|supaya|agar|alasan|akibat|contoh|misalnya|however|because|so that|in order to|as a result|due to)\b/i;
+const PAST_CONTEXT_PROMPT = /\b(?:did|went|last|yesterday|holiday|vacation)\b/i;
+
+function feedbackLanguage(answer) {
+  return INDONESIAN_STOPWORDS.test(String(answer || "")) ? "id" : "en";
+}
+
+function localize(lang, idText, enText) {
+  return lang === "id" ? idText : enText;
+}
+
+function answerWords(answer) {
+  return String(answer || "").trim().split(/\s+/).filter(Boolean);
+}
+
+function namedEntities(text) {
+  const tokens = String(text || "").match(/[A-Za-zÀ-ÿ]+/g) || [];
+  return tokens.filter((token, index) => index > 0 && /^[A-ZÀ-Ý]/.test(token) && token !== "I");
+}
+
+function hasPastTense(text) {
+  return PAST_TENSE_WORDS.test(text);
+}
+
+function hasReasoning(text) {
+  return REASONING_WORDS.test(text);
+}
+
+function deriveQuestionStrengths(answer, score) {
+  const lang = feedbackLanguage(answer);
+  const text = String(answer || "").trim();
+  const wordCount = answerWords(text).length;
+  const strengths = [];
+
+  if (score >= 80) strengths.push(localize(lang, "Jawaban sesuai dengan konteks pertanyaan.", "Answer is correct and on-topic."));
+
+  const entity = namedEntities(text)[0];
+  if (entity) strengths.push(localize(lang, `Menyebutkan detail spesifik (${entity}) dengan tepat.`, `Names specific detail (${entity}) correctly.`));
+
+  if (hasReasoning(text)) strengths.push(localize(lang, "Alasan atau justifikasi disampaikan dengan jelas.", "Clear reasoning and justification."));
+
+  if (hasPastTense(text)) strengths.push(localize(lang, "Penggunaan past tense sudah tepat.", "Correct use of past tense."));
+
+  if (wordCount >= 6) strengths.push(localize(lang, "Kosa kata dan kelengkapan kalimat sudah baik.", "Good vocabulary and sentence completeness."));
+
+  if (!strengths.length) strengths.push(localize(lang, "Jawaban memberi dasar yang cukup untuk dianalisis lebih lanjut.", "The answer provides a sufficient basis for further analysis."));
+
+  return strengths.slice(0, 3);
+}
+
+function grammarSpecificGaps(text, lang) {
+  const gaps = [];
+  const add = (idText, enText) => {
+    if (gaps.length < 2) gaps.push(localize(lang, idText, enText));
+  };
+  if (/\bme name\b/i.test(text)) add("Grammar: 'Me' seharusnya 'My'", "Grammar: 'Me' should be 'My'");
+  if (/\b(?:i|she|he|we|they)\s+(?:living|swimming|making|reading|going|eating)\b/i.test(text)) add("Grammar: bentuk verb belum tepat (mis. 'I living' → 'I live')", "Grammar: incorrect verb form (e.g. 'I living' → 'I live')");
+  if (/\b(?:it|he|she|they)\s+make\b/i.test(text)) add("Grammar: kesesuaian subjek-verb (mis. 'it make' → 'it makes')", "Grammar: subject-verb agreement (e.g. 'it make' → 'it makes')");
+  return gaps;
+}
+
+function deriveQuestionGaps(answer, score, question) {
+  const lang = feedbackLanguage(answer);
+  const text = String(answer || "").trim();
+  const wordCount = answerWords(text).length;
+  const gaps = [];
+
+  grammarSpecificGaps(text, lang).forEach((gap) => gaps.push(gap));
+
+  const prompt = String((question && question.prompt) || "");
+  if (lang === "en" && PAST_CONTEXT_PROMPT.test(prompt) && /\b(?:is|are)\b/i.test(text)) {
+    gaps.push("Use consistent past tense (e.g. 'is' → 'was').");
+  }
+
+  if (!gaps.length && score < 75) gaps.push(localize(lang, "Perbaiki struktur kalimat dan tata bahasa.", "Fix sentence structure and basic grammar."));
+
+  if (wordCount < 6 && score < 82) gaps.push(localize(lang, "Tambahkan detail dan kalimat lengkap.", "Add more detail and complete sentences."));
+
+  if (score < 85 && !hasReasoning(text)) gaps.push(localize(lang, "Tambahkan alasan atau justifikasi pada jawaban.", "Add a reason or justification to the answer."));
+
+  return [...new Set(gaps)].slice(0, 3);
+}
+
 async function seedTenantData(db, config) {
   const { tenantName, adminEmail, teacherEmail, studentEmail, className, testPassword, assessments } = config;
 
@@ -118,7 +205,11 @@ async function seedTenantData(db, config) {
           studentName: student.name,
           finalScore: aConfig.submission.finalScore,
           submittedAt: aConfig.submission.submittedAt || new Date().toISOString(),
-          questionScores: aConfig.submission.questionScores,
+          questionScores: aConfig.submission.questionScores.map((qs, qi) => ({
+            ...qs,
+            strengths: deriveQuestionStrengths(qs.answer, qs.score),
+            gaps: deriveQuestionGaps(qs.answer, qs.score, aConfig.questions[qi]),
+          })),
           feedback: aConfig.submission.feedback
         };
         await saveSubmission(tenantId, student.id, sub);
@@ -198,8 +289,8 @@ async function seedTestAccounts() {
           finalScore: 65,
           submittedAt: new Date(now - 19 * dayMs).toISOString(),
           questionScores: [
-            { question: "What is your name?", answer: "Me name is Budi.", score: 60, strengths: [], gaps: ["Grammar error (Me -> My)"] },
-            { question: "Where do you live?", answer: "I living in Jakarta.", score: 70, strengths: ["Correct city"], gaps: ["Grammar error (living -> live)"] }
+            { question: "What is your name?", answer: "Me name is Budi.", score: 60 },
+            { question: "Where do you live?", answer: "I living in Jakarta.", score: 70 }
           ],
           feedback: "Awal yang baik, tapi perlu diperhatikan penggunaan grammar dasar."
         }
@@ -219,8 +310,8 @@ async function seedTestAccounts() {
           finalScore: 78,
           submittedAt: new Date(now - 13 * dayMs).toISOString(),
           questionScores: [
-            { question: "What are your hobbies?", answer: "My hobbies are reading and swimming.", score: 85, strengths: ["Good vocabulary"], gaps: [] },
-            { question: "Why do you like it?", answer: "Because it make me happy.", score: 70, strengths: ["Clear reason"], gaps: ["Grammar error (make -> makes)"] }
+            { question: "What are your hobbies?", answer: "My hobbies are reading and swimming.", score: 85 },
+            { question: "Why do you like it?", answer: "Because it make me happy.", score: 70 }
           ],
           feedback: "Kemajuan yang bagus. Kosa kata sudah bertambah. Latih subjek dan kata kerja."
         }
@@ -241,9 +332,9 @@ async function seedTestAccounts() {
           finalScore: 88,
           submittedAt: new Date(now - 5 * dayMs).toISOString(),
           questionScores: [
-            { question: "Where did you go for your last holiday?", answer: "I went to Bali with my family.", score: 95, strengths: ["Correct past tense", "Good detail"], gaps: [] },
-            { question: "What did you do there?", answer: "I swam at the beach and ate seafood.", score: 90, strengths: ["Clear activities", "Correct verbs"], gaps: [] },
-            { question: "Did you enjoy it? Why?", answer: "Yes, because the beach is beautiful.", score: 80, strengths: ["Good reasoning"], gaps: ["Could use past tense (was beautiful)"] }
+            { question: "Where did you go for your last holiday?", answer: "I went to Bali with my family.", score: 95 },
+            { question: "What did you do there?", answer: "I swam at the beach and ate seafood.", score: 90 },
+            { question: "Did you enjoy it? Why?", answer: "Yes, because the beach is beautiful.", score: 80 }
           ],
           feedback: "Pemahaman past tense sudah sangat baik. Percaya diri saat berbicara sudah meningkat."
         }
@@ -286,8 +377,8 @@ async function seedTestAccounts() {
           finalScore: 82,
           submittedAt: new Date(now - 9 * dayMs).toISOString(),
           questionScores: [
-            { question: "Sampaikan salam pembuka...", answer: "Selamat pagi semuanya yang terhormat.", score: 80, strengths: ["Jelas"], gaps: ["Kurang formal"] },
-            { question: "Sampaikan kalimat ucapan syukur...", answer: "Mari kita bersyukur kepada Tuhan.", score: 85, strengths: ["Intonasi baik"], gaps: [] }
+            { question: "Sampaikan salam pembuka...", answer: "Selamat pagi semuanya yang terhormat.", score: 80 },
+            { question: "Sampaikan kalimat ucapan syukur...", answer: "Mari kita bersyukur kepada Tuhan.", score: 85 }
           ],
           feedback: "Cukup baik, tapi perhatikan pemilihan kata agar lebih formal."
         }
@@ -306,8 +397,8 @@ async function seedTestAccounts() {
           finalScore: 92,
           submittedAt: new Date(now - 1 * dayMs).toISOString(),
           questionScores: [
-            { question: "Apa pendapat utama Anda...", answer: "Menurut saya sebaiknya dilarang karena banyak konten tidak mendidik.", score: 95, strengths: ["Opini jelas", "Alasan logis"], gaps: [] },
-            { question: "Bagaimana cara mencegah...", answer: "Orang tua harus mengawasi anak-anaknya terus.", score: 89, strengths: ["Solusi relevan"], gaps: ["Diksi 'terus' bisa diganti 'secara berkala'"] }
+            { question: "Apa pendapat utama Anda...", answer: "Menurut saya sebaiknya dilarang karena banyak konten tidak mendidik.", score: 95 },
+            { question: "Bagaimana cara mencegah...", answer: "Orang tua harus mengawasi anak-anaknya terus.", score: 89 }
           ],
           feedback: "Kemampuan argumentasi sudah sangat bagus. Pemilihan kata cukup baik."
         }
@@ -325,4 +416,7 @@ if (require.main === module) {
 
 module.exports = {
   ensureLegacyDemoAccounts,
+  deriveQuestionStrengths,
+  deriveQuestionGaps,
+  feedbackLanguage,
 };
