@@ -8,7 +8,7 @@ import { createAssessment, readAssessmentForm } from "./assessment-factory.js";
 import { setButtonLoading } from "./dom.js";
 import { generateFallbackQuestions, recommendFallbackConfig } from "./fallback-assessment.js";
 import { showToast } from "./toast.js";
-import { compactText, escapeHtml, formatTime } from "./utils.js";
+import { compactText, escapeHtml, formatTime, prettifyId } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 import { saveCurrentQuestionsToBank } from "./question-bank.js";
 import { renderRubricTable } from "./render.js";
@@ -301,7 +301,7 @@ export function renderQuestionEditor(ctx) {
       ${
         Array.isArray(question.criteria) && question.criteria.length
           ? `<div class="q-criteria-chip">Rubrik yang diukur soal ini: ${question.criteria
-              .map((c) => (typeof c === "string" ? c : c.name || c.id))
+              .map((c) => (typeof c === "string" ? c : c.name || prettifyId(c.id)))
               .map(escapeHtml)
               .join(" · ")}</div>`
           : ""

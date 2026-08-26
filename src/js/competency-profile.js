@@ -1,4 +1,4 @@
-import { escapeHtml } from "./utils.js";
+import { escapeHtml, prettifyId } from "./utils.js";
 
 /**
  * Competency (rubrik) profile rendering for a class and a single student.
@@ -21,13 +21,6 @@ const DEFAULT_LEVELS = [
 
 function normalize(v) {
   return String(v == null ? "" : v).trim().toLowerCase();
-}
-
-function prettify(id) {
-  return String(id || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (m) => m.toUpperCase())
-    .trim();
 }
 
 function fillDescriptors(name, levels) {
@@ -159,7 +152,7 @@ export function buildCompetencyProfile(assessments, submissions) {
     (Array.isArray(sub.criteria) ? sub.criteria : []).forEach((c) => {
       if (!Number.isFinite(Number(c.score))) return;
       const def = byId.get(String(c.criterionId)) || byName.get(normalize(c.name));
-      const name = (def && def.name) || c.name || prettify(c.criterionId) || "Kriteria";
+      const name = (def && def.name) || c.name || prettifyId(c.criterionId) || "Kriteria";
       let entry = map.get(name);
       if (!entry) {
         entry = {

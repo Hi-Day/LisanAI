@@ -1,5 +1,5 @@
 import { showToast } from "./toast.js";
-import { escapeHtml, compactText } from "./utils.js";
+import { escapeHtml, compactText, prettifyId } from "./utils.js";
 import {
   getSubmissionStatus,
   hasValidScore,
@@ -121,7 +121,8 @@ export async function renderDashboard(ctx) {
     ? Math.round(evaluated.reduce((a, s) => a + s.finalScore, 0) / evaluated.length)
     : null;
 
-  const profiles = buildStudentProfiles(scope);
+  const nameMap = assessmentsRubricNameMap(state.assessments);
+  const profiles = buildStudentProfiles(scope, nameMap);
   const atRisk = profiles.filter((p) => p.atRisk);
 
   const completionRate = assigned
@@ -161,7 +162,7 @@ export async function renderDashboard(ctx) {
   renderDistribution(els.scoreDistribution, evaluated);
   renderCompetencies(els.competencyOverview, state.assessments, evaluated);
   renderAtRisk(els.atRiskList, atRisk);
-  renderCompTrend(ctx, evaluated);
+  renderCompTrend(ctx, evaluated, assessmentsRubricNameMap(state.assessments));
   renderRecentAssessments(els.recentAssessmentsList, recentSubmissions(scope, 8));
 }
 
@@ -403,6 +404,17 @@ function rubricNameMap(assessment) {
   if (assessment.rubric) push(parseRubricToCriteria(assessment.rubric));
   (Array.isArray(assessment.questions) ? assessment.questions : []).forEach((q) => {
     if (q && q.rubric) push(parseRubricToCriteria(q.rubric));
+  });
+  return map;
+}
+
+/** Merge rubric-name lookups across every assessment in state. */
+function assessmentsRubricNameMap(assessments) {
+  const map = new Map();
+  (Array.isArray(assessments) ? assessments : []).forEach((a) => {
+    rubricNameMap(a).forEach((value, key) => {
+      if (!map.has(key)) map.set(key, value);
+    });
   });
   return map;
 }
@@ -720,7 +732,7 @@ function recentSubmissions(submissions, limit) {
   return submissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0, limit);
 }
 
-function buildStudentProfiles(submissions) {
+function buildStudentProfiles(submissions, nameMap) {
   const byStudent = new Map();
   submissions.forEach((s) => {
     if (!byStudent.has(s.studentName)) byStudent.set(s.studentName, []);
@@ -736,7 +748,7 @@ function buildStudentProfiles(submissions) {
     const latest = scores.at(-1);
     const prev = evaluated.length > 1 ? scores.at(-2) : latest;
     const trend = latest - prev;
-    const comps = aggregateCompetencies(evaluated);
+    const comps = aggregateCompetencies(evaluated, nameMap);
     const weak = weakestCompetency(comps);
     const repeatedWeak = weak && weak.count >= 2 && weak.avg < ATTENTION_SCORE_THRESHOLD;
 
@@ -757,12 +769,12 @@ function buildStudentProfiles(submissions) {
   return profiles.sort((a, b) => (b.atRisk - a.atRisk) || (a.avg - b.avg));
 }
 
-function aggregateCompetencies(submissions) {
+function aggregateCompetencies(submissions, nameMap) {
   const map = new Map();
   submissions.forEach((sub) => {
-    (sub.criteria || []).forEach((c) => {
+    (sub.criteria || []).forEach((c, idx) => {
       if (!Number.isFinite(Number(c.score))) return;
-      const name = c.name || prettifyId(c.criterionId) || "Kriteria";
+      const name = resolveCriterionName(c, idx, nameMap);
       const entry = map.get(name) || { name, total: 0, count: 0 };
       entry.total += Number(c.score);
       entry.count += 1;
@@ -908,15 +920,6 @@ function trendClass(trend) {
   return trend > 0 ? "trend-up" : trend < 0 ? "trend-down" : "trend-flat";
 }
 
-function prettifyId(id) {
-  return String(id || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\d{2,3}\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function formatDate(value) {
   if (!value) return "-";
   const d = new Date(value);
@@ -962,7 +965,7 @@ function escapeXml(text) {
  * Render a longitudinal chart showing how each criterion score changes over
  * time (by submission date). Uses inline SVG.
  */
-function renderCompTrend(ctx, evaluated) {
+function renderCompTrend(ctx, evaluated, nameMap) {
   const { els } = ctx;
   if (!els.compTrendChart) return;
 
@@ -976,9 +979,9 @@ function renderCompTrend(ctx, evaluated) {
   const compMap = new Map(); // criterionName -> [{ date, score }]
   for (const sub of sorted) {
     const date = new Date(sub.submittedAt).toLocaleDateString("id-ID", { month: "short", day: "numeric" });
-    (sub.criteria || []).forEach((c) => {
+    (sub.criteria || []).forEach((c, idx) => {
       if (!Number.isFinite(Number(c.score))) return;
-      const name = c.name || prettifyId(c.criterionId) || "Kriteria";
+      const name = resolveCriterionName(c, idx, nameMap);
       if (!compMap.has(name)) compMap.set(name, []);
       compMap.get(name).push({ date, score: Number(c.score) });
     });

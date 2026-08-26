@@ -1,4 +1,4 @@
-import { escapeHtml } from "./utils.js";
+import { escapeHtml, prettifyId } from "./utils.js";
 import { showToast } from "./toast.js";
 
 /**
@@ -161,16 +161,6 @@ function fmtWeightPct(weight) {
   return pct.toFixed(1).replace(/\.0$/, "");
 }
 
-/** Turn a slug criterionId like "ketepatan_konsep_arsitektur_30" into readable text. */
-function prettifyId(id) {
-  return String(id || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\d{2,3}\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function renderMetrics(els, data) {
   const m = data && data.metrics;
   const total = data && data.n ? data.n : 0;
@@ -329,6 +319,9 @@ async function openTrace(ctx, runId) {
     const detailRows = Array.isArray(weighted.detail) ? weighted.detail : [];
     const events = trace.events || [];
 
+    // Rubric labels by criterionId (from the deterministic weighted breakdown).
+    const labelById = new Map(detailRows.map((d) => [String(d.criterionId), d.label]));
+
     // Human-readable weighted breakdown.
     const breakdownHtml = detailRows.length
       ? `
@@ -357,7 +350,7 @@ async function openTrace(ctx, runId) {
         (c) => `
         <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong>${escapeHtml(c.criterionId)}</strong>
+            <strong>${escapeHtml(labelById.get(String(c.criterionId)) || prettifyId(c.criterionId))}</strong>
             <span style="font-weight:700;font-size:1.1rem;">${fmt(c.score, 0)}<span style="color:var(--muted);font-size:0.8rem;">/100</span></span>
           </div>
           ${typeof c.confidence === "number" ? `<div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Kepercayaan: ${fmt(c.confidence * 100, 0)}%</div>` : ""}

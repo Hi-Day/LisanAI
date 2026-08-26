@@ -1,4 +1,5 @@
 import { average, compactText, escapeHtml } from "./utils.js";
+import { parseRubricToCriteria } from "./competency-profile.js";
 import { showEmpty } from "./dom.js";
 import {
   getSubmissionStatus,
@@ -1047,6 +1048,32 @@ export function renderRubricTable(rubricText) {
     } catch { /* fall through */ }
   }
 
-  // Legacy: render as pre-formatted text
+  // Legacy text (e.g. "Kejelasan: 50%, Kosa Kata: 50%"): parse into a clean
+  // criteria list instead of dumping the raw string.
+  const criteria = parseRubricToCriteria(t);
+  if (criteria && criteria.length && criteria.some((c) => c.name)) {
+    return `
+      <table class="rubrik-display">
+        <thead>
+          <tr>
+            <th>Kriteria</th>
+            <th>Bobot</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${criteria
+            .map(
+              (c) => `
+            <tr>
+              <td><strong>${escapeHtml(c.name)}</strong></td>
+              <td>${Number(c.weight) ? `${Number(c.weight)}%` : "—"}</td>
+            </tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>`;
+  }
+
+  // Last resort: raw pre-formatted text.
   return `<pre style="white-space:pre-wrap;font-size:0.85rem;color:var(--muted);margin:0;">${escapeHtml(t)}</pre>`;
 }
