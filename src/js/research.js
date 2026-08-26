@@ -376,6 +376,37 @@ async function openTrace(ctx, runId) {
         )
       .join("") || '<p class="empty-state">Tanpa criterion</p>';
 
+    // Question ↔ rubric mapping (P0): which rubric category each question falls
+    // into, stamped at generation time and persisted with the trace.
+    const questionRubric = Array.isArray(result.questionRubric) ? result.questionRubric : [];
+    const questionRubricHtml = questionRubric.length
+      ? `
+        <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
+          <span style="color:var(--muted);font-size:0.85rem;">Pemetaan soal → rubrik</span>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+            ${questionRubric
+              .map(
+                (q) => `
+              <div style="border:1px solid var(--line);border-radius:8px;padding:10px;">
+                <div style="font-size:0.9rem;font-weight:600;">Soal ${q.index + 1}</div>
+                <div style="font-size:0.85rem;color:var(--muted);margin:2px 0 8px;">${escapeHtml(q.prompt || "")}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                  ${(q.criteria || [])
+                    .map(
+                      (c) => `
+                    <span style="font-size:0.75rem;padding:3px 8px;border-radius:999px;background:var(--brand-soft);color:var(--text);border:1px solid var(--line);">
+                      ${escapeHtml(c.name || prettifyId(c.id))} · ${fmtWeightPct(c.weight)}%
+                    </span>`
+                    )
+                    .join("")}
+                </div>
+              </div>`
+              )
+              .join("")}
+          </div>
+        </div>`
+      : "";
+
     // Verification gate badge (PRD FR-08).
     const gate = gateBadge(result.verification?.status, result.verification?.valid);
 
@@ -416,6 +447,7 @@ async function openTrace(ctx, runId) {
           <div style="font-size:1.6rem;font-weight:700;">${formulaHtml}</div>
         </div>
 
+        ${questionRubricHtml}
         ${reliabilityHtml}
         <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
           <label>Skor manusia

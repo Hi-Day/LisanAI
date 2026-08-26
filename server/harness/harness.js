@@ -301,6 +301,10 @@ class AssessmentHarness {
         harnessVersion: this.config.version,
         engineVersion: this.config.engineVersion,
       },
+      // Question ↔ rubric mapping (P0): which rubric categories each question
+      // measures, stamped at generation time by enforceRubricAlignment. Persisted
+      // with the trace so the audit can show every question's rubric category.
+      questionRubric: buildQuestionRubricMap(input, rubric),
       trace: trace.snapshot({ result: undefined }).events,
     };
     trace.setContext("finalScore", output.finalScore);
@@ -479,3 +483,47 @@ function harnessOutput(ctx, parsed, { runId, input }) {
 }
 
 module.exports = { AssessmentHarness, defaultPrompt, buildPromptParts, buildSystemPrompt };
+
+/**
+ * Build the question ↔ rubric mapping for the trace.
+ *
+ * Each question declares which rubric categories it actually measures
+ * (question.criteria, stamped at generation time by enforceRubricAlignment).
+ * The rubric criteria (id/name/weight) are matched so the trace can display
+ * every question alongside the rubric category it falls into.
+ *
+ * When a question declares nothing (legacy), every rubric criterion applies —
+ * mirroring the evaluation fallback in buildQuestionScores.
+ */
+function buildQuestionRubricMap(input, rubric) {
+  const questions = (input && input.assessment && input.assessment.questions) || [];
+  const criteria = (rubric && rubric.criteria) || [];
+  const byKey = new Map();
+  for (const c of criteria) {
+    const id = String(c.id || "").toLowerCase().trim();
+    const name = String(c.name || "").toLowerCase().trim();
+    if (id) byKey.set(id, c);
+    if (name) byKey.set(name, c);
+  }
+  const toEntry = (c) => ({
+    id: c.id,
+    name: c.name || c.id,
+    weight: Number(c.weight || 0),
+  });
+  return questions.map((q, idx) => {
+    const declared = Array.isArray(q.criteria) ? q.criteria : [];
+    const mapped = [];
+    for (const d of declared) {
+      const key = String(typeof d === "object" ? d.id || d.name || d.criterionId : d)
+        .toLowerCase()
+        .trim();
+      const def = key ? byKey.get(key) : null;
+      if (def) mapped.push(toEntry(def));
+    }
+    return {
+      index: idx,
+      prompt: (q && q.prompt && String(q.prompt).trim()) || `Soal ${idx + 1}`,
+      criteria: mapped.length > 0 ? mapped : criteria.map(toEntry),
+    };
+  });
+}
