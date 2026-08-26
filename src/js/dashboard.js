@@ -182,8 +182,6 @@ export async function renderStudentProfile(ctx, studentName, returnView = "dashb
   const last = evaluated.at(-1);
   const first = evaluated[0];
   const improvement = evaluated.length > 1 && last && first ? last.finalScore - first.finalScore : null;
-  const comps = aggregateCompetencies(evaluated);
-  const weakest = weakestCompetency(comps);
 
   els.studentProfileContent.innerHTML = `
     <div class="kpi-grid">
@@ -192,28 +190,13 @@ export async function renderStudentProfile(ctx, studentName, returnView = "dashb
       ${kpiCard("Perbaikan", improvement === null ? "—" : `${improvement >= 0 ? "+" : ""}${improvement}`, "skor awal → terakhir")}
       ${kpiCard("Penilaian Terakhir", last ? String(last.finalScore) : "—", last ? compactText(last.assessmentTitle, 28) : "belum ada")}
     </div>
-    <div class="dash-grid-2">
-      <div class="analytics-panel">
-        <h3>Tren Performa</h3>
-        ${evaluated.length ? buildProfileTrend(evaluated) : `<p class="empty-state">Belum ada evaluasi tervalidasi.</p>`}
-      </div>
-      <div class="analytics-panel">
-        <h3>Profil Kompetensi</h3>
-        ${renderCompetencyStudent(buildCompetencyProfile(ctx.state.assessments, evaluated))}
-      </div>
+    <div class="analytics-panel wide">
+      <h3>Tren Performa</h3>
+      ${evaluated.length ? buildProfileTrend(evaluated) : `<p class="empty-state">Belum ada evaluasi tervalidasi.</p>`}
     </div>
-    <div class="dash-grid-2">
-      <div class="analytics-panel">
-        <h3>Umpan Balik AI</h3>
-        ${buildFeedbackSummary(evaluated)}
-      </div>
-      <div class="analytics-panel">
-        <h3>Rekomendasi Intervensi</h3>
-        ${weakest
-          ? `<p class="ai-note">Dihasilkan AI berdasarkan pola jawaban siswa — perlu ditinjau guru.</p>
-             <p>Berikan latihan tambahan yang berfokus pada <strong>${escapeHtml(weakest.name)}</strong>, misalnya pertanyaan penerapan ke situasi nyata, lalu kaji kembali bukti jawabannya.</p>`
-          : `<p class="empty-state">Belum cukup data untuk memberikan rekomendasi.</p>`}
-      </div>
+    <div class="analytics-panel wide">
+      <h3>Profil Kompetensi</h3>
+      ${renderCompetencyStudent(buildCompetencyProfile(ctx.state.assessments, evaluated))}
     </div>
     <div class="analytics-panel wide">
       <h3>Riwayat Penilaian</h3>
@@ -836,25 +819,6 @@ function buildInsight(submission) {
   }
   if (!parts.length && submission.feedback) parts.push(String(submission.feedback).split(/\r?\n/)[0]);
   return parts.slice(0, 3);
-}
-
-function buildFeedbackSummary(evaluated) {
-  const strengths = new Set();
-  const gaps = new Set();
-  evaluated.forEach((sub) => {
-    (sub.questionScores || []).forEach((qs) => {
-      (qs.strengths || []).forEach((s) => strengths.add(String(s).trim()));
-      (qs.gaps || []).forEach((g) => gaps.add(String(g).trim()));
-    });
-  });
-  const s = [...strengths].slice(0, 3);
-  const g = [...gaps].slice(0, 3);
-  if (!s.length && !g.length) return `<p class="empty-state">Belum ada umpan balik untuk ditampilkan.</p>`;
-  return `
-    <p class="panel-hint">Rangkuman dari seluruh evaluasi tervalidasi.</p>
-    ${s.length ? `<div class="feedback-mini"><h4>💪 Kekuatan</h4><ul>${s.map((x) => `<li>${formatRichText(x)}</li>`).join("")}</ul></div>` : ""}
-    ${g.length ? `<div class="feedback-mini"><h4>🎯 Fokus perbaikan</h4><ul>${g.map((x) => `<li>${formatRichText(x)}</li>`).join("")}</ul></div>` : ""}
-  `;
 }
 
 // ---- Assessment list tab filtering ---------------------------------------

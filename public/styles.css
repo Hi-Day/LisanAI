@@ -2849,6 +2849,19 @@ body.admin-mode .student-only { display: none !important; }
 :root.dark-mode .rubrik-gradation th.rubrik-level-1 { background: #7f1d1d; color: #fca5a5; }
 :root.dark-mode .rubrik-level-cell textarea { background: #0f172a; color: #e2e8f0; border-color: #334155; }
 
+/* Rubrik dark mode — system preference (no explicit class toggle) */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode):not(.dark-mode) .rubrik-display .rubrik-lev-4,
+  :root:not(.light-mode):not(.dark-mode) .rubrik-gradation th.rubrik-level-4 { background: #064e3b; color: #a7f3d0; }
+  :root:not(.light-mode):not(.dark-mode) .rubrik-display .rubrik-lev-3,
+  :root:not(.light-mode):not(.dark-mode) .rubrik-gradation th.rubrik-level-3 { background: #1e3a5f; color: #93c5fd; }
+  :root:not(.light-mode):not(.dark-mode) .rubrik-display .rubrik-lev-2,
+  :root:not(.light-mode):not(.dark-mode) .rubrik-gradation th.rubrik-level-2 { background: #78350f; color: #fde68a; }
+  :root:not(.light-mode):not(.dark-mode) .rubrik-display .rubrik-lev-1,
+  :root:not(.light-mode):not(.dark-mode) .rubrik-gradation th.rubrik-level-1 { background: #7f1d1d; color: #fca5a5; }
+  :root:not(.light-mode):not(.dark-mode) .rubrik-level-cell textarea { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+}
+
 /* Pre-exam topic/outcome */
 .pre-exam-topic { font-size: 1rem; margin-bottom: 4px; }
 .pre-exam-outcome { font-size: 0.9rem; color: var(--muted); margin-bottom: 8px; padding: 8px 12px; background: var(--accent-light); border-radius: 8px; }
