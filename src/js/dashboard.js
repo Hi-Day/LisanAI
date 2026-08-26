@@ -6,7 +6,7 @@ import {
   renderStatusBadge,
 } from "./status.js";
 import { renderAssessmentItem, renderRubricTable } from "./render.js";
-import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent } from "./competency-profile.js";
+import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria } from "./competency-profile.js";
 import { switchView } from "./app-context.js";
 import { getSubmissionDetail } from "./api.js";
 
@@ -299,8 +299,6 @@ function renderAssessmentDetail(ctx, submission) {
     </div>
   `;
 
-  const insight = buildInsight(submission);
-
   const criteriaHtml = criteria.length
     ? `<div class="analytics-panel">
         <div class="panel-head-row">
@@ -308,13 +306,9 @@ function renderAssessmentDetail(ctx, submission) {
           <span class="metric-pill">${criteria.length} kriteria</span>
         </div>
         <p class="panel-hint">Skor per kriteria rubrik, dengan bukti yang dapat ditelusuri ke jawaban siswa.</p>
-        <div class="criterion-stack">${criteria.map((c, i) => renderCriterion(c, i)).join("")}</div>
+        <div class="criterion-stack">${criteria.map((c, i) => renderCriterion(c, i, rubricNameMap(assessment))).join("")}</div>
       </div>`
     : `<div class="analytics-panel"><h3>Criterion</h3><div class="empty-state">Belum ada data kriteria — gunakan evaluasi berbasis rubrik (AI Harness).</div></div>`;
-
-  const verificationHtml = verification
-    ? renderVerification(verification)
-    : `<div class="analytics-panel"><h3>Verifikasi</h3><div class="empty-state">Evaluasi lokal tanpa gate verifikasi.</div></div>`;
 
   const traceHtml = `
     <div class="analytics-panel">
@@ -331,27 +325,15 @@ function renderAssessmentDetail(ctx, submission) {
 
   els.assessmentDetailContent.innerHTML = `
     ${detailMeta}
-    <div class="detail-grid">
-      ${criteriaHtml}
-      <div>
-        ${verificationHtml}
-        <div class="analytics-panel" style="margin-top:24px;">
-          <h3>Wawasan AI</h3>
-          <p class="ai-note">Dihasilkan dari kriteria, bukti, dan evaluasi — bukan hanya skor akhir.</p>
-          ${insight
-            ? insight.map((p) => `<p class="insight-paragraph">${formatRichText(p)}</p>`).join("")
-            : `<p class="empty-state">Belum ada wawasan untuk evaluasi ini.</p>`}
-        </div>
-      </div>
-    </div>
+    ${criteriaHtml}
     ${rubricHtml}
     ${traceHtml}
   `;
 }
 
-function renderCriterion(c, index) {
+function renderCriterion(c, index, nameMap = new Map()) {
   const score = Number(c.score);
-  const name = c.name || prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
+  const name = resolveCriterionName(c, index, nameMap);
   const evidence = Array.isArray(c.evidence) ? c.evidence : [];
   const grounded = evidence.some((ev) => ev && ev.grounded === true);
   const hasUngrounded = evidence.some((ev) => ev && ev.grounded === false);
@@ -359,15 +341,15 @@ function renderCriterion(c, index) {
   const evidenceHtml = evidence.length
     ? `<div class="criterion-evidence">
         <span class="evidence-status ${grounded ? "evidence-grounded" : "evidence-review"}">
-          ${grounded ? "✓ Grounded" : hasUngrounded ? "⚠ Evidence perlu tinjauan" : "✓ Grounded"}
+          ${grounded ? "✓ Grounded" : hasUngrounded ? `⚠ ${evidence.filter((ev) => ev && ev.grounded === false).length} perlu tinjauan` : "✓ Grounded"}
         </span>
         <ul>
           ${evidence.map((ev) => `
             <li>
-              <span class="evidence-quote">“${escapeHtml(compactText(String(ev.text || ""), 160))}”</span>
-              ${ev.grounded === undefined
-            ? ""
-            : `<span class="evidence-tag ${ev.grounded ? "tag-ok" : "tag-warn"}">${ev.grounded ? "grounded" : "tidak grounded"}</span>`}
+              <span class="evidence-quote">“${escapeHtmlSup(escapeHtml(compactText(String(ev.text || ""), 140)))}”</span>
+              ${ev.grounded !== undefined && ev.grounded === false
+            ? `<span class="evidence-tag tag-warn">tidak grounded</span>`
+            : ""}
             </li>`).join("")}
         </ul>
       </div>`
@@ -396,43 +378,50 @@ function renderCriterion(c, index) {
   `;
 }
 
-function renderVerification(verification) {
-  const vStatus = verification.status || (verification.valid ? "PASS" : "FAIL");
-  const isFail = vStatus === "FAIL";
-  const isReview = vStatus === "REVIEW";
-  const issues = Array.isArray(verification.issues) ? verification.issues : [];
-  const reasons = Array.isArray(verification.reasons) ? verification.reasons : [];
-  const coverage = verification.scoreConsistency?.coverage;
-
-  const checks = [];
-  issues.forEach((issue) => checks.push({ ok: false, text: issue.message || String(issue) }));
-  reasons.forEach((reason) => {
-    const text = reason.message || String(reason);
-    if (!checks.some((c) => c.text === text)) checks.push({ ok: false, text });
+/**
+ * Build a lookup of clean criterion names from the assessment's rubric(s).
+ * Keys: criterionId (normalized) and criterion name (normalized) → display name.
+ * The model/harness output sometimes stores the entire serialized rubric in the
+ * criterion name; this lets the detail view show the actual criterion label
+ * resolved from the rubric definition instead.
+ */
+function rubricNameMap(assessment) {
+  const map = new Map();
+  if (!assessment) return map;
+  const push = (defs) => {
+    (Array.isArray(defs) ? defs : []).forEach((c) => {
+      if (!c || !c.name) return;
+      if (c.id) map.set(`id:${normalizeKey(c.id)}`, c.name);
+      map.set(`name:${normalizeKey(c.name)}`, c.name);
+    });
+  };
+  if (assessment.rubric) push(parseRubricToCriteria(assessment.rubric));
+  (Array.isArray(assessment.questions) ? assessment.questions : []).forEach((q) => {
+    if (q && q.rubric) push(parseRubricToCriteria(q.rubric));
   });
-  if (!checks.length) {
-    checks.push({ ok: true, text: "Output schema valid" });
-    checks.push({ ok: true, text: "Seluruh kriteria yang relevan dievaluasi" });
-    if (coverage !== undefined) checks.push({ ok: coverage >= 0.5, text: `Evidence grounded ${Math.round(coverage * 100)}%` });
-    checks.push({ ok: true, text: "Skor dalam rentang valid" });
-    checks.push({ ok: true, text: "Skor tertimbang terverifikasi (deterministik)" });
+  return map;
+}
+
+function normalizeKey(value) {
+  return String(value == null ? "" : value).toLowerCase().trim();
+}
+
+function resolveCriterionName(c, index, nameMap) {
+  const id = nameMap.get(`id:${normalizeKey(c.criterionId)}`);
+  if (id) return id;
+  const byName = c.name ? nameMap.get(`name:${normalizeKey(c.name)}`) : undefined;
+  if (byName) return byName;
+  if (c.name && looksLikeRubricDump(c.name)) {
+    return prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
   }
+  return c.name || prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
+}
 
-  const badgeClass = isFail ? "verification-fail" : isReview ? "verification-review" : "verification-pass";
-  const badgeLabel = isFail ? "FAILED" : isReview ? "NEEDS REVIEW" : "PASSED";
-
-  return `
-    <div class="analytics-panel">
-      <div class="panel-head-row">
-        <h3 style="margin:0;">Verifikasi Penilaian</h3>
-        <span class="verification-badge ${badgeClass}">${badgeLabel}</span>
-      </div>
-      ${isReview || isFail ? `<p class="v-warning">${isFail ? "Evaluasi gagal verifikasi — hasil tidak diterbitkan sebagai skor." : "Evaluasi perlu ditinjau guru sebelum diyakini penuh."}</p>` : ""}
-      <ul class="verification-checks">
-        ${checks.map((c) => `<li class="${c.ok ? "ok" : "warn"}"><span aria-hidden="true">${c.ok ? "✓" : "⚠"}</span><span>${escapeHtml(c.text)}</span></li>`).join("")}
-      </ul>
-    </div>
-  `;
+/** Heuristic: the stored "name" is actually a serialized rubric structure. */
+function looksLikeRubricDump(value) {
+  const s = String(value || "");
+  if (s.length < 80) return false;
+  return /\b(config|criteria\s+id|levels|descriptor)\b/i.test(s) && /\b(weight|score)\b/i.test(s);
 }
 
 async function loadAssessmentTrace(ctx) {
@@ -798,27 +787,6 @@ function criteriaCoverage(criteria) {
     (c) => Array.isArray(c.evidence) && c.evidence.some((ev) => ev && ev.grounded === true)
   ).length;
   return Math.round((withEvidence / criteria.length) * 100);
-}
-
-function buildInsight(submission) {
-  const parts = [];
-  if (submission.insight) parts.push(submission.insight);
-  const criteria = Array.isArray(submission.criteria) ? submission.criteria : [];
-  const evaluatedCriteria = criteria.filter((c) => Number.isFinite(Number(c.score)));
-  if (evaluatedCriteria.length) {
-    const sorted = evaluatedCriteria.slice().sort((a, b) => Number(a.score) - Number(b.score));
-    const weakest = sorted[0];
-    const strongest = sorted[sorted.length - 1];
-    const weakName = weakest.name || prettifyId(weakest.criterionId) || "salah satu kriteria";
-    const strongName = strongest.name || prettifyId(strongest.criterionId) || "salah satu kriteria";
-    if (weakest !== strongest) {
-      parts.push(`Kekuatan utama ada pada ${strongName}, sedangkan area yang paling perlu dikuatkan adalah ${weakName}.`);
-    } else if (Number(weakest.score) < 70) {
-      parts.push(`Perlu penguatan pada ${weakName}.`);
-    }
-  }
-  if (!parts.length && submission.feedback) parts.push(String(submission.feedback).split(/\r?\n/)[0]);
-  return parts.slice(0, 3);
 }
 
 // ---- Assessment list tab filtering ---------------------------------------
