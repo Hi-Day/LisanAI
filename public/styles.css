@@ -2911,6 +2911,44 @@ body.admin-mode .student-only { display: none !important; }
 .rubrik-score-badge.sb-2 { background: #d97706; }
 .rubrik-score-badge.sb-1 { background: #e11d48; }
 
+/* ---- Kompetensi profile (rubrik gradation) ---- */
+.competency-profile td.rubrik-achieved,
+.competency-profile td.rubrik-achieved.rubrik-lev-4,
+.competency-profile td.rubrik-achieved.rubrik-lev-3,
+.competency-profile td.rubrik-achieved.rubrik-lev-2,
+.competency-profile td.rubrik-achieved.rubrik-lev-1 {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+}
+.rubrik-achieved-tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+  background: rgba(0,0,0,0.10);
+  color: inherit;
+}
+.rubrik-dominant-tag {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  margin-top: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rubrik-muted { color: var(--muted); font-size: 0.75rem; }
+.rubrik-skor { text-align: center; white-space: nowrap; }
+.rubrik-display td.rubrik-lev-4.rubrik-achieved,
+.rubrik-lev-4.rubrik-achieved { color: #065f46; }
+.rubrik-lev-3.rubrik-achieved { color: #1e40af; }
+.rubrik-lev-2.rubrik-achieved { color: #92400e; }
+.rubrik-lev-1.rubrik-achieved { color: #991b1b; }
+
 /* ---- Tryout badge ---- */
 .tag-tryout { background: #fef3c7; color: #92400e; }
 .tag-practice { background: #dbeafe; color: #1e40af; }

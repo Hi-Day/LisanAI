@@ -6,6 +6,7 @@ import {
   renderStatusBadge,
 } from "./status.js";
 import { renderAssessmentItem, renderRubricTable } from "./render.js";
+import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent } from "./competency-profile.js";
 import { switchView } from "./app-context.js";
 import { getSubmissionDetail } from "./api.js";
 
@@ -153,7 +154,7 @@ export async function renderDashboard(ctx) {
 
   renderTrendChart(els.performanceChart, evaluated);
   renderDistribution(els.scoreDistribution, evaluated);
-  renderCompetencies(els.competencyOverview, evaluated);
+  renderCompetencies(els.competencyOverview, state.assessments, evaluated);
   renderAtRisk(els.atRiskList, atRisk);
   renderCompTrend(ctx, evaluated);
   renderRecentAssessments(els.recentAssessmentsList, recentSubmissions(scope, 8));
@@ -198,7 +199,7 @@ export async function renderStudentProfile(ctx, studentName, returnView = "dashb
       </div>
       <div class="analytics-panel">
         <h3>Profil Kompetensi</h3>
-        ${comps.length ? renderCompetencyRows(comps) : `<p class="empty-state">Belum ada data kriteria rubrik.</p>`}
+        ${renderCompetencyStudent(buildCompetencyProfile(ctx.state.assessments, evaluated))}
       </div>
     </div>
     <div class="dash-grid-2">
@@ -650,24 +651,9 @@ function renderDistribution(el, submissions) {
   `;
 }
 
-function renderCompetencies(el, submissions) {
-  const comps = aggregateCompetencies(submissions);
-  el.innerHTML = comps.length
-    ? renderCompetencyRows(comps)
-    : `<p class="empty-state">Belum ada data kompetensi. Evaluasi perlu memakai rubrik dengan kriteria (AI Harness).</p>`;
-}
-
-function renderCompetencyRows(comps) {
-  return `
-    ${comps.map((c) => {
-    const pct = Math.max(2, Math.min(100, c.avg));
-    return `
-        <div class="comp-row">
-          <div class="comp-head"><span>${escapeHtml(c.name)}</span><span class="comp-val">${Math.round(c.avg)}</span></div>
-          <div class="comp-track"><span class="comp-fill" style="width:${pct}%"></span></div>
-        </div>`;
-  }).join("")}
-  `;
+function renderCompetencies(el, assessments, submissions) {
+  const comps = buildCompetencyProfile(assessments, submissions);
+  el.innerHTML = renderCompetencyClass(comps);
 }
 
 function renderAtRisk(el, atRisk) {
