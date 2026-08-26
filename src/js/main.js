@@ -85,21 +85,28 @@ export async function initApp() {
   refreshSimulatorIfEnabled(ctx);
 
   // Dark mode toggle
+  // Explicitly manage BOTH .light-mode and .dark-mode so the OS-preference
+  // media query (:root:not(.light-mode):not(.dark-mode)) never fights the
+  // user's explicit choice.
   const savedTheme = localStorage.getItem("lisan-theme");
-  if (savedTheme === "dark") document.documentElement.classList.add("dark-mode");
-  if (ctx.els.darkModeToggle) {
-    ctx.els.darkModeToggle.addEventListener("click", () => {
-      document.documentElement.classList.toggle("dark-mode");
-      const isDark = document.documentElement.classList.contains("dark-mode");
-      localStorage.setItem("lisan-theme", isDark ? "dark" : "light");
-      ctx.els.darkModeToggle.innerHTML = isDark
+  const applyTheme = (theme) => {
+    const root = document.documentElement;
+    root.classList.toggle("dark-mode", theme === "dark");
+    root.classList.toggle("light-mode", theme === "light");
+    localStorage.setItem("lisan-theme", theme);
+    if (ctx.els.darkModeToggle) {
+      ctx.els.darkModeToggle.innerHTML = theme === "dark"
         ? '<span aria-hidden="true">☀️</span><span>Mode Terang</span>'
         : '<span aria-hidden="true">🌙</span><span>Mode Gelap</span>';
+    }
+  };
+  if (savedTheme === "dark") applyTheme("dark");
+  else if (savedTheme === "light") applyTheme("light");
+  if (ctx.els.darkModeToggle) {
+    ctx.els.darkModeToggle.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.contains("dark-mode");
+      applyTheme(isDark ? "light" : "dark");
     });
-    const isDark = document.documentElement.classList.contains("dark-mode");
-    ctx.els.darkModeToggle.innerHTML = isDark
-      ? '<span aria-hidden="true">☀️</span><span>Mode Terang</span>'
-      : '<span aria-hidden="true">🌙</span><span>Mode Gelap</span>';
   }
 
   // Hamburger menu for mobile
