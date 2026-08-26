@@ -33,6 +33,20 @@ function defaultConfig(overrides = {}) {
       calibration: false,
       safety: false,
     },
+    // P0 evaluation-pipeline optimization flags (PRD §27). Safe defaults: each
+    // is OFF unless explicitly enabled, so existing behavior is preserved until
+    // a phase is rolled out. Configurable via env or overrides.
+    optimization: {
+      questionEvaluation: flagDefault("QUESTION_EVALUATION", false),
+      partialRetry: flagDefault("PARTIAL_RETRY", false),
+      evidenceValidation: flagDefault("EVIDENCE_VALIDATION", false),
+      rubricCompiler: flagDefault("RUBRIC_COMPILER", false),
+      parallelEvaluation: flagDefault("PARALLEL_EVALUATION", false),
+      maxConcurrentEvaluations: Number(
+        process.env.MAX_CONCURRENT_EVALUATIONS ?? 3
+      ),
+      maxQuestionRetries: Number(process.env.MAX_QUESTION_RETRIES ?? 1),
+    },
     verification: {
       enabled: true,
       maxRetries: 1,
