@@ -340,7 +340,7 @@ async function openTrace(ctx, runId) {
             <span style="min-width:0;overflow-wrap:break-word;">${escapeHtml(d.label || prettifyId(d.criterionId))}</span>
             <span style="flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums;">
               ${fmt(d.score, 0)} × ${fmtWeightPct(d.weight)}%
-              <span style="color:var(--emerald,#4caf7d);font-weight:700;">= ${fmt(d.contribution, 2)}</span>
+              <span style="color:var(--success-strong);font-weight:700;">= ${fmt(d.contribution, 2)}</span>
             </span>
           </li>`
           )
@@ -363,13 +363,13 @@ async function openTrace(ctx, runId) {
           ${typeof c.confidence === "number" ? `<div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Kepercayaan: ${fmt(c.confidence * 100, 0)}%</div>` : ""}
           ${
             c.noEvidence
-              ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--accent,#e0a53b);"><strong>TANPA EVIDENCE</strong> — criterion tanpa bukti jawaban (FR-03)</div>`
+              ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--warning-strong);"><strong>TANPA EVIDENCE</strong> — criterion tanpa bukti jawaban (FR-03)</div>`
               : Array.isArray(c.evidence) && c.evidence.length
                 ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Evidence:</span><ul style="margin:4px 0 0 18px;">${c.evidence
                     .map((ev) => {
                       const verdict = ev.grounded
                         ? `<span style="color:var(--emerald);font-size:0.75rem;"> ✓ grounded</span>`
-                        : `<span style="color:var(--rose, #e0706b);font-size:0.75rem;"> ✗ tidak grounded</span>`;
+                        : `<span style="color:var(--danger-strong);font-size:0.75rem;"> ✗ tidak grounded</span>`;
                       const method = ev.groundingMethod
                         ? ` <span style="color:var(--muted);font-size:0.7rem;">(${escapeHtml(ev.groundingMethod)})</span>`
                         : "";

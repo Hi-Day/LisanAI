@@ -22,6 +22,11 @@ const ATTENTION_TREND_THRESHOLD = -15;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Resolve a CSS custom property from :root so inline SVGs follow the theme. */
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 export function bindDashboardEvents(ctx) {
   const { els } = ctx;
 
@@ -553,7 +558,7 @@ function renderTrendChart(el, submissions) {
   const bars = buckets
     .map((b, i) => {
       const h = Math.max(2, (b.count / maxCount) * innerH);
-      return `<rect x="${(band(i) - barW / 2).toFixed(1)}" y="${(padT + innerH - h).toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" rx="3" fill="#dbeafe" />`;
+      return `<rect x="${(band(i) - barW / 2).toFixed(1)}" y="${(padT + innerH - h).toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" rx="3" fill="${cssVar("--brand-soft")}" />`;
     })
     .join("");
 
@@ -562,20 +567,20 @@ function renderTrendChart(el, submissions) {
     .filter(Boolean);
 
   const line = linePoints.length > 1
-    ? `<polyline points="${linePoints.join(" ")}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`
+    ? `<polyline points="${linePoints.join(" ")}" fill="none" stroke="${cssVar("--brand")}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`
     : "";
   const circles = buckets
-    .map((b, i) => (b.avg === null ? "" : `<circle cx="${band(i).toFixed(1)}" cy="${yFor(b.avg).toFixed(1)}" r="3.5" fill="#2563eb"/>`))
+    .map((b, i) => (b.avg === null ? "" : `<circle cx="${band(i).toFixed(1)}" cy="${yFor(b.avg).toFixed(1)}" r="3.5" fill="${cssVar("--brand")}"/>`))
     .join("");
 
   const gridLines = [0, 25, 50, 75, 100]
-    .map((v) => `<line x1="${padL}" y1="${yFor(v)}" x2="${W - padR}" y2="${yFor(v)}" stroke="#e2e8f0" stroke-width="1"/>`)
+    .map((v) => `<line x1="${padL}" y1="${yFor(v)}" x2="${W - padR}" y2="${yFor(v)}" stroke="${cssVar("--border")}" stroke-width="1"/>`)
     .join("");
   const gridLabels = [0, 25, 50, 75, 100]
-    .map((v) => `<text x="${padL - 6}" y="${yFor(v) + 4}" text-anchor="end" fill="#64748b" font-size="10">${v}</text>`)
+    .map((v) => `<text x="${padL - 6}" y="${yFor(v) + 4}" text-anchor="end" fill="${cssVar("--text-muted")}" font-size="10">${v}</text>`)
     .join("");
   const xLabels = buckets
-    .map((b, i) => `<text x="${band(i)}" y="${H - 8}" text-anchor="middle" fill="#64748b" font-size="9">${escapeXml(b.label)}</text>`)
+    .map((b, i) => `<text x="${band(i)}" y="${H - 8}" text-anchor="middle" fill="${cssVar("--text-muted")}" font-size="9">${escapeXml(b.label)}</text>`)
     .join("");
 
   el.innerHTML = `
@@ -872,23 +877,23 @@ function buildProfileTrend(evaluated) {
     .join(" ");
 
   const gridLines = [0, 25, 50, 75, 100]
-    .map((v) => `<line x1="${padL}" y1="${yFor(v)}" x2="${W - padR}" y2="${yFor(v)}" stroke="#e2e8f0" stroke-width="1"/>`)
+    .map((v) => `<line x1="${padL}" y1="${yFor(v)}" x2="${W - padR}" y2="${yFor(v)}" stroke="${cssVar("--border")}" stroke-width="1"/>`)
     .join("");
   const gridLabels = [0, 25, 50, 75, 100]
-    .map((v) => `<text x="${padL - 6}" y="${yFor(v) + 4}" text-anchor="end" fill="#64748b" font-size="10">${v}</text>`)
+    .map((v) => `<text x="${padL - 6}" y="${yFor(v) + 4}" text-anchor="end" fill="${cssVar("--text-muted")}" font-size="10">${v}</text>`)
     .join("");
   const circles = evaluated
-    .map((s, i) => `<circle cx="${(padL + slot * i).toFixed(1)}" cy="${yFor(s.finalScore).toFixed(1)}" r="4" fill="#2563eb"/>`)
+    .map((s, i) => `<circle cx="${(padL + slot * i).toFixed(1)}" cy="${yFor(s.finalScore).toFixed(1)}" r="4" fill="${cssVar("--brand")}"/>`)
     .join("");
   const xLabels = evaluated
-    .map((s, i) => `<text x="${(padL + slot * i).toFixed(1)}" y="${H - 8}" text-anchor="middle" fill="#64748b" font-size="9">${escapeXml(formatDate(s.submittedAt))}</text>`)
+    .map((s, i) => `<text x="${(padL + slot * i).toFixed(1)}" y="${H - 8}" text-anchor="middle" fill="${cssVar("--text-muted")}" font-size="9">${escapeXml(formatDate(s.submittedAt))}</text>`)
     .join("");
 
   return `
     <svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafik skor siswa dari waktu ke waktu">
       ${gridLines}
       ${gridLabels}
-      <polyline points="${pointsStr}" fill="none" stroke="#059669" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+      <polyline points="${pointsStr}" fill="none" stroke="${cssVar("--success-strong")}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
       ${circles}
       ${xLabels}
     </svg>
@@ -984,7 +989,7 @@ function renderCompTrend(ctx, evaluated) {
     return;
   }
 
-  const COLORS = ["#2563eb", "#059669", "#d97706", "#e11d48", "#0ea5e9", "#8b5cf6", "#f59e0b", "#10b981"];
+  const COLORS = ["--brand", "--success", "--info", "--danger", "--warning", "--ai", "--voice", "--success-strong"].map((t) => cssVar(t));
   const entries = [...compMap.entries()];
   const W = 600, H = 180, PAD = 30;
   const allDates = [...new Set(sorted.map((s) => new Date(s.submittedAt).toLocaleDateString("id-ID", { month: "short", day: "numeric" })))];
@@ -1029,22 +1034,22 @@ function renderCompTrend(ctx, evaluated) {
   // X-axis labels
   const xLabels = allDates.map((d, idx) => {
     const x = PAD + (idx / Math.max(1, allDates.length - 1)) * (W - 2 * PAD);
-    return `<text x="${x.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="#94a3b8">${d}</text>`;
+    return `<text x="${x.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${cssVar("--text-muted")}">${d}</text>`;
   }).join("");
 
   // Y-axis labels
   const yLabels = [0, 25, 50, 75, 100].map((v) => {
     const y = H - PAD - (v / 100) * (H - 2 * PAD);
-    return `<text x="${PAD - 5}" y="${y.toFixed(1) + 4}" text-anchor="end" font-size="9" fill="#94a3b8">${v}</text>`;
+    return `<text x="${PAD - 5}" y="${y.toFixed(1) + 4}" text-anchor="end" font-size="9" fill="${cssVar("--text-muted")}">${v}</text>`;
   }).join("");
 
   els.compTrendChart.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%;" role="img" aria-label="Grafik tren kompetensi">
-      <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="#e2e8f0" stroke-width="1"/>
-      <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="#e2e8f0" stroke-width="1"/>
+      <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="${cssVar("--border")}" stroke-width="1"/>
+      <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="${cssVar("--border")}" stroke-width="1"/>
       ${[25, 50, 75].map((v) => {
         const y = H - PAD - (v / 100) * (H - 2 * PAD);
-        return `<line x1="${PAD}" y1="${y}" x2="${W - PAD}" y2="${y}" stroke="#f1f5f9" stroke-width="1"/>`;
+        return `<line x1="${PAD}" y1="${y}" x2="${W - PAD}" y2="${y}" stroke="${cssVar("--border")}" stroke-width="1"/>`;
       }).join("")}
       ${paths}
       ${xLabels}

@@ -1,25 +1,77 @@
 :root {
-  /* Terang & Ramah Guru (Light Mode) */
-  --ink: #1e293b;        /* slate-800 - Kontras tinggi untuk teks */
-  --muted: #64748b;      /* slate-500 */
-  --line: #e2e8f0;       /* slate-200 */
-  --paper: #f8fafc;      /* slate-50 - Latar belakang bersih */
-  --panel: #ffffff;      /* Latar putih solid untuk kontainer */
-  
-  --accent: #2563eb;      /* blue-600 - Biru standar web (dikenali) */
-  --accent-strong: #1d4ed8; /* blue-700 - aksen untuk teks/link */
-  --accent-dark: #1e40af; /* blue-800 - aksen interaktif (hover/press) */
-  --accent-light: #eff6ff;/* blue-50 */
-  
-  --blue: #1d4ed8;       
-  --sky: #0369a1;        /* sky-700 - biru celeste kontras tinggi */
-  --amber: #b45309;      /* amber-700 - kuning gelap agar terbaca */
-  --rose: #be123c;       /* rose-700 - merah peringatan yang ramah */
-  --emerald: #047857;    /* emerald-700 - hijau sukses */
-  
-  --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.05);
-  --shadow-glow: 0 4px 15px rgba(37, 99, 235, 0.2);
-  
+  /* =================================================================
+     Lisan Pop — Color System (docs/design/COLOR_SYSTEM.md)
+     Indigo = LisanAI / primary · Purple = AI · Pink = voice
+     Green = success · Yellow = warning · Cyan = info · Rose = danger
+     ================================================================= */
+
+  /* Light Mode */
+  --bg: #FFFDF7;
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+
+  --text: #202235;
+  --text-muted: #73778C;
+  --text-subtle: #9699AA;
+
+  --border: #E9E7F2;
+  --border-strong: #D9D6E6;
+
+  --brand: #635BFF;
+  --brand-hover: #5148E8;
+  --brand-active: #453BC7;
+  --brand-soft: #EEECFF;
+
+  --ai: #A855F7;
+  --ai-hover: #9333EA;
+  --ai-soft: #F3E8FF;
+
+  --voice: #FF6B9D;
+  --voice-hover: #F05289;
+  --voice-soft: #FFE8F0;
+
+  --success: #20C997;
+  --success-hover: #12B886;
+  --success-soft: #E6FCF5;
+
+  --warning: #FFB547;
+  --warning-hover: #F59E0B;
+  --warning-soft: #FFF4D6;
+
+  --info: #38BDF8;
+  --info-hover: #0EA5E9;
+  --info-soft: #E0F5FF;
+
+  --danger: #E85D75;
+  --danger-hover: #D9485F;
+  --danger-soft: #FFE8ED;
+
+  /* Text-safe variants — satisfy WCAG AA when used as text on white.
+     ACCESSIBILITY.md: color must never carry meaning alone. */
+  --success-strong: #047857;
+  --warning-strong: #B45309;
+  --info-strong: #075985;
+  --danger-strong: #BE123C;
+
+  /* Legacy aliases (deprecated in favor of semantic tokens above) */
+  --ink: var(--text);
+  --muted: var(--text-muted);
+  --line: var(--border);
+  --paper: var(--bg);
+  --panel: var(--surface);
+  --accent: var(--brand);
+  --accent-strong: var(--brand-hover);
+  --accent-dark: var(--brand-active);
+  --accent-light: var(--brand-soft);
+  --blue: var(--brand);
+  --sky: var(--info-strong);
+  --amber: var(--warning-strong);
+  --rose: var(--danger-strong);
+  --emerald: var(--success-strong);
+
+  --shadow-subtle: 0 4px 15px rgba(32, 34, 53, 0.05);
+  --shadow-glow: 0 4px 15px rgba(99, 91, 255, 0.25);
+
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
 }
 
@@ -47,42 +99,136 @@ body {
   100% { background-position: -200% 0; }
 }
 
-/* Dark mode support — class-based */
+/* Dark mode support — class-based (Lisan Pop palette) */
 html.dark-mode {
-  --ink: #e2e8f0;
-  --muted: #94a3b8;
-  --line: #334155;
-  --paper: #0f172a;
-  --panel: #1e293b;
-  --accent-strong: #93c5fd; /* blue-300 - aksen teks terang */
-  --accent-dark: #1e40af;   /* blue-800 - hover/press tetap gelap utk teks putih */
-  --accent-light: #1e3a5f;
-  --blue: #60a5fa;          /* blue-400 */
-  --sky: #38bdf8;           /* sky-400 */
-  --amber: #fbbf24;         /* amber-400 */
-  --rose: #fb7185;          /* rose-400 */
-  --emerald: #34d399;       /* emerald-400 */
+  --bg: #11121A;
+  --surface: #1A1C27;
+  --surface-elevated: #202331;
+
+  --text: #F5F5FA;
+  --text-muted: #A3A6B8;
+  --text-subtle: #777B90;
+
+  --border: #2B2E3D;
+  --border-strong: #3A3E50;
+
+  --brand: #8B83FF;
+  --brand-hover: #A19AFF;
+  --brand-active: #B0AAFF;
+  --brand-soft: #27254A;
+
+  --ai: #C084FC;
+  --ai-hover: #D0A0FF;
+  --ai-soft: #332044;
+
+  --voice: #FF7EAA;
+  --voice-hover: #FF96BA;
+  --voice-soft: #432334;
+
+  --success: #34D399;
+  --success-hover: #6EE7B7;
+  --success-soft: #163B32;
+
+  --warning: #FFC866;
+  --warning-hover: #FFD98A;
+  --warning-soft: #43351A;
+
+  --info: #5DD3FF;
+  --info-hover: #82DEFF;
+  --info-soft: #16394A;
+
+  --danger: #FB7185;
+  --danger-hover: #FF91A0;
+  --danger-soft: #47202A;
+
+  --success-strong: #34D399;
+  --warning-strong: #FFC866;
+  --info-strong: #5DD3FF;
+  --danger-strong: #FB7185;
+
+  --ink: var(--text);
+  --muted: var(--text-muted);
+  --line: var(--border);
+  --paper: var(--bg);
+  --panel: var(--surface);
+  --accent: var(--brand);
+  --accent-strong: var(--brand-hover);
+  --accent-dark: var(--brand-active);
+  --accent-light: var(--brand-soft);
+  --blue: var(--brand);
+  --sky: var(--info);
+  --amber: var(--warning);
+  --rose: var(--danger);
+  --emerald: var(--success);
+
   --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
+  --shadow-glow: 0 4px 15px rgba(139, 131, 255, 0.3);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light-mode):not(.dark-mode) {
-    --ink: #e2e8f0;
-    --muted: #94a3b8;
-    --line: #334155;
-    --paper: #0f172a;
-    --panel: #1e293b;
-    --accent-strong: #93c5fd;
-    --accent-dark: #1e40af;
-    --accent-light: #1e3a5f;
-    --blue: #60a5fa;
-    --sky: #38bdf8;
-    --amber: #fbbf24;
-    --rose: #fb7185;
-    --emerald: #34d399;
+    --bg: #11121A;
+    --surface: #1A1C27;
+    --surface-elevated: #202331;
+
+    --text: #F5F5FA;
+    --text-muted: #A3A6B8;
+    --text-subtle: #777B90;
+
+    --border: #2B2E3D;
+    --border-strong: #3A3E50;
+
+    --brand: #8B83FF;
+    --brand-hover: #A19AFF;
+    --brand-active: #B0AAFF;
+    --brand-soft: #27254A;
+
+    --ai: #C084FC;
+    --ai-hover: #D0A0FF;
+    --ai-soft: #332044;
+
+    --voice: #FF7EAA;
+    --voice-hover: #FF96BA;
+    --voice-soft: #432334;
+
+    --success: #34D399;
+    --success-hover: #6EE7B7;
+    --success-soft: #163B32;
+
+    --warning: #FFC866;
+    --warning-hover: #FFD98A;
+    --warning-soft: #43351A;
+
+    --info: #5DD3FF;
+    --info-hover: #82DEFF;
+    --info-soft: #16394A;
+
+    --danger: #FB7185;
+    --danger-hover: #FF91A0;
+    --danger-soft: #47202A;
+
+    --success-strong: #34D399;
+    --warning-strong: #FFC866;
+    --info-strong: #5DD3FF;
+    --danger-strong: #FB7185;
+
+    --ink: var(--text);
+    --muted: var(--text-muted);
+    --line: var(--border);
+    --paper: var(--bg);
+    --panel: var(--surface);
+    --accent: var(--brand);
+    --accent-strong: var(--brand-hover);
+    --accent-dark: var(--brand-active);
+    --accent-light: var(--brand-soft);
+    --blue: var(--brand);
+    --sky: var(--info);
+    --amber: var(--warning);
+    --rose: var(--danger);
+    --emerald: var(--success);
+
     --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
-    --shadow-glow: 0 4px 15px rgba(96, 165, 250, 0.3);
+    --shadow-glow: 0 4px 15px rgba(139, 131, 255, 0.3);
     color-scheme: dark;
   }
 }
@@ -538,16 +684,16 @@ label {
 
 input, textarea, select {
   width: 100%;
-  border: 1px solid #cbd5e1; /* slate-300 */
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
   padding: 14px 16px;
-  background: var(--panel);
-  color: var(--ink);
+  background: var(--surface);
+  color: var(--text);
   font-size: 1rem;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-input::placeholder, textarea::placeholder { color: var(--muted); }
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
 textarea { resize: vertical; min-height: 80px; }
 
 input:focus, textarea:focus, select:focus {
@@ -557,8 +703,14 @@ input:focus, textarea:focus, select:focus {
 }
 
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 2px;
+}
+@supports not (color: color-mix(in srgb, red, transparent)) {
+  button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 input[type="checkbox"] {
@@ -972,8 +1124,8 @@ textarea[readonly] {
   bottom: calc(100% + 8px);
   width: 220px;
   padding: 8px 10px;
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--surface-elevated);
+  color: var(--text);
   font-size: 0.72rem;
   line-height: 1.35;
   border-radius: 8px;
@@ -1488,7 +1640,7 @@ button:disabled {
 
 .secondary-button:disabled {
   background: var(--paper);
-  border-color: #e2e8f0;
+  border-color: var(--border);
   color: var(--muted);
 }
 
@@ -2639,7 +2791,7 @@ body.admin-mode .student-only { display: none !important; }
 /* ---- Skeletons ---- */
 .skeleton {
   border-radius: 12px;
-  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background: linear-gradient(90deg, var(--border) 25%, var(--text-subtle) 50%, var(--border) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease infinite;
   margin-bottom: 8px;
@@ -2847,7 +2999,7 @@ body.admin-mode .student-only { display: none !important; }
 :root.dark-mode .rubrik-gradation th.rubrik-level-2 { background: #78350f; color: #fde68a; }
 :root.dark-mode .rubrik-display .rubrik-lev-1,
 :root.dark-mode .rubrik-gradation th.rubrik-level-1 { background: #7f1d1d; color: #fca5a5; }
-:root.dark-mode .rubrik-level-cell textarea { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+:root.dark-mode .rubrik-level-cell textarea { background: var(--bg); color: var(--text); border-color: var(--border-strong); }
 
 /* Rubrik dark mode — system preference (no explicit class toggle) */
 @media (prefers-color-scheme: dark) {
@@ -2859,7 +3011,7 @@ body.admin-mode .student-only { display: none !important; }
   :root:not(.light-mode):not(.dark-mode) .rubrik-gradation th.rubrik-level-2 { background: #78350f; color: #fde68a; }
   :root:not(.light-mode):not(.dark-mode) .rubrik-display .rubrik-lev-1,
   :root:not(.light-mode):not(.dark-mode) .rubrik-gradation th.rubrik-level-1 { background: #7f1d1d; color: #fca5a5; }
-  :root:not(.light-mode):not(.dark-mode) .rubrik-level-cell textarea { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+  :root:not(.light-mode):not(.dark-mode) .rubrik-level-cell textarea { background: var(--bg); color: var(--text); border-color: var(--border-strong); }
 }
 
 /* Pre-exam topic/outcome */
@@ -3093,14 +3245,151 @@ html.dark-mode .nav-sub-item:hover,
 html.dark-mode .nav-sub-item.active { background: var(--accent-light) !important; }
 html.dark-mode input,
 html.dark-mode textarea,
-html.dark-mode select { background: #0f172a !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+html.dark-mode select { background: var(--bg) !important; color: var(--text) !important; border-color: var(--border-strong) !important; }
 html.dark-mode table,
 html.dark-mode th,
-html.dark-mode td { border-color: #334155 !important; }
-html.dark-mode .data-table th { background: #0f172a !important; }
+html.dark-mode td { border-color: var(--border) !important; }
+html.dark-mode .data-table th { background: var(--bg) !important; }
 html.dark-mode .data-table tbody td { background: var(--panel) !important; }
-html.dark-mode .toast { background: #1e293b !important; color: #e2e8f0 !important; }
-html.dark-mode .notif-badge { background: #be123c !important; }
-html.dark-mode .simulator-login-btn.active { background: #047857 !important; }
+html.dark-mode .toast { background: var(--surface-elevated) !important; color: var(--text) !important; }
+html.dark-mode .notif-badge { background: var(--danger) !important; }
+html.dark-mode .simulator-login-btn.active { background: var(--success) !important; }
 html.dark-mode .brand-mark { filter: brightness(1.2); }
 html.dark-mode .rubrik-display td { background: transparent !important; }
+
+/* =================================================================
+   Design System Alignment (Lisan Pop)
+   ----------------------------------------------------------------
+   AI  = purple  · Voice = pink  · Success = green · Warning = yellow
+   Info = cyan   · Danger = rose · Primary = indigo
+   Color is never the only status signal (text/icon always present).
+   ================================================================= */
+
+/* ---- AI semantics (purple = AI / intelligence) ---- */
+.ai-button,
+#recommendOutcomes.ai-button {
+  border: none;
+  background: var(--ai);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
+}
+.ai-button:hover:not(:disabled) { background: var(--ai-hover); }
+.ai-button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ai-stream-panel {
+  border-color: var(--ai-soft);
+  background: color-mix(in srgb, var(--ai-soft) 45%, var(--surface));
+}
+.ai-stream-spinner,
+.evaluation-spinner { border-color: var(--ai-soft); border-top-color: var(--ai); }
+.ai-skeleton-card {
+  background: linear-gradient(90deg, var(--border) 25%, var(--ai-soft) 50%, var(--border) 75%);
+}
+.ai-stream-question { border-left-color: var(--ai); }
+.ai-stream-question .ai-q-num { background: var(--ai-soft); color: var(--ai); }
+.ai-stream-question.ai-stream-focus {
+  border-left-color: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent);
+}
+.ai-note {
+  color: var(--ai);
+  background: var(--ai-soft);
+  border-left: 3px solid var(--ai);
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+}
+html.dark-mode .ai-stream-panel {
+  background: color-mix(in srgb, var(--ai-soft) 55%, var(--surface));
+}
+
+/* ---- Voice semantics (pink = voice / recording) ---- */
+.recorder {
+  border-color: var(--voice-soft);
+  background: color-mix(in srgb, var(--voice-soft) 60%, var(--surface));
+}
+.recorder p { color: var(--text-muted); font-weight: 500; }
+.record-button {
+  background: var(--voice);
+  box-shadow: 0 4px 15px rgba(255, 107, 157, 0.35);
+}
+.record-button:not(:disabled):hover { background: var(--voice-hover); }
+.record-button.recording {
+  animation: pulseVoice 1.5s ease-in-out infinite;
+  background: var(--voice-hover);
+}
+@keyframes pulseVoice {
+  0% { box-shadow: 0 0 0 0 rgba(255, 107, 157, 0.35); }
+  70% { box-shadow: 0 0 0 15px rgba(255, 107, 157, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 107, 157, 0); }
+}
+.volume-bar { background: var(--voice-soft); }
+.volume-bar.active { background: var(--voice); }
+.mic-diagnostics.ok { background: var(--success-soft); border-color: var(--success); color: var(--success-strong); }
+.mic-diagnostics.error { background: var(--danger-soft); border-color: var(--danger); color: var(--danger-strong); }
+.voice-waves span { background: var(--voice); }
+@keyframes wave { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1); background: var(--voice-hover); } }
+
+/* ---- Semantic status/badges (Lisan Pop) ---- */
+.badge-draft { background: var(--warning-soft); color: var(--warning-strong); border-color: var(--warning); }
+.badge-published { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }
+.badge-ok { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }
+.badge-warn { background: var(--warning-soft); color: var(--warning-strong); border-color: var(--warning); }
+.badge-bad { background: var(--danger-soft); color: var(--danger-strong); border-color: var(--danger); }
+
+.status-badge.status-evaluated,
+.status-badge.status-published { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }
+.status-badge.status-review { background: var(--warning-soft); color: var(--warning-strong); border-color: var(--warning); }
+.status-badge.status-failed { background: var(--danger-soft); color: var(--danger-strong); border-color: var(--danger); }
+.status-badge.status-evaluating,
+.status-badge.status-started { background: var(--info-soft); color: var(--info-strong); border-color: var(--info); }
+.status-badge.status-submitted { background: var(--brand-soft); color: var(--brand-active); border-color: var(--brand); }
+
+.sem-actual { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }
+.sem-estimated { background: var(--warning-soft); color: var(--warning-strong); border-color: var(--warning); }
+.sem-derived { background: var(--info-soft); color: var(--info-strong); border-color: var(--info); }
+.sem-research { background: var(--ai-soft); color: var(--ai); border-color: var(--ai); }
+
+.tag-ok,
+.verification-mini-badge-ok,
+.verification-pass { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }
+.tag-warn,
+.verification-mini-badge-warn,
+.verification-review { background: var(--warning-soft); color: var(--warning-strong); border-color: var(--warning); }
+.verification-mini-badge-bad,
+.verification-fail { background: var(--danger-soft); color: var(--danger-strong); border-color: var(--danger); }
+.verification-checks li.ok > span:first-child { color: var(--success-strong); }
+.verification-checks li.warn > span:first-child { color: var(--warning-strong); }
+
+.ob-alert-warn { background: var(--warning-soft); border-color: var(--warning); }
+.ob-alert-warn strong { color: var(--warning-strong); }
+.ob-alert-info { background: var(--info-soft); border-color: var(--info); }
+.ob-alert-info strong { color: var(--info-strong); }
+.ob-warn { color: var(--warning-strong) !important; }
+.ob-tail-ratio-text { color: var(--warning-strong); }
+
+.complaint-box.complaint-pending,
+.complaint-item.complaint-pending { border-left-color: var(--warning); }
+.complaint-box.complaint-resolved,
+.complaint-item.complaint-resolved,
+.notif-card.complaint-resolved { border-left-color: var(--success); }
+.complaint-box.complaint-rejected,
+.complaint-item.complaint-rejected,
+.notif-card.complaint-rejected { border-left-color: var(--danger); }
+.complaint-notification { background: var(--warning-soft); border-color: var(--warning); }
+
+/* ---- Primary/neutral micro-token swaps ---- */
+.wizard-step.active { border-color: var(--brand); }
+.tag { border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
+.utility-button-danger { border-color: var(--danger-soft); }
+.utility-button-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+.rich-text blockquote { border-left-color: var(--brand); background: var(--brand-soft); }
+.trust-chip { background: var(--brand-soft); color: var(--brand-active); }
+.legend-bar { background: var(--brand-soft); }
+.legend-line { background: var(--brand); }
+.q-criteria-chip { background: var(--brand-soft); border-left-color: var(--brand); color: var(--brand-active); }
+.simulator-role-admin { background: var(--danger-soft); color: var(--danger-strong); }
+.simulator-role-teacher { background: var(--info-soft); color: var(--info-strong); }
+.simulator-role-student { background: var(--success-soft); color: var(--success-strong); }
+.meter-fill { background: var(--brand); }
+.ob-hist-bar { background: linear-gradient(90deg, var(--brand), var(--ai)); }
+.ob-split-prompt { background: var(--brand); }
