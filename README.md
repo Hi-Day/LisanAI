@@ -71,14 +71,14 @@ Platform assessment lisan berbasis AI untuk guru dan siswa dengan multi-tenant, 
 
 ## Scripts
 
-| Perintah | Deskripsi |
-|---|---|
-| `npm run dev` | Build frontend + start server lokal |
-| `npm run build` | Build static frontend (esbuild) |
-| `npm test` | Jalankan 239+ test unit/integrasi |
-| `npm run check` | Syntax check + semua test |
-| `npm run test:e2e` | Playwright end-to-end tests |
-| `node scripts/run-benchmark.js` | Benchmark experiment CLI |
+| Perintah                        | Deskripsi                           |
+| ------------------------------- | ----------------------------------- |
+| `npm run dev`                   | Build frontend + start server lokal |
+| `npm run build`                 | Build static frontend (esbuild)     |
+| `npm test`                      | Jalankan 239+ test unit/integrasi   |
+| `npm run check`                 | Syntax check + semua test           |
+| `npm run test:e2e`              | Playwright end-to-end tests         |
+| `node scripts/run-benchmark.js` | Benchmark experiment CLI            |
 
 ## Testing
 
@@ -129,3 +129,8 @@ Proyek terdeploy di Vercel:
 [https://lisan-ai-assessment.vercel.app](https://lisan-ai-assessment.vercel.app)
 
 Push ke branch `master` otomatis memicu redeploy via integrasi GitHub.
+
+Contributors:
+
+- Hi-Day
+- aryakpt
