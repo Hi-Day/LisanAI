@@ -2924,7 +2924,37 @@ body.admin-mode .student-only { display: none !important; }
 .rubrik-score-badge.sb-2 { background: #d97706; }
 .rubrik-score-badge.sb-1 { background: #e11d48; }
 
-/* ---- Kompetensi profile (rubrik gradation) ---- */
+/* ---- Kompetensi profile (compact list) ---- */
+.competency-simple {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.competency-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.competency-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.competency-info strong {
+  font-size: 0.9rem;
+}
+.competency-row .rubrik-skor {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 .competency-profile td.rubrik-achieved,
 .competency-profile td.rubrik-achieved.rubrik-lev-4,
 .competency-profile td.rubrik-achieved.rubrik-lev-3,

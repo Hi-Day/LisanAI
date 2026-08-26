@@ -1,4 +1,4 @@
-import { escapeHtml, compactText } from "./utils.js";
+import { escapeHtml } from "./utils.js";
 
 /**
  * Competency (rubrik) profile rendering for a class and a single student.
@@ -201,101 +201,56 @@ export function buildCompetencyProfile(assessments, submissions) {
 }
 
 const scoreClass = (n) => `sb-${Math.max(1, Math.min(4, Number(n)))}`;
-const cellClass = (n) => `rubrik-lev-${Math.max(1, Math.min(4, Number(n)))}`;
 
 /**
- * Student profile: gradation table with the achieved level highlighted.
+ * Student profile: compact list of competency titles with achieved level & score.
  * @param {object[]} comps result of buildCompetencyProfile
  */
 export function renderCompetencyStudent(comps) {
   if (!comps || !comps.length) {
     return `<p class="empty-state">Belum ada data kriteria rubrik untuk ditampilkan.</p>`;
   }
-  const levels = comps[0].levels;
   return `
-    <div class="table-container" style="overflow-x:auto;">
-      <table class="rubrik-display competency-profile">
-        <thead>
-          <tr>
-            <th>Kompetensi</th>
-            <th>Bobot</th>
-            ${levels.slice().sort((a, b) => b.score - a.score).map((l) => {
-              const s = Number(l.score);
-              return `<th class="${cellClass(s)}"><span class="rubrik-score-badge ${scoreClass(s)}">${s}</span>${escapeHtml(l.label)}</th>`;
-            }).join("")}
-            <th>Skor</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${comps.map((c) => {
-            const achieved = c.achieved;
-            const s = Number(achieved ? achieved.score : 0);
-            return `
-              <tr>
-                <td><strong>${escapeHtml(c.name)}</strong><br><span class="rubrik-muted">${c.records.length} penilaian</span></td>
-                <td>${c.weight ? `${c.weight}%` : "—"}</td>
-                ${c.levels.slice().sort((a, b) => b.score - a.score).map((l) => {
-                  const ls = Number(l.score);
-                  const isAch = achieved && Number(achieved.score) === ls;
-                  return `<td class="${cellClass(ls)}${isAch ? " rubrik-achieved" : ""}">
-                    ${isAch ? '<span class="rubrik-achieved-tag">▼ dicapai</span>' : ""}
-                    ${l.descriptor ? escapeHtml(compactText(l.descriptor, 110)) : "<span class=\"rubrik-muted\">—</span>"}
-                  </td>`;
-                }).join("")}
-                <td class="rubrik-skor">
-                  <span class="rubrik-score-badge ${scoreClass(s)}">${Math.round(c.avg)}</span>
-                  <span class="rubrik-muted">/100</span>
-                </td>
-              </tr>`;
-          }).join("")}
-        </tbody>
-      </table>
+    <div class="competency-simple">
+      ${comps.map((c) => {
+        const s = Number(c.achieved ? c.achieved.score : 0);
+        return `
+          <div class="competency-row">
+            <div class="competency-info">
+              <strong>${escapeHtml(c.name)}</strong>
+              <span class="rubrik-muted">${c.records.length} penilaian${c.weight ? ` · bobot ${c.weight}%` : ""}</span>
+            </div>
+            <div class="rubrik-skor">
+              <span class="rubrik-score-badge ${scoreClass(s)}">${Math.round(c.avg)}</span>
+              <span class="rubrik-muted">/100</span>
+            </div>
+          </div>`;
+      }).join("")}
     </div>
   `;
 }
 
 /**
- * Class overview (gradation distribution across levels per criterion).
+ * Class overview: compact list of competency titles with average score.
  * @param {object[]} comps result of buildCompetencyProfile
  */
 export function renderCompetencyClass(comps) {
   if (!comps || !comps.length) {
     return `<p class="empty-state">Belum ada data kompetensi. Evaluasi perlu memakai rubrik dengan kriteria (AI Harness).</p>`;
   }
-  const levels = comps[0].levels.slice().sort((a, b) => b.score - a.score);
   return `
-    <div class="table-container" style="overflow-x:auto;">
-      <table class="rubrik competency-profile">
-        <thead>
-          <tr>
-            <th>Kompetensi</th>
-            <th>Bobot</th>
-            ${levels.map((l) => {
-              const s = Number(l.score);
-              return `<th class="${cellClass(s)}"><span class="rubrik-score-badge ${scoreClass(s)}">${s}</span>${escapeHtml(l.label)}</th>`;
-            }).join("")}
-            <th>Rata-rata</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${comps.map((c) => `
-            <tr>
-              <td><strong>${escapeHtml(c.name)}</strong><br><span class="rubrik-muted">${c.records.length} pengumpulan</span></td>
-              <td>${c.weight ? c.weight + "%" : "—"}</td>
-              ${c.distribution.map((d) => {
-                const s = Number(d.level.score);
-                return `<td class="${cellClass(s)}${d.dominant ? " rubrik-achieved" : ""}">
-                  <strong>${d.count}</strong> <span class="rubrik-muted">· ${d.pct}%</span>
-                  ${d.dominant ? '<span class="rubrik-dominant-tag">mayoritas</span>' : ""}
-                </td>`;
-              }).join("")}
-              <td class="rubric-skor">
-                <span class="rubrik-score-badge ${scoreClass(c.achieved.score)}">${Math.round(c.avg)}</span>
-                <span class="rubrik-muted">/100</span>
-              </td>
-            </tr>`).join("")}
-        </tbody>
-      </table>
+    <div class="competency-simple">
+      ${comps.map((c) => `
+        <div class="competency-row">
+          <div class="competency-info">
+            <strong>${escapeHtml(c.name)}</strong>
+            <span class="rubrik-muted">${c.records.length} pengumpulan${c.weight ? ` · bobot ${c.weight}%` : ""}</span>
+          </div>
+          <div class="rubrik-skor">
+            <span class="rubrik-score-badge ${scoreClass(c.achieved.score)}">${Math.round(c.avg)}</span>
+            <span class="rubrik-muted">/100</span>
+          </div>
+        </div>`).join("")}
     </div>
   `;
 }
