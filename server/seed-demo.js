@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const { getDb } = require("./database");
+const pricing = require("./ai/pricing");
 const {
   createTenantUser,
 } = require("./auth-service");
@@ -660,7 +661,7 @@ async function seedAiLogs(db, tenantId, teacherId, studentId) {
     const cacheRead = promptTokens > 0 ? Math.round(promptTokens * 0.65) : 0;
     const cacheCreation = promptTokens > 0 ? Math.round(promptTokens * 0.35) : 0;
     const estSavings = a.error ? 0 : promptTokens > 0 ? Math.round(promptTokens * 0.3) : 0;
-    const costUsd = !a.error ? ((promptTokens * 0.0015 + completionTokens * 0.002) / 1000) : 0;
+    const costUsd = !a.error ? pricing.estimateCostUsd(promptTokens, completionTokens, model) : 0;
     const status = a.error ? "error" : "success";
     const userId = a.action.startsWith("evaluate") ? (studentId || tenantId) : teacherId;
     const logId = uid("log");

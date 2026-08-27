@@ -2,6 +2,7 @@ const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
 const { getDb } = require("../server/database");
 const { parseCookies, sendJson } = require("../server/http-utils");
+const pricing = require("../server/ai/pricing");
 
 /**
  * Observability API (admin only) — PRD Observability & Research Redesign v1.0.
@@ -24,9 +25,8 @@ const RANGE_MS = {
   all: null,
 };
 
-// Pricing estimation (per 1K tokens). Same constants as server/openrouter.js.
-const PROMPT_PRICE_PER_K = 0.0015;
-const COMPLETION_PRICE_PER_K = 0.0020;
+// Pricing estimation uses cached live OpenRouter per-token prices (PRD §14:
+// cost is ESTIMATED, never billing). See server/ai/pricing.js.
 
 // Tail-latency alert threshold: flag when p95 = threshold × p50 (derived metric).
 const TAIL_LATENCY_THRESHOLD = 5;
@@ -71,6 +71,9 @@ module.exports = async (req, res) => {
     const rangeMs = range in RANGE_MS ? RANGE_MS[range] : RANGE_MS["24h"];
     const operation = url.searchParams.get("operation") || "";
     const modelFilter = url.searchParams.get("model") || "";
+    // Model name used for savings estimates that need a single price: prefer an
+    // explicit model filter, else the configured primary model.
+    const primaryModel = modelFilter || process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
     const statusFilter = url.searchParams.get("status") || "";
     const latencyGtSec = Number(url.searchParams.get("latency") || 0);
     const dateFrom = url.searchParams.get("dateFrom") || "";
@@ -390,7 +393,7 @@ module.exports = async (req, res) => {
     // ---------------------------------------------------------------
     const estimatedPrefixReusePct =
       eligiblePromptTokens > 0 ? Math.round((estimatedPrefixCacheSavings / eligiblePromptTokens) * 1000) / 10 : 0;
-    const estimatedSavedCostUSD = formatUsd((estimatedPrefixCacheSavings * PROMPT_PRICE_PER_K) / 1000);
+    const estimatedSavedCostUSD = formatUsd((estimatedPrefixCacheSavings * pricing.getPromptPricePer1k(primaryModel)) / 1000);
 
     const prefixOptimization = {
       // Estimated (application-level, NOT actual provider KV reuse).
@@ -442,7 +445,28 @@ module.exports = async (req, res) => {
       cacheEfficiencyPercent: null, // removed: conflates estimate with actual KV telemetry
     };
 
-    return sendJson(res, 200, {
+    // P1-1 context-cache telemetry (hit/miss in this server process).
+      const contextCache = require("../server/harness/context-cache").getStats();
+      // P1-4/P1-17 risk distribution from persisted runs.
+      const riskRows = await db.all(
+        `SELECT risk_level, COUNT(*) AS cnt FROM evaluation_runs
+          WHERE tenant_id = ? ${sinceClause}
+          GROUP BY risk_level`,
+        tenantId,
+        ...sinceParams
+      );
+      const riskDistribution = {
+        LOW: 0,
+        MEDIUM: 0,
+        HIGH: 0,
+        none: 0,
+      };
+      for (const r of riskRows) {
+        const key = r.risk_level || "none";
+        riskDistribution[key] = Number(r.cnt || 0);
+      }
+
+      return sendJson(res, 200, {
       metrics,
       latencyDistribution,
       latencyByOperation,
@@ -454,6 +478,8 @@ module.exports = async (req, res) => {
       system,
       telemetryType,
       modelUsage: providerPerformance.map((p) => ({ model: p.model, calls: p.calls })),
+      contextCache,
+      riskDistribution,
       logs,
       logFilters: { operations: opRows.map((r) => r.action), models: providerRows.map((r) => r.model) },
       pagination: { limit, offset, total: totalLogCountRow?.c || 0 },

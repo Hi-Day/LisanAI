@@ -6,8 +6,14 @@ const { initDatabase } = require("./server/database");
 const { sendJson } = require("./server/http-utils");
 const { applySecurityHeaders } = require("./server/security-headers");
 const { serveStaticFile } = require("./server/static");
+const pricing = require("./server/ai/pricing");
 
 loadEnv();
+
+// Warm the live OpenRouter price catalog so observability cost estimates use
+// real per-token prices instead of fallback defaults. Non-blocking: a slow or
+// failed catalog refresh must not delay requests.
+pricing.refreshCatalog().catch(() => {});
 
 let isDbInitialized = false;
 

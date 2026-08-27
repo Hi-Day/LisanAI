@@ -2,6 +2,7 @@ const { OPENROUTER_URL } = require("./config");
 const { getDb } = require("./database");
 const crypto = require("node:crypto");
 const { MockProvider } = require("./ai/mock-provider");
+const pricing = require("./ai/pricing");
 
 // Timeout for a single OpenRouter request (ms). Prevents hanging requests.
 const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 60_000);
@@ -197,6 +198,9 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
   const tenantId = context.tenantId || "system";
   const userId = context.userId || "system";
   const action = context.action || "unknown";
+  // P1-13: the evaluation run this call serves, so ai_logs.cost_usd can be
+  // attributed to a specific run (cost_per_question / cost_per_run).
+  const runId = context.runId || null;
   const gen = context.gen || {}; // generation parameters (temperature/topP/maxTokens)
   const primaryModel = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
   const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
@@ -295,20 +299,21 @@ async function callOpenRouter(messages, schemaHint, context = {}) {
       }
     }
 
-    // Estimate cost based on token usage (per-1K pricing).
-    const PROMPT_PRICE_PER_K = 0.0015; // $ per 1K prompt tokens
-    const COMPLETION_PRICE_PER_K = 0.0020; // $ per 1K completion tokens
-    const costUsd = (promptTokens * PROMPT_PRICE_PER_K + completionTokens * COMPLETION_PRICE_PER_K) / 1000;
+    // Estimate cost based on token usage. Uses live OpenRouter per-token
+    // pricing when the catalog is cached; falls back to env-overridable
+    // defaults when the model is unknown (PRD §14: cost is ESTIMATED).
+    const costUsd = pricing.estimateCostUsd(promptTokens, completionTokens, model);
 
     // Save telemetry to the database asynchronously
     try {
       const db = getDb();
       await db.run(
-        `INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, kv_cache_measured, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ai_logs (id, tenant_id, user_id, run_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, kv_cache_measured, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         crypto.randomUUID().replace(/-/g, ""),
         tenantId,
         userId,
+        runId,
         action,
         model,
         promptTokens,
@@ -393,6 +398,7 @@ async function streamOpenRouter(messages, schemaHint, context = {}, onChunk) {
   const tenantId = context.tenantId || "system";
   const userId = context.userId || "system";
   const action = context.action || "unknown";
+  const runId = context.runId || null;
   const primaryModel = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
   const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
   let model = primaryModel;
@@ -482,18 +488,17 @@ async function streamOpenRouter(messages, schemaHint, context = {}, onChunk) {
       }
     }
 
-    const PROMPT_PRICE_PER_K = 0.0015;
-    const COMPLETION_PRICE_PER_K = 0.0020;
-    const costUsd = (promptTokens * PROMPT_PRICE_PER_K + completionTokens * COMPLETION_PRICE_PER_K) / 1000;
+    const costUsd = pricing.estimateCostUsd(promptTokens, completionTokens, model);
 
     try {
       const db = getDb();
       await db.run(
-        `INSERT INTO ai_logs (id, tenant_id, user_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ai_logs (id, tenant_id, user_id, run_id, action, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error_message, estimated_prefix_cache_savings, cache_read_input_tokens, cache_creation_input_tokens, retry_count, cost_usd, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         crypto.randomUUID().replace(/-/g, ""),
         tenantId,
         userId,
+        runId,
         action,
         model,
         promptTokens,
