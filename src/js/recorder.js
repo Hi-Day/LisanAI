@@ -21,6 +21,15 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
   let analyser = null;
   let volumeRaf = null;
 
+  // Chrome Android mengharuskan SpeechRecognition dimulai dari user gesture.
+  // Tombol rekam adalah jalur gesture nyata: ketukan menjalankan toggle.
+  if (recordButton && typeof recordButton.addEventListener === "function") {
+    recordButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      toggle();
+    });
+  }
+
   async function start() {
     if (!enabled) return;
     if (isRecording()) return;
@@ -128,11 +137,19 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
       if (activeRunId !== runId) return;
       console.warn("Speech recognition error:", event.error);
       recognizing = false;
+      // Android sering mengakhiri/menolak recognition tanpa gesture; coba
+      // restarter bila error-nya bisa pulih dan masih dalam sesi merekam.
+      if (["no-speech", "aborted", "network", "audio-capture"].includes(event.error)) {
+        restartRecognition(activeRunId);
+      }
     };
 
     recognition.onend = () => {
       if (activeRunId !== runId) return;
       recognizing = false;
+      // Android me-nonaktifkan recognition sendiri setelah jeda; auto-restart
+      // agar transkripsi terus hidup selama rekaman aktif.
+      if (stillRecording()) restartRecognition(activeRunId);
     };
 
     try {
@@ -140,7 +157,31 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
     } catch (error) {
       recognizing = false;
       console.warn("Transkripsi tidak bisa dimulai:", error.message);
+      restartRecognition(activeRunId);
     }
+  }
+
+  let restartTimer = null;
+
+  function restartRecognition(activeRunId) {
+    if (activeRunId !== runId) return;
+    if (!stillRecording()) return;
+    if (restartTimer) return;
+    // Jeda singkat lalu coba start lagi; berhenti bila sudah tidak merekam.
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      if (activeRunId !== runId || !stillRecording()) return;
+      if (!recognition || recognizing) return;
+      try {
+        recognition.start();
+      } catch (error) {
+        console.warn("Transkripsi restart gagal:", error.message);
+      }
+    }, 500);
+  }
+
+  function stillRecording() {
+    return mediaRecorder?.state === "recording";
   }
 
   function startMediaRecorder(status, activeRunId) {
