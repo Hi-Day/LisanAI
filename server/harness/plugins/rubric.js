@@ -29,6 +29,71 @@ function parseRubricText(text) {
     } catch { /* fall through to legacy parser */ }
   }
 
+  // Concatenated JSON v2 blocks (e.g. per-question rubrics joined by newline,
+  // as produced by createAssessment). Parse each block and merge criteria so a
+  // multi-question assessment does not collapse into an invalid rubric.
+  const multi = parseConcatenatedJsonRubrics(t);
+  if (multi) {
+    const criteria = distributeWeights(multi);
+    return criteria.length > 0 ? criteria : legacyParse(t);
+  }
+
+  return legacyParse(t);
+}
+
+/**
+ * Parse a text containing one or more concatenated JSON v2 rubric blocks
+ * (e.g. `{...}\n{...}`). Returns a flat array of criteria with weights already
+ * normalized per-block, or null when the text is not multiple JSON v2 blocks.
+ */
+function parseConcatenatedJsonRubrics(text) {
+  const lines = String(text)
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return null;
+  const blocks = [];
+  for (const line of lines) {
+    if (!line.startsWith("{")) return null;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return null;
+    }
+    if (!parsed || parsed.version !== "2" || !Array.isArray(parsed.criteria)) return null;
+    const blockSum = parsed.criteria.reduce((acc, c) => acc + (Number(c.weight) || 0), 0) || 1;
+    blocks.push(
+      parsed.criteria.map((c) => ({
+        id: slugify(c.name) || `c${criteria.length + 1}`,
+        name: c.name || "Kriteria",
+        weight: (c.weight || 0) / blockSum,
+        scale: 100,
+      })),
+    );
+  }
+  if (blocks.length === 0) return null;
+
+  // Same criterion name may appear across many per-question blocks. Merge them
+  // by averaging their (already per-block normalized) weight so duplicates
+  // collapse instead of doubling the total weight past 1.
+  const merged = new Map();
+  for (const block of blocks) {
+    for (const c of block) {
+      const key = c.id;
+      if (!merged.has(key)) merged.set(key, { ...c, count: 1, weight: c.weight });
+      else {
+        const e = merged.get(key);
+        e.weight = (e.weight * e.count + c.weight) / (e.count + 1);
+        e.count += 1;
+      }
+    }
+  }
+  const criteria = [...merged.values()].map(({ count, ...c }) => c);
+  return criteria.length > 0 ? criteria : null;
+}
+
+function legacyParse(text) {
   const items = String(text)
     .split(/[;\n]+/)
     .map((s) => s.trim())

@@ -55,21 +55,31 @@ async function evaluateWithHarness(payload) {
   // applicable to it (weights renormalized within the subset). The overall
   // finalScore remains the deterministic weighted aggregate over all criteria.
   const criteria = result.criteria || [];
-  const verification = result.verification || {};
-  const status = verification.status;
+  let verification = result.verification || {};
+  let status = verification.status;
 
-  // PRD FR-08 / FR-13 — Verification gate enforced at the API boundary so a
+// PRD FR-08 / FR-13 — Verification gate enforced at the API boundary so a
   // failed evaluation is never surfaced as a final student score.
   //   PASS   → returned normally.
   //   REVIEW → returned but flagged for human review (not auto-published).
   //   FAIL   → blocked; the student must not see a final score.
   if (status === "FAIL") {
-    const error = new Error(
-      "Evaluasi belum dapat diselesaikan karena verifikasi gagal. Silakan coba lagi atau hubungi guru."
-    );
-    error.status = 422;
-    error.verification = verification;
-    throw error;
+    // A student who SKIPS questions (empty answer) is a legitimate outcome,
+    // not a system failure: those questions are scored 0 and flagged for human
+    // review. Only when the FAIL is caused EXCLUSIVELY by unanswered questions
+    // do we downgrade to REVIEW. Genuine failures (missing criteria, invalid
+    // scores, evidence missing on ANSWERED questions) still block publishing.
+    if (isFailureOnlyFromUnanswered(verification, criteria, answers, questions)) {
+      verification = { ...verification, status: "REVIEW", downgraded: true };
+      status = "REVIEW";
+    } else {
+      const error = new Error(
+        "Evaluasi belum dapat diselesaikan karena verifikasi gagal. Silakan coba lagi atau hubungi guru."
+      );
+      error.status = 422;
+      error.verification = verification;
+      throw error;
+    }
   }
 
   const questionScores = buildQuestionScores(questions, answers, criteria, rubric);
@@ -116,6 +126,57 @@ function clamp01(score) {
   const s = Number(score);
   if (!Number.isFinite(s)) return 0;
   return Math.max(0, Math.min(100, s));
+}
+
+/**
+ * Whether a verification FAIL is caused ONLY by questions the student left
+ * unanswered (empty answer). Such questions are legitimately scored 0 and
+ * flagged for human review rather than hard-failing the whole submission.
+ *
+ * Requires:
+ *   - every fatal issue is a NO_EVIDENCE issue (no MISSING_CRITERION,
+ *     SCHEMA_INVALID, etc.);
+ *   - at least one answer is empty;
+ *   - every NO_EVIDENCE criterion can be attributed (via answerIndex, or a
+ *     per-question uniform rubric id q{N}) to an empty answer.
+ *
+ * This deliberately does NOT weaken the gate for genuine failures: an answered
+ * question with missing/invalid evidence keeps FAIL.
+ */
+function isFailureOnlyFromUnanswered(verification, criteria, answers, questions) {
+  if (!verification || verification.status !== "FAIL") return false;
+  const issues = Array.isArray(verification.issues) ? verification.issues : [];
+  if (issues.some((i) => i && i.type && i.type !== "NO_EVIDENCE")) return false;
+
+  const fatal = issues.filter((i) => i && i.type === "NO_EVIDENCE");
+  if (fatal.length === 0) return false;
+
+  const emptySet = new Set();
+  (answers || []).forEach((a, idx) => {
+    if (!String(a || "").trim()) emptySet.add(idx);
+  });
+  if (emptySet.size === 0) return false;
+
+  const fatalIds = new Set(fatal.map((i) => i.criterionId));
+  const criteriaById = new Map((criteria || []).map((c) => [c.criterionId, c]));
+  for (const id of fatalIds) {
+    const criterion = criteriaById.get(id);
+    const idx = criterion
+      ? criterion.answerIndex
+      : questionIndexForCriterionId(id, questions);
+    if (!Number.isInteger(idx) || !emptySet.has(idx)) return false;
+  }
+  return true;
+}
+
+/** Map a uniform per-question rubric id ("q1".."qN") to its zero-based index. */
+function questionIndexForCriterionId(criterionId, questions) {
+  const m = /^q(\d+)$/i.test(String(criterionId || ""));
+  if (!m) return null;
+  const num = parseInt(String(criterionId).slice(1), 10);
+  const n = Array.isArray(questions) ? questions.length : 0;
+  if (!Number.isInteger(num) || num < 1 || num > n) return null;
+  return num - 1;
 }
 
 /**
@@ -430,4 +491,5 @@ module.exports = {
   calculateAlignedFinalScore,
   questionCriterionKeys,
   criterionMatches,
+  isFailureOnlyFromUnanswered,
 };

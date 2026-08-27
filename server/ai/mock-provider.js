@@ -40,11 +40,15 @@ class MockProvider extends AIProvider {
       /* fall back to empty */
     }
     const criteria = (rubric.criteria || []).map((c, idx) => {
-      const answer = answers[idx] || answers[0] || "";
+      // Fall back to the first answer only when an index is MISSING (fewer
+      // answers than criteria), never when an answer is an empty string — an
+      // empty answer must not borrow another answer's text as evidence.
+      const answer = answers[idx] != null ? answers[idx] : (answers[0] ?? "");
       const score = MockProvider.hashScore(answer, idx);
       const excerpt = excerptText(answer, 32);
       return {
         criterionId: c.id,
+        answerIndex: idx,
         score,
         evidence: excerpt ? [{ text: excerpt, location: "answer" }] : [],
         rationale: `Evaluasi deterministik mock menurut '${c.name}'.`,

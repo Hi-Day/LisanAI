@@ -145,6 +145,34 @@ test("evaluateWithHarness blocks a FAIL verification gate (never surfaces final 
   );
 });
 
+test("evaluateWithHarness downgrades FAIL to REVIEW when ONLY skipped (empty) questions are the cause", async () => {
+  // A student answers some questions but skips others -> the skipped ones have
+  // no evidence (NO_EVIDENCE). This is a legitimate "scored 0, needs human
+  // review" outcome, NOT a hard failure. Must return a REVIEW result instead
+  // of throwing.
+  const PARTIAL_ASSESSMENT = {
+    id: "assess-harness-partial",
+    topic: "Rubrik dua kriteria",
+    difficulty: "Menengah",
+    rubric: "Akurasi 40%, Kelengkapan 60%",
+    questions: [
+      { prompt: "Soal 1", focus: "konsep" },
+      { prompt: "Soal 2", focus: "aplikasi" },
+    ],
+  };
+  const result = await evaluateWithHarness({
+    assessment: PARTIAL_ASSESSMENT,
+    // Soal 1 dijawab, Soal 2 dikosongkan.
+    answers: ["Fotosintesis adalah proses tumbuhan membuat makanan dari cahaya.", ""],
+    tenantId: "t-harness",
+    userId: "u-harness",
+  });
+  assert.equal(result.verification.status, "REVIEW");
+  assert.equal(result.requiresHumanReview, true);
+  assert.equal(result.published, false);
+  assert.ok(Array.isArray(result.questionScores) && result.questionScores.length === 2);
+});
+
 test("evaluateWithHarness flags requiresHumanReview on a REVIEW gate", async () => {
   // One criterion, no grounded evidence -> WEAK_COVERAGE -> REVIEW, not FAIL.
   const REVIEW_ASSESSMENT = {

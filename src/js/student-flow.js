@@ -682,7 +682,7 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
       insight: buildHarnessInsight(evaluation),
     });
   } catch (error) {
-    showToast(`AI belum tersedia, memakai penilaian lokal. Detail: ${error.message}`);
+    showToast("AI sedang tidak dapat diakses, penilaian memakai evaluasi lokal yang tetap valid.", "info");
     const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
     const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
     return {

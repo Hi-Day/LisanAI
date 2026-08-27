@@ -189,8 +189,29 @@ function generateMockContent(action, messages) {
       };
     });
     return JSON.stringify({ questions });
+  } else if (action === "generate-probing") {
+    const payload = JSON.parse(messages[0].content);
+    const answer = String(payload.jawaban_siswa || "").trim();
+    const focus = String(payload.fokus || payload.learning_outcome || "pemahaman").trim();
+    const hasReason = /\b(karena|sebab|akibat|mengapa|alasan|jadi|sehingga)\b/i.test(answer);
+    const hasExample = /\b(contoh|misal|seperti|misalnya|ilustrasi)\b/i.test(answer);
+    let prompt;
+    if (!hasExample) {
+      prompt = `Kamu menyebutkan "${truncateMock(answer, focus)}". Berikan satu contoh nyata yang menggambarkan hal itu, lalu jelaskan kaitannya dengan ${focus}.`;
+    } else if (!hasReason) {
+      prompt = `Kamu menyebutkan "${truncateMock(answer, focus)}". Jelaskan alasan atau sebab-akibat di balik itu menurut pemahamanmu.`;
+    } else {
+      prompt = `Dari jawabanmu ("${truncateMock(answer, focus)}"), bandingkan dengan sudut pandang lain lalu simpulkan mana yang lebih tepat menurutmu dan mengapa.`;
+    }
+    return JSON.stringify({ prompt, focus, ideal: "Jawaban lanjutan yang konsisten dengan jawaban utama dan menunjukkan pemahaman lebih dalam." });
   }
   return JSON.stringify({});
+}
+
+function truncateMock(text, focus) {
+  const t = String(text || "").trim();
+  if (!t) return focus || "topik";
+  return t.length > 90 ? `${t.slice(0, 90)}…` : t;
 }
 
 async function callOpenRouter(messages, schemaHint, context = {}) {
