@@ -30,6 +30,7 @@ class OpenRouterProvider extends AIProvider {
         tenantId: request.tenantId,
         userId: request.userId,
         action: "evaluate-harness",
+        runId: request.runId,
         // Generation parameters (FR-16 / P0) forwarded to the provider.
         gen: {
           temperature: request.temperature,

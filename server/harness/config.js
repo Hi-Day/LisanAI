@@ -55,6 +55,30 @@ function defaultConfig(overrides = {}) {
       rounding: "half-up", // how final score is rounded
       clamp: true, // keep final score in [0, 100]
     },
+    // P1-4/P1-5/P1-17 — Adaptive verification risk + policy. Additive over the
+    // deterministic verification gate: risk only escalates to REVIEW / flags
+    // for human review / retry; it never alters a numeric score and never
+    // bypasses evidence validation.
+    risk: {
+      enabled: flagDefault("RISK_ENGINE", true),
+      weights: {
+        confidence: 0.25,
+        evidence: 0.25,
+        disagreement: 0.2,
+        difficulty: 0.1,
+        anomaly: 0.2,
+      },
+      thresholds: {
+        low: Number(process.env.RISK_LOW_THRESHOLD ?? 0.3),
+        high: Number(process.env.RISK_HIGH_THRESHOLD ?? 0.6),
+      },
+      policy: {
+        policyVersion: "evaluation-policy-v2",
+        verification: { low: false, medium: true, high: true },
+        retry: { low: 0, medium: 1, high: 1 },
+        humanReview: { scoreInstability: Number(process.env.SCORE_STABILITY_THRESHOLD ?? 10) },
+      },
+    },
   };
   return deepMerge(defaults, overrides || {});
 }

@@ -71,6 +71,13 @@ async function initDatabase() {
   await ensureColumn("evaluation_runs", "config_hash", "TEXT");
   await ensureColumn("evaluation_runs", "published", "INTEGER");
   await ensureColumn("evaluation_runs", "requires_human_review", "INTEGER");
+  // P1 (migration 014): context versioning, risk/policy, cost attribution.
+  await ensureColumn("evaluation_runs", "context_hash", "TEXT");
+  await ensureColumn("evaluation_runs", "context_version", "TEXT");
+  await ensureColumn("evaluation_runs", "risk_score", "REAL");
+  await ensureColumn("evaluation_runs", "risk_level", "TEXT");
+  await ensureColumn("evaluation_runs", "policy_applied", "TEXT");
+  await ensureColumn("ai_logs", "run_id", "TEXT");
 }
 
 function getDb() {

@@ -37,11 +37,11 @@ Platform assessment lisan berbasis AI untuk guru dan siswa dengan multi-tenant, 
 
 3. Isi `OPENROUTER_API_KEY` di `.env`.
 
-4. Opsional — aktifkan **Trustworthy Assessment Harness** (evidence verification,
-   publication gate, reproducibility, reliability). Tambahkan ke `.env`:
+4. Evaluasi menggunakan **Trustworthy Assessment Harness** — satu-satunya evaluation
+   engine (evidence verification, publication gate, reproducibility, reliability,
+   risk-based adaptive verification). Tambahkan ke `.env`:
 
    ```bash
-   HARNESS_EVALUATION=true
    HARNESS_PROVIDER=openrouter
    MAX_EVALUATION_RETRIES=1
    ```

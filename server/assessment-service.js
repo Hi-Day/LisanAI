@@ -215,41 +215,6 @@ function buildRecommendConfigMessages(payload) {
 const RECOMMEND_CONFIG_SCHEMA =
   'Format: {"outcomes":"3-5 learning outcome dalam baris terpisah","rubric":"rubrik berbobot total 100% dalam baris terpisah"}';
 
-function buildEvaluateMessages(payload) {
-  const isOralExam = payload.assessment?.oralExamEnabled !== false;
-  const qa_pairs = payload.assessment.questions.map((q, i) => ({
-    question: q.prompt,
-    learning_outcome: q.outcome || payload.assessment.outcomes || "",
-    rubrik: q.rubric || payload.assessment.rubric || "",
-    student_answer: payload.answers[i] || "(Tidak ada jawaban)",
-  }));
-
-  const pedomanPenilaianLisan = isOralExam
-    ? "INSTRUKSI PENTING: Ini adalah UJIAN LISAN, jawaban siswa adalah transkrip ucapan lisan (hasil speech-to-text). " +
-      "Oleh karena itu JANGAN memberi hukuman/penilaian terhadap: tanda baca, tata tulis, struktur kalimat tertulis, ragam bahasa formal, atau kalimat yang terkesan bertele/kurang rapi. " +
-      "Nilai berdasarkan: keakuratan dan kelengkapan isi, kesesuaian dengan rubrik, pemahaman konsep, serta kemampuan mengkomunikasikan ide secara lisan. " +
-      "Feedback strength dapat menyarikan; feedback tentang 'kurang' hanya boleh menyebutkan aspek SUBSTANSI (isi, pemahaman, kelengkapan, kejelasan ide) — bukan yang mengenai format tulisan."
-    : "Nilai jawaban siswa berdasarkan rubrik guru. Berikan skor objektif dan feedback personal.";
-
-  return [
-    {
-      role: "user",
-      content: JSON.stringify({
-        tugas: "Nilai ujian lisan siswa berdasarkan rubrik guru. Berikan skor objektif dan feedback personal yang ramah.",
-        jenis_penilaian: isOralExam ? "ujian lisan / oral examination" : "jawaban tertulis",
-        pedoman_penilaian: pedomanPenilaianLisan,
-        rubrik_penilaian: payload.assessment.rubric,
-        topik: payload.assessment.topic,
-        studentName: payload.studentName,
-        qa_pairs,
-      }),
-    },
-  ];
-}
-
-const EVALUATE_SCHEMA =
-  'Format: {"finalScore":0-100,"feedback":"...","questionScores":[{"question":"...","answer":"...","score":0-100,"matched":["..."],"strengths":["..."],"gaps":["..."]}]}';
-
 function buildImproveQuestionsMessages(payload) {
   return [
     {
@@ -326,25 +291,8 @@ function normalizeQuestion(payload) {
   });
 }
 
-function normalizeQuestionScore(item) {
-  return {
-    question: String(item.question || ""),
-    answer: String(item.answer || ""),
-    score: clampScore(item.score),
-    matched: Array.isArray(item.matched) ? item.matched.map(String) : [],
-    strengths: Array.isArray(item.strengths) ? item.strengths.map(String) : [],
-    gaps: Array.isArray(item.gaps) ? item.gaps.map(String) : [],
-  };
-}
-
-function clampScore(value) {
-  const score = Number(value);
-  if (!Number.isFinite(score)) return 0;
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
 // ---------------------------------------------------------------------------
-// Non-streaming (legacy) API — used by /api/v1 and tests
+// Question generation (non-streaming)
 // ---------------------------------------------------------------------------
 
 async function generateQuestions(payload) {
@@ -380,31 +328,6 @@ async function recommendAssessmentConfig(payload) {
     outcomes: String(result.outcomes || "").trim(),
     rubric: String(result.rubric || "").trim(),
   };
-}
-
-async function evaluateAnswers(payload) {
-  const result = await callOpenRouter(
-    buildEvaluateMessages(payload),
-    EVALUATE_SCHEMA,
-    {
-      tenantId: payload.tenantId,
-      userId: payload.userId,
-      action: "evaluate",
-    }
-  );
-
-  if (!Array.isArray(result.questionScores)) throw new Error("Model tidak mengembalikan penilaian per soal");
-  const evaluation = {
-    finalScore: clampScore(result.finalScore),
-    feedback: String(result.feedback || "Feedback belum tersedia."),
-    questionScores: result.questionScores.map((item, index) => {
-      const normalized = normalizeQuestionScore(item);
-      normalized.answer = payload.answers[index] || "";
-      return normalized;
-    }),
-  };
-  validateLegacyEvaluation(evaluation);
-  return evaluation;
 }
 
 async function improveQuestionSet(payload) {
@@ -471,48 +394,6 @@ async function streamRecommendAssessmentConfig(payload, onChunk) {
   };
 }
 
-async function streamEvaluateAnswers(payload, onChunk) {
-  const { parsed } = await streamCall(
-    buildEvaluateMessages(payload),
-    EVALUATE_SCHEMA,
-    { tenantId: payload.tenantId, userId: payload.userId, action: "evaluate" },
-    onChunk
-  );
-  if (!Array.isArray(parsed.questionScores)) throw new Error("Model tidak mengembalikan penilaian per soal");
-  const evaluation = {
-    finalScore: clampScore(parsed.finalScore),
-    feedback: String(parsed.feedback || "Feedback belum tersedia."),
-    questionScores: parsed.questionScores.map((item, index) => {
-      const normalized = normalizeQuestionScore(item);
-      normalized.answer = payload.answers[index] || "";
-      return normalized;
-    }),
-  };
-  validateLegacyEvaluation(evaluation);
-  return evaluation;
-}
-
-/**
- * Validate the structure of a legacy evaluation output before returning it.
- * Throws if the output fails basic integrity checks.
- */
-function validateLegacyEvaluation(evaluation) {
-  if (!evaluation || typeof evaluation !== "object") {
-    throw new Error("Hasil evaluasi tidak valid");
-  }
-  if (!Number.isFinite(evaluation.finalScore) || evaluation.finalScore < 0 || evaluation.finalScore > 100) {
-    throw new Error("Skor akhir evaluasi tidak valid");
-  }
-  if (!Array.isArray(evaluation.questionScores) || evaluation.questionScores.length === 0) {
-    throw new Error("Evaluasi tidak memiliki penilaian per soal");
-  }
-  for (const qs of evaluation.questionScores) {
-    if (!Number.isFinite(qs.score) || qs.score < 0 || qs.score > 100) {
-      throw new Error(`Skor soal tidak valid: ${qs.score}`);
-    }
-  }
-}
-
 async function streamImproveQuestionSet(payload, onChunk) {
   const { parsed } = await streamCall(
     buildImproveQuestionsMessages(payload),
@@ -531,7 +412,6 @@ module.exports = {
   calibrateRubricSet,
   enforceRubricAlignment,
   enforceSingleSubstance,
-  evaluateAnswers,
   generateQuestions,
   improveQuestionSet,
   isMultiPartPrompt,
@@ -540,7 +420,6 @@ module.exports = {
   recommendAssessmentConfig,
   streamAlignRubricSet: streamCalibrateRubricSet,
   streamCalibrateRubricSet,
-  streamEvaluateAnswers,
   streamGenerateQuestions,
   streamImproveQuestionSet,
   streamRecommendAssessmentConfig,

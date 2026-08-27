@@ -4,8 +4,12 @@ const { getDb } = require("../server/database");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 const {
   compareAiVsHuman,
+  compareCalibration,
   saveHumanScore,
   rubricCompliance,
+  reliabilityDashboard,
+  detectDrift,
+  repeatabilitySummary,
 } = require("../server/evaluation/research");
 const { readRun } = require("../server/evaluation/trace-persister");
 const {
@@ -99,6 +103,26 @@ module.exports = async (req, res) => {
       if (action === "approvals") {
         const rows = await listApprovals({ tenantId, assessmentId, sweep: false });
         return sendJson(res, 200, { approvals: rows });
+      }
+      if (action === "calibration") {
+        // P1-6/P1-8 — Confidence calibration: ECE, Brier, reliability diagram.
+        const data = await compareCalibration(assessmentId, tenantId);
+        return sendJson(res, 200, data);
+      }
+      if (action === "reliability") {
+        // P1-20 — Reliability dashboard aggregate.
+        const data = await reliabilityDashboard(tenantId);
+        return sendJson(res, 200, data);
+      }
+      if (action === "drift") {
+        // P1-19 — Drift detection over human agreement.
+        const data = await detectDrift(tenantId);
+        return sendJson(res, 200, data);
+      }
+      if (action === "repeatability") {
+        // P1-10 — Repeatability across identical re-evaluations.
+        const data = await repeatabilitySummary(tenantId);
+        return sendJson(res, 200, data);
       }
       if (action === "runs") {
         const db = getDb();

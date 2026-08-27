@@ -2,7 +2,7 @@ const { ensureDatabase } = require("../server/bootstrap");
 const { getDb } = require("../server/database");
 const { readJson, sendJson } = require("../server/http-utils");
 const { authenticateApiKey } = require("../server/api-auth");
-const { generateQuestions, evaluateAnswers, recommendAssessmentConfig } = require("../server/assessment-service");
+const { generateQuestions, recommendAssessmentConfig } = require("../server/assessment-service");
 const { assertRateLimit } = require("../server/rate-limit");
 
 /**
@@ -103,7 +103,9 @@ module.exports = async (req, res) => {
         { name: "answers", type: "array", label: "Jawaban siswa" },
       ]);
       if (err) return sendJson(res, 400, { error: err.error });
-      const evaluation = await evaluateAnswers(payload);
+      // P1-15 — The harness is the single evaluation engine (was evaluateAnswers).
+      const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
+      const evaluation = await evaluateWithHarness(payload);
       return sendJson(res, 200, { evaluation });
     }
 

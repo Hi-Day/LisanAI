@@ -43,14 +43,17 @@ async function persistEvaluationTrace(snapshot) {
   const published = result && typeof result.published === "boolean" ? (result.published ? 1 : 0) : null;
   const requiresHumanReview =
     result && typeof result.requiresHumanReview === "boolean" ? (result.requiresHumanReview ? 1 : 0) : null;
+  const versioning = (result && result.versioning) || {};
+  const risk = (result && result.risk) || {};
   try {
     await db.run(
       `INSERT INTO evaluation_runs
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
-          input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
+          context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -58,8 +61,8 @@ async function persistEvaluationTrace(snapshot) {
       assessmentId,
       result ? result.submissionId || null : null,
       model || "unknown",
-      promptVersion || "v1",
-      rubricVersion || "v1",
+      versioning.promptVersion || promptVersion || "v1",
+      versioning.rubricVersion || rubricVersion || "v1",
       vHarness,
       vEngine,
       result ? result.finalScore : null,
@@ -72,6 +75,11 @@ async function persistEvaluationTrace(snapshot) {
       repro.configHash || null,
       published,
       requiresHumanReview,
+      versioning.contextHash || null,
+      versioning.contextVersion || null,
+      risk.score != null ? risk.score : null,
+      risk.level || null,
+      risk.policy ? JSON.stringify(risk.policy) : null,
       new Date().toISOString()
     );
   } catch (runErr) {
@@ -87,16 +95,17 @@ async function persistEvaluationTrace(snapshot) {
          (run_id, tenant_id, user_id, assessment_id, submission_id, model,
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
-          input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
+          context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
       meta.userId || null,
       result ? result.submissionId || null : null,
       model || "unknown",
-      promptVersion || "v1",
-      rubricVersion || "v1",
+      versioning.promptVersion || promptVersion || "v1",
+      versioning.rubricVersion || rubricVersion || "v1",
       vHarness,
       vEngine,
       result ? result.finalScore : null,
@@ -109,9 +118,13 @@ async function persistEvaluationTrace(snapshot) {
       repro.configHash || null,
       published,
       requiresHumanReview,
+      versioning.contextHash || null,
+      versioning.contextVersion || null,
+      risk.score != null ? risk.score : null,
+      risk.level || null,
+      risk.policy ? JSON.stringify(risk.policy) : null,
       new Date().toISOString()
     );
-    // Store the original assessment id in the trace for auditing if the schema supports it.
   }
 
   // Events (append-only).

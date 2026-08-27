@@ -1,10 +1,8 @@
 const {
-  evaluateAnswers,
   generateQuestions,
   improveQuestionSet,
   recommendAssessmentConfig,
   streamAlignRubricSet,
-  streamEvaluateAnswers,
   streamGenerateQuestions,
   streamImproveQuestionSet,
   streamRecommendAssessmentConfig,
@@ -58,18 +56,13 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRecommendAssessmentConfig(payload, onChunk);
       writeSse(res, { type: "result", data: { recommendation: result } });
     } else if (action === "evaluate") {
-      // Harness is the default evaluation engine. HARNESS_EVALUATION=legacy
-      // restores the legacy path for backward compatibility.
-      if (process.env.HARNESS_EVALUATION !== "legacy" && payload) {
-        const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
-        const combined = { ...payload, auth };
-        const evaluation = await evaluateWithHarness(combined);
-        writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
-        writeSse(res, { type: "result", data: { evaluation, harness: true } });
-      } else {
-        result = await streamEvaluateAnswers(payload, onChunk);
-        writeSse(res, { type: "result", data: { evaluation: result } });
-      }
+      // P1-15 — The harness is the single evaluation engine. The legacy
+      // single-LLM path has been removed from production traffic.
+      const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
+      const combined = { ...payload, auth };
+      const evaluation = await evaluateWithHarness(combined);
+      writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
+      writeSse(res, { type: "result", data: { evaluation, harness: true } });
     } else {
       writeSse(res, { type: "error", message: "Action not found" });
     }
@@ -152,16 +145,11 @@ module.exports = async (req, res) => {
           return sendJson(res, authError.status || 403, { error: authError.message });
         }
       }
-      // Harness is the default evaluation engine. HARNESS_EVALUATION=legacy
-      // restores the legacy path for backward compatibility.
-      if (process.env.HARNESS_EVALUATION !== "legacy") {
-        const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
-        const harnessPayload = { ...payload, auth };
-        const evaluation = await evaluateWithHarness(harnessPayload);
-        return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL, harness: true });
-      }
-      const evaluation = await evaluateAnswers(payload);
-      return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL });
+      // P1-15 — The harness is the single evaluation engine.
+      const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
+      const harnessPayload = { ...payload, auth };
+      const evaluation = await evaluateWithHarness(harnessPayload);
+      return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL, harness: true });
     }
 
     // Role check for teacher/admin actions

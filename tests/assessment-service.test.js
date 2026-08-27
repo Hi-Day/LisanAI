@@ -94,48 +94,6 @@ test("generateQuestions throws when the model returns no questions array", async
   );
 });
 
-test("evaluateAnswers clamps scores to 0-100 and attaches answers", async () => {
-  mockOpenRouter({
-    finalScore: 150,
-    feedback: "Bagus",
-    questionScores: [
-      { question: "Q1", score: 120, matched: ["konsep"], strengths: ["lancar"], gaps: [] },
-      { question: "Q2", score: -10, matched: [], strengths: [], gaps: ["kurang"] },
-    ],
-  });
-
-  const result = await assessmentService.evaluateAnswers({
-    assessment: {
-      topic: "T",
-      rubric: "R",
-      outcomes: "O",
-      questions: [{ prompt: "Q1" }, { prompt: "Q2" }],
-    },
-    answers: ["Jawaban 1", "Jawaban 2"],
-    studentName: "Siswa",
-    tenantId: "tenant-1",
-    userId: "user-1",
-  });
-
-  assert.equal(result.finalScore, 100); // clamped from 150
-  assert.equal(result.questionScores[0].score, 100); // clamped
-  assert.equal(result.questionScores[1].score, 0); // clamped from -10
-  assert.equal(result.questionScores[0].answer, "Jawaban 1");
-  assert.equal(result.questionScores[1].answer, "Jawaban 2");
-});
-
-test("evaluateAnswers throws when questionScores is missing", async () => {
-  mockOpenRouter({ finalScore: 80 });
-  await assert.rejects(
-    () =>
-      assessmentService.evaluateAnswers({
-        assessment: { questions: [{ prompt: "Q1" }] },
-        answers: ["A"],
-      }),
-    /tidak mengembalikan penilaian per soal/
-  );
-});
-
 test("recommendAssessmentConfig returns trimmed outcomes and rubric", async () => {
   mockOpenRouter({
     outcomes: "  1. Outcome A\n2. Outcome B  ",

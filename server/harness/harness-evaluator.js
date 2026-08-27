@@ -8,13 +8,12 @@ const { parseRubricText } = require("./plugins/rubric");
 /**
  * Evaluate assessment answers through the Assessment Harness.
  *
- * Preserves the existing frontend contract of `evaluateAnswers`:
+ * Preserves the existing frontend contract:
  *   { finalScore, feedback, questionScores:[...] }
  * but now also attaches harness provenance (evaluationRunId, criteria, trace).
  *
- * Set HARNESS_EVALUATION=true to route evaluation through the harness.
  * Set HARNESS_PROVIDER=mock|openrouter to pick the provider (default mock
- * when no API key).
+ * when no API key). The harness is the single evaluation engine (P1-15).
  */
 async function evaluateWithHarness(payload) {
   const harness = createHarness(payload.harnessConfig || {});
@@ -105,6 +104,7 @@ async function evaluateWithHarness(payload) {
     verification,
     versioning: result.versioning,
     reliability: result.reliability,
+    risk: result.risk,
     rubricAlignment:
       aligned && aligned.excludedCriterionIds.length > 0
         ? { active: true, excludedCriterionIds: aligned.excludedCriterionIds }

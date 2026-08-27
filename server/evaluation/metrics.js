@@ -130,6 +130,150 @@ function evaluateMetrics(ai, human) {
 }
 
 // ---------------------------------------------------------------------------
+// Confidence Calibration (P1-6 / P1-8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Partition confidence+correctness pairs into bins and return each bin's
+ * average confidence, empirical accuracy (correctness rate) and count.
+ *
+ * @param {number[]} confidence   predicted probabilities in [0,1]
+ * @param {number[]} correctness  empirical correctness, 0 or 1, same length
+ * @param {number} [bins=10]      number of equal-width bins in [0,1]
+ * @returns {{bins: Array<{confidence:number, accuracy:number, count:number}>, n:number}}
+ */
+function calibrationBins(confidence, correctness, bins = 10) {
+  if (confidence.length !== correctness.length || confidence.length === 0) {
+    return { bins: [], n: 0 };
+  }
+  const out = Array.from({ length: bins }, (_, i) => ({
+    low: i / bins,
+    high: (i + 1) / bins,
+    confidenceSum: 0,
+    correctnessSum: 0,
+    count: 0,
+  }));
+  let n = 0;
+  for (let i = 0; i < confidence.length; i += 1) {
+    const c = clamp01(confidence[i]);
+    const idx = Math.min(bins - 1, Math.floor(c * bins));
+    out[idx].confidenceSum += c;
+    out[idx].correctnessSum += correctness[i] === 1 || correctness[i] === true ? 1 : 0;
+    out[idx].count += 1;
+    n += 1;
+  }
+  return {
+    n,
+    bins: out.map((b) => ({
+      low: b.low,
+      high: b.high,
+      confidence: b.count ? round(b.confidenceSum / b.count, 4) : null,
+      accuracy: b.count ? round(b.correctnessSum / b.count, 4) : null,
+      count: b.count,
+    })),
+  };
+}
+
+/**
+ * Expected Calibration Error (P1-8). ECE = Σ_bin |accuracy − confidence| ×
+ * (count/total). 0 = perfectly calibrated.
+ */
+function expectedCalibrationError(confidence, correctness, bins = 10) {
+  const { bins: binList, n } = calibrationBins(confidence, correctness, bins);
+  if (n === 0) return NaN;
+  return round(
+    binList.reduce((acc, b) => {
+      if (!b.count) return acc;
+      return acc + Math.abs(b.accuracy - b.confidence) * (b.count / n);
+    }, 0),
+    4
+  );
+}
+
+/**
+ * Brier score (P1-8). Brier = mean((confidence − correctness)^2). Lower is
+ * better; 0 is perfect, 1 is worst for binary outcomes.
+ */
+function brierScore(confidence, correctness) {
+  if (confidence.length === 0 || confidence.length !== correctness.length) return NaN;
+  const sum = confidence.reduce((acc, c, i) => {
+    const target = correctness[i] === 1 || correctness[i] === true ? 1 : 0;
+    return acc + (clamp01(c) - target) ** 2;
+  }, 0);
+  return round(sum / confidence.length, 4);
+}
+
+// ---------------------------------------------------------------------------
+// Score Stability / Repeatability (P1-10 / P1-11)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether two scores for the same submission are "stable" (within tolerance).
+ * Default tolerance follows PRD P1-11: SCORE_STABILITY_THRESHOLD = 10.
+ */
+function isScoreStable(scoreA, scoreB, tolerance = 10) {
+  if (!Number.isFinite(scoreA) || !Number.isFinite(scoreB)) return false;
+  return Math.abs(scoreA - scoreB) <= tolerance;
+}
+
+/**
+ * Repeatability across repeated runs of the same inputs.
+ * Returns the fraction of repeated evaluations within tolerance, plus the mean
+ * absolute difference and per-item stability flags.
+ *
+ * @param {Array<number[]|number>} runs  one array of scores per repeat, OR a
+ *   flat array of scores for a single submission.
+ * @param {number} [tolerance=10]
+ */
+function scoreStability(runs, tolerance = 10) {
+  const arr = Array.isArray(runs) ? runs : [];
+  if (arr.length === 0) return { n: 0, stableRatio: null, meanAbsDiff: null };
+  // Flat single-submission vector: compare consecutive repeats.
+  if (typeof arr[0] === "number") {
+    const scores = arr.map(Number);
+    if (scores.length < 2) return { n: scores.length, stableRatio: null, meanAbsDiff: null };
+    const diffs = [];
+    for (let i = 1; i < scores.length; i += 1) diffs.push(Math.abs(scores[i] - scores[i - 1]));
+    const stable = diffs.filter((d) => d <= tolerance).length;
+    return {
+      n: scores.length,
+      stableRatio: round(stable / diffs.length, 4),
+      meanAbsDiff: round(diffs.reduce((a, b) => a + b, 0) / diffs.length, 4),
+    };
+  }
+  // Matrix of runs × submissions: assess per-submission stability across runs.
+  const nSub = arr[0] ? arr[0].length : 0;
+  if (nSub === 0) return { n: 0, stableRatio: null, meanAbsDiff: null };
+  const perSub = [];
+  for (let s = 0; s < nSub; s += 1) {
+    const scores = arr.map((r) => Number(r[s])).filter(Number.isFinite);
+    if (scores.length < 2) continue;
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    perSub.push({ stable: isScoreStable(min, max, tolerance), spread: max - min });
+  }
+  if (perSub.length === 0) return { n: 0, stableRatio: null, meanAbsDiff: null };
+  const meanSpread = perSub.reduce((a, b) => a + b.spread, 0) / perSub.length;
+  const stableCount = perSub.filter((p) => p.stable).length;
+  return {
+    n: perSub.length,
+    stableRatio: round(stableCount / perSub.length, 4),
+    meanAbsDiff: round(meanSpread, 4),
+  };
+}
+
+function clamp01(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+
+function round(v, places = 4) {
+  const f = 10 ** places;
+  return Math.round((v + Number.EPSILON) * f) / f;
+}
+
+// ---------------------------------------------------------------------------
 // Inter-Rater Reliability (PRD FR-20)
 // ---------------------------------------------------------------------------
 
@@ -307,4 +451,9 @@ module.exports = {
   weightedKappa,
   iccTwoWay,
   interRaterMetrics,
+  calibrationBins,
+  expectedCalibrationError,
+  brierScore,
+  isScoreStable,
+  scoreStability,
 };

@@ -5,6 +5,7 @@ const { Trace } = require("./trace");
 const { defaultConfig, validateConfig } = require("./config");
 const { validateOutput } = require("./validator");
 const { buildReproducibilityHashes } = require("./reproducibility");
+const contextCache = require("./context-cache");
 
 /**
  * AssessmentHarness — controls, validates, and records the judgment process.
@@ -197,6 +198,45 @@ class AssessmentHarness {
       // equal when their full input was identical.
       ctx.promptForHash = combined;
 
+      // P1-1/P1-3 — Stable context identity. Hash only the STABLE context
+      // (system prompt + rubric + questions + sampling + model), namespaced by
+      // tenant. Never the student answers. Used for context caching and for
+      // tracing which context produced a result. On a cache hit we reuse the
+      // already-compiled stable prompt/rubric (avoiding recompilation); the
+      // model still runs per student, so safety is preserved.
+      const { computeContextHash, computeContextVersion, get: ctxGet, set: ctxSet } = contextCache;
+      const ctxHash = computeContextHash({
+        tenantId: input.tenantId,
+        rubric: ctx.rubric,
+        questions: ctx.assessment ? ctx.assessment.questions : undefined,
+        model: this.config.model.model,
+        temperature: this.config.model.temperature,
+        topP: this.config.model.topP,
+        maxTokens: this.config.model.maxTokens,
+        promptTemplate: ctx.systemPrompt,
+        harnessVersion: this.config.version,
+        engineVersion: this.config.engineVersion,
+        promptVersion: "v1",
+      });
+      const ctxVersion = computeContextVersion(ctxHash);
+      ctx.contextHash = ctxHash;
+      ctx.contextVersion = ctxVersion;
+      const cachedContext = ctxGet(input.tenantId, ctxHash);
+      if (cachedContext) {
+        trace.event("CONTEXT_CACHE_HIT", { contextHash: ctxHash, contextVersion: ctxVersion });
+        if (cachedContext.systemPrompt) ctx.systemPrompt = cachedContext.systemPrompt;
+        if (cachedContext.rubric) ctx.rubric = cachedContext.rubric;
+      } else {
+        trace.event("CONTEXT_CACHE_MISS", { contextHash: ctxHash, contextVersion: ctxVersion });
+        ctxSet(input.tenantId, ctxHash, {
+          contextHash: ctxHash,
+          contextVersion: ctxVersion,
+          systemPrompt: ctx.systemPrompt,
+          rubric: ctx.rubric,
+          compiledAt: new Date().toISOString(),
+        });
+      }
+
       const rawContent = await this.provider.generate({
         prompt: combined, // preserved for the mock provider + legacy consumers
         systemPrompt: ctx.systemPrompt,
@@ -272,8 +312,23 @@ class AssessmentHarness {
     // verification clears it. FAIL → never published; REVIEW → requires human
     // review; PASS → published automatically.
     const status = verificationResult.status;
-    const published = status === "PASS";
-    const requiresHumanReview = status === "REVIEW";
+    let published = status === "PASS";
+    let requiresHumanReview = status === "REVIEW";
+
+    // P1-4/P1-5/P1-17 — Adaptive verification risk + policy. Additive layer:
+    // it can only escalate PASS → human review (or force FAIL treatment); it
+    // NEVER mutates the score and NEVER bypasses evidence/verification.
+    let risk = this.computeRisk(criteria, verificationResult, input);
+    if (risk) {
+      risk = { ...risk, ...this.applyRiskPolicy(risk) };
+      const policy = risk.policy;
+      // Risk escalation is REVIEW-only: never downgrade an already-flagged run.
+      if (policy && policy.requiresHumanReview) {
+        requiresHumanReview = true;
+        if (published) published = false;
+      }
+      trace.event("RISK", { score: risk.score, level: risk.level, decision: policy && policy.decision });
+    }
 
     const output = {
       evaluationId: `ev_${crypto.randomBytes(6).toString("hex")}`,
@@ -300,16 +355,20 @@ class AssessmentHarness {
         rubricVersion: (rubric && rubric.id) || "v1",
         harnessVersion: this.config.version,
         engineVersion: this.config.engineVersion,
+        contextHash: result.contextHash || null,
+        contextVersion: result.contextVersion || null,
       },
       // Question ↔ rubric mapping (P0): which rubric categories each question
       // measures, stamped at generation time by enforceRubricAlignment. Persisted
       // with the trace so the audit can show every question's rubric category.
       questionRubric: buildQuestionRubricMap(input, rubric),
+      risk,
       trace: trace.snapshot({ result: undefined }).events,
     };
     trace.setContext("finalScore", output.finalScore);
     trace.setContext("published", published);
     trace.setContext("requiresHumanReview", requiresHumanReview);
+    if (risk) trace.setContext("risk", risk);
     return output;
   }
 
@@ -351,6 +410,43 @@ class AssessmentHarness {
       status: fatalIssues.length === 0 ? "PASS" : "FAIL",
       reasons: fatalIssues,
       scoreConsistency: null,
+    };
+  }
+
+  /**
+   * P1-4 — Compute the adaptive risk score for a result.
+   * Returns null when the risk engine is disabled, so callers can treat risk
+   * as fully optional.
+   */
+  computeRisk(criteria, verification, input) {
+    const riskCfg = this.config.risk;
+    if (!riskCfg || riskCfg.enabled === false) return null;
+    const { computeRiskScore } = require("./risk");
+    const score = computeRiskScore(
+      {
+        criteria,
+        verification,
+        difficulty: input && input.assessment ? input.assessment.difficulty : null,
+      },
+      riskCfg.weights
+    );
+    return { score };
+  }
+
+  /**
+   * P1-5/P1-17 — Apply the configured policy to a risk score.
+   * Records the risk level and the policy decision. REVIEW-only escalation is
+   * applied by the caller (finalize); this method never touches the score.
+   */
+  applyRiskPolicy(risk) {
+    const { classifyRisk, applyPolicy } = require("./risk");
+    const riskCfg = this.config.risk || {};
+    const level = classifyRisk(risk.score, riskCfg.thresholds);
+    const policy = applyPolicy(level, {}, riskCfg.policy);
+    return {
+      score: risk.score,
+      level,
+      policy,
     };
   }
 
@@ -447,6 +543,8 @@ function harnessOutput(ctx, parsed, { runId, input }) {
       feedback: parsed.feedback || "",
       submissionId: parsed.submissionId || null,
       promptForHash: ctx.promptForHash || null,
+      contextHash: ctx.contextHash || null,
+      contextVersion: ctx.contextVersion || null,
     };
   }
   const qs = Array.isArray(parsed && parsed.questionScores) ? parsed.questionScores : [];
@@ -479,6 +577,8 @@ function harnessOutput(ctx, parsed, { runId, input }) {
     feedback: parsed.feedback || "",
     submissionId: parsed.submissionId || null,
     promptForHash: ctx.promptForHash || null,
+    contextHash: ctx.contextHash || null,
+    contextVersion: ctx.contextVersion || null,
   };
 }
 
