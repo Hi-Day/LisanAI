@@ -84,7 +84,147 @@ function stripToSingleSubstance(prompt) {
 }
 
 // ---------------------------------------------------------------------------
-// Question ↔ Rubric alignment
+// Oral-scenario question guard
+// ---------------------------------------------------------------------------
+// Aturan: soal harus dirancang untuk skenario ujian LISAN yang spontan dan
+// mengukur CARA/PROSES berpikir, bukan sekadar hafalan atau jawaban tertutup
+// yang mudah disalin dari catatan/AI. Berdampingan dengan single-substance.
+
+const ORAL_SCENARIO_RULES = [
+  "Soal harus dirancang untuk skenario UJIAN LISAN: dijawab langsung, spontan, realtime lewat lisan — BUKAN untuk ditulis atau disalin dari catatan/AI.",
+  "Soal harus mengukur CARA dan PROSES berpikir siswa (menjelaskan alasan, membandingkan, mengevaluasi, memprediksi, menguji langkah) yang diutarakan spontan lewat lisan.",
+  "DILARANG soal tertutup yang cukup dijawab 'ya/tidak', satu angka, satu nama, atau satu kata — karena tidak mengukur pemikiran dan mudah dihafal/ditiru AI.",
+  "HINDARI soal hafalan semata ('sebutkan definisi/pengertian X') bila tidak menuntut siswa menafsirkan, menerapkan, atau menjelaskan alasan.",
+  "Tetap patuhi prinsip SATU substansi: cukup satu kalimat tanya dan satu tujuan; konteks boleh ditulis sebagai kalimat pembuka deterministik, lalu diakhiri SATU pertanyaan berpikir.",
+].join(" ");
+
+// Kata/awalan yang menandai pertanyaan TERTUTUP (ya/tidak atau fakta tunggal).
+const CLOSED_QUESTION_PATTERN =
+  /\b(?:apakah|benarkah|betulkah|adakah|berapakah)\b|^(?:berapa|siapa|kapan|dimana|di mana)\b/i;
+
+// Pertanyaan yang hanya minta definisi/hafalan tanpa tuntutan bernalar.
+const RECALL_ONLY_PATTERN =
+  /\b(?:definisi|pengertian|arti|cirinya|macam-macam|pengertian dari)\b/i;
+
+// Kata yang menandakan tuntutan bernalar/memikir (membuat soal terbuka).
+const REASONING_PATTERN =
+  /\b(?:jelaskan|mengapa|kenapa|bandingkan|evaluasi|analisiss|uraikan|usulkan|buktikan|prediksi|perkirakan|bagaimana|cara|proses|alasan|akibat|pengaruh|kaitannya)\b/i;
+
+/**
+ * Deteksi apakah sebuah prompt adalah soal tertutup / hafalan semata yang
+ * TIDAK cocok untuk skenario ujian lisan reflektif.
+ * Mengembalikan true bila soal harus diperbaiki menjadi lebih terbuka.
+ */
+function isClosedRecallQuestion(prompt) {
+  const text = String(prompt || "").trim();
+  if (!text) return false;
+  const lower = text.toLowerCase();
+
+  // Pertanyaan tertutup (ya/tidak, fakta tunggal) tanpa tuntutan bernalar.
+  if (CLOSED_QUESTION_PATTERN.test(lower) && !REASONING_PATTERN.test(lower)) {
+    return true;
+  }
+
+  // Pertanyaan hafalan-murni (definisi/pengertian) tanpa tuntutan bernalar.
+  if (RECALL_ONLY_PATTERN.test(lower) && !REASONING_PATTERN.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+/** Kunci langsung: apakah prompt sudah cukup terbuka untuk ujian lisan. */
+function isOpenOralQuestion(prompt) {
+  return !isClosedRecallQuestion(prompt);
+}
+
+/**
+ * Pemangkasan/perwording ulang deterministik (last resort bila perbaikan model
+ * gagal): ubah soal tertutup menjadi soal yang menuntut alasan/penjelasan.
+ */
+function openClosedQuestion(prompt) {
+  let text = String(prompt || "").trim();
+  if (!isClosedRecallQuestion(text)) return text;
+
+  // "Apakah <X>?" -> "Mengapa <X>?" (tetap satu substansi, terbuka).
+  if (/^apakah\b/i.test(text)) {
+    return ensureSentenceEnding(text.replace(/^apakah\b/i, "Mengapa"));
+  }
+
+  // Hafalan-murni: ubah menjadi minta siswa menjelaskan dengan cara sendiri.
+  if (RECALL_ONLY_PATTERN.test(text.toLowerCase())) {
+    return ensureSentenceEnding(`Jelaskan dengan kata-katamu sendiri dan sertakan alasanmu: ${text}`);
+  }
+
+  // Awal fakta tunggal (berapa/siapa/kapan/di mana) tanpa penalar:
+  // tambahkan tuntutan menjelaskan proses/alasan di depan.
+  return ensureSentenceEnding(`Bagaimana dan mengapa: ${text}`);
+}
+
+function buildOralRepairMessages(payload, prompts) {
+  return [
+    {
+      role: "user",
+      content: JSON.stringify({
+        tugas: "Tulis ulang setiap soal tertutup/hafalan agar cocok untuk ujian lisan yang mengukur CARA dan PROSES berpikir secara spontan. Pertahankan inti topik dan substansi yang sama.",
+        topik: payload.topic,
+        learning_outcome: payload.outcomes,
+        aturan: ORAL_SCENARIO_RULES,
+        aturan_tambahan: "SINGLE_SUBSTANCE_RULES berlaku: setiap soal tetap satu substansi dan satu kalimat tanya.",
+        "jumlah_dan_urutan_hasil": "harus sama persis dengan jumlah input",
+        questions_tertutup: prompts,
+      }),
+    },
+  ];
+}
+
+const ORAL_REPAIR_SCHEMA =
+  'Format: {"questions":[{"prompt":"...","focus":"...","ideal":"..."}]}. Jumlah dan urutan questions HARUS sama dengan input.';
+
+async function enforceOralScenario(questions, payload) {
+  const flagged = [];
+  questions.forEach((question, index) => {
+    if (isClosedRecallQuestion(question.prompt)) flagged.push(index);
+  });
+  if (!flagged.length) return questions;
+
+  let repaired = null;
+  try {
+    repaired = await callOpenRouter(
+      buildOralRepairMessages(payload, flagged.map((index) => String(questions[index].prompt))),
+      ORAL_REPAIR_SCHEMA,
+      { tenantId: payload.tenantId, userId: payload.userId, action: "repair-questions-oral" }
+    );
+  } catch (err) {
+    console.error("Gagal memperbaiki soal tertutup, memakai deterministik:", err);
+  }
+
+  if (Array.isArray(repaired?.questions)) {
+    flagged.forEach((index, position) => {
+      const repair = repaired.questions[position];
+      if (!repair) return;
+      const prompt = String(repair.prompt || "").trim();
+      if (isClosedRecallQuestion(prompt)) return;
+      if (isMultiPartPrompt(prompt)) return;
+      questions[index] = {
+        ...questions[index],
+        prompt,
+        focus: String(repair.focus || questions[index].focus || "").trim(),
+        ideal: String(repair.ideal || questions[index].ideal || "").trim(),
+      };
+    });
+  }
+
+  questions.forEach((question) => {
+    if (isClosedRecallQuestion(question.prompt)) {
+      question.prompt = openClosedQuestion(question.prompt);
+    }
+  });
+  return questions;
+}
+
+// ---------------------------------------------------------------------------
+// Question ↔ Rubrik alignment
 // ---------------------------------------------------------------------------
 // Alignment dijalankan oleh "Soal ↔ Rubrik Alignment Harness"
 // (./harness/alignment.js): tiap soal hanya dinilai terhadap SUBSET kriteria
@@ -125,6 +265,7 @@ function buildGenerateQuestionsMessages(payload) {
         tingkat_kesulitan: payload.difficulty,
         contoh_soal_opsional: payload.examples || "",
         aturan_penulisan_soal: SINGLE_SUBSTANCE_RULES,
+        aturan_skenario_ujian_lisan: ORAL_SCENARIO_RULES,
         jumlah_soal: count,
       }),
     },
@@ -310,7 +451,8 @@ async function generateQuestions(payload) {
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = result.questions.slice(0, count).map(normalizeQuestion(payload));
   const singleSubstance = await enforceSingleSubstance(questions, payload);
-  return enforceRubricAlignment(singleSubstance, payload);
+  const oralReady = await enforceOralScenario(singleSubstance, payload);
+  return enforceRubricAlignment(oralReady, payload);
 }
 
 async function recommendAssessmentConfig(payload) {
@@ -344,7 +486,8 @@ async function improveQuestionSet(payload) {
   if (!Array.isArray(result.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = result.questions.map(normalizeQuestion(payload.config || {}));
   const singleSubstance = await enforceSingleSubstance(questions, payload.config || payload);
-  return enforceRubricAlignment(singleSubstance, payload.config || payload);
+  const oralReady = await enforceOralScenario(singleSubstance, payload.config || payload);
+  return enforceRubricAlignment(oralReady, payload.config || payload);
 }
 
 // ---------------------------------------------------------------------------
@@ -378,7 +521,8 @@ async function streamGenerateQuestions(payload, onChunk) {
   if (!Array.isArray(parsed.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = parsed.questions.slice(0, count).map(normalizeQuestion(payload));
   const singleSubstance = await enforceSingleSubstance(questions, payload);
-  return enforceRubricAlignment(singleSubstance, payload);
+  const oralReady = await enforceOralScenario(singleSubstance, payload);
+  return enforceRubricAlignment(oralReady, payload);
 }
 
 async function streamRecommendAssessmentConfig(payload, onChunk) {
@@ -404,18 +548,23 @@ async function streamImproveQuestionSet(payload, onChunk) {
   if (!Array.isArray(parsed.questions)) throw new Error("Model tidak mengembalikan daftar soal");
   const questions = parsed.questions.map(normalizeQuestion(payload.config || {}));
   const singleSubstance = await enforceSingleSubstance(questions, payload.config || payload);
-  return enforceRubricAlignment(singleSubstance, payload.config || payload);
+  const oralReady = await enforceOralScenario(singleSubstance, payload.config || payload);
+  return enforceRubricAlignment(oralReady, payload.config || payload);
 }
 
 module.exports = {
   alignRubricSet: calibrateRubricSet,
   calibrateRubricSet,
+  enforceOralScenario,
   enforceRubricAlignment,
   enforceSingleSubstance,
   generateQuestions,
   improveQuestionSet,
+  isClosedRecallQuestion,
   isMultiPartPrompt,
+  isOpenOralQuestion,
   mergeCalibration: alignmentHarness.mergeCalibration,
+  openClosedQuestion,
   parseRubricCriteria,
   recommendAssessmentConfig,
   streamAlignRubricSet: streamCalibrateRubricSet,

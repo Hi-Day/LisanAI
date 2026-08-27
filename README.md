@@ -116,6 +116,28 @@ npm run check   # syntax check + test
 - Billing/plan quota per tenant
 - Export report CSV/PDF
 
+### Feature: Probing (Follow-up) dalam Evaluasi Lisan
+
+Mekanisme follow-up/probing untuk menilai kedalaman pemikiran siswa, bukan
+sekadar kelancaran bicara.
+
+- Guru/penilai bisa mengajukan pertanyaan lanjutan berdasarkan respons siswa.
+- Probing menilai **proses berpikir & penalaran** (mengapa, bagaimana, dugaan
+  alternatif), bukan hanya jawaban akhir.
+- Direndang sebagai **nilai anti-AI-cheating**: jawaban lisan spontan + probing
+  dinamis sulit diprediksi atau disalin dari model.
+- Evaluasi harus menangkap bukti kedalaman (alasan, struktur argumen), bukan
+  kesan kefasihan permukaan.
+
+### Soal Ujian Lisan Berbasis Skenario (Berpikir Spontan)
+
+- Pembuatan soal harus sesuai skenario ujian lisan nyata, bukan sekadar
+  pertanyaan tertulis yang dibacakan.
+- Bentuk pertanyaan lebih banyak menguji **cara dan proses berpikir** yang
+  harus diutarakan spontan lewat lisan.
+- Tujuan: mengukur komunikasi + penalaran (kompetensi abad 21), bukan ingatan
+  atau jawaban hafalan.
+
 ## Demo dan Galeri
 
 ### Video Demonstrasi

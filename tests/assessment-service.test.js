@@ -162,6 +162,82 @@ test("stripToSingleSubstance keeps only the first substance", () => {
   );
 });
 
+test("isClosedRecallQuestion flags closed/hafalan questions but allows open reasoning questions", () => {
+  // Tertutup (ya/tidak) tanpa tuntutan bernalar -> harus diflag.
+  assert.equal(assessmentService.isClosedRecallQuestion("Apakah fotosintesis memerlukan cahaya matahari?"), true);
+  assert.equal(assessmentService.isClosedRecallQuestion("Berapa jumlah planet dalam tata surya kita?"), true);
+  assert.equal(assessmentService.isClosedRecallQuestion("Siapa presiden pertama Indonesia?"), true);
+  // Hafalan-murni tanpa bernalar -> harus diflag.
+  assert.equal(assessmentService.isClosedRecallQuestion("Sebutkan definisi fotosintesis."), true);
+  assert.equal(assessmentService.isClosedRecallQuestion("Apa pengertian dari demokrasi?"), true);
+
+  // Terbuka / reflektif -> lolos.
+  assert.equal(
+    assessmentService.isClosedRecallQuestion("Jelaskan mengapa fotosintesis memerlukan cahaya matahari."),
+    false
+  );
+  assert.equal(
+    assessmentService.isClosedRecallQuestion("Bandingkan proses fotosintesis dan respirasi pada tumbuhan."),
+    false
+  );
+  assert.equal(
+    assessmentService.isClosedRecallQuestion("Bagaimana perubahan iklim mempengaruhi ekosistem hutan? Jelaskan."),
+    false
+  );
+  assert.equal(assessmentService.isClosedRecallQuestion("Sebutkan tiga contoh komponen biotik dalam ekosistem."), false);
+});
+
+test("openClosedQuestion rewrites a closed question into an open thinking question", () => {
+  assert.equal(
+    assessmentService.openClosedQuestion("Apakah fotosintesis membutuhkan cahaya matahari?"),
+    "Mengapa fotosintesis membutuhkan cahaya matahari?"
+  );
+  assert.match(
+    assessmentService.openClosedQuestion("Sebutkan definisi fotosintesis?"),
+    /Jelaskan dengan kata-katamu sendiri/i
+  );
+  assert.match(
+    assessmentService.openClosedQuestion("Berapa jumlah planet dalam tata surya?"),
+    /Bagaimana dan mengapa/i
+  );
+});
+
+test("enforceOralScenario repairs closed questions into open ones via AI", async () => {
+  mockOpenRouter({
+    questions: [
+      {
+        prompt: "Mengapa fotosintesis memerlukan cahaya matahari? Jelaskan prosesnya.",
+        focus: "proses fotosintesis",
+        ideal: "Penjelasan peran cahaya dalam tahapan fotosintesis.",
+      },
+    ],
+  });
+
+  const result = await assessmentService.enforceOralScenario(
+    [{ prompt: "Apakah fotosintesis membutuhkan cahaya matahari?", focus: "", ideal: "" }],
+    { topic: "Fotosintesis", tenantId: "tenant-1", userId: "user-1" }
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(assessmentService.isClosedRecallQuestion(result[0].prompt), false);
+  assert.equal(assessmentService.isMultiPartPrompt(result[0].prompt), false);
+});
+
+test("enforceOralScenario falls back to deterministic rewrite when AI fails", async () => {
+  global.fetch = async () => {
+    throw new Error("network down");
+  };
+
+  const result = await assessmentService.enforceOralScenario(
+    [{ prompt: "Apakah fotosintesis membutuhkan cahaya matahari?", focus: "", ideal: "" }],
+    { topic: "Fotosintesis", tenantId: "tenant-1", userId: "user-1" }
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(assessmentService.isClosedRecallQuestion(result[0].prompt), false);
+  assert.match(result[0].prompt, /^Mengapa/i);
+});
+
 test("generateQuestions repairs bertingkat questions into single substance", async () => {
   const bertingkat = "Jelaskan X. Berikan contoh Y. Terakhir, usulkan solusi Z.";
   mockOpenRouter({
