@@ -370,6 +370,7 @@ async function startProbingForCurrentQuestion(ctx) {
     els.answerText.readOnly = true;
     els.answerText.value = "";
   }
+  setButtonLoading(els.saveAnswer, true, "Menyiapkan pertanyaan lanjutan...", "Simpan & lanjut");
 
   let probing;
   try {
@@ -378,8 +379,11 @@ async function startProbingForCurrentQuestion(ctx) {
     ctx.inProbing = false;
     showToast("Gagal membuat pertanyaan lanjutan, lanjut ke soal berikutnya.", "error");
     ctx.session.currentAnswers[qi].probing = { done: true };
+    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
     advanceAfterAnswer(ctx);
     return;
+  } finally {
+    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
   }
 
   ctx.probingPrompt = probing.prompt;
@@ -397,30 +401,49 @@ async function startProbingForCurrentQuestion(ctx) {
 
 /** Bangkitkan pertanyaan probing via AI, dengan fallback deterministik. */
 async function generateProbingForAnswer(ctx, assessment, question, answer) {
+  const payload = {
+    prompt: question.prompt,
+    focus: question.focus || assessment.topic,
+    outcomes: question.outcome || assessment.outcomes,
+    answer,
+  };
+  const fallback = () =>
+    generateProbingFallback({
+      prompt: question.prompt,
+      answer,
+      focus: question.focus || assessment.topic,
+      topic: assessment.topic,
+    });
+
   let probing = null;
   try {
-    await streamAssessmentAction({
-      action: "generate-probing",
-      payload: {
-        prompt: question.prompt,
-        focus: question.focus || assessment.topic,
-        outcomes: question.outcome || assessment.outcomes,
-        answer,
-      },
-      onResult: (data) => {
-        probing = data?.probing || null;
-      },
-    });
+    probing = await withTimeout(
+      new Promise((resolve, reject) => {
+        streamAssessmentAction({
+          action: "generate-probing",
+          payload,
+          onResult: (data) => resolve(data?.probing || null),
+          onError: (message) => reject(new Error(message)),
+        }).catch(reject);
+      }),
+      PROBING_TIMEOUT_MS,
+    );
   } catch {
     probing = null;
   }
   if (probing && String(probing.prompt || "").trim()) return probing;
-  return generateProbingFallback({
-    prompt: question.prompt,
-    answer,
-    focus: question.focus || assessment.topic,
-    topic: assessment.topic,
+  return fallback();
+}
+
+/** Alasan utama AI belum menghasilkan probing dalam waktu wajar -> fallback deterministik. */
+const PROBING_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), ms);
   });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 /** Tampilkan pertanyaan probing di panel ujian. */

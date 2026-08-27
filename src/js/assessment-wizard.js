@@ -314,9 +314,9 @@ export function renderQuestionEditor(ctx) {
 </label>
 <div class="rubrik-builder rubrik-builder-${index}" style="display: none;"></div>
 <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
-      <label class="probing-toggle">
+      <label class="probing-toggle check-row">
         <input type="checkbox" data-field="probing" ${question.probing ? "checked" : ""} />
-        Aktifkan probing — saat ujian, siswa akan mendapat 1 pertanyaan lanjutan berdasarkan jawabannya setelah menjawab soal ini.
+        <span>⚡ <strong>Aktifkan probing</strong> — siswa mendapat 1 pertanyaan lanjutan berbasis jawabannya setelah menjawab soal ini.</span>
       </label>
     </article>
   `).join("");
