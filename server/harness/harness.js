@@ -204,7 +204,7 @@ class AssessmentHarness {
       // tracing which context produced a result. On a cache hit we reuse the
       // already-compiled stable prompt/rubric (avoiding recompilation); the
       // model still runs per student, so safety is preserved.
-      const { computeContextHash, computeContextVersion, get: ctxGet, set: ctxSet } = contextCache;
+      const { computeContextHash, computeContextVersion, getWithPersistence, persistToDb } = contextCache;
       const ctxHash = computeContextHash({
         tenantId: input.tenantId,
         rubric: ctx.rubric,
@@ -221,20 +221,28 @@ class AssessmentHarness {
       const ctxVersion = computeContextVersion(ctxHash);
       ctx.contextHash = ctxHash;
       ctx.contextVersion = ctxVersion;
-      const cachedContext = ctxGet(input.tenantId, ctxHash);
+      // Hybrid cache lookup: in-memory fast path, then durable DB backing so
+      // hit-rate survives restarts (P1-1 target ≥80% holds across restarts).
+      const cachedContext = await getWithPersistence(input.tenantId, ctxHash);
       if (cachedContext) {
         trace.event("CONTEXT_CACHE_HIT", { contextHash: ctxHash, contextVersion: ctxVersion });
         if (cachedContext.systemPrompt) ctx.systemPrompt = cachedContext.systemPrompt;
         if (cachedContext.rubric) ctx.rubric = cachedContext.rubric;
       } else {
         trace.event("CONTEXT_CACHE_MISS", { contextHash: ctxHash, contextVersion: ctxVersion });
-        ctxSet(input.tenantId, ctxHash, {
+        const artifact = {
           contextHash: ctxHash,
           contextVersion: ctxVersion,
           systemPrompt: ctx.systemPrompt,
           rubric: ctx.rubric,
           compiledAt: new Date().toISOString(),
-        });
+        };
+        contextCache.set(input.tenantId, ctxHash, artifact);
+        // Persist durably so hit-rate survives restarts. Best-effort (swallows
+        // errors), but awaited here because it only runs on a cache MISS (once
+        // per stable context, not per request) and it makes the durable backing
+        // deterministic for tests and multi-instance reuse.
+        await persistToDb(input.tenantId, ctxHash, ctxVersion, artifact);
       }
 
       const rawContent = await this.provider.generate({

@@ -78,6 +78,7 @@ async function initDatabase() {
   await ensureColumn("evaluation_runs", "risk_level", "TEXT");
   await ensureColumn("evaluation_runs", "policy_applied", "TEXT");
   await ensureColumn("ai_logs", "run_id", "TEXT");
+  await ensureColumn("evaluation_contexts", "expires_at", "TEXT");
 }
 
 function getDb() {

@@ -483,10 +483,13 @@ async function seedEvaluationRun(db, opts) {
     criteria: submission.criteria.map((c) => ({
       criterionId: c.criterionId,
       score: c.score,
-      confidence: 0.8,
+      // Vary confidence by how far the score is from 50 — a real (if simplistic)
+      // proxy for model certainty so the calibration dataset has signal.
+      confidence: 0.5 + Math.min(0.5, Math.abs(Number(c.score || 50) - 50) / 100),
       rationale: "Skor ditetapkan berdasarkan bukti dari jawaban siswa.",
       evidence: [],
     })),
+    risk: opts.risk || null,
     reliability: {
       overallReliability: 0.88,
       dimensions: {
@@ -502,13 +505,18 @@ async function seedEvaluationRun(db, opts) {
   };
 
   // Direct inserts (mirrors the tables written by persistTrace).
+  const contextHash = crypto.createHash("sha256")
+    .update(`${tenantId}:${rubricVersion}:${promptVersion}:${assessmentId}`)
+    .digest("hex");
+  const risk = result.risk || null;
   await db.run(
     `INSERT INTO evaluation_runs
        (run_id, tenant_id, user_id, assessment_id, submission_id, model,
         prompt_version, rubric_version, harness_version, engine_version,
         final_score, verification_valid, verification_status, verification_issues,
-        input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
+        context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
     runId,
     tenantId,
@@ -530,10 +538,30 @@ async function seedEvaluationRun(db, opts) {
     crypto.createHash("sha256").update("default").digest("hex").slice(0, 16),
     submission.status === "EVALUATED" ? 1 : 0,
     opts.requiresHumanReview === true ? 1 : 0,
+    contextHash,
+    `ctx-v1-${contextHash.slice(0, 8)}`,
+    risk ? risk.score : null,
+    risk ? risk.level : null,
+    risk && risk.policy ? JSON.stringify(risk.policy) : null,
     now
   );
   await recordSeed(db, tenantId, "evaluation_runs", runId);
   await recordSeed(db, tenantId, "submissions", submission.id);
+
+  // Persist the stable context durably so the context cache hit-rate survives
+  // restarts (P1-1). Same shape the runtime harness persists.
+  await db.run(
+    `INSERT INTO evaluation_contexts (tenant_id, context_hash, context_version, artifact_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(tenant_id, context_hash) DO UPDATE SET artifact_json = excluded.artifact_json`,
+    tenantId,
+    contextHash,
+    `ctx-v1-${contextHash.slice(0, 8)}`,
+    JSON.stringify({ contextHash, contextVersion: `ctx-v1-${contextHash.slice(0, 8)}`, systemPrompt: "demo", rubric: submission.rubric || null }),
+    now,
+    now
+  );
+  await recordSeed(db, tenantId, "evaluation_contexts", `${tenantId}:${contextHash}`);
 
   // Events.
   let seq = 0;
@@ -859,21 +887,32 @@ async function seedDemoData(auth, target) {
     }
   }
 
-  // Add human scores on some runs so AI-vs-human metrics become computable.
+  // Add human scores on ~2/3 of runs so AI-vs-human metrics and confidence
+  // calibration (ECE/Brier) become computable. Confidence is stored per
+  // criterion; the calibration aggregate averages it. We make the human score
+  // agree with AI more often when confidence is high (a realistic but simple
+  // relationship) so the reliability diagram is informative.
   if (!alreadySeeded && createdRuns.length) {
-    for (let i = 0; i < createdRuns.length; i += 3) {
+    const n = createdRuns.length;
+    for (let i = 0; i < n; i += 1) {
+      if (i % 3 === 2) continue; // skip ~1/3 to leave some without human review
       const { runId, submission } = createdRuns[i];
-      const drift = (i % 2 === 0) ? 1 : -1;
-      const humanScore = Math.max(1, Math.min(100, submission.finalScore + drift * 5));
+      const aiScore = Number(submission.finalScore);
+      const confidence = 0.5 + Math.min(0.5, Math.abs(aiScore - 50) / 100);
+      // Higher confidence → human more likely to agree (within 5 pts).
+      const agree = Math.random() < confidence;
+      const humanScore = agree
+        ? Math.max(1, Math.min(100, aiScore + (Math.random() < 0.5 ? -1 : 1)))
+        : Math.max(1, Math.min(100, aiScore + (Math.random() < 0.5 ? -12 : 12)));
       await db.run(
         `INSERT OR REPLACE INTO evaluation_human_scores
            (run_id, human_score, human_feedback, reviewed_at, reviewer_id)
          VALUES (?, ?, ?, ?, ?)`,
         runId,
         humanScore,
-        drift > 0
+        agree
           ? "Skor AI mendekati penilaian manusia; perbedaan kecil pada aspek penalaran."
-          : "Penilai manusia memberi sedikit deviasi pada komponen kejelasan.",
+          : "Penilai manusia memberi deviasi yang lebih besar pada komponen kejelasan.",
         new Date().toISOString(),
         teacherId
       );

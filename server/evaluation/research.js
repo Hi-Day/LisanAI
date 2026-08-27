@@ -135,7 +135,7 @@ async function compareCalibration(assessmentId, tenantId, opts = {}) {
     assessmentId || null,
     tenantId || null
   );
-  if (rows.length === 0) return { n: 0, ece: null, brier: null, diagram: [], rows: [] };
+  if (rows.length === 0) return { n: 0, ece: null, brier: null, diagram: [], rows: [], dataSufficient: false, minSamples: MIN_CALIBRATION_N };
 
   const { expectedCalibrationError, brierScore, calibrationBins } = require("./metrics");
   const confidence = rows.map((r) => (Number.isFinite(r.avg_conf) ? r.avg_conf : 0));
@@ -147,6 +147,12 @@ async function compareCalibration(assessmentId, tenantId, opts = {}) {
     ece: expectedCalibrationError(confidence, correctness),
     brier: brierScore(confidence, correctness),
     diagram: calibrationBins(confidence, correctness).bins,
+    // Transparency about dataset sufficiency: below ~30 reviewed runs the ECE/
+    // Brier numbers are unstable and should be read as preliminary, not as an
+    // empirical claim (P1-6: measurable AND monitored; P1-29: thresholds are
+    // initial operational targets, not scientific claims).
+    dataSufficient: rows.length >= MIN_CALIBRATION_N,
+    minSamples: MIN_CALIBRATION_N,
     rows: rows.map((r) => ({
       runId: r.run_id,
       aiScore: Number(r.ai_score),
@@ -156,6 +162,11 @@ async function compareCalibration(assessmentId, tenantId, opts = {}) {
     })),
   };
 }
+
+// Minimum number of human-reviewed runs before calibration metrics are treated
+// as meaningful. Below this the dashboard should warn rather than present ECE/
+// Brier as stable (P1-6 monitoring principle).
+const MIN_CALIBRATION_N = 30;
 
 /**
  * P1-20 — Reliability dashboard aggregate for a tenant.

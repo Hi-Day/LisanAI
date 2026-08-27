@@ -260,7 +260,7 @@ test("harness emits context versioning + risk, and caches stable context", async
   process.env.TURSO_DATABASE_URL = `file:${path.join(os.tmpdir(), `p1-harness-${Date.now()}.db`)}`;
   process.env.ENABLE_DEMO_SIMULATION = "false";
   process.env.HARNESS_PROVIDER = "mock";
-  const { initDatabase } = require("../server/database");
+  const { initDatabase, getDb } = require("../server/database");
   const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
   const contextCache = require("../server/harness/context-cache");
   contextCache.reset();
@@ -289,4 +289,19 @@ test("harness emits context versioning + risk, and caches stable context", async
   const stats = contextCache.getStats();
   assert.equal(stats.hits, 1, "expected one cache hit");
   assert.equal(stats.misses, 1, "expected one cache miss");
+
+  // P1-1b — durable backing: the context was persisted to evaluation_contexts
+  // so hit-rate survives a restart (process-local cache cleared).
+  const db = getDb();
+  const ctxRow = await db.get(
+    "SELECT context_hash, context_version FROM evaluation_contexts WHERE tenant_id = ? AND context_hash = ?",
+    "t1", r1.versioning.contextHash
+  );
+  assert.ok(ctxRow, "context persisted to durable backing");
+  assert.equal(ctxRow.context_hash, r1.versioning.contextHash);
+  // Simulate a restart: clear the in-memory cache, then load from DB.
+  contextCache.reset();
+  const loaded = await contextCache.getWithPersistence("t1", r1.versioning.contextHash);
+  assert.ok(loaded, "context reloaded from durable backing after cache reset");
+  assert.equal(loaded.contextHash, r1.versioning.contextHash);
 });
