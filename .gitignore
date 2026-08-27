@@ -7,3 +7,4 @@ server.err.log
 *.sqlite
 test-results/
 playwright-report/
+*.Zone.Identifier
