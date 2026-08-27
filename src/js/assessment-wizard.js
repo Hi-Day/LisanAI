@@ -267,6 +267,7 @@ export function syncQuestionsFromEditor(ctx) {
     rubric: ctx.pendingQuestions[index]?.rubric || "",
     ideal: item.querySelector("[data-field='ideal']").value.trim(),
     criteria: ctx.pendingQuestions[index]?.criteria || [],
+    probing: item.querySelector("[data-field='probing']")?.checked ?? !!ctx.pendingQuestions[index]?.probing,
   }));
 }
 
@@ -313,6 +314,10 @@ export function renderQuestionEditor(ctx) {
 </label>
 <div class="rubrik-builder rubrik-builder-${index}" style="display: none;"></div>
 <label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label>
+      <label class="probing-toggle">
+        <input type="checkbox" data-field="probing" ${question.probing ? "checked" : ""} />
+        Aktifkan probing — saat ujian, siswa akan mendapat 1 pertanyaan lanjutan berdasarkan jawabannya setelah menjawab soal ini.
+      </label>
     </article>
   `).join("");
   renderReviewSummary(ctx);
@@ -350,6 +355,7 @@ export function renderReviewSummary(ctx) {
           <li class="${(q.prompt || "").trim() ? "" : "review-empty"}">
             <strong>Soal ${i + 1}</strong>
             <span>${escapeHtml(compactText(q.prompt || "Belum diisi", 120))}</span>
+            ${q.probing ? `<span class="review-probing-badge">⚡ probing aktif</span>` : ""}
           </li>
         `).join("")}
       </ol>

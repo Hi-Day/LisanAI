@@ -1,10 +1,12 @@
 const {
+  generateProbing,
   generateQuestions,
   improveQuestionSet,
   recommendAssessmentConfig,
   streamAlignRubricSet,
   streamGenerateQuestions,
   streamImproveQuestionSet,
+  streamProbing,
   streamRecommendAssessmentConfig,
 } = require("../server/assessment-service");
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
@@ -63,6 +65,9 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       const evaluation = await evaluateWithHarness(combined);
       writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
       writeSse(res, { type: "result", data: { evaluation, harness: true } });
+    } else if (action === "generate-probing") {
+      const probing = await streamProbing(payload, onChunk);
+      writeSse(res, { type: "result", data: { probing } });
     } else {
       writeSse(res, { type: "error", message: "Action not found" });
     }
@@ -130,7 +135,9 @@ module.exports = async (req, res) => {
           return sendJson(res, authError.status || 403, { error: authError.message });
         }
       }
-      if (action !== "evaluate" && !["admin", "teacher"].includes(auth.user.role)) {
+      // Probing adalah bagian dari alur ujian siswa, sehingga boleh dipanggil
+      // siswa selama sesi berlangsung (selain action guru/admin).
+      if (action !== "evaluate" && action !== "generate-probing" && !["admin", "teacher"].includes(auth.user.role)) {
         return sendJson(res, 403, { error: "Forbidden" });
       }
       return handleStreamingAction(req, res, auth, action, payload);
@@ -176,6 +183,11 @@ module.exports = async (req, res) => {
     if (action === "recommend-assessment-config") {
       const recommendation = await recommendAssessmentConfig(payload);
       return sendJson(res, 200, { recommendation, model: process.env.OPENROUTER_MODEL });
+    }
+
+    if (action === "generate-probing") {
+      const probing = await generateProbing(payload);
+      return sendJson(res, 200, { probing, model: process.env.OPENROUTER_MODEL });
     }
 
     return sendJson(res, 404, { error: "Action not found" });

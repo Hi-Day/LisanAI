@@ -23,6 +23,40 @@ export function generateFallbackQuestions({ topic, outcomes, rubric, difficulty,
   });
 }
 
+export function generateProbingFallback({ prompt, answer, focus = "", topic = "" }) {
+  const text = String(answer || "").trim();
+  const focusName = String(focus || topic || "topik").trim();
+  if (!text) {
+    return {
+      prompt: `Karena jawaban kosong, jelaskan minimal satu ide utama yang kamu pahami tentang ${focusName}, lalu beri satu alasan mengapa itu penting.`,
+      focus: focusName,
+    };
+  }
+  const mentionsReason = /\b(karena|sebab|akibat|mengapa|alasan|jadi)\b/i.test(text);
+  const hasExample = /\b(contoh|misal|seperti|misalnya|ilustrasi)\b/i.test(text);
+  if (!hasExample) {
+    return {
+      prompt: `Kamu menyebutkan "${truncateAnswer(text)}". Berikan satu contoh nyata yang menggambarkan hal itu, lalu jelaskan kaitannya dengan ${focusName}.`,
+      focus: focusName,
+    };
+  }
+  if (!mentionsReason) {
+    return {
+      prompt: `Kamu menyebutkan "${truncateAnswer(text)}". Jelaskan alasan atau sebab-akibat di balik itu menurut pemahamanmu.`,
+      focus: focusName,
+    };
+  }
+  return {
+    prompt: `Dari jawabanmu ("${truncateAnswer(text)}"), bandingkan dengan situasi atau sudut pandang lain, lalu simpulkan mana yang lebih tepat menurutmu dan mengapa.`,
+    focus: focusName,
+  };
+}
+
+function truncateAnswer(text) {
+  const t = String(text || "").trim();
+  return t.length > 90 ? `${t.slice(0, 90)}…` : t;
+}
+
 export function recommendFallbackConfig(topic, difficulty = "Menengah") {
   return {
     outcomes: [

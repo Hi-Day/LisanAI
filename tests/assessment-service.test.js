@@ -111,6 +111,27 @@ test("recommendAssessmentConfig returns trimmed outcomes and rubric", async () =
   assert.equal(result.rubric, "Akurasi 50%\nKelengkapan 50%");
 });
 
+test("generateProbing returns a normalized single follow-up question", async () => {
+  mockOpenRouter({
+    prompt: "Jelaskan mengapa cahaya penting dalam fotosintesis?",
+    focus: "proses fotosintesis",
+    ideal: "Siswa menjelaskan peran cahaya dalam tahapan fotosintesis.",
+  });
+
+  const probing = await assessmentService.generateProbing({
+    prompt: "Apa itu fotosintesis?",
+    focus: "fotosintesis",
+    outcomes: "Siswa menjelaskan fotosintesis",
+    answer: "Fotosintesis adalah proses tumbuhan mengubah cahaya menjadi energi.",
+    tenantId: "tenant-1",
+    userId: "user-1",
+  });
+
+  assert.equal(probing.prompt, "Jelaskan mengapa cahaya penting dalam fotosintesis?");
+  assert.equal(probing.focus, "proses fotosintesis");
+  assert.ok(probing.ideal.length > 0);
+});
+
 test("improveQuestionSet returns normalized questions", async () => {
   mockOpenRouter({
     questions: [{ prompt: "Perbaikan 1", focus: "F", ideal: "I" }],
