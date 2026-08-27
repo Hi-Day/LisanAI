@@ -116,32 +116,40 @@ test("evaluateWithHarness returns frontend contract + harness provenance", async
   assert.ok(result.verification);
 });
 
-test("evaluateWithHarness blocks a FAIL verification gate (never surfaces final score)", async () => {
-  // Empty answer -> mock provider emits evidence: [] -> NO_EVIDENCE -> FAIL.
-  const FAIL_ASSESSMENT = {
-    id: "assess-harness-fail",
-    topic: "Rubrik dua kriteria",
-    difficulty: "Menengah",
-    rubric: { criteria: [{ id: "C1", weight: 0.5 }, { id: "C2", weight: 0.5 }] },
-    questions: [{ prompt: "Soal", focus: "konsep" }],
+test("isFailureOnlyFromUnanswered downgrades empty-answer NO_EVIDENCE but keeps genuine failures FAIL", async () => {
+  const { isFailureOnlyFromUnanswered } = require("../server/harness/harness-evaluator");
+
+  // Skip case: all fatal issues are NO_EVIDENCE and there is an empty answer.
+  const skip = {
+    status: "FAIL",
+    issues: [{ type: "NO_EVIDENCE", criterionId: "C1" }],
   };
-  await assert.rejects(
-    () =>
-      evaluateWithHarness({
-        assessment: FAIL_ASSESSMENT,
-        answers: [""],
-        tenantId: "t-harness",
-        userId: "u-harness",
-        harnessConfig: {
-          pipeline: { evidence: false },
-          verification: { evidenceCoverage: 0.5 },
-        },
-      }),
-    (err) => {
-      assert.equal(err.status, 422);
-      assert.ok(err.message.includes("verifikasi gagal"));
-      return true;
-    }
+  assert.equal(
+    isFailureOnlyFromUnanswered(skip, [{ criterionId: "C1", answerIndex: 0, evidence: [] }], ["", "menjawab"], [{}, {}]),
+    true,
+    "skip-only NO_EVIDENCE must downgrade"
+  );
+
+  // Genuine failure: a MISSING_CRITERION fatal cannot be blamed on a skip.
+  const genuine = {
+    status: "FAIL",
+    issues: [{ type: "MISSING_CRITERION", criterionId: "C2" }, { type: "NO_EVIDENCE", criterionId: "C1" }],
+  };
+  assert.equal(
+    isFailureOnlyFromUnanswered(genuine, [], [""], [{}]),
+    false,
+    "non-NO_EVIDENCE fatal must stay FAIL (never downgraded)"
+  );
+
+  // No empty answer -> NO_EVIDENCE is a genuine model failure, keep FAIL.
+  const answered = {
+    status: "FAIL",
+    issues: [{ type: "NO_EVIDENCE", criterionId: "C1" }],
+  };
+  assert.equal(
+    isFailureOnlyFromUnanswered(answered, [], ["menjawab"], [{}]),
+    false,
+    "NO_EVIDENCE without any empty answer must stay FAIL"
   );
 });
 

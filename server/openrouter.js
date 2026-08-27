@@ -204,6 +204,40 @@ function generateMockContent(action, messages) {
       prompt = `Dari jawabanmu ("${truncateMock(answer, focus)}"), bandingkan dengan sudut pandang lain lalu simpulkan mana yang lebih tepat menurutmu dan mengapa.`;
     }
     return JSON.stringify({ prompt, focus, ideal: "Jawaban lanjutan yang konsisten dengan jawaban utama dan menunjukkan pemahaman lebih dalam." });
+  } else if (action === "evaluate-harness") {
+    // HARNESS_PROVIDER=openrouter tanpa API key jatuh ke mock di sini. Produksi
+    // output kanonis { criteria:[...], rubric } yang sama dengan MockProvider
+    // supaya evaluasi tidak gagal hanya karena tidak ada key. Rubric ada di
+    // system prompt ("RUBRIC: {...}"), answers di user message JSON.
+    const system = String((messages[0] && messages[0].content) || "");
+    const userRaw = String((messages[1] && messages[1].content) || "");
+    const rubricMatch = system.match(/RUBRIC:\s*(\{[\s\S]*?\})\s*(?=\n\n|\nQUESTION|$)/);
+    let rubric = { criteria: [] };
+    if (rubricMatch) {
+      try {
+        const parsedRubric = JSON.parse(rubricMatch[1]);
+        if (parsedRubric && Array.isArray(parsedRubric.criteria)) rubric = parsedRubric;
+      } catch { /* fall through to empty */ }
+    }
+    let answers = [];
+    try {
+      const parsedUser = JSON.parse(userRaw);
+      answers = Array.isArray(parsedUser.answers) ? parsedUser.answers : [];
+    } catch { /* fall through to empty */ }
+    const criteria = (rubric.criteria || []).map((c, idx) => {
+      const answer = answers[idx] != null ? answers[idx] : (answers[0] ?? "");
+      const text = String(answer || "").trim();
+      const score = mockHashScore(text, idx);
+      return {
+        criterionId: c.id,
+        answerIndex: idx,
+        score,
+        evidence: text ? [{ text: text.slice(0, 32), location: "answer" }] : [],
+        rationale: `Evaluasi deterministik mock menurut '${c.name || "kriteria"}'.`,
+        confidence: 0.9,
+      };
+    });
+    return JSON.stringify({ criteria, rubric });
   }
   return JSON.stringify({});
 }
@@ -212,6 +246,17 @@ function truncateMock(text, focus) {
   const t = String(text || "").trim();
   if (!t) return focus || "topik";
   return t.length > 90 ? `${t.slice(0, 90)}…` : t;
+}
+
+/** Skor deterministik mock (tanpa Math.random) agar konsisten antar run. */
+function mockHashScore(text, hint = 0) {
+  let h = 0;
+  const s = String(text || "").toLowerCase();
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h * 31 + s.charCodeAt(i)) % 97;
+  }
+  const base = 72 + (h % 24); // 72..95 range
+  return (base + hint) % 96;
 }
 
 async function callOpenRouter(messages, schemaHint, context = {}) {

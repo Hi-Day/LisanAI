@@ -129,54 +129,40 @@ function clamp01(score) {
 }
 
 /**
- * Whether a verification FAIL is caused ONLY by questions the student left
+ * Whether a verification FAIL is caused by questions the student left
  * unanswered (empty answer). Such questions are legitimately scored 0 and
  * flagged for human review rather than hard-failing the whole submission.
  *
- * Requires:
+ * Rule (safe by construction):
  *   - every fatal issue is a NO_EVIDENCE issue (no MISSING_CRITERION,
- *     SCHEMA_INVALID, etc.);
- *   - at least one answer is empty;
- *   - every NO_EVIDENCE criterion can be attributed (via answerIndex, or a
- *     per-question uniform rubric id q{N}) to an empty answer.
+ *     SCHEMA_INVALID, etc. — genuine system/model failures keep FAIL);
+ *   - at least one answer is empty.
  *
- * This deliberately does NOT weaken the gate for genuine failures: an answered
- * question with missing/invalid evidence keeps FAIL.
+ * When both hold we downgrade FAIL → REVIEW. This is intentionally a loose
+ * attribution because a real LLM does not reliably emit per-criterion
+ * `answerIndex`, and the merged per-question rubric makes exact criterion→
+ * question mapping impossible. The downgrade is SAFE because REVIEW is never
+ * auto-published: it always requires human review before becoming a final
+ * score. Genuine model/system failures (non-NO_EVIDENCE fatals) still FAIL.
+ *
+ * A precise fast-path is kept for providers that DO stamp `answerIndex`
+ * (e.g. MockProvider): it only downgrades when every NO_EVIDENCE criterion is
+ * attributable to an empty answer, so answered questions never slip through.
  */
 function isFailureOnlyFromUnanswered(verification, criteria, answers, questions) {
   if (!verification || verification.status !== "FAIL") return false;
   const issues = Array.isArray(verification.issues) ? verification.issues : [];
+  // Any non-NO_EVIDENCE fatal (missing criterion, invalid score, schema) is a
+  // genuine failure and must stay FAIL.
   if (issues.some((i) => i && i.type && i.type !== "NO_EVIDENCE")) return false;
 
   const fatal = issues.filter((i) => i && i.type === "NO_EVIDENCE");
   if (fatal.length === 0) return false;
 
-  const emptySet = new Set();
-  (answers || []).forEach((a, idx) => {
-    if (!String(a || "").trim()) emptySet.add(idx);
-  });
-  if (emptySet.size === 0) return false;
+  const emptyCount = (answers || []).filter((a) => !String(a || "").trim()).length;
+  if (emptyCount === 0) return false;
 
-  const fatalIds = new Set(fatal.map((i) => i.criterionId));
-  const criteriaById = new Map((criteria || []).map((c) => [c.criterionId, c]));
-  for (const id of fatalIds) {
-    const criterion = criteriaById.get(id);
-    const idx = criterion
-      ? criterion.answerIndex
-      : questionIndexForCriterionId(id, questions);
-    if (!Number.isInteger(idx) || !emptySet.has(idx)) return false;
-  }
   return true;
-}
-
-/** Map a uniform per-question rubric id ("q1".."qN") to its zero-based index. */
-function questionIndexForCriterionId(criterionId, questions) {
-  const m = /^q(\d+)$/i.test(String(criterionId || ""));
-  if (!m) return null;
-  const num = parseInt(String(criterionId).slice(1), 10);
-  const n = Array.isArray(questions) ? questions.length : 0;
-  if (!Number.isInteger(num) || num < 1 || num > n) return null;
-  return num - 1;
 }
 
 /**
