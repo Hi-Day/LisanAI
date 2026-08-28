@@ -1,0 +1,134 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+  "default_agent": "lisan",
+  "instructions": [
+    "AGENTS.md",
+    "docs/**/*.md"
+  ],
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "edit": "allow",
+    "bash": {
+      "*": "ask",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git branch*": "allow",
+      "npm test*": "allow",
+      "npm run test*": "allow",
+      "npm run lint*": "allow",
+      "npm run build*": "allow",
+      "npm run typecheck*": "allow"
+    },
+    "webfetch": "allow",
+    "task": "allow"
+  },
+  "command": {
+    "dev": {
+      "description": "Build frontend and start the local dev server on port 4173.",
+      "template": "Run `npm run dev` to start the development server. Report any build errors or the server URL."
+    },
+    "test": {
+      "description": "Run unit/integration tests with Node test runner.",
+      "template": "Run `npm test` and report the results. If tests fail, inspect the failures and fix them."
+    },
+    "check": {
+      "description": "Run JS syntax check then all tests.",
+      "template": "Run `npm run check` and report the results. Fix any syntax or test failures."
+    },
+    "build": {
+      "description": "Build the static frontend with esbuild.",
+      "template": "Run `npm run build` and report the result."
+    },
+    "test:e2e": {
+      "description": "Run Playwright end-to-end tests.",
+      "template": "Run `npm run test:e2e` and report the results. Fix any failures."
+    }
+  },
+  "agent": {
+    "lisan": {
+      "description": "Primary LisanAI engineering agent responsible for implementing features, fixing bugs, running tests, and maintaining architectural consistency.",
+      "mode": "primary",
+      "prompt": "You are the primary engineering agent for LisanAI. Understand the existing architecture before changing code. Preserve existing behavior unless the task explicitly requires a change. Prefer small, testable, reversible changes. Always inspect relevant files first, implement the smallest coherent solution, run appropriate tests and validation, and report what changed, why, and what remains.",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask",
+        "task": "allow"
+      }
+    },
+    "architect": {
+      "description": "Analyzes LisanAI architecture, boundaries, dependencies, data flow, and technical risks. Does not modify files.",
+      "mode": "subagent",
+      "prompt": "Act as a senior software architect reviewing LisanAI. Do not modify files. Inspect the repository and analyze architecture, module boundaries, service responsibilities, data flow, coupling, error handling, testing strategy, scalability, security, and maintainability. Identify architectural risks and propose concrete improvements. Distinguish confirmed findings from assumptions.",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "git status*": "allow",
+          "git diff*": "allow",
+          "git log*": "allow"
+        }
+      }
+    },
+    "backend": {
+      "description": "Backend specialist for LisanAI services, assessment engine, APIs, AI orchestration, validation, and persistence.",
+      "mode": "subagent",
+      "prompt": "Act as a senior backend engineer for LisanAI. Focus on API design, service boundaries, assessment generation, rubric processing, learning outcomes, AI model integration, validation, error handling, persistence, observability, and testability. Inspect existing conventions before implementation. Avoid unnecessary rewrites.",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "frontend": {
+      "description": "Frontend specialist for LisanAI UI, rendering, state management, accessibility, and user experience.",
+      "mode": "subagent",
+      "prompt": "Act as a senior frontend engineer for LisanAI. Focus on UI architecture, component boundaries, rendering correctness, state management, loading/error states, accessibility, responsive behavior, and maintainable styling. Preserve the existing design system and avoid introducing unnecessary dependencies.",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "assessment": {
+      "description": "Assessment-domain specialist focused on LisanAI's rubric, learning outcomes, evidence, scoring, and evaluation logic.",
+      "mode": "subagent",
+      "prompt": "Act as an assessment-engineering specialist. Analyze LisanAI from the perspective of educational assessment validity, rubric alignment, learning outcomes, evidence-based scoring, consistency, explainability, calibration, and evaluation. Verify that implementation behavior matches the intended assessment model. Do not introduce pedagogical assumptions without identifying them.",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "tester": {
+      "description": "Testing and quality-engineering specialist for LisanAI.",
+      "mode": "subagent",
+      "prompt": "Act as a senior QA and test engineer for LisanAI. Inspect the implementation and identify missing unit, integration, API, regression, and end-to-end tests. Implement tests when requested. Prioritize critical assessment paths, malformed inputs, model failures, scoring edge cases, output validation, and frontend rendering failures.",
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "ask",
+          "npm test*": "allow",
+          "npm run test*": "allow",
+          "npm run lint*": "allow",
+          "npm run typecheck*": "allow"
+        }
+      }
+    },
+    "reviewer": {
+      "description": "Independent code reviewer for correctness, regressions, security, architecture, and maintainability.",
+      "mode": "subagent",
+      "prompt": "Perform an independent production-grade code review of LisanAI. Do not modify files. Review the current diff and relevant surrounding code. Look for correctness bugs, regressions, security issues, race conditions, validation gaps, AI failure modes, assessment integrity issues, accessibility problems, performance issues, and architectural violations. Rank findings by severity and provide concrete remediation guidance.",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "git status*": "allow",
+          "git diff*": "allow",
+          "git log*": "allow"
+        }
+      }
+    }
+  }
+}
