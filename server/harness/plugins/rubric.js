@@ -76,19 +76,23 @@ function parseConcatenatedJsonRubrics(text) {
 
   // Same criterion name may appear across many per-question blocks. Merge them
   // by averaging their (already per-block normalized) weight so duplicates
-  // collapse instead of doubling the total weight past 1.
+  // collapse instead of doubling the total weight past 1. Record which source
+  // question indices each merged criterion came from, so an unanswered question
+  // can later be assigned a default zero score for its own criteria.
   const merged = new Map();
-  for (const block of blocks) {
+  blocks.forEach((block, questionIndex) => {
     for (const c of block) {
       const key = c.id;
-      if (!merged.has(key)) merged.set(key, { ...c, count: 1, weight: c.weight });
-      else {
+      if (!merged.has(key)) {
+        merged.set(key, { ...c, count: 1, weight: c.weight, sourceIndices: [questionIndex] });
+      } else {
         const e = merged.get(key);
         e.weight = (e.weight * e.count + c.weight) / (e.count + 1);
         e.count += 1;
+        e.sourceIndices.push(questionIndex);
       }
     }
-  }
+  });
   const criteria = [...merged.values()].map(({ count, ...c }) => c);
   return criteria.length > 0 ? criteria : null;
 }

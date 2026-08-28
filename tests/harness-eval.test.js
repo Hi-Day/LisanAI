@@ -130,15 +130,27 @@ test("isFailureOnlyFromUnanswered downgrades empty-answer NO_EVIDENCE but keeps 
     "skip-only NO_EVIDENCE must downgrade"
   );
 
-  // Genuine failure: a MISSING_CRITERION fatal cannot be blamed on a skip.
-  const genuine = {
+  // MISSING_CRITERION for an unanswered question is a legitimate skip, so it
+  // is also downgraded (real models omit criteria for skipped questions).
+  const skippedMissing = {
     status: "FAIL",
     issues: [{ type: "MISSING_CRITERION", criterionId: "C2" }, { type: "NO_EVIDENCE", criterionId: "C1" }],
   };
   assert.equal(
+    isFailureOnlyFromUnanswered(skippedMissing, [], [""], [{}]),
+    true,
+    "MISSING_CRITERION + empty answer must downgrade"
+  );
+
+  // Genuine failure: SCHEMA_INVALID cannot be blamed on a skip → stays FAIL.
+  const genuine = {
+    status: "FAIL",
+    issues: [{ type: "SCHEMA_INVALID", criterionId: "C1" }],
+  };
+  assert.equal(
     isFailureOnlyFromUnanswered(genuine, [], [""], [{}]),
     false,
-    "non-NO_EVIDENCE fatal must stay FAIL (never downgraded)"
+    "SCHEMA_INVALID fatal must stay FAIL (never downgraded)"
   );
 
   // No empty answer -> NO_EVIDENCE is a genuine model failure, keep FAIL.
@@ -179,6 +191,34 @@ test("evaluateWithHarness downgrades FAIL to REVIEW when ONLY skipped (empty) qu
   assert.equal(result.requiresHumanReview, true);
   assert.equal(result.published, false);
   assert.ok(Array.isArray(result.questionScores) && result.questionScores.length === 2);
+});
+
+test("evaluateWithHarness returns default 0 to the aggregator for unanswered questions", async () => {
+  const PARTIAL_ASSESSMENT = {
+    id: "assess-harness-default",
+    topic: "Rubrik dua kriteria",
+    difficulty: "Menengah",
+    rubric: "Akurasi 40%, Kelengkapan 60%",
+    questions: [
+      { prompt: "Soal 1", focus: "konsep" },
+      { prompt: "Soal 2", focus: "aplikasi" },
+    ],
+  };
+  const result = await evaluateWithHarness({
+    assessment: PARTIAL_ASSESSMENT,
+    answers: ["Fotosintesis adalah proses tumbuhan membuat makanan dari cahaya.", ""],
+    tenantId: "t-harness",
+    userId: "u-harness",
+  });
+
+  // The skipped question must be scored 0 and tagged unanswered.
+  const q0 = result.questionScores[0];
+  const q1 = result.questionScores[1];
+  assert.equal(q1.score, 0, "unanswered question must default to score 0");
+  assert.equal(q1.unanswered, true, "unanswered question must be flagged");
+  assert.ok(q0.score > 0, "answered question keeps its real score");
+  // finalScore must include the 0 (mean of [>0, 0]).
+  assert.ok(result.finalScore < q0.score, "final score must be dragged down by the zero");
 });
 
 test("evaluateWithHarness flags requiresHumanReview on a REVIEW gate", async () => {

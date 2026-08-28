@@ -54,9 +54,16 @@ async function evaluateWithHarness(payload) {
   // (answerIndex). A question's score is the weighted aggregate of the criteria
   // applicable to it (weights renormalized within the subset). The overall
   // finalScore remains the deterministic weighted aggregate over all criteria.
-  const criteria = result.criteria || [];
+const criteriaRaw = result.criteria || [];
   let verification = result.verification || {};
   let status = verification.status;
+
+  // Seolah ada respons asesor untuk soal yang tidak dijawab: sebelum verifikasi
+  // dan agregasi, pastikan setiap soal kosong mendapat kriteria default skor 0
+  // (evidence kosong + penanda unanswered). Ini mencegah NO_EVIDENCE /
+  // MISSING_CRITERION memblokir seluruh submission, dan membuat agregator
+  // menerima nilai 0 yang sah untuk soal yang memang tidak dijawab.
+  const criteria = applyUnansweredDefaults(criteriaRaw, rubric, answers, questions);
 
 // PRD FR-08 / FR-13 — Verification gate enforced at the API boundary so a
   // failed evaluation is never surfaced as a final student score.
@@ -101,9 +108,20 @@ async function evaluateWithHarness(payload) {
     aligned
       ? aligned.finalScore
       : computeFinalScore({ criteria, rubric }).finalScore;
+
+  // Saat ada soal yang tidak dijawab, pastikan skor akhir BENAR-BENAR memasukkan
+  // nilai 0 untuk soal tersebut (agregator menerima default 0). Alignment
+  // berbasis kriteria bisa mengecualikan kriteria soal kosong dan menaikkan
+  // skor secara keliru; rata-rata skor per-soal (yang sudah 0 untuk soal kosong)
+  // adalah representasi yang tepat sesuai permintaan "nilai default ke agregator".
+  const hasUnanswered = questionScores.some((q) => q.unanswered);
+  const finalScore =
+    hasUnanswered
+      ? Math.round(questionScores.reduce((s, q) => s + (Number(q.score) || 0), 0) / questionScores.length)
+      : rescueScore;
   return {
-    finalScore: rescueScore,
-    feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${rescueScore} dari 100.`,
+    finalScore,
+    feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${finalScore} dari 100.`,
     questionScores,
     published: result.published !== false && status !== "FAIL",
     requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
@@ -129,35 +147,88 @@ function clamp01(score) {
 }
 
 /**
+ * Inject a default (score 0) criterion evaluation for every question the
+ * student left unanswered — "seolah ada respons asesor AI". This guarantees
+ * the aggregator always receives a valid value for unanswered questions
+ * instead of missing/empty evidence that would otherwise hard-FAIL the whole
+ * submission.
+ *
+ * Rules:
+ *  - A criterion whose `answerIndex` points to an empty answer is forced to
+ *    score 0 with empty evidence + `unanswered: true`.
+ *  - If a rubric criterion belongs to an unanswered question (via its recorded
+ *    `sourceIndices`, or a uniform per-question id "q{N}") but the model did
+ *    not return it at all (MISSING_CRITERION), inject one at score 0.
+ *  - Criteria tied to ANSWERED questions are never touched.
+ */
+function applyUnansweredDefaults(criteria, rubric, answers, questions) {
+  const emptyIdx = new Set();
+  (answers || []).forEach((a, idx) => {
+    if (!String(a || "").trim()) emptyIdx.add(idx);
+  });
+  if (emptyIdx.size === 0) return criteria;
+
+  const out = (criteria || []).map((c) => {
+    // Force to 0 when the criterion is explicitly tied to an empty answer.
+    if (Number.isInteger(c.answerIndex) && emptyIdx.has(c.answerIndex)) {
+      return { ...c, score: 0, evidence: [], unanswered: true };
+    }
+    return c;
+  });
+
+  const rubricCriteria = (rubric && rubric.criteria) || [];
+  const n = Array.isArray(questions) ? questions.length : 0;
+
+  // Inject a missing default-0 criterion for each unanswered question that has
+  // no criterion evaluation yet, tagged with its `answerIndex` so it applies
+  // ONLY to that question's score (never leaked into answered questions).
+  for (const qi of [...emptyIdx].sort((a, b) => a - b)) {
+    const alreadyMapped = (criteria || []).some((c) => c.answerIndex === qi);
+    if (alreadyMapped) continue;
+    // Prefer a rubric criterion that belongs to this question.
+    const own = rubricCriteria.find((rc) => {
+      const src = Array.isArray(rc.sourceIndices) ? rc.sourceIndices : [];
+      return src.includes(qi);
+    });
+    const uniform = !own && n > 0 ? rubricCriteria.find((rc) => /^q(\d+)$/i.test(String(rc.id || "")) && parseInt(/^q(\d+)$/i.exec(String(rc.id || ""))[1], 10) === qi + 1) : null;
+    const rc = own || uniform;
+    const criterionId = rc ? rc.id : `q${qi + 1}`;
+    if (out.some((c) => c.answerIndex === qi && c.criterionId === criterionId)) continue;
+    out.push({
+      criterionId,
+      answerIndex: qi,
+      score: 0,
+      evidence: [],
+      rationale: "Soal tidak dijawab siswa — diberi nilai default 0.",
+      confidence: 1,
+      unanswered: true,
+    });
+  }
+  return out;
+}
+
+/**
  * Whether a verification FAIL is caused by questions the student left
  * unanswered (empty answer). Such questions are legitimately scored 0 and
  * flagged for human review rather than hard-failing the whole submission.
  *
  * Rule (safe by construction):
- *   - every fatal issue is a NO_EVIDENCE issue (no MISSING_CRITERION,
- *     SCHEMA_INVALID, etc. — genuine system/model failures keep FAIL);
+ *   - every fatal issue is a NO_EVIDENCE or MISSING_CRITERION issue (no
+ *     SCHEMA_INVALID etc. — genuine model failures keep FAIL);
  *   - at least one answer is empty.
  *
  * When both hold we downgrade FAIL → REVIEW. This is intentionally a loose
  * attribution because a real LLM does not reliably emit per-criterion
- * `answerIndex`, and the merged per-question rubric makes exact criterion→
- * question mapping impossible. The downgrade is SAFE because REVIEW is never
- * auto-published: it always requires human review before becoming a final
- * score. Genuine model/system failures (non-NO_EVIDENCE fatals) still FAIL.
- *
- * A precise fast-path is kept for providers that DO stamp `answerIndex`
- * (e.g. MockProvider): it only downgrades when every NO_EVIDENCE criterion is
- * attributable to an empty answer, so answered questions never slip through.
+ * `answerIndex`. The downgrade is SAFE because REVIEW is never auto-published:
+ * it always requires human review before becoming a final score. Genuine
+ * model/system failures (e.g. SCHEMA_INVALID) still FAIL.
  */
 function isFailureOnlyFromUnanswered(verification, criteria, answers, questions) {
   if (!verification || verification.status !== "FAIL") return false;
   const issues = Array.isArray(verification.issues) ? verification.issues : [];
-  // Any non-NO_EVIDENCE fatal (missing criterion, invalid score, schema) is a
-  // genuine failure and must stay FAIL.
-  if (issues.some((i) => i && i.type && i.type !== "NO_EVIDENCE")) return false;
-
-  const fatal = issues.filter((i) => i && i.type === "NO_EVIDENCE");
-  if (fatal.length === 0) return false;
+  const allowed = new Set(["NO_EVIDENCE", "MISSING_CRITERION"]);
+  if (issues.some((i) => i && i.type && !allowed.has(i.type))) return false;
+  if (!issues.some((i) => i && (i.type === "NO_EVIDENCE" || i.type === "MISSING_CRITERION"))) return false;
 
   const emptyCount = (answers || []).filter((a) => !String(a || "").trim()).length;
   if (emptyCount === 0) return false;
@@ -232,12 +303,15 @@ function buildQuestionScores(questions, answers, criteria, rubric) {
     return {
       question: (questions[idx] && questions[idx].prompt) || `Soal ${idx + 1}`,
       answer: answers[idx] || "",
-      score: aggregateScore(applicable),
+      // Soal yang tidak dijawab selalu 0 (default dari asesor), apa pun skor
+      // yang mungkin dihasilkan model untuk jawaban kosong.
+      score: String(answers[idx] || "").trim() ? aggregateScore(applicable) : 0,
       matched,
       strengths: [...new Set(strengths)],
       gaps: [...new Set(gaps)],
       criterionIds: applicable.map((c) => c.criterionId),
       confidence: averageConfidence(applicable),
+      unanswered: !String(answers[idx] || "").trim(),
     };
   });
 }
