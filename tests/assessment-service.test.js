@@ -94,7 +94,7 @@ test("generateQuestions throws when the model returns no questions array", async
   );
 });
 
-test("recommendAssessmentConfig returns trimmed outcomes and rubric", async () => {
+test("recommendAssessmentConfig returns trimmed outcomes only (no rubric at topic level)", async () => {
   mockOpenRouter({
     outcomes: "  1. Outcome A\n2. Outcome B  ",
     rubric: "  Akurasi 50%\nKelengkapan 50%  ",
@@ -108,7 +108,8 @@ test("recommendAssessmentConfig returns trimmed outcomes and rubric", async () =
   });
 
   assert.equal(result.outcomes, "1. Outcome A\n2. Outcome B");
-  assert.equal(result.rubric, "Akurasi 50%\nKelengkapan 50%");
+  // Rubrik tidak lagi dihasilkan di level topik; hanya capaian pembelajaran.
+  assert.equal(result.rubric, undefined);
 });
 
 test("generateProbing returns a normalized single follow-up question", async () => {

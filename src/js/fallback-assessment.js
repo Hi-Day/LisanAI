@@ -64,12 +64,6 @@ export function recommendFallbackConfig(topic, difficulty = "Menengah") {
       `Siswa mampu menghubungkan konsep ${topic} dengan contoh atau situasi nyata yang relevan.`,
       `Siswa mampu menyampaikan alasan, bukti, atau proses berpikir secara runtut dalam jawaban lisan tingkat ${difficulty.toLowerCase()}.`,
     ].join("\n"),
-    rubric: [
-      "Ketepatan konsep: 40% - jawaban sesuai konsep inti dan tidak menunjukkan miskonsepsi utama.",
-      "Kelengkapan penalaran: 25% - siswa menjelaskan hubungan sebab-akibat, proses, atau alasan secara logis.",
-      "Contoh dan penerapan: 20% - siswa memberikan contoh yang relevan dengan topik dan konteks pembelajaran.",
-      "Kejelasan komunikasi lisan: 15% - jawaban runtut, mudah dipahami, dan menggunakan istilah kunci dengan tepat.",
-    ].join("\n"),
   };
 }
 

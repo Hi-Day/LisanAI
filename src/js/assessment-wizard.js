@@ -501,12 +501,18 @@ function showRecommendStreamPlaceholder(ctx) {
   if (els.recommendStreamPlaceholder) els.recommendStreamPlaceholder.classList.remove("hidden");
   if (els.recommendStreamContent) els.recommendStreamContent.textContent = "";
   if (els.recommendStreamPanel) els.recommendStreamPanel.classList.remove("hidden");
+  // Reset state grow-only agar sesi baru tidak menampilkan field dari sesi lama.
+  if (ctx) ctx.recommendStreamShown = {};
 }
 
 /**
  * Incrementally render the streamed recommendation JSON into a readable preview.
- * Menampilkan kompetensi & rubrik kata-per-kata begitu JSON parsial datang,
- * bukan menunggu seluruh JSON valid (sehingga teks "pop" sekaligus).
+ * Menampilkan kompetensi & rubrik kata-per-kata begitu JSON parsial datang.
+ *
+ * Grow-only: field yang sudah tampil TIDAK pernah dihapus. Saat satu field
+ * selesai mengalir dan field berikutnya belum mulai (nilai masih null),
+ * tampilan field sebelumnya dipertahankan — mencegah "field muncul lalu hilang
+ * dan isinya pindah" yang terasa berkedip.
  */
 function renderRecommendStream(ctx, raw) {
   const { els } = ctx;
@@ -516,13 +522,14 @@ function renderRecommendStream(ctx, raw) {
   }
 
   const outcomes = extractStreamedField(raw, "outcomes");
-  const rubric = extractStreamedField(raw, "rubric");
 
-  const parts = [];
-  if (outcomes !== null) parts.push(`📋 Kompetensi:\n${outcomes}`);
-  if (rubric !== null) parts.push(`\n📐 Rubrik:\n${rubric}`);
-  if (parts.length === 0) return;
-  els.recommendStreamContent.textContent = parts.join("\n");
+  // State grow-only per sesi streaming.
+  ctx.recommendStreamShown = ctx.recommendStreamShown || {};
+  const shown = ctx.recommendStreamShown;
+  if (outcomes !== null) shown.outcomes = outcomes;
+
+  if (shown.outcomes === undefined) return;
+  els.recommendStreamContent.textContent = `📋 Kompetensi:\n${shown.outcomes}`;
   els.recommendStreamContent.scrollTop = els.recommendStreamContent.scrollHeight;
 }
 
@@ -531,6 +538,9 @@ function renderRecommendStream(ctx, raw) {
  * Bekerja tanpa menunggu JSON valid: begitu key + pembuka string terlihat,
  * nilai yang sudah terkumpul dikembalikan dan terus bertambah per chunk.
  * Escape `\n` diterjemahkan menjadi baris baru untuk keterbacaan.
+ *
+ * Backslash yang belum lengkap (mis. `\` di ujung chunk tanpa `n`/`"`) tidak
+ * dikeluarkan agar tampilan tidak menampilkan karakter mentah yang berkedip.
  *
  * @returns {string|null} nilai parsial field, atau null bila field belum mulai.
  */
@@ -550,6 +560,9 @@ function extractStreamedField(raw, field) {
     const ch = raw[i];
     if (ch === "\\") {
       const next = raw[i + 1];
+      // Backslash di ujung chunk tanpa karakter lanjutan: tahan (belum jelas
+      // escape apa) supaya tidak muncul `\` mentah yang lalu "hilang".
+      if (next === undefined) break;
       if (next === "n") { out += "\n"; i += 2; continue; }
       if (next === '"') { out += '"'; i += 2; continue; }
       if (next === "\\") { out += "\\"; i += 2; continue; }

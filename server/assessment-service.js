@@ -343,18 +343,18 @@ function buildRecommendConfigMessages(payload) {
     {
       role: "user",
       content: JSON.stringify({
-        tugas: "Buat rekomendasi kompetensi atau learning outcome dan rubrik untuk assessment lisan.",
+        tugas: "Buat rekomendasi capaian pembelajaran (learning outcome) untuk assessment lisan.",
         topik: payload.topic,
         tingkat_kesulitan: payload.difficulty || "Menengah",
         konteks:
-          "Guru akan memakai rekomendasi ini untuk membuat soal evaluasi lisan siswa. Gunakan bahasa Indonesia yang ringkas, operasional, dan bisa langsung diedit guru.",
+          "Guru akan memakai rekomendasi capaian pembelajaran ini untuk membuat soal evaluasi lisan siswa. Gunakan bahasa Indonesia yang ringkas, operasional, dan bisa langsung diedit guru.",
       }),
     },
   ];
 }
 
 const RECOMMEND_CONFIG_SCHEMA =
-  'Format: {"outcomes":"3-5 learning outcome dalam baris terpisah","rubric":"rubrik berbobot total 100% dalam baris terpisah"}';
+  'Format: {"outcomes":"3-5 learning outcome dalam baris terpisah"}';
 
 function buildImproveQuestionsMessages(payload) {
   return [
@@ -468,7 +468,6 @@ async function recommendAssessmentConfig(payload) {
 
   return {
     outcomes: String(result.outcomes || "").trim(),
-    rubric: String(result.rubric || "").trim(),
   };
 }
 
@@ -534,7 +533,6 @@ async function streamRecommendAssessmentConfig(payload, onChunk) {
   );
   return {
     outcomes: String(parsed.outcomes || "").trim(),
-    rubric: String(parsed.rubric || "").trim(),
   };
 }
 
