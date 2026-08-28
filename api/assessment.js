@@ -60,8 +60,16 @@ async function handleStreamingAction(req, res, auth, action, payload) {
     } else if (action === "evaluate") {
       // P1-15 — The harness is the single evaluation engine. The legacy
       // single-LLM path has been removed from production traffic.
+      // Stream partial progress ("chunk" events) so the student sees live
+      // stages while the LLM (~20s) evaluates, instead of a blank modal.
       const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
-      const combined = { ...payload, auth };
+      const combined = {
+        ...payload,
+        auth,
+        onProgress: (text) => {
+          if (res.writableEnded === false) writeSse(res, { type: "chunk", text });
+        },
+      };
       const evaluation = await evaluateWithHarness(combined);
       writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
       writeSse(res, { type: "result", data: { evaluation, harness: true } });

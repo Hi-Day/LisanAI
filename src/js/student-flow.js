@@ -652,8 +652,11 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
       action: "evaluate",
       payload: { assessment: safeAssessment, answers: textAnswers, studentName },
       onChunk: (text) => {
+        // Tampilkan status/progress live dari server (streaming partial):
+        // ganti teks tahap terkini alih-alih menumpuk, supaya siswa melihat
+        // kemajuan evaluasi secara real-time, bukan modal kosong.
         if (ctx.els.evaluationStreamContent) {
-          ctx.els.evaluationStreamContent.textContent += text;
+          ctx.els.evaluationStreamContent.textContent = text || "";
           ctx.els.evaluationStreamContent.scrollTop = ctx.els.evaluationStreamContent.scrollHeight;
         }
       },

@@ -21,7 +21,9 @@ async function evaluateWithHarness(payload) {
     process.env.HARNESS_PROVIDER === "openrouter"
       ? new OpenRouterProvider()
       : new MockProvider();
-  harness.setProvider(provider).setParser({ parse });
+  const progress = typeof payload.onProgress === "function" ? payload.onProgress : null;
+  const wrapped = progress ? withProgress(provider, progress) : provider;
+  harness.setProvider(wrapped).setParser({ parse });
   harness.setTracePersister(persistEvaluationTrace);
 
   const assessment = payload.assessment || {};
@@ -144,6 +146,34 @@ function clamp01(score) {
   const s = Number(score);
   if (!Number.isFinite(s)) return 0;
   return Math.max(0, Math.min(100, s));
+}
+
+/**
+ * Wrap a provider so each model call emits a progress event before and after
+ * the (potentially slow, ~20s) LLM round-trip. This lets the UI show live
+ * stages ("menyiapkan asesor...", "menilai jawaban...", "memverifikasi...")
+ * instead of a blank loading screen while the harness waits for the model.
+ */
+function withProgress(provider, onProgress) {
+  let callSeq = 0;
+  return {
+    name: provider.name,
+    version: provider.version,
+    async generate(request) {
+      const seq = ++callSeq;
+      const label = seq === 1 ? "menilai jawaban Anda" : "memverifikasi & memeriksa ulang";
+      onProgress(`Asesor AI sedang ${label}...`);
+      const started = Date.now();
+      try {
+        const raw = await provider.generate(request);
+        onProgress(`Selesai menilai (${((Date.now() - started) / 1000).toFixed(1)} dtk). Menyusun hasil...`);
+        return raw;
+      } catch (err) {
+        onProgress("Asesor AI gagal, mencoba lagi...");
+        throw err;
+      }
+    },
+  };
 }
 
 /**
