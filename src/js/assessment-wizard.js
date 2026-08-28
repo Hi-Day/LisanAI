@@ -505,6 +505,8 @@ function showRecommendStreamPlaceholder(ctx) {
 
 /**
  * Incrementally render the streamed recommendation JSON into a readable preview.
+ * Menampilkan kompetensi & rubrik kata-per-kata begitu JSON parsial datang,
+ * bukan menunggu seluruh JSON valid (sehingga teks "pop" sekaligus).
  */
 function renderRecommendStream(ctx, raw) {
   const { els } = ctx;
@@ -513,22 +515,51 @@ function renderRecommendStream(ctx, raw) {
     els.recommendStreamPlaceholder.classList.add("hidden");
   }
 
-  const trimmed = raw.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
-  const match = trimmed.match(/\{[\s\S]*\}/);
-  if (!match) return;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(match[0]);
-  } catch {
-    return;
-  }
+  const outcomes = extractStreamedField(raw, "outcomes");
+  const rubric = extractStreamedField(raw, "rubric");
 
   const parts = [];
-  if (parsed.outcomes) parts.push(`📋 Kompetensi:\n${parsed.outcomes}`);
-  if (parsed.rubric) parts.push(`\n📐 Rubrik:\n${parsed.rubric}`);
+  if (outcomes !== null) parts.push(`📋 Kompetensi:\n${outcomes}`);
+  if (rubric !== null) parts.push(`\n📐 Rubrik:\n${rubric}`);
+  if (parts.length === 0) return;
   els.recommendStreamContent.textContent = parts.join("\n");
   els.recommendStreamContent.scrollTop = els.recommendStreamContent.scrollHeight;
+}
+
+/**
+ * Ekstrak nilai string sebuah field dari JSON yang MASIH mengalir (parsial).
+ * Bekerja tanpa menunggu JSON valid: begitu key + pembuka string terlihat,
+ * nilai yang sudah terkumpul dikembalikan dan terus bertambah per chunk.
+ * Escape `\n` diterjemahkan menjadi baris baru untuk keterbacaan.
+ *
+ * @returns {string|null} nilai parsial field, atau null bila field belum mulai.
+ */
+function extractStreamedField(raw, field) {
+  const keyPattern = `"${field}"`;
+  const keyIdx = raw.indexOf(keyPattern);
+  if (keyIdx === -1) return null;
+
+  let i = keyIdx + keyPattern.length;
+  // Lewati spasi dan titik dua sebelum nilai.
+  while (i < raw.length && (raw[i] === " " || raw[i] === ":")) i += 1;
+  if (raw[i] !== '"') return null; // nilai belum mulai
+  i += 1;
+
+  let out = "";
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === "\\") {
+      const next = raw[i + 1];
+      if (next === "n") { out += "\n"; i += 2; continue; }
+      if (next === '"') { out += '"'; i += 2; continue; }
+      if (next === "\\") { out += "\\"; i += 2; continue; }
+      out += ch; i += 1; continue;
+    }
+    if (ch === '"') break; // string selesai
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 export async function generateQuestionsWithFallback(ctx, config) {
