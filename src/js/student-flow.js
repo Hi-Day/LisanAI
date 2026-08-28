@@ -358,6 +358,7 @@ async function startProbingForCurrentQuestion(ctx) {
 
   ctx.inProbing = true;
   ctx.probingPrompt = null;
+  ctx.probingRaw = "";
   if (els.questionProgress) {
     els.questionProgress.textContent = `Soal ${qi + 1} dari ${assessment.questions.length} — pertanyaan lanjutan`;
   }
@@ -422,6 +423,12 @@ async function generateProbingForAnswer(ctx, assessment, question, answer) {
         streamAssessmentAction({
           action: "generate-probing",
           payload,
+          // Streaming kata-per-kata: tampilkan prompt lanjutan begitu token
+          // JSON-nya mengalir dari server, agar siswa melihat pertanyaan
+          // lanjutan "terlahir" secara live (dengan animasi).
+          onChunk: (text) => {
+            renderProbingStream(ctx, text);
+          },
           onResult: (data) => resolve(data?.probing || null),
           onError: (message) => reject(new Error(message)),
         }).catch(reject);
@@ -433,6 +440,52 @@ async function generateProbingForAnswer(ctx, assessment, question, answer) {
   }
   if (probing && String(probing.prompt || "").trim()) return probing;
   return fallback();
+}
+
+/**
+ * Tampilkan prompt probing secara inkremental dari JSON stream parsial.
+ * Menjalankan animasi penanda "pertanyaan lanjutan" sejak awal, lalu mengisi
+ * teks prompt kata-per-kata saat token datang. (Mirip extractStreamedField di
+ * wizard, disalin ringkas di sini.)
+ */
+function renderProbingStream(ctx, chunk) {
+  const { els } = ctx;
+  ctx.probingRaw = (ctx.probingRaw || "") + chunk;
+  const prompt = extractStreamedField(ctx.probingRaw, "prompt");
+  if (prompt === null) return;
+  if (els.activeQuestion) {
+    // Pertahankan badge "pertanyaan lanjutan", hanya perbarui teksnya.
+    const badge = `<span class="probing-badge" role="status">⚡ Pertanyaan lanjutan</span>`;
+    els.activeQuestion.innerHTML = `${badge}<span class="probing-text">${escapeHtml(prompt)}</span>`;
+    els.activeQuestion.classList.add("probing-active", "probing-live");
+  }
+}
+
+/** Ekstrak nilai string field dari JSON parsial (grow-only, tanpa backslash mentah). */
+function extractStreamedField(raw, field) {
+  const keyPattern = `"${field}"`;
+  const keyIdx = raw.indexOf(keyPattern);
+  if (keyIdx === -1) return null;
+  let i = keyIdx + keyPattern.length;
+  while (i < raw.length && (raw[i] === " " || raw[i] === ":")) i += 1;
+  if (raw[i] !== '"') return null;
+  i += 1;
+  let out = "";
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === "\\") {
+      const next = raw[i + 1];
+      if (next === undefined) break;
+      if (next === "n") { out += "\n"; i += 2; continue; }
+      if (next === '"') { out += '"'; i += 2; continue; }
+      if (next === "\\") { out += "\\"; i += 2; continue; }
+      out += ch; i += 1; continue;
+    }
+    if (ch === '"') break;
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 /** Alasan utama AI belum menghasilkan probing dalam waktu wajar -> fallback deterministik. */
@@ -449,7 +502,17 @@ function withTimeout(promise, ms) {
 /** Tampilkan pertanyaan probing di panel ujian. */
 function renderProbing(ctx, probing) {
   const { els } = ctx;
-  if (els.activeQuestion) els.activeQuestion.textContent = probing?.prompt || "Pertanyaan lanjutan.";
+  const prompt = String(probing?.prompt || "").trim() || "Pertanyaan lanjutan.";
+  // Reset state streaming & animasi penanda.
+  ctx.probingRaw = "";
+  if (els.activeQuestion) {
+    els.activeQuestion.innerHTML = `
+      <span class="probing-badge" role="status">⚡ Pertanyaan lanjutan</span>
+      <span class="probing-text">${escapeHtml(prompt)}</span>
+    `;
+    els.activeQuestion.classList.remove("probing-live");
+    els.activeQuestion.classList.add("probing-active");
+  }
   if (els.activeHint) {
     els.activeHint.textContent = "Jawab pertanyaan lanjutan ini. Timer berjalan seperti soal sebelumnya.";
     els.activeHint.classList.remove("hidden");
@@ -738,6 +801,11 @@ function sanitizeAssessmentForEvaluation(assessment) {
     questions: assessment.questions.map((question) => ({
       prompt: question?.prompt || "",
       focus: question?.focus || "",
+      // Pertahankan rubrik & pemetaan kriteria PER SOAL. Criteria penilaian
+      // harus diambil dari rubrik per soal, bukan dari rubrik topik yang
+      // digabung — ini yang membuat evaluasi konsisten dengan substansi soal.
+      rubric: question?.rubric || "",
+      criteria: Array.isArray(question?.criteria) ? question.criteria : [],
     })),
   };
 }

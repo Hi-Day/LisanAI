@@ -116,53 +116,32 @@ test("evaluateWithHarness returns frontend contract + harness provenance", async
   assert.ok(result.verification);
 });
 
-test("isFailureOnlyFromUnanswered downgrades empty-answer NO_EVIDENCE but keeps genuine failures FAIL", async () => {
-  const { isFailureOnlyFromUnanswered } = require("../server/harness/harness-evaluator");
+test("shouldDowngradeToReview downgrades NO_EVIDENCE/MISSING_CRITERION but keeps structural failures FAIL", async () => {
+  const { shouldDowngradeToReview } = require("../server/harness/harness-evaluator");
 
-  // Skip case: all fatal issues are NO_EVIDENCE and there is an empty answer.
+  // NO_EVIDENCE / MISSING_CRITERION (model output incomplete or hallucinated
+  // criteria dropped) → downgrade to REVIEW for human review.
   const skip = {
     status: "FAIL",
     issues: [{ type: "NO_EVIDENCE", criterionId: "C1" }],
   };
-  assert.equal(
-    isFailureOnlyFromUnanswered(skip, [{ criterionId: "C1", answerIndex: 0, evidence: [] }], ["", "menjawab"], [{}, {}]),
-    true,
-    "skip-only NO_EVIDENCE must downgrade"
-  );
+  assert.equal(shouldDowngradeToReview(skip), true, "NO_EVIDENCE must downgrade");
 
-  // MISSING_CRITERION for an unanswered question is a legitimate skip, so it
-  // is also downgraded (real models omit criteria for skipped questions).
-  const skippedMissing = {
+  const missing = {
     status: "FAIL",
     issues: [{ type: "MISSING_CRITERION", criterionId: "C2" }, { type: "NO_EVIDENCE", criterionId: "C1" }],
   };
-  assert.equal(
-    isFailureOnlyFromUnanswered(skippedMissing, [], [""], [{}]),
-    true,
-    "MISSING_CRITERION + empty answer must downgrade"
-  );
+  assert.equal(shouldDowngradeToReview(missing), true, "MISSING_CRITERION must downgrade");
 
-  // Genuine failure: SCHEMA_INVALID cannot be blamed on a skip → stays FAIL.
+  // Structural failure (SCHEMA_INVALID) is a genuine fault → stays FAIL.
   const genuine = {
     status: "FAIL",
     issues: [{ type: "SCHEMA_INVALID", criterionId: "C1" }],
   };
-  assert.equal(
-    isFailureOnlyFromUnanswered(genuine, [], [""], [{}]),
-    false,
-    "SCHEMA_INVALID fatal must stay FAIL (never downgraded)"
-  );
+  assert.equal(shouldDowngradeToReview(genuine), false, "SCHEMA_INVALID must stay FAIL");
 
-  // No empty answer -> NO_EVIDENCE is a genuine model failure, keep FAIL.
-  const answered = {
-    status: "FAIL",
-    issues: [{ type: "NO_EVIDENCE", criterionId: "C1" }],
-  };
-  assert.equal(
-    isFailureOnlyFromUnanswered(answered, [], ["menjawab"], [{}]),
-    false,
-    "NO_EVIDENCE without any empty answer must stay FAIL"
-  );
+  // Not a FAIL at all → not downgraded.
+  assert.equal(shouldDowngradeToReview({ status: "PASS", issues: [] }), false, "PASS is not downgraded");
 });
 
 test("evaluateWithHarness downgrades FAIL to REVIEW when ONLY skipped (empty) questions are the cause", async () => {

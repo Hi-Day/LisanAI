@@ -78,7 +78,7 @@ const criteriaRaw = result.criteria || [];
     // review. Only when the FAIL is caused EXCLUSIVELY by unanswered questions
     // do we downgrade to REVIEW. Genuine failures (missing criteria, invalid
     // scores, evidence missing on ANSWERED questions) still block publishing.
-    if (isFailureOnlyFromUnanswered(verification, criteria, answers, questions)) {
+    if (shouldDowngradeToReview(verification, criteria, answers, questions)) {
       verification = { ...verification, status: "REVIEW", downgraded: true };
       status = "REVIEW";
     } else {
@@ -238,31 +238,29 @@ function applyUnansweredDefaults(criteria, rubric, answers, questions) {
 }
 
 /**
- * Whether a verification FAIL is caused by questions the student left
- * unanswered (empty answer). Such questions are legitimately scored 0 and
- * flagged for human review rather than hard-failing the whole submission.
+ * Whether a verification FAIL is safe to downgrade to REVIEW instead of
+ * blocking the whole submission.
  *
- * Rule (safe by construction):
- *   - every fatal issue is a NO_EVIDENCE or MISSING_CRITERION issue (no
- *     SCHEMA_INVALID etc. — genuine model failures keep FAIL);
- *   - at least one answer is empty.
+ * A FAIL is downgraded when ALL fatal issues are NO_EVIDENCE or
+ * MISSING_CRITERION — i.e. the model's output was incomplete (skipped
+ * questions, or the model emitted only hallucinated/unknown criterion ids
+ * that were dropped, leaving rubric criteria unevaluated). These are
+ * legitimate-but-imperfect outcomes that should be scored 0/partial and
+ * flagged for HUMAN REVIEW rather than surfacing an error.
  *
- * When both hold we downgrade FAIL → REVIEW. This is intentionally a loose
- * attribution because a real LLM does not reliably emit per-criterion
- * `answerIndex`. The downgrade is SAFE because REVIEW is never auto-published:
- * it always requires human review before becoming a final score. Genuine
- * model/system failures (e.g. SCHEMA_INVALID) still FAIL.
+ * Structural failures (SCHEMA_INVALID, invalid scores, etc.) are genuine
+ * system/model faults and keep FAIL (blocking), because they signal a bug
+ * that human review cannot meaningfully judge.
+ *
+ * The downgrade is SAFE because REVIEW is never auto-published: it always
+ * requires human review before becoming a final score.
  */
-function isFailureOnlyFromUnanswered(verification, criteria, answers, questions) {
+function shouldDowngradeToReview(verification, criteria, answers, questions) {
   if (!verification || verification.status !== "FAIL") return false;
   const issues = Array.isArray(verification.issues) ? verification.issues : [];
   const allowed = new Set(["NO_EVIDENCE", "MISSING_CRITERION"]);
   if (issues.some((i) => i && i.type && !allowed.has(i.type))) return false;
   if (!issues.some((i) => i && (i.type === "NO_EVIDENCE" || i.type === "MISSING_CRITERION"))) return false;
-
-  const emptyCount = (answers || []).filter((a) => !String(a || "").trim()).length;
-  if (emptyCount === 0) return false;
-
   return true;
 }
 
@@ -297,8 +295,24 @@ function buildQuestionScores(questions, answers, criteria, rubric) {
   return Array.from({ length: n }, (_, idx) => {
     const explicit = byAnswer.get(idx) || [];
     const declaredKeys = questionCriterionKeys(questions[idx], rubric);
+    // Criteria from the merged per-question rubric that belong to THIS question
+    // (sourceIndices includes idx). A criterion not measuring this question must
+    // NOT be applied to it — that is the core fix: evaluate against the
+    // per-question rubric, not the merged topic rubric.
+    const sourceKeys = rubricSourceKeysForQuestion(rubric, idx);
     let applicable;
-    if (declaredKeys && declaredKeys.length > 0) {
+    if (sourceKeys.length > 0) {
+      const sourceMatched = allCriteria.filter((c) => criterionMatches(c, sourceKeys));
+      applicable = [...explicit, ...sourceMatched];
+      // If nothing matched (model output couldn't be attributed), fall back to
+      // declaredKeys alignment, then to all criteria (legacy).
+      if (sourceMatched.length === 0 && declaredKeys && declaredKeys.length > 0) {
+        const matched = allCriteria.filter((c) => criterionMatches(c, declaredKeys));
+        applicable = [...explicit, ...(matched.length > 0 ? matched : allCriteria)];
+      } else if (sourceMatched.length === 0) {
+        applicable = [...explicit, ...allCriteria];
+      }
+    } else if (declaredKeys && declaredKeys.length > 0) {
       // Aligned: only criteria the question actually asks about. Fall back to
       // all criteria only when NONE of the declared keys match anything
       // (protects against a broken mapping silently zeroing a question).
@@ -368,6 +382,22 @@ function normKey(value) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Keys of rubric criteria that measure a given question, based on the
+ * per-question rubric's `sourceIndices`. Returns [] when no source mapping
+ * exists (caller falls back to declared-keys or legacy all-criteria behavior).
+ */
+function rubricSourceKeysForQuestion(rubric, questionIndex) {
+  const out = [];
+  for (const rc of ((rubric && rubric.criteria) || [])) {
+    const src = Array.isArray(rc.sourceIndices) ? rc.sourceIndices : [];
+    if (src.includes(questionIndex)) {
+      out.push(normKey(rc.id || rc.name || ""));
+    }
+  }
+  return out;
 }
 
 /**
@@ -482,6 +512,17 @@ function calculateAlignedFinalScore(criteria, rubric, questions) {
  * Falls back to a uniform weighted rubric across the question count.
  */
 function structuredRubric(payload, assessment, questionCount) {
+  const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
+
+  // PREFERRED — build criteria from EACH QUESTION's own rubric. Per-question
+  // rubrics carry the criteria that actually measure that question's
+  // substance, so we must NOT fall back to the merged topic-level rubric
+  // (which blurs which criterion belongs to which question).
+  const fromPerQuestion = buildRubricFromPerQuestion(questions);
+  if (fromPerQuestion && fromPerQuestion.criteria.length > 0) {
+    return normalizeWeights(fromPerQuestion);
+  }
+
   // 1. Explicit structured rubric on the assessment payload.
   const structured = assessment.rubric;
   if (structured && Array.isArray(structured.criteria) && structured.criteria.length > 0) {
@@ -503,6 +544,41 @@ function structuredRubric(payload, assessment, questionCount) {
       scale: 100,
     })),
   };
+}
+
+/**
+ * Build a structured rubric by merging each question's OWN rubric.
+ *
+ * A question's rubric may be JSON v2 ({"version":"2","criteria":[...]}) or
+ * free text ("Nama 40%"). Each criterion is recorded with the question indices
+ * it belongs to (`sourceIndices`) so the answerIndex mapping can attribute a
+ * criterion to the question(s) that actually measure it. Merging deduplicates
+ * criteria that appear in several questions (e.g. "Ketepatan konsep" in many).
+ *
+ * Returns null when no question carries a usable rubric (caller falls back).
+ */
+function buildRubricFromPerQuestion(questions) {
+  const merged = new Map();
+  let any = false;
+  (questions || []).forEach((q, qi) => {
+    const text = (q && String(q.rubric || "").trim()) || "";
+    if (!text) return;
+    const criteria = parseRubricText(text);
+    if (criteria.length === 0) return;
+    any = true;
+    for (const c of criteria) {
+      const key = normKey(c.id);
+      if (!merged.has(key)) {
+        merged.set(key, { ...c, sourceIndices: [qi] });
+      } else {
+        const e = merged.get(key);
+        e.sourceIndices.push(qi);
+      }
+    }
+  });
+  if (!any) return null;
+  const criteria = [...merged.values()].map((c) => ({ ...c, sourceIndices: c.sourceIndices || [] }));
+  return { id: "rubric-per-question", criteria };
 }
 
 function normalizeWeights(rubric) {
@@ -581,5 +657,5 @@ module.exports = {
   calculateAlignedFinalScore,
   questionCriterionKeys,
   criterionMatches,
-  isFailureOnlyFromUnanswered,
+  shouldDowngradeToReview,
 };

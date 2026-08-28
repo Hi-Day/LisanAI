@@ -912,6 +912,52 @@ textarea[readonly] {
 
 #activeHint { color: var(--muted); margin-bottom: 24px; font-size: 1.05rem; }
 
+/* ===== Probing (pertanyaan lanjutan) ===== */
+#activeQuestion.probing-active {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#activeQuestion.probing-active .probing-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #fff;
+  background: linear-gradient(135deg, #635BFF 0%, #A855F7 100%);
+  box-shadow: 0 2px 8px rgba(99, 91, 255, 0.35);
+  animation: probingBadgeIn 400ms ease-out;
+}
+#activeQuestion.probing-active .probing-text {
+  color: var(--ink);
+}
+/* Animasi muncul badge */
+@keyframes probingBadgeIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Efek "ketik" saat streaming prompt lanjutan: kursor berkedip di ujung teks */
+#activeQuestion.probing-active.probing-live .probing-text {
+  border-right: 2px solid var(--accent);
+  padding-right: 2px;
+  animation: probingCaret 0.8s steps(1) infinite;
+}
+@keyframes probingCaret {
+  0%, 100% { border-color: var(--accent); }
+  50%      { border-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #activeQuestion.probing-active .probing-badge,
+  #activeQuestion.probing-active.probing-live .probing-text {
+    animation: none;
+  }
+}
+
 .question-outcome, .question-rubric {
   padding: 12px 16px;
   border-radius: 10px;
