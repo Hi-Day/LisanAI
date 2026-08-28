@@ -12,14 +12,23 @@ function calculateFinalScore(criteria, rubric) {
   }
 
   const byId = new Map(rubric.criteria.map((c) => [String(c.id), c]));
+  // A model may hallucinate a criterion that is NOT in the rubric. Scoring is
+  // the deterministic authority — it must never be blocked by such noise, and
+  // it must never let an invented criterion influence the score. Filter them
+  // out and continue; computeFinalScore already treats unknown criteria as
+  // excluded (not invented), so this only makes the strict wrapper consistent.
+  const knownCriteria = [];
+  const unknownProvided = [];
   for (const criterion of criteria) {
-    if (!byId.get(String(criterion.criterionId))) {
-      throw new Error(`Criterion '${criterion.criterionId}' tidak ada di rubric`);
-    }
+    if (byId.get(String(criterion.criterionId))) knownCriteria.push(criterion);
+    else unknownProvided.push(criterion.criterionId);
+  }
+  if (unknownProvided.length > 0) {
+    console.warn(`[scoring] Membuang criterion di luar rubrik (hallucination): ${unknownProvided.join(", ")}`);
   }
 
   const result = computeFinalScore({
-    criteria,
+    criteria: knownCriteria,
     rubric,
     options: { renormalize: false },
   });

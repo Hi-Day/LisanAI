@@ -41,9 +41,15 @@ test("calculateFinalScore rejects invalid rubric (sum != 1)", () => {
   assert.throws(() => calculateFinalScore([{ criterionId: "a", score: 80 }], bad));
 });
 
-test("calculateFinalScore rejects unknown criterion", () => {
-  const criteria = [{ criterionId: "nope", score: 50 }];
-  assert.throws(() => calculateFinalScore(criteria, RUBRIC));
+test("calculateFinalScore ignores hallucinated criterion not in rubric", () => {
+  // A model may emit a criterion id that is NOT in the rubric. Scoring is the
+  // deterministic authority: it must not be blocked by such noise and must not
+  // let the invented criterion affect the score (it is dropped).
+  const known = [{ criterionId: "concept", score: 80 }];
+  const invented = [{ criterionId: "nope", score: 50 }];
+  const withKnown = calculateFinalScore([...known, ...invented], RUBRIC);
+  const knownOnly = calculateFinalScore(known, RUBRIC);
+  assert.equal(withKnown.finalScore, knownOnly.finalScore, "hallucinated criterion must be ignored");
 });
 
 // ---------------------------------------------------------------------------
