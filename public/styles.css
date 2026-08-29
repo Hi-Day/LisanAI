@@ -1543,7 +1543,17 @@ textarea[readonly] {
 .evaluation-stream-content {
   margin-top: 14px;
   max-height: 200px;
+  overflow-y: auto;
   text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ai);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .evaluation-stream-content:empty {
   display: none;

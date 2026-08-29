@@ -150,9 +150,9 @@ function clamp01(score) {
 
 /**
  * Wrap a provider so each model call emits a progress event before and after
- * the (potentially slow, ~20s) LLM round-trip. This lets the UI show live
- * stages ("menyiapkan asesor...", "menilai jawaban...", "memverifikasi...")
- * instead of a blank loading screen while the harness waits for the model.
+ * the (potentially slow, ~20s) LLM round-trip, and — when the provider
+ * supports it — forwards raw output deltas so the evaluation JSON can be
+ * rendered incrementally as it streams from the model.
  */
 function withProgress(provider, onProgress) {
   let callSeq = 0;
@@ -165,7 +165,12 @@ function withProgress(provider, onProgress) {
       onProgress(`Asesor AI sedang ${label}...`);
       const started = Date.now();
       try {
-        const raw = await provider.generate(request);
+        const raw = await provider.generate({
+          ...request,
+          // Forward raw token deltas to the progress sink so the client can
+          // stream the evaluation JSON live (not after completion).
+          onToken: (delta) => onProgress(delta),
+        });
         onProgress(`Selesai menilai (${((Date.now() - started) / 1000).toFixed(1)} dtk). Menyusun hasil...`);
         return raw;
       } catch (err) {

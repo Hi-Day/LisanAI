@@ -1,5 +1,5 @@
 const { AIProvider } = require("./provider");
-const { callOpenRouter } = require("../openrouter");
+const { callOpenRouter, streamOpenRouter } = require("../openrouter");
 
 /**
  * OpenRouter provider adapter — hides provider details from the harness.
@@ -13,33 +13,38 @@ class OpenRouterProvider extends AIProvider {
   }
 
   async generate(request) {
-    // Prefer an explicit stable system block when the harness provided one.
-    // Putting the reuseable instruction/rubric/schema in the system message
-    // (first in the array) is what gives provider KV prefix caches a hit —
-    // the volatile student answers stay confined to the last user message.
     let messages = [];
     if (request.systemPrompt) {
       messages.push({ role: "system", content: request.systemPrompt });
     }
     messages.push({ role: "user", content: request.userMessage || request.prompt });
 
-    const result = await callOpenRouter(
-      messages,
-      request.schemaHint || "Balas JSON valid.",
-      {
-        tenantId: request.tenantId,
-        userId: request.userId,
-        action: "evaluate-harness",
-        runId: request.runId,
-        // Generation parameters (FR-16 / P0) forwarded to the provider.
-        gen: {
-          temperature: request.temperature,
-          topP: request.topP,
-          maxTokens: request.maxTokens,
-        },
-      }
-    );
-    // callOpenRouter returns the parsed data object; stringify raw for the parser.
+    const context = {
+      tenantId: request.tenantId,
+      userId: request.userId,
+      action: "evaluate-harness",
+      runId: request.runId,
+      gen: {
+        temperature: request.temperature,
+        topP: request.topP,
+        maxTokens: request.maxTokens,
+      },
+    };
+
+    // Streaming: when the harness forwards an onToken callback (via a wrapped
+    // provider), stream the raw LLM output token-by-token so the UI can render
+    // the evaluation JSON incrementally instead of waiting for completion.
+    if (typeof request.onToken === "function") {
+      const { content } = await streamOpenRouter(
+        messages,
+        request.schemaHint || "Balas JSON valid.",
+        context,
+        (delta) => request.onToken(delta)
+      );
+      return content;
+    }
+
+    const result = await callOpenRouter(messages, request.schemaHint || "Balas JSON valid.", context);
     return JSON.stringify(result);
   }
 }
