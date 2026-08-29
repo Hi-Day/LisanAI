@@ -1336,16 +1336,77 @@ textarea[readonly] {
 }
 
 .evaluation-loading-card {
-  width: min(100%, 420px);
-  padding: 32px;
+  width: min(100%, 560px);
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 24px 28px;
   border-radius: 16px;
   background: var(--panel);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22);
-  text-align: center;
+  text-align: left;
 }
 
-.evaluation-loading-card h3 { margin: 18px 0 8px; }
-.evaluation-loading-card p { margin: 0; color: var(--muted); }
+.evaluation-loading-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+}
+.evaluation-loading-head .evaluation-spinner { margin: 0; flex-shrink: 0; }
+.evaluation-loading-head h3 { margin: 0; }
+
+.evaluation-progress-text {
+  margin: 12px 0 16px;
+  color: var(--ai);
+  font-weight: 600;
+  font-size: 0.95rem;
+  min-height: 1.4em;
+}
+
+/* Preview: soal + jawaban siswa dengan nilai loading skeleton */
+.evaluation-preview-list { display: grid; gap: 12px; }
+.ev-preview-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.ev-preview-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.ev-preview-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.ev-preview-card summary::-webkit-details-marker { display: none; }
+.ev-preview-title { color: var(--accent-strong); }
+.ev-preview-score { display: inline-flex; align-items: center; }
+.ev-score-skeleton {
+  display: inline-block;
+  width: 44px;
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--line) 25%, var(--surface-elevated, #fff) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: ev-score-shimmer 1.2s infinite;
+}
+@keyframes ev-score-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+.ev-preview-body { padding: 0 14px 14px; }
+.ev-preview-answer { margin-top: 8px; font-size: 0.95rem; }
+.ev-preview-empty { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) {
+  .ev-score-skeleton { animation: none; }
+}
 
 .evaluation-spinner {
   width: 48px;

@@ -6,7 +6,7 @@ import { createSubmission } from "./assessment-factory.js";
 import { setButtonLoading } from "./dom.js";
 import { evaluateFallbackAssessment, generateProbingFallback } from "./fallback-assessment.js";
 import { createMicCheck } from "./mic-check.js";
-import { formatDuration, renderMonitoring, renderQuestion, renderStudentHistory, showResult } from "./render.js";
+import { formatDuration, renderMonitoring, renderQuestion, renderStudentHistory, showResult, renderEvaluationPreview, updateEvaluationProgress } from "./render.js";
 import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml, formatTime, prettifyId } from "./utils.js";
 import { isAssessmentLocked, renderCurrentState } from "./app-context.js";
@@ -673,6 +673,11 @@ export async function handleFinishAssessment(ctx) {
   ctx.isEvaluating = true;
   els.evaluationLoadingModal?.classList.remove("hidden");
   if (els.evaluationStreamContent) els.evaluationStreamContent.textContent = "";
+  // Tampilkan langsung soal + jawaban siswa (yang sudah diketahui di client)
+  // dengan nilai berupa animasi loading & detail terbuka, agar proses
+  // streaming evaluasi bisa diobservasi, bukan modal kosong.
+  renderEvaluationPreview(els, assessment, ctx.session.currentAnswers);
+  updateEvaluationProgress(els, "Menyiapkan evaluasi...");
   setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan penilaian");
 
   try {
@@ -716,12 +721,8 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
       payload: { assessment: safeAssessment, answers: textAnswers, studentName },
       onChunk: (text) => {
         // Tampilkan status/progress live dari server (streaming partial):
-        // ganti teks tahap terkini alih-alih menumpuk, supaya siswa melihat
-        // kemajuan evaluasi secara real-time, bukan modal kosong.
-        if (ctx.els.evaluationStreamContent) {
-          ctx.els.evaluationStreamContent.textContent = text || "";
-          ctx.els.evaluationStreamContent.scrollTop = ctx.els.evaluationStreamContent.scrollHeight;
-        }
+        // ganti teks tahap terkini agar siswa melihat kemajuan evaluasi.
+        updateEvaluationProgress(ctx.els, text);
       },
     });
 

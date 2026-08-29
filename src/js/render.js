@@ -228,6 +228,46 @@ export function renderMonitoring(els, state) {
   renderSubmissions(els, visibleSubmissions);
 }
 
+export function renderEvaluationPreview(els, assessment, answers) {
+  if (!els.evaluationPreviewList) return;
+  const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
+  const list = questions.map((q, idx) => {
+    const answer = answers && answers[idx];
+    const answerText = String(answer?.text || "").trim();
+    const hasAudio = Boolean(answer?.audio);
+    const answerHtml = answerText
+      ? `<p class="ev-preview-answer"><b>Jawaban:</b> <i>"${escapeHtml(answerText)}"</i></p>`
+      : hasAudio
+        ? `<p class="ev-preview-answer"><b>Jawaban:</b> <i>Rekaman suara</i></p>`
+        : `<p class="ev-preview-answer ev-preview-empty"><b>Jawaban:</b> <i>Belum dijawab</i></p>`;
+    return `
+      <details class="ev-preview-card" open>
+        <summary>
+          <span class="ev-preview-title"><strong>Soal ${idx + 1}</strong></span>
+          <span class="ev-preview-score" aria-label="Nilai sedang diproses">
+            <span class="ev-score-skeleton"></span>
+          </span>
+        </summary>
+        <div class="ev-preview-body">
+          <div class="rich-text">${formatRichText(q.prompt || `Soal ${idx + 1}`)}</div>
+          ${answerHtml}
+          ${hasAudio ? `<div style="margin-top:8px;"><span class="tag">🎤 Audio tersimpan</span></div>` : ""}
+        </div>
+      </details>
+    `;
+  }).join("");
+  els.evaluationPreviewList.innerHTML = `
+    <div class="ev-preview-note">Menampilkan soal &amp; jawaban Anda sementara AI menilai...</div>
+    ${list}
+  `;
+}
+
+export function updateEvaluationProgress(els, text) {
+  if (els.evaluationProgressText) {
+    els.evaluationProgressText.textContent = text || "";
+  }
+}
+
 export function showResult(els, submission, auth = null) {
   els.resultPanel._returnFocus = document.activeElement;
   els.resultPanel.classList.remove("hidden");

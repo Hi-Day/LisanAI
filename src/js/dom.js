@@ -42,6 +42,8 @@ export function getElements() {
     recommendStreamPlaceholder: document.querySelector("#recommendStreamPlaceholder"),
     recommendStreamContent: document.querySelector("#recommendStreamContent"),
     evaluationStreamContent: document.querySelector("#evaluationStreamContent"),
+    evaluationProgressText: document.querySelector("#evaluationProgressText"),
+    evaluationPreviewList: document.querySelector("#evaluationPreviewList"),
     assessmentList: document.querySelector("#assessmentList"),
     assessmentCount: document.querySelector("#assessmentCount"),
     studentSelect: document.querySelector("#studentAssessmentSelect"),
