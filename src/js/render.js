@@ -263,13 +263,8 @@ export function renderEvaluationPreview(els, assessment, answers) {
 }
 
 export function updateEvaluationProgress(els, text) {
-  // Konten streaming mentah (status + JSON evaluasi) tampil di area <pre>.
-  if (els.evaluationStreamContent) {
-    els.evaluationStreamContent.textContent = text || "";
-    els.evaluationStreamContent.scrollTop = els.evaluationStreamContent.scrollHeight;
-  }
-  // Baris status singkat (mis. "Menyiapkan evaluasi...") tetap di teks progres.
-  if (els.evaluationProgressText && text && text.length < 120 && !text.trim().startsWith("{")) {
+  // Tampilkan status tahap yang natural di teks progres (bukan raw JSON).
+  if (els.evaluationProgressText && text) {
     els.evaluationProgressText.textContent = text;
   }
 }

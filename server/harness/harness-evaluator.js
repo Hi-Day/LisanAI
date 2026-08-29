@@ -149,10 +149,11 @@ function clamp01(score) {
 }
 
 /**
- * Wrap a provider so each model call emits a progress event before and after
- * the (potentially slow, ~20s) LLM round-trip, and — when the provider
- * supports it — forwards raw output deltas so the evaluation JSON can be
- * rendered incrementally as it streams from the model.
+ * Wrap a provider so each model call emits a short human-readable progress
+ * event before and after the (potentially slow, ~20s) LLM round-trip. The raw
+ * token deltas are NOT forwarded to the client — they stay internal to the
+ * provider — so the UI shows natural stage status alongside the question/answer
+ * preview, instead of raw evaluation JSON.
  */
 function withProgress(provider, onProgress) {
   let callSeq = 0;
@@ -165,12 +166,7 @@ function withProgress(provider, onProgress) {
       onProgress(`Asesor AI sedang ${label}...`);
       const started = Date.now();
       try {
-        const raw = await provider.generate({
-          ...request,
-          // Forward raw token deltas to the progress sink so the client can
-          // stream the evaluation JSON live (not after completion).
-          onToken: (delta) => onProgress(delta),
-        });
+        const raw = await provider.generate(request);
         onProgress(`Selesai menilai (${((Date.now() - started) / 1000).toFixed(1)} dtk). Menyusun hasil...`);
         return raw;
       } catch (err) {

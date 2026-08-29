@@ -673,7 +673,6 @@ export async function handleFinishAssessment(ctx) {
   ctx.isEvaluating = true;
   els.evaluationLoadingModal?.classList.remove("hidden");
   if (els.evaluationStreamContent) els.evaluationStreamContent.textContent = "";
-  ctx.evalStreamRaw = "";
   // Tampilkan langsung soal + jawaban siswa (yang sudah diketahui di client)
   // dengan nilai berupa animasi loading & detail terbuka, agar proses
   // streaming evaluasi bisa diobservasi, bukan modal kosong.
@@ -721,12 +720,10 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
       action: "evaluate",
       payload: { assessment: safeAssessment, answers: textAnswers, studentName },
       onChunk: (text) => {
-        // Server streams both stage status lines and raw evaluation-JSON token
-        // deltas. Accumulate and render incrementally so the student can watch
-        // the evaluation being produced, instead of a blank modal that only
-        // fills in at the end.
-        ctx.evalStreamRaw = (ctx.evalStreamRaw || "") + (text || "");
-        updateEvaluationProgress(ctx.els, ctx.evalStreamRaw);
+        // Server mengirim status tahap yang natural (bukan raw JSON). Tampilkan
+        // sebagai teks progres singkat; preview soal+jawaban & skeleton nilai
+        // tetap di modal (tidak ada redundansi JSON mentah).
+        updateEvaluationProgress(ctx.els, text);
       },
     });
 
