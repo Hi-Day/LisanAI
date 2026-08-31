@@ -7,6 +7,7 @@
     "check": "node scripts/check-js.js && npm test",
     "dev": "node scripts/build.js && node local-server.js",
     "start-local": "node scripts/build.js && node local-server.js",
+    "worker:evaluation": "node server/evaluation/evaluation-worker.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "test:e2e": "node scripts/build.js && playwright test"
   },
