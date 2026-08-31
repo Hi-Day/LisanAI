@@ -4,74 +4,38 @@ const { MockProvider } = require("../../ai/mock-provider");
 const { OpenRouterProvider } = require("../../ai/openrouter-provider");
 const { parse } = require("../../ai/response-parser");
 const { summarizeExperimentMetrics } = require("./experiment-metrics");
+const { getCondition, getConditions, buildHarnessConfig } = require("./ablation");
 
-/**
- * Deterministic single-prompt baseline provider — returns { score } (0-100).
- * Intended for the baseline mode where the model yields a whole-answer score
- * WITHOUT rubric/evidence/verification (PR-08).
- */
 class BaselineMockProvider extends MockProvider {
-  constructor() {
-    super();
-    this.name = "mock-baseline";
-  }
-
+  constructor() { super(); this.name = "mock-baseline"; }
   async generate(request) {
     const { prompt } = request;
     let studentAnswer = "";
-    let hint = 0;
     try {
       const p = JSON.parse(prompt);
-      studentAnswer = String(
-        (Array.isArray(p.studentAnswer) ? p.studentAnswer : [p.studentAnswer]).join(" ")
-      );
+      studentAnswer = String((Array.isArray(p.studentAnswer) ? p.studentAnswer : [p.studentAnswer]).join(" "));
     } catch { /* ignore */ }
-    return JSON.stringify({ score: MockProvider.hashScore(studentAnswer, hint) });
+    return JSON.stringify({ score: MockProvider.hashScore(studentAnswer, 0) });
   }
 }
 
-/**
- * PRD §24 Experimental Pipeline — Baseline vs Harness evaluation runner.
- *
- * Independent variable: evaluation architecture (baseline | harness).
- * Controlled: model, temperature, question, rubric, student answer, schema,
- * dataset. Both runners accept the SAME dataset sample.
- */
-
-/**
- * Pick a provider by name (defaults to mock unless OPENROUTER key present).
- * [PRD §9, §27: provider + feature flag decoupling.]
- */
 function resolveProvider(name) {
   const chosen = name || process.env.HARNESS_PROVIDER || "mock";
   if (chosen === "openrouter") return new OpenRouterProvider();
   return new MockProvider();
 }
 
-/**
- * Baseline provider for the single-prompt mode. OpenRouter is reused for the
- * real experiment; mock is deterministic for tests.
- */
 function resolveBaselineProvider(name) {
   const chosen = name || process.env.HARNESS_PROVIDER || "mock";
   if (chosen === "openrouter") return new OpenRouterProvider();
   return new BaselineMockProvider();
 }
 
-/**
- * PR-09 — Harness evaluation runner. Runs a single dataset sample through
- * the full assessment harness (rubric → evidence → criterion judgment →
- * verification → deterministic scoring → reliability).
- * @returns { { score, evaluationMode, sampleId, question, rubric, studentAnswers, humanScore, verification, reliability, criteria, versioning } }
- */
 async function runSampleHarness(harness, sample, opts = {}) {
   const sid = sample.sampleId || "sample";
   const result = await harness.evaluate({
     assessmentId: opts.assessmentId || `bench-${sid}`,
-    assessment: {
-      id: opts.assessmentId || `bench-${sid}`,
-      topic: sample.question ? String(sample.question).slice(0, 60) : null,
-    },
+    assessment: { id: opts.assessmentId || `bench-${sid}`, topic: sample.question ? String(sample.question).slice(0, 60) : null },
     rubric: sample.rubric,
     answers: Array.isArray(sample.studentAnswers) ? sample.studentAnswers : [sample.studentAnswers],
     tenantId: opts.tenantId || "bench",
@@ -83,25 +47,15 @@ async function runSampleHarness(harness, sample, opts = {}) {
     studentAnswer: sample.studentAnswers,
     humanScore: sample.humanScore,
     score: Math.round(clamp(result.finalScore, 0, 100)),
-    evaluationMode: "harness",
+    evaluationMode: opts.evaluationMode || "harness",
     verification: result.verification,
     reliability: result.reliability,
     criteria: result.criteria || [],
   };
 }
 
-/**
- * PR #8 — Baseline evaluation runner.
- *
- * A single-prompt LLM that returns a numeric score for the whole answer,
- * WITHOUT rubric/evidence/verification. Uses the same provider/parser so the
- * ONLY difference vs harness is the architecture (independent variable).
- * @returns { { score, evaluationMode, humanScore, raw } }
- */
 async function runSampleBaseline(provider, parser, sample, opts = {}) {
-  const rubricSummary = (sample.rubric.criteria || [])
-    .map((c) => `${c.name || c.id} (bobot ${c.weight})`)
-    .join(", ");
+  const rubricSummary = (sample.rubric.criteria || []).map((c) => `${c.name || c.id} (bobot ${c.weight})`).join(", ");
   const prompt = JSON.stringify({
     task: "Beri skor 0-100 pada jawaban mahasiswa berikut berdasarkan rubrik.",
     question: sample.question,
@@ -109,15 +63,8 @@ async function runSampleBaseline(provider, parser, sample, opts = {}) {
     studentAnswer: (Array.isArray(sample.studentAnswers) ? sample.studentAnswers : [sample.studentAnswers]).join("\n"),
     instructions: "Balas hanya JSON: {\"score\": 0-100}. Tidak ada penjelasan.",
   });
-  const rawContent = await provider.generate({
-    prompt,
-    tenantId: opts.tenantId,
-    userId: opts.userId,
-    schemaHint: 'Balas JSON: {"score":0-100}.',
-  });
+  const rawContent = await provider.generate({ prompt, tenantId: opts.tenantId, userId: opts.userId, schemaHint: 'Balas JSON: {"score":0-100}.' });
   const parsed = await parser.parse(rawContent);
-  // Baseline providers must return a numeric score. Handle {score},
-  // {finalScore}, and a harness-shaped {criteria} fallback (mean of criteria).
   let score = null;
   if (parsed && typeof parsed.score === "number") score = parsed.score;
   else if (parsed && typeof parsed.finalScore === "number") score = parsed.finalScore;
@@ -125,178 +72,128 @@ async function runSampleBaseline(provider, parser, sample, opts = {}) {
     const scores = parsed.criteria.map((c) => Number(c.score)).filter((n) => Number.isFinite(n));
     if (scores.length) score = scores.reduce((a, b) => a + b, 0) / scores.length;
   }
-  return {
-    sampleId: sample.sampleId,
-    question: sample.question,
-    studentAnswer: sample.studentAnswers,
-    humanScore: sample.humanScore,
-    score: score && Number.isFinite(score) ? Math.round(clamp(score, 0, 100)) : null,
-    raw: parsed,
-    evaluationMode: "baseline",
-  };
+  return { sampleId: sample.sampleId, question: sample.question, studentAnswer: sample.studentAnswers, humanScore: sample.humanScore, score: score !== null && Number.isFinite(score) ? Math.round(clamp(score, 0, 100)) : null, raw: parsed, evaluationMode: "baseline" };
 }
 
-/**
- * Run a full experiment over a dataset for one or more modes.
- * [PRD §24 Experimental Pipeline]
- * @param {object} params
- * @param {string} params.dataset  dataset name or path
- * @param {string|string[]} params.mode  "baseline" | "harness" | both
- * @param {object} [params.harnessConfig]  harness config overrides
- * @param {string} [params.providerName]   provider override (mock|openrouter)
- * @param {string} [params.assessmentIdPrefix]
- * @param {number} [params.repeats]  repeat each sample n times to measure
- *   consistency (PRD §22 reliability) — the score vector for a sample across
- *   repeats feeds consistencyMetrics.
- * @returns {Promise<object>}
- */
+async function runAblationCondition({ dataset, condition, harnessConfig = {}, providerName, assessmentIdPrefix, repeats = 1 }) {
+  const loaded = loadDataset(dataset);
+  const validation = validateDataset(loaded.samples);
+  const selected = getCondition(condition);
+  const results = [];
+  const perRun = {};
+  const mode = selected.id;
+  perRun[mode] = {};
+
+  for (let rep = 0; rep < repeats; rep += 1) {
+    if (selected.id === "baseline") {
+      const provider = resolveBaselineProvider(providerName);
+      for (const sample of loaded.samples) {
+        const r = await runSampleBaseline(provider, { parse }, sample);
+        r.ablationCondition = selected.id;
+        results.push(r);
+        (perRun[mode][sample.sampleId] ||= []).push(r.score);
+      }
+    } else {
+      const harnessInst = createHarness({ ...buildHarnessConfig(selected.id), ...harnessConfig });
+      harnessInst.setProvider(resolveProvider(providerName)).setParser({ parse });
+      for (const sample of loaded.samples) {
+        const r = await runSampleHarness(harnessInst, sample, {
+          assessmentId: `${assessmentIdPrefix || "bench"}-${mode}-${sample.sampleId || "s"}-${rep}`,
+          evaluationMode: mode,
+        });
+        r.ablationCondition = selected.id;
+        results.push(r);
+        (perRun[mode][sample.sampleId] ||= []).push(r.score);
+      }
+    }
+  }
+
+  const metrics = summarizeExperimentMetrics({ results });
+  const consistency = repeats > 1 ? buildConsistency(perRun, repeats) : null;
+  return { condition: selected, datasetName: loaded.file, datasetVersion: loaded.version, validation, repeats, results, metrics, consistency };
+}
+
+async function runAblationExperiment({ dataset, conditions, harnessConfig, providerName, assessmentIdPrefix, repeats = 1 }) {
+  const selected = getConditions(conditions);
+  const runs = [];
+  for (const condition of selected) {
+    // eslint-disable-next-line no-await-in-loop
+    runs.push(await runAblationCondition({ dataset, condition: condition.id, harnessConfig, providerName, assessmentIdPrefix, repeats }));
+  }
+
+  const summary = {};
+  for (const run of runs) {
+    summary[run.condition.id] = {
+      label: run.condition.label,
+      metrics: run.metrics,
+      consistency: run.consistency,
+    };
+  }
+  return { datasetName: runs[0]?.datasetName || null, datasetVersion: runs[0]?.datasetVersion || null, conditions: runs.map((r) => r.condition.id), runs, summary };
+}
+
 async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1, raterMap }) {
   const loaded = loadDataset(dataset);
   const validation = validateDataset(loaded.samples);
   const modes = (Array.isArray(mode) ? mode : [mode || "baseline"]).filter(Boolean);
   if (modes.length === 0) modes.push("baseline");
-
   const results = [];
-  const perRun = {}; // mode -> { sampleId: scores[] }
-
-  // PRD FR-18/FR-20 — human inter-rater data. If the dataset already carries
-  // per-rater scores (humanCriterionScores / raterId per sample) OR the caller
-  // passes an explicit raterMap, surface inter-rater metrics.
+  const perRun = {};
   const resolvedRaterMap = raterMap || buildRaterMap(loaded.samples);
 
   for (const m of modes) {
     perRun[m] = {};
     for (let rep = 0; rep < repeats; rep += 1) {
       if (m === "harness") {
-        // A fresh harness per repeat keeps each run independent (no shared state).
         const harnessInst = createHarness(harnessConfig || {});
         harnessInst.setProvider(resolveProvider(providerName)).setParser({ parse });
         for (const sample of loaded.samples) {
-          // eslint-disable-next-line no-await-in-loop
-          const r = await runSampleHarness(harnessInst, sample, {
-            assessmentId: `${assessmentIdPrefix || "bench"}-${m}-${sample.sampleId || "s"}-${rep}`,
-          });
-          results.push(r);
-          (perRun[m][sample.sampleId] ||= []).push(r.score);
+          const r = await runSampleHarness(harnessInst, sample, { assessmentId: `${assessmentIdPrefix || "bench"}-${m}-${sample.sampleId || "s"}-${rep}` });
+          results.push(r); (perRun[m][sample.sampleId] ||= []).push(r.score);
         }
       } else if (m === "baseline") {
         const provider = resolveBaselineProvider(providerName);
         for (const sample of loaded.samples) {
-          // eslint-disable-next-line no-await-in-loop
           const r = await runSampleBaseline(provider, { parse }, sample);
-          results.push(r);
-          (perRun[m][sample.sampleId] ||= []).push(r.score);
+          results.push(r); (perRun[m][sample.sampleId] ||= []).push(r.score);
         }
-      } else {
-        throw new Error(`Mode tidak dikenal: ${m} (harapkan 'baseline' atau 'harness')`);
-      }
+      } else throw new Error(`Mode tidak dikenal: ${m} (harapkan 'baseline' atau 'harness')`);
     }
   }
 
-  // Pair baseline vs harness for human agreement when both modes ran.
   let pairs = null;
   if (new Set(modes).size > 1) {
     const baselineBy = keyBy(results.filter((r) => r.evaluationMode === "baseline"));
     const harnessBy = keyBy(results.filter((r) => r.evaluationMode === "harness"));
-    pairs = Object.keys(harnessBy).map((sid) => ({
-      sampleId: sid,
-      baselineScore: baselineBy[sid] ? baselineBy[sid].score : null,
-      harnessScore: harnessBy[sid] ? harnessBy[sid].score : null,
-      humanScore: harnessBy[sid] ? harnessBy[sid].humanScore : null,
-    }));
+    pairs = Object.keys(harnessBy).map((sid) => ({ sampleId: sid, baselineScore: baselineBy[sid]?.score ?? null, harnessScore: harnessBy[sid]?.score ?? null, humanScore: harnessBy[sid]?.humanScore ?? null }));
   }
-
-  return {
-    datasetName: loaded.file,
-    datasetVersion: loaded.version,
-    validation,
-    mode: modes,
-    repeats,
-    results,
-    pairs,
-    metrics: summarizeExperimentMetrics({ results, raterMap: resolvedRaterMap }),
-    raterMap: resolvedRaterMap && Object.keys(resolvedRaterMap).length >= 2 ? resolvedRaterMap : null,
-    // Consistency of repeated runs (PRD §22). Present only when repeats > 1.
-    consistency: buildConsistency(perRun, repeats),
-  };
+  return { datasetName: loaded.file, datasetVersion: loaded.version, validation, mode: modes, repeats, results, pairs, metrics: summarizeExperimentMetrics({ results, raterMap: resolvedRaterMap }), raterMap: resolvedRaterMap && Object.keys(resolvedRaterMap).length >= 2 ? resolvedRaterMap : null, consistency: buildConsistency(perRun, repeats) };
 }
 
-/**
- * Build a raterMap from dataset samples that carry per-rater human scores.
- * Each sample may provide `humanCriterionScores` keyed by raterId (or a
- * flat `raterId` + `humanScore`). Returns { raterId: score[] } aligned to
- * sample order, or null when <2 raters are present across the dataset.
- */
 function buildRaterMap(samples) {
-  const map = {};
-  let any = false;
+  const map = {}; let any = false;
   for (const sample of samples || []) {
-    // Only an EXPLICIT multi-rater shape is consumed: humanCriterionScores
-    // with a `raterScores` sub-object keyed by raterId (the flat
-    // {criterion:score} map is NOT treated as raters).
-    if (
-      sample &&
-      sample.humanCriterionScores &&
-      typeof sample.humanCriterionScores === "object" &&
-      sample.humanCriterionScores.raterScores &&
-      typeof sample.humanCriterionScores.raterScores === "object"
-    ) {
+    if (sample?.humanCriterionScores?.raterScores && typeof sample.humanCriterionScores.raterScores === "object") {
       for (const [raterId, value] of Object.entries(sample.humanCriterionScores.raterScores)) {
-        const score =
-          typeof value === "number"
-            ? value
-            : value && typeof value.score === "number"
-              ? value.score
-              : null;
-        if (score !== null) {
-          (map[raterId] ||= []).push(score);
-          any = true;
-        }
+        const score = typeof value === "number" ? value : value && typeof value.score === "number" ? value.score : null;
+        if (score !== null) { (map[raterId] ||= []).push(score); any = true; }
       }
-    } else if (sample && sample.raterId != null && typeof sample.humanScore === "number") {
-      (map[sample.raterId] ||= []).push(sample.humanScore);
-      any = true;
+    } else if (sample?.raterId != null && typeof sample.humanScore === "number") {
+      (map[sample.raterId] ||= []).push(sample.humanScore); any = true;
     }
   }
-  if (!any) return null;
-  return map;
+  return any ? map : null;
 }
 
-/**
- * Consistency across repeats for each mode+sample. Each sample contributes a
- * vector of scores (length = repeats); variance across repeats measures
- * run-to-run reliability (FR-14 consistency).
- */
 function buildConsistency(perRun, repeats) {
   if (repeats < 2) return null;
   const { consistencyMetrics } = require("./experiment-metrics");
   const out = {};
-  for (const [mode, bySample] of Object.entries(perRun)) {
-    const vectors = Object.values(bySample);
-    out[mode] = consistencyMetrics(vectors);
-  }
+  for (const [mode, bySample] of Object.entries(perRun)) out[mode] = consistencyMetrics(Object.values(bySample));
   return out;
 }
 
-function keyBy(rows) {
-  const map = {};
-  for (const r of rows) {
-    if (r.sampleId) map[r.sampleId] = r;
-  }
-  return map;
-}
+function keyBy(rows) { const map = {}; for (const r of rows) if (r.sampleId) map[r.sampleId] = r; return map; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-function clamp(v, lo, hi) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-module.exports = {
-  runSampleHarness,
-  runSampleBaseline,
-  runExperiment,
-  resolveProvider,
-  resolveBaselineProvider,
-  BaselineMockProvider,
-  buildRaterMap,
-  clamp,
-};
+module.exports = { runSampleHarness, runSampleBaseline, runExperiment, runAblationCondition, runAblationExperiment, resolveProvider, resolveBaselineProvider, BaselineMockProvider, buildRaterMap, clamp };
