@@ -9,6 +9,7 @@ const {
   streamProbing,
   streamRecommendAssessmentConfig,
 } = require("../server/assessment-service");
+const { evaluateAssessment, evaluateAssessmentWithProgress } = require("../server/evaluation/evaluation-service");
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
@@ -16,17 +17,12 @@ const { applySecurityHeaders } = require("../server/security-headers");
 const { authenticateApiKey } = require("../server/api-auth");
 const { assertRateLimit } = require("../server/rate-limit");
 
-/**
- * Write an SSE event to the response.
- */
+/** Write an SSE event to the response. */
 function writeSse(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-/**
- * Stream an AI action to the client via Server-Sent Events.
- * The client receives incremental text chunks, then a final result event.
- */
+/** Stream an AI action to the client via Server-Sent Events. */
 async function handleStreamingAction(req, res, auth, action, payload) {
   applySecurityHeaders(res);
   res.writeHead(200, {
@@ -38,9 +34,7 @@ async function handleStreamingAction(req, res, auth, action, payload) {
   res.write("retry: 2000\n\n");
 
   const onChunk = (text) => {
-    if (text && res.writableEnded === false) {
-      writeSse(res, { type: "chunk", text });
-    }
+    if (text && res.writableEnded === false) writeSse(res, { type: "chunk", text });
   };
 
   try {
@@ -58,19 +52,12 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRecommendAssessmentConfig(payload, onChunk);
       writeSse(res, { type: "result", data: { recommendation: result } });
     } else if (action === "evaluate") {
-      // P1-15 — The harness is the single evaluation engine. The legacy
-      // single-LLM path has been removed from production traffic.
-      // Stream partial progress ("chunk" events) so the student sees live
-      // stages while the LLM (~20s) evaluates, instead of a blank modal.
-      const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
-      const combined = {
-        ...payload,
-        auth,
-        onProgress: (text) => {
+      const evaluation = await evaluateAssessmentWithProgress(
+        { ...payload, auth },
+        (text) => {
           if (res.writableEnded === false) writeSse(res, { type: "chunk", text });
-        },
-      };
-      const evaluation = await evaluateWithHarness(combined);
+        }
+      );
       writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
       writeSse(res, { type: "result", data: { evaluation, harness: true } });
     } else if (action === "generate-probing") {
@@ -91,17 +78,13 @@ module.exports = async (req, res) => {
   try {
     await ensureDatabase();
 
-    if (req.method !== "POST") {
-      return sendJson(res, 405, { error: "Method not allowed" });
-    }
+    if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
 
-    // Authenticate via session cookie OR API key (Bearer token).
     let auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
     let viaApiKey = false;
     if (!auth) {
       const apiAuth = await authenticateApiKey(req);
       if (apiAuth) {
-        // API keys act as a tenant-level admin for AI actions.
         auth = {
           tenant: { id: apiAuth.tenantId, name: "API", plan: "api" },
           user: { id: `apikey:${apiAuth.keyId}`, tenantId: apiAuth.tenantId, name: "API Key", role: "admin" },
@@ -111,10 +94,8 @@ module.exports = async (req, res) => {
     }
     if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
 
-    // Rate-limit AI actions per user/API-key to protect token spend.
     assertRateLimit(`assessment:${auth.user.id}`, { limit: 30, windowMs: 60_000 });
 
-    // CSRF is only required for browser (session) auth, not API keys.
     if (!viaApiKey) {
       const { assertCsrfToken } = require("../server/auth-service");
       try {
@@ -127,13 +108,11 @@ module.exports = async (req, res) => {
     const body = await readJson(req);
     const { action, payload, stream } = body;
 
-    // Attach authentication context for telemetry logging
     if (payload) {
       payload.tenantId = auth.tenant.id;
       payload.userId = auth.user.id;
     }
 
-    // Streaming path (browser UI).
     if (stream === true) {
       if (action === "evaluate" && auth.user.role === "student") {
         const { assertCanSubmitAssessment } = require("../server/database");
@@ -143,8 +122,6 @@ module.exports = async (req, res) => {
           return sendJson(res, authError.status || 403, { error: authError.message });
         }
       }
-      // Probing adalah bagian dari alur ujian siswa, sehingga boleh dipanggil
-      // siswa selama sesi berlangsung (selain action guru/admin).
       if (action !== "evaluate" && action !== "generate-probing" && !["admin", "teacher"].includes(auth.user.role)) {
         return sendJson(res, 403, { error: "Forbidden" });
       }
@@ -160,17 +137,11 @@ module.exports = async (req, res) => {
           return sendJson(res, authError.status || 403, { error: authError.message });
         }
       }
-      // P1-15 — The harness is the single evaluation engine.
-      const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
-      const harnessPayload = { ...payload, auth };
-      const evaluation = await evaluateWithHarness(harnessPayload);
+      const evaluation = await evaluateAssessment({ ...payload, auth });
       return sendJson(res, 200, { evaluation, model: process.env.OPENROUTER_MODEL, harness: true });
     }
 
-    // Role check for teacher/admin actions
-    if (!["admin", "teacher"].includes(auth.user.role)) {
-      return sendJson(res, 403, { error: "Forbidden" });
-    }
+    if (!["admin", "teacher"].includes(auth.user.role)) return sendJson(res, 403, { error: "Forbidden" });
 
     if (action === "generate-questions") {
       const questions = await generateQuestions(payload);
