@@ -4,6 +4,7 @@ const { Pipeline } = require("./pipeline");
 const { Trace } = require("./trace");
 const { defaultConfig } = require("./config");
 const { validateRubric, validateOutput, validateCriterionEvaluation } = require("./validator");
+const { MANIFEST_VERSION, buildHarnessManifest } = require("./manifest");
 
 // Built-in plugins
 const persona = require("./plugins/persona");
@@ -14,10 +15,6 @@ const evaluation = require("./plugins/evaluation");
 const verification = require("./plugins/verification");
 const rubricAlignment = require("./alignment");
 
-/**
- * Build a fully-wired harness with all default plugins registered.
- * The caller must setProvider() before evaluating.
- */
 function createHarness(config = {}) {
   const harness = new AssessmentHarness(config);
   harness.register(persona);
@@ -40,6 +37,8 @@ module.exports = {
   validateRubric,
   validateOutput,
   validateCriterionEvaluation,
+  MANIFEST_VERSION,
+  buildHarnessManifest,
   plugins: {
     persona,
     assessmentContext,
