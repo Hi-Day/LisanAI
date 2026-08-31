@@ -19,6 +19,10 @@ test.before(async () => {
   );
 });
 
+test.beforeEach(async () => {
+  await getDb().run(`DELETE FROM evaluation_jobs`);
+});
+
 test("enqueue persists a tenant-scoped job without auth/session secrets", async () => {
   const job = await enqueueEvaluation({
     tenantId: "tenant-job-test",
@@ -49,4 +53,5 @@ test("claim transitions exactly one queued job to running", async () => {
   assert.equal(claimed.id, job.id);
   assert.equal(claimed.status, "running");
   assert.equal(claimed.attempts, 1);
+  assert.equal(await claimEvaluationJob(), null);
 });
