@@ -8,7 +8,8 @@
     "dev": "node scripts/build.js && node local-server.js",
     "start-local": "node scripts/build.js && node local-server.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "test:e2e": "node scripts/build.js && playwright test"
+    "test:e2e": "node scripts/build.js && playwright test",
+    "seed:showcase": "node scripts/provision-showcase-demo.js"
   },
   "keywords": [],
   "author": "",
