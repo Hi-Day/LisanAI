@@ -22,15 +22,13 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           p = Path('src/js/dashboard.js')
           s = p.read_text()
-          start = s.index('/**\n * Render a longitudinal chart showing how each criterion score changes over')
-          end = s.index('\nfunction ', start + 20)
-          while s[end:end+10] == '\nfunction ' and s[end+10:].startswith(''):
-              # first function after renderCompTrend is the next declaration
-              break
+          marker = '/**\n * Render a longitudinal chart showing how each criterion score changes over'
+          start = s.index(marker)
+          function_start = s.index('function renderCompTrend', start)
+          end = s.index('\nfunction ', function_start + len('function renderCompTrend'))
           new = r'''/**
  * Render a longitudinal chart at the Learning Outcome level.
  * Criterion scores remain the evidence layer that contributes to each outcome.
@@ -65,8 +63,9 @@ function renderCompTrend(ctx, evaluated, nameMap) {
   const outcomeMatches = (candidate, outcome) => {
     if (!candidate || !outcome) return false;
     const c = normalize(candidate);
-    return c === normalize(outcome.id) || c === normalize(outcome.name) ||
-      c.includes(normalize(outcome.id)) || normalize(outcome.name).includes(c);
+    const id = normalize(outcome.id);
+    const name = normalize(outcome.name);
+    return c === id || c === name || c.includes(id) || name.includes(c);
   };
 
   const resolveOutcome = (question, outcomes) => {
@@ -76,8 +75,7 @@ function renderCompTrend(ctx, evaluated, nameMap) {
       const found = outcomes.find((o) => outcomeMatches(explicit, o));
       if (found) return found;
     }
-    if (outcomes.length === 1) return outcomes[0];
-    return null;
+    return outcomes.length === 1 ? outcomes[0] : null;
   };
 
   const assessmentMaps = new Map();
@@ -104,7 +102,7 @@ function renderCompTrend(ctx, evaluated, nameMap) {
     const dateLabel = new Date(sub.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
     const buckets = new Map();
 
-    (sub.criteria || []).forEach((criterion, idx) => {
+    (sub.criteria || []).forEach((criterion) => {
       const score = Number(criterion.score);
       if (!Number.isFinite(score)) return;
       let outcome = null;
