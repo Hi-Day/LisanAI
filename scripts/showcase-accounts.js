@@ -1,3 +1,8 @@
+if (process.env.VERCEL_ENV !== "production") {
+  console.log(`Skipping showcase account provisioning for VERCEL_ENV=${process.env.VERCEL_ENV || "unknown"}.`);
+  process.exit(0);
+}
+
 const { loadEnv } = require("../server/config");
 loadEnv();
 const { getDb, initDatabase } = require("../server/database");
@@ -25,13 +30,11 @@ async function main() {
   const demoClass = await db.get("SELECT * FROM classes WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1", tenantId);
   if (!demoClass) throw new Error("Demo class tidak ditemukan.");
 
-  // Give the teacher ownership and the student an approved membership so both
-  // accounts can demonstrate the same seeded class end-to-end.
   await db.run("UPDATE classes SET teacher_id = ? WHERE id = ?", teacher.id, demoClass.id);
   await db.run(
-    `INSERT OR IGNORE INTO class_memberships (id, class_id, student_id, status, requested_at, approved_at)
-     VALUES (?, ?, ?, 'approved', ?, ?)`,
-    `showcase-${demoClass.id}-${student.id}`, demoClass.id, student.id,
+    `INSERT OR IGNORE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at)
+     VALUES (?, ?, ?, ?, 'approved', ?, ?)`,
+    `showcase-${demoClass.id}-${student.id}`, tenantId, demoClass.id, student.id,
     new Date().toISOString(), new Date().toISOString()
   );
   console.log(`Showcase accounts ready: ${accounts.map(a => a.email).join(", ")}`);
