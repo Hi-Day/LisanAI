@@ -1,0 +1,206 @@
+name: LO longitudinal trend patch
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Patch dashboard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('src/js/dashboard.js')
+          s = p.read_text()
+          start = s.index('/**\n * Render a longitudinal chart showing how each criterion score changes over')
+          end = s.index('\nfunction ', start + 20)
+          while s[end:end+10] == '\nfunction ' and s[end+10:].startswith(''):
+              # first function after renderCompTrend is the next declaration
+              break
+          new = r'''/**
+ * Render a longitudinal chart at the Learning Outcome level.
+ * Criterion scores remain the evidence layer that contributes to each outcome.
+ */
+function renderCompTrend(ctx, evaluated, nameMap) {
+  const { els, state } = ctx;
+  if (!els.compTrendChart) return;
+
+  const sorted = evaluated.slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  if (sorted.length < 2) {
+    els.compTrendChart.innerHTML = '<p class="empty-state">Butuh minimal 2 submission untuk melihat tren capaian Learning Outcome.</p>';
+    return;
+  }
+
+  const parseOutcomes = (assessment) => {
+    const raw = assessment?.outcomes ?? assessment?.learningOutcomes ?? assessment?.learningOutcome ?? [];
+    const values = Array.isArray(raw) ? raw : String(raw || '').split(/[\\n;]+/);
+    return values.map((item, index) => {
+      if (item && typeof item === 'object') {
+        const id = item.id || item.learningOutcomeId || item.outcomeId || `LO${index + 1}`;
+        const name = item.name || item.title || item.description || id;
+        return { id: String(id), name: String(name) };
+      }
+      const text = String(item || '').trim();
+      if (!text) return null;
+      const match = text.match(/^([A-Za-z]+\\d+[A-Za-z0-9_-]*)\\s*[:.-]\\s*(.+)$/);
+      return match ? { id: match[1], name: match[2].trim() } : { id: `LO${index + 1}`, name: text };
+    }).filter(Boolean);
+  };
+
+  const normalize = (v) => String(v == null ? '' : v).trim().toLowerCase();
+  const outcomeMatches = (candidate, outcome) => {
+    if (!candidate || !outcome) return false;
+    const c = normalize(candidate);
+    return c === normalize(outcome.id) || c === normalize(outcome.name) ||
+      c.includes(normalize(outcome.id)) || normalize(outcome.name).includes(c);
+  };
+
+  const resolveOutcome = (question, outcomes) => {
+    if (!question || !outcomes.length) return null;
+    const explicit = question.learningOutcomeId ?? question.outcomeId ?? question.learningOutcome ?? question.outcome;
+    if (explicit != null) {
+      const found = outcomes.find((o) => outcomeMatches(explicit, o));
+      if (found) return found;
+    }
+    if (outcomes.length === 1) return outcomes[0];
+    return null;
+  };
+
+  const assessmentMaps = new Map();
+  (Array.isArray(state.assessments) ? state.assessments : []).forEach((assessment) => {
+    const outcomes = parseOutcomes(assessment);
+    const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
+    assessmentMaps.set(assessment.id, {
+      outcomes,
+      questionOutcomes: questions.map((q) => resolveOutcome(q, outcomes)),
+    });
+  });
+
+  const data = new Map();
+  const ensure = (outcome) => {
+    const key = `${normalize(outcome.id)}|${normalize(outcome.name)}`;
+    if (!data.has(key)) data.set(key, { id: outcome.id, name: outcome.name, points: new Map() });
+    return data.get(key);
+  };
+
+  for (const sub of sorted) {
+    const map = assessmentMaps.get(sub.assessmentId);
+    if (!map?.outcomes?.length) continue;
+    const dateKey = new Date(sub.submittedAt).toISOString().slice(0, 10);
+    const dateLabel = new Date(sub.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    const buckets = new Map();
+
+    (sub.criteria || []).forEach((criterion, idx) => {
+      const score = Number(criterion.score);
+      if (!Number.isFinite(score)) return;
+      let outcome = null;
+      const direct = criterion.learningOutcomeId ?? criterion.outcomeId ?? criterion.learningOutcome ?? criterion.outcome;
+      if (direct != null) outcome = map.outcomes.find((o) => outcomeMatches(direct, o));
+      const answerIndex = Number.isInteger(Number(criterion.answerIndex)) ? Number(criterion.answerIndex) : null;
+      if (!outcome && answerIndex != null) outcome = map.questionOutcomes[answerIndex];
+      if (!outcome && Number.isInteger(Number(criterion.questionIndex))) outcome = map.questionOutcomes[Number(criterion.questionIndex)];
+      if (!outcome && map.outcomes.length === 1) outcome = map.outcomes[0];
+      if (!outcome) return;
+
+      const key = `${normalize(outcome.id)}|${normalize(outcome.name)}`;
+      const weight = Number(criterion.weight);
+      const w = Number.isFinite(weight) && weight > 0 ? weight : 1;
+      const bucket = buckets.get(key) || { outcome, weighted: 0, weight: 0 };
+      bucket.weighted += score * w;
+      bucket.weight += w;
+      buckets.set(key, bucket);
+    });
+
+    buckets.forEach(({ outcome, weighted, weight }) => {
+      const entry = ensure(outcome);
+      entry.points.set(dateKey, { dateKey, dateLabel, score: weighted / weight });
+    });
+  }
+
+  const entries = [...data.values()].filter((e) => e.points.size > 0);
+  if (!entries.length) {
+    els.compTrendChart.innerHTML = '<p class="empty-state">Belum ada data Learning Outcome yang dapat ditelusuri dari question → criterion.</p>';
+    if (els.compTrendLegend) els.compTrendLegend.innerHTML = '';
+    return;
+  }
+
+  const allDates = [...new Set(sorted.map((s) => new Date(s.submittedAt).toISOString().slice(0, 10)))];
+  const COLORS = ['--brand', '--success', '--info', '--danger', '--warning', '--ai', '--voice', '--success-strong'].map(cssVar);
+  const W = 640, H = 210, PAD_L = 40, PAD_R = 16, PAD_T = 18, PAD_B = 32;
+  const xScale = (idx) => PAD_L + (idx / Math.max(1, allDates.length - 1)) * (W - PAD_L - PAD_R);
+  const yScale = (score) => H - PAD_B - (Math.max(0, Math.min(100, score)) / 100) * (H - PAD_T - PAD_B);
+
+  const legend = entries.map((entry, i) => {
+    const points = [...entry.points.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+    const delta = points.length > 1 ? points.at(-1).score - points[0].score : null;
+    const deltaText = delta == null ? '' : ` (${delta >= 0 ? '+' : ''}${Math.round(delta)} pt)`;
+    return `<span><span class="swatch" style="background:${COLORS[i % COLORS.length]}"></span>${escapeHtml(entry.name)}${escapeHtml(deltaText)}</span>`;
+  }).join('');
+  if (els.compTrendLegend) els.compTrendLegend.innerHTML = legend;
+
+  const paths = entries.map((entry, i) => {
+    const color = COLORS[i % COLORS.length];
+    const points = [...entry.points.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+    const line = points.map((p, idx) => {
+      const x = xScale(allDates.indexOf(p.dateKey));
+      const y = yScale(p.score);
+      return `${idx === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const dots = points.map((p) => {
+      const x = xScale(allDates.indexOf(p.dateKey));
+      const y = yScale(p.score);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="${color}" stroke="white" stroke-width="1.5"><title>${escapeHtml(entry.name)} — ${escapeHtml(p.dateLabel)}: ${Math.round(p.score)}</title></circle>`;
+    }).join('');
+    return `<path d="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+  }).join('');
+
+  const grid = [0, 25, 50, 75, 100].map((v) => {
+    const y = yScale(v);
+    return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="${cssVar('--border')}" stroke-width="1"/><text x="${PAD_L - 7}" y="${y + 4}" text-anchor="end" font-size="9" fill="${cssVar('--text-muted')}">${v}</text>`;
+  }).join('');
+  const xLabels = allDates.map((date, idx) => {
+    const label = new Date(`${date}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    return `<text x="${xScale(idx)}" y="${H - 7}" text-anchor="middle" font-size="9" fill="${cssVar('--text-muted')}">${escapeHtml(label)}</text>`;
+  }).join('');
+
+  els.compTrendChart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%;" role="img" aria-label="Grafik perkembangan Learning Outcome dari waktu ke waktu">${grid}${paths}${xLabels}</svg>`;
+}
+'''
+          s = s[:start] + new + s[end:]
+          p.write_text(s)
+
+          h = Path('public/index.html')
+          hs = h.read_text()
+          hs = hs.replace('Perkembangan skor per kriteria rubrik dari waktu ke waktu.', 'Perkembangan capaian Learning Outcome dari waktu ke waktu. Criterion tetap menjadi evidence yang membentuk skor setiap outcome.')
+          h.write_text(hs)
+          PY
+      - run: node scripts/check-js.js
+      - run: npm test
+      - name: Commit patched files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/dashboard.js public/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: chart longitudinal competency by learning outcome"
+          git push origin HEAD:${{ github.head_ref }}
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          git rm .github/workflows/lo-longitudinal-fix.yml
+          git commit -m "chore: remove one-time LO trend workflow"
+          git push origin HEAD:${{ github.head_ref }}
