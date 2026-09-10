@@ -248,6 +248,11 @@ async function normalizePendopoAccounts(db, tenantId) {
 }
 
 async function main() {
+  if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
+    console.log("Skipping Pendopo demo provisioning outside production.");
+    return;
+  }
+
   await initDatabase();
   const db = getDb();
   const { tenant, admin } = await ensureTenantAndAdmin(db);
