@@ -2,6 +2,7 @@ import { getCurrentUser } from "./api.js";
 import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView } from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
 import { bindAssessmentWizardEvents } from "./assessment-wizard.js";
+import { enhanceAssessmentWizardUX } from "./assessment-ux.js";
 import { bindStudentFlowEvents } from "./student-flow.js";
 import { bindClassManagementEvents } from "./class-management.js";
 import { bindUserManagementEvents } from "./user-management.js";
@@ -27,6 +28,7 @@ export async function initApp() {
   // Wire up all feature event handlers against the shared context.
   bindAuthEvents(ctx);
   bindAssessmentWizardEvents(ctx);
+  enhanceAssessmentWizardUX(ctx);
   bindStudentFlowEvents(ctx);
   bindClassManagementEvents(ctx);
   bindUserManagementEvents(ctx);
