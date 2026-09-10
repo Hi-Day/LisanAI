@@ -7,26 +7,17 @@ export function enhanceAssessmentWizardUX(ctx) {
   const form = ctx?.els?.form;
   if (!form || form.dataset.advancedSettingsEnhanced === "true") return;
 
-  const advancedIds = [
-    "difficulty",
-    "timeLimit",
-    "maxAttempts",
-    "oralExamEnabled",
-    "disableManualTyping",
-    "allowRetakes",
-    "isTryout",
-    "examples",
-  ];
-
-  const controls = advancedIds
+  const fieldIds = ["difficulty", "timeLimit", "maxAttempts", "examples"];
+  const controls = fieldIds
     .map((id) => document.getElementById(id))
     .filter((element) => element && form.contains(element));
-  if (!controls.length) return;
+  const checks = form.querySelector(".wizard-checks");
+  const hasAdvancedContent = controls.length > 0 || !!checks;
+  if (!hasAdvancedContent) return;
 
   const details = document.createElement("details");
   details.className = "advanced-settings";
   details.style.margin = "12px 0 16px";
-  details.style.padding = "0";
 
   const summary = document.createElement("summary");
   summary.textContent = "⚙️ Pengaturan lanjutan";
@@ -36,7 +27,7 @@ export function enhanceAssessmentWizardUX(ctx) {
   details.appendChild(summary);
 
   const hint = document.createElement("p");
-  hint.textContent = "Opsional. Pengaturan ini dapat dibiarkan pada nilai default untuk mulai dengan cepat.";
+  hint.textContent = "Opsional. Nilai default sudah cukup untuk mulai membuat penilaian.";
   hint.style.margin = "0 0 12px";
   hint.style.fontSize = "0.88rem";
   hint.style.opacity = "0.72";
@@ -48,38 +39,30 @@ export function enhanceAssessmentWizardUX(ctx) {
   panel.style.gap = "12px";
   details.appendChild(panel);
 
-  // Insert before the first advanced control's containing form row/label.
-  const firstControl = controls[0];
-  const insertionPoint = firstControl.closest(".form-row-2") || firstControl.closest("label") || firstControl;
+  // Put the disclosure control before the first advanced field, while leaving
+  // the primary context fields (topic, outcomes, class, question count) open.
+  const firstControl = controls[0] || checks.querySelector("input, select, textarea");
+  const insertionPoint = firstControl?.closest(".form-row-2") || firstControl?.closest("label") || checks || firstControl;
+  if (!insertionPoint?.parentNode) return;
   insertionPoint.parentNode.insertBefore(details, insertionPoint);
 
+  // Move individual advanced field labels out of their original two-column rows.
   controls.forEach((control) => {
     const label = control.closest("label");
-    if (label && form.contains(label)) {
-      panel.appendChild(label);
-    }
+    if (label) panel.appendChild(label);
   });
 
-  // Move the checkbox group as a unit when it still contains the advanced flags.
-  const checks = form.querySelector(".wizard-checks");
-  if (checks && !checks.closest(".advanced-settings") && controls.some((control) => checks.contains(control))) {
-    panel.appendChild(checks);
-  }
+  // Keep the checkbox group intact so all existing checkbox IDs and styling
+  // continue to work together.
+  if (checks && !details.contains(checks)) panel.appendChild(checks);
 
-  // Remove form rows that became empty after extracting advanced fields.
+  // The original two-column rows can become partially empty after extraction.
   form.querySelectorAll(".form-row-2").forEach((row) => {
-    const hasControl = row.querySelector("input, select, textarea, button");
-    const hasText = [...row.childNodes].some((node) =>
-      node.nodeType === Node.TEXT_NODE && node.textContent.trim(),
-    );
-    if (!hasControl && !hasText) row.remove();
+    if (!row.querySelector("input, select, textarea, button")) row.remove();
   });
 
-  // Make the primary path explicit without changing the existing controls.
   const primaryButton = form.querySelector("#wizardToQuestions") || form.querySelector("button[type='submit']");
-  if (primaryButton) {
-    primaryButton.setAttribute("data-primary-action", "true");
-  }
+  if (primaryButton) primaryButton.setAttribute("data-primary-action", "true");
 
   form.dataset.advancedSettingsEnhanced = "true";
 }
