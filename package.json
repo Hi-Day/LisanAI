@@ -9,7 +9,8 @@
     "start-local": "node scripts/build.js && node local-server.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "test:e2e": "node scripts/build.js && playwright test",
-    "seed:showcase": "node scripts/provision-showcase-demo.js"
+    "seed:showcase": "node scripts/provision-showcase-demo.js",
+    "seed:pendopo": "node scripts/provision-pendopo-demo.js"
   },
   "keywords": [],
   "author": "",
