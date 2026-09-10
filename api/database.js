@@ -19,6 +19,7 @@ const {
 } = require("../server/database");
 const { listTenantUsers, updateTenantUser, createTenantUser, deleteTenantUser, getSessionUser, createTenantUsersBatch, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
+const { ensureShowcaseDemo } = require("../server/showcase-bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
 const { recordTeacherScoreChange } = require("../server/evaluation/research");
 const crypto = require("node:crypto");
@@ -39,6 +40,11 @@ module.exports = async (req, res) => {
       const action = url.searchParams.get("action");
 
       if (action === "state") {
+        // Provision the showcase lazily, after authentication, so the initial
+        // /api/auth request remains fast enough for Vercel serverless limits.
+        // Subsequent calls are cheap because the bootstrap is idempotent and
+        // cached per warm function instance.
+        await ensureShowcaseDemo();
         return sendJson(res, 200, await getState(auth));
       }
 
@@ -177,10 +183,6 @@ module.exports = async (req, res) => {
 
           await saveSubmission(auth.tenant.id, existing.user_id, payload, true);
 
-          // Teacher corrected the score (direct override or accepted a
-          // complaint). Record the new value as the human score for the
-          // linked harness run so it enters the AI-vs-human research dataset,
-          // and stop the 7-day auto-approval from overwriting it.
           try {
             const prev = (() => {
               try {
@@ -208,7 +210,6 @@ module.exports = async (req, res) => {
               }
             }
           } catch (recErr) {
-            // Recording the human score must never block the teacher's save.
             console.error("[research] recordTeacherScoreChange failed:", recErr);
           }
 
@@ -218,7 +219,6 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Student submits a complaint on a specific question of their own submission.
       if (action === "submit-complaint") {
         if (!isStudent) return sendJson(res, 403, { error: "Forbidden" });
         const { submissionId, questionIndex, reason } = payload || {};
@@ -328,7 +328,7 @@ module.exports = async (req, res) => {
 
             const membershipId = `member-${cryptoRandom()}`;
             const now = new Date().toISOString();
-            await getState; // noop to keep flow (no-op)
+            await getState;
             await getDb().run(
               `INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at)
                VALUES (?, ?, ?, ?, 'approved', ?, ?)`,
@@ -352,7 +352,6 @@ module.exports = async (req, res) => {
         const { classId, users } = payload || {};
         if (!classId || !Array.isArray(users)) return sendJson(res, 400, { error: "Payload tidak valid" });
 
-        // Verify class belongs to teacher
         const classroom = await getDb().get("SELECT id FROM classes WHERE id = ? AND tenant_id = ? AND teacher_id = ?", classId, auth.tenant.id, auth.user.id);
         if (!classroom) return sendJson(res, 404, { error: "Kelas tidak ditemukan atau tidak milik Anda" });
 
@@ -362,14 +361,13 @@ module.exports = async (req, res) => {
           try {
             const name = String(u.name || '').trim();
             const email = String(u.email || '').trim().toLowerCase();
-            const password = String(u.password || '');
-            const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!name) throw new Error('Nama kosong');
-            if (!emailRe.test(email)) throw new Error('Email tidak valid');
-            if (password.length < 8) throw new Error('Password minimal 8 karakter');
-
-            const user = await createTenantUser(auth.tenant.id, { name, email, password, role: 'student' });
-
+            if (!name || !email) throw new Error("Nama dan email wajib diisi");
+            const user = await createTenantUser(auth.tenant.id, {
+              name,
+              email,
+              password: u.password || "password123",
+              role: "student",
+            });
             const membershipId = `member-${cryptoRandom()}`;
             const now = new Date().toISOString();
             await getDb().run(
@@ -382,24 +380,13 @@ module.exports = async (req, res) => {
               now,
               now
             );
-
-            added.push({ id: user.id, email: user.email });
+            added.push({ id: user.id, name: user.name, email: user.email });
           } catch (err) {
-            errors.push({ row: index + 1, email: u.email, message: err.message });
+            errors.push({ index, email: u?.email || "", message: err.message });
           }
         }
 
-        return sendJson(res, 201, { added, errors });
-      }
-      if (action === "update-user") {
-        if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
-        const user = await updateTenantUser(auth.tenant.id, id, payload);
-        return sendJson(res, 200, { user });
-      }
-      if (action === "delete-user") {
-        if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
-        await deleteTenantUser(auth.tenant.id, id, auth.user.id);
-        return sendJson(res, 200, { ok: true });
+        return sendJson(res, 200, { added, errors });
       }
 
       return sendJson(res, 404, { error: "Action not found" });
