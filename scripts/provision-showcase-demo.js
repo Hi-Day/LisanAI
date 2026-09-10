@@ -17,6 +17,16 @@ function uid(prefix) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(String(password), salt, 64, (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(`scrypt$${salt}$${derivedKey.toString("base64url")}`);
+    });
+  });
+}
+
 async function getOrCreateAdmin(db) {
   const tenantName = process.env.SHOWCASE_TENANT_NAME || DEFAULTS.tenantName;
   const adminName = process.env.SHOWCASE_ADMIN_NAME || DEFAULTS.adminName;
@@ -28,6 +38,17 @@ async function getOrCreateAdmin(db) {
     if (admin.role !== "admin") {
       throw new Error(`Akun ${adminEmail} sudah ada tetapi bukan admin.`);
     }
+
+    // Make the published showcase credentials deterministic. This also fixes
+    // an already-provisioned account whose password came from an older env
+    // value or an earlier deployment.
+    await db.run(
+      "UPDATE users SET name = ?, password_hash = ? WHERE id = ?",
+      adminName,
+      await hashPassword(password),
+      admin.id
+    );
+    admin.name = adminName;
     return { admin, password, created: false, tenantName };
   }
 
