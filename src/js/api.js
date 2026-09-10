@@ -7,8 +7,6 @@ export async function postJson(url, payload, fallbackMessage) {
   }
   const response = await fetch(url, {
     method: "POST",
-    // Keep the HttpOnly session cookie attached even when the app is served
-    // through a production proxy or a different subdomain.
     credentials: "include",
     headers,
     body: JSON.stringify(payload),
@@ -70,7 +68,7 @@ export async function deleteUser(userId) {
 }
 
 export async function loadStateFromDatabase() {
-  const response = await fetch("/api/database?action=state");
+  const response = await fetch("/api/state", { credentials: "include" });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Gagal memuat data dari database");
   return {
@@ -128,17 +126,6 @@ export async function removeDemoData() {
   );
 }
 
-/**
- * Stream an AI action from the server via SSE.
- *
- * @param {object} options
- * @param {string} options.action - AI action name.
- * @param {object} options.payload - Payload for the action.
- * @param {function(string):void} options.onChunk - Called with each text delta.
- * @param {function(object):void} options.onResult - Called with the final result data.
- * @param {function(string):void} [options.onError] - Called with an error message.
- * @returns {Promise<object>} Resolves with the final result data.
- */
 export async function streamAssessmentAction({ action, payload, onChunk, onResult, onError }) {
   const headers = { "Content-Type": "application/json" };
   if (clientCsrfToken) {
