@@ -1,4 +1,5 @@
 const { initDatabase } = require("./database");
+const { ensureShowcaseDemo } = require("./showcase-bootstrap");
 
 let dbPromise = null;
 
@@ -8,10 +9,14 @@ let dbPromise = null;
  */
 async function ensureDatabase() {
   if (!dbPromise) {
-    dbPromise = initDatabase().catch((error) => {
-      dbPromise = null;
-      throw error;
-    });
+    dbPromise = initDatabase()
+      .then(async () => {
+        await ensureShowcaseDemo();
+      })
+      .catch((error) => {
+        dbPromise = null;
+        throw error;
+      });
   }
   return dbPromise;
 }
