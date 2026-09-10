@@ -129,8 +129,13 @@ async function loginUser({ email, password }) {
      WHERE users.email = ?`,
     normalizeEmail(email)
   );
-  if (!row || !(await verifyPassword(password, row.password_hash))) {
-    throw Object.assign(new Error("Email atau password salah"), { status: 401 });
+
+  if (!row) {
+    throw Object.assign(new Error("Akun belum terdaftar. Silakan daftar terlebih dahulu."), { status: 404 });
+  }
+
+  if (!(await verifyPassword(password, row.password_hash))) {
+    throw Object.assign(new Error("Password salah"), { status: 401 });
   }
 
   return {
