@@ -25,11 +25,69 @@ async function ensureShowcaseDemo() {
   if (String(process.env.ENABLE_SHOWCASE_DEMO || "true").toLowerCase() !== "true") return;
   if (promise) return promise;
 
-  promise = provision().catch((error) => {
+  promise = ensureReadyOrProvision().catch((error) => {
     promise = null;
     throw error;
   });
   return promise;
+}
+
+/**
+ * The production build already provisions the showcase tenant and accounts.
+ * Runtime requests should normally perform only one lightweight readiness
+ * query instead of replaying the full demo seed. The full provision() path
+ * remains as a self-healing fallback if the build seed was skipped or
+ * incomplete.
+ */
+async function ensureReadyOrProvision() {
+  const db = getDb();
+  const adminEmail = process.env.SHOWCASE_ADMIN_EMAIL || DEFAULTS.adminEmail;
+  const teacherEmail = process.env.SHOWCASE_TEACHER_EMAIL || DEFAULTS.teacherEmail;
+  const studentEmail = process.env.SHOWCASE_STUDENT_EMAIL || DEFAULTS.studentEmail;
+
+  const ready = await db.get(
+    `SELECT
+       admin.tenant_id AS tenant_id,
+       admin.id AS admin_id,
+       teacher.id AS teacher_id,
+       student.id AS student_id,
+       classes.id AS class_id,
+       membership.id AS membership_id
+     FROM users admin
+     JOIN users teacher
+       ON teacher.tenant_id = admin.tenant_id
+      AND teacher.email = ?
+      AND teacher.role = 'teacher'
+     JOIN users student
+       ON student.tenant_id = admin.tenant_id
+      AND student.email = ?
+      AND student.role = 'student'
+     JOIN classes
+       ON classes.tenant_id = admin.tenant_id
+      AND classes.teacher_id = teacher.id
+     JOIN class_memberships membership
+       ON membership.tenant_id = admin.tenant_id
+      AND membership.class_id = classes.id
+      AND membership.student_id = student.id
+      AND membership.status = 'approved'
+     WHERE admin.email = ?
+       AND admin.role = 'admin'
+     LIMIT 1`,
+    teacherEmail,
+    studentEmail,
+    adminEmail
+  );
+
+  if (ready) {
+    return {
+      tenantId: ready.tenant_id,
+      adminId: ready.admin_id,
+      teacherId: ready.teacher_id,
+      studentId: ready.student_id,
+    };
+  }
+
+  return provision();
 }
 
 async function provision() {
