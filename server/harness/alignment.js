@@ -1,6 +1,7 @@
 const { callOpenRouter, streamOpenRouter } = require("../openrouter");
 const { parseJson } = require("../ai/response-parser");
 const { parseRubricText } = require("./plugins/rubric");
+const learningOutcomeAlignment = require("./learning-outcome-alignment");
 
 // ---------------------------------------------------------------------------
 // Soal ↔ Rubrik Alignment Harness
@@ -101,9 +102,8 @@ function bestFittedCriterion(prompt, focus, outcome, criteria) {
 }
 
 /**
- * Bangun teks rubrik per-soal hanya dari SUBSET kriteria yang diukur soal
- * tsb, dengan bobot dinormalisasi ulang menjadi total 100%. Soal "sebutkan"
- * sehingga tidak akan dinilai/ditampilkan sebagai harus memenuhi sebab-akibat.
+ * Build question-level rubric text only from the subset of criteria measured
+ * by that question, with weights renormalized to 100%.
  */
 function buildQuestionRubricText(question, allCriteria) {
   const ids = (question.criteria || []).map((c) => String(typeof c === "object" ? c.id || c.name : c));
@@ -116,18 +116,40 @@ function buildQuestionRubricText(question, allCriteria) {
 }
 
 /**
+ * Enforce the pedagogical hierarchy:
+ * Learning Outcome -> Question -> Criterion.
+ *
+ * A criterion is not itself a class competency. Every targeted LO must have at
+ * least one question, and every mapped criterion is therefore traceable back
+ * to the LO of the question that elicits its evidence.
+ */
+function enforceLearningOutcomeAlignment(questions, payload) {
+  const outcomes = learningOutcomeAlignment.parseLearningOutcomes(payload?.outcomes);
+  if (outcomes.length === 0) return questions;
+
+  const enriched = (questions || []).map((question) =>
+    learningOutcomeAlignment.enrichQuestionLearningOutcome(question, outcomes)
+  );
+  const report = learningOutcomeAlignment.validateLearningOutcomeCoverage(enriched, outcomes);
+
+  return enriched.map((question, index) => ({
+    ...question,
+    learningOutcomeId: report.questionMap.get(index)?.id || question.learningOutcomeId || null,
+    outcome: report.questionMap.get(index)?.text || question.outcome || "",
+  }));
+}
+
+/**
  * Enforcement deterministik: setiap soal hanya boleh memetakan ke kriteria
  * rubrik yang benar-benar diukur soal tsb; seluruh kriteria wajib tercakup.
- * Sekaligus men-stempel teks rubrik per-soal (subset) agar konsisten dgn skor.
+ * Learning outcome coverage is validated before the assessment can pass.
  */
 function enforceRubricAlignment(questions, payload) {
   const criteria = parseRubricCriteria(payload) || [];
-  if (criteria.length === 0) return questions;
+  if (criteria.length === 0) return enforceLearningOutcomeAlignment(questions, payload);
   const byId = new Map(criteria.map((c) => [c.id, c.name]));
   const globalRubric = typeof payload?.rubric === "string" ? String(payload.rubric).trim() : "";
 
-  // Step 1 — tentukan subset kriteria per soal (dari deklarasi model/soal,
-  // atau best-fit konten bila soal tidak mendeklarasikan apa pun).
   const mapped = (questions || []).map((question) => {
     if (!question) return question;
     if (!String(question.prompt || "").trim()) return { ...question, criteria: [] };
@@ -144,10 +166,6 @@ function enforceRubricAlignment(questions, payload) {
     return { ...question, criteria: ids };
   });
 
-  // Step 2 — coverage: kriteria yang belum dipetakan diberikan ke soal yang
-  // paling cocok secara KONTEN. Bila tidak ada yang cocok, biarkan terbuka
-  // supaya UI memperingatkan — bukan menghukum siswa atas kompetensi yang tak
-  // ditanyakan.
   const covered = new Set();
   mapped.forEach((q) => (q.criteria || []).forEach((id) => covered.add(String(id))));
   for (const c of criteria) {
@@ -162,10 +180,7 @@ function enforceRubricAlignment(questions, payload) {
     covered.add(c.id);
   }
 
-  // Step 3 — finalisasi: ubah id → { id, name } dan (hanya untuk rubrik
-  // bawaan global) tulis teks rubrik per-soal dari subset yang benar diukur.
-  // Rubrik khusus yang sengaja ditulis guru tidak ditimpa.
-  return mapped.map((question) => {
+  const finalized = mapped.map((question) => {
     if (!question || !Array.isArray(question.criteria)) return question;
     const questionRubric = String(question.rubric || "").trim();
     const isDefaultRubric = !questionRubric || (globalRubric.length > 0 && questionRubric === globalRubric);
@@ -179,6 +194,8 @@ function enforceRubricAlignment(questions, payload) {
     }
     return next;
   });
+
+  return enforceLearningOutcomeAlignment(finalized, payload);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,10 +204,13 @@ function enforceRubricAlignment(questions, payload) {
 
 function buildAlignMessages(payload, questions) {
   const rubricCriteria = parseRubricCriteria(payload) || [];
+  const outcomes = learningOutcomeAlignment.parseLearningOutcomes(payload?.outcomes);
   const current = (questions || []).map((q, index) => ({
     index,
     prompt: String(q.prompt || "").trim(),
     focus: String(q.focus || "").trim(),
+    learningOutcomeId: String(q.learningOutcomeId || "").trim(),
+    outcome: String(q.outcome || "").trim(),
     criteria: Array.isArray(q.criteria)
       ? q.criteria.map((c) => (typeof c === "object" ? c.name || c.id : c))
       : [],
@@ -199,21 +219,19 @@ function buildAlignMessages(payload, questions) {
     {
       role: "user",
       content: JSON.stringify({
-        tugas: "Kalibrasi penyelarasan soal dengan rubrik agar penilaian koheren dengan substansi setiap soal.",
+        tugas: "Kalibrasi penyelarasan assessment secara pedagogis: setiap Learning Outcome harus terukur oleh minimal satu soal, setiap soal harus memetakan ke tepat satu Learning Outcome utama, dan setiap soal hanya dinilai terhadap kriteria yang benar-benar menghasilkan evidence untuk LO tersebut.",
         topik: payload.topic,
-        learning_outcome: payload.outcomes,
+        learning_outcomes: outcomes.map((lo) => ({ id: lo.id, text: lo.text })),
         rubrik: payload.rubric,
-        kriteria_rubrik_yang_tersedia: rubricCriteria.map((c) => ({
-          id: c.id,
-          nama: c.name,
-          bobot: c.weight,
-        })),
+        kriteria_rubrik_yang_tersedia: rubricCriteria.map((c) => ({ id: c.id, nama: c.name, bobot: c.weight })),
         aturan_penyelarasan: [
-          "Untuk setiap soal, tentukan SUBSET kriteria rubrik yang BENAR-BENAR diukur oleh substansi soal itu (field criteria).",
-          "Soal bertipe 'sebutkan/identifikasi' HANYA boleh memetakan kriteria yang terukur dari penyebutan (mis. ketepatan konsep) dan DILARANG memetakan kriteria yang butuh penjelasan/sebab-akibat/analisis/penerapan, kecuali soal benar-benar memintanya.",
-          "Soal tidak boleh menanyakan hal yang tidak diukur oleh kriteria mana pun.",
-          "Jika sebuah soal tidak dapat mengukur kriteria mana pun karena substansinya tidak selaras, TULIS ULANG prompt-nya menjadi SATU substansi yang mencerminkan kriteria rubrik tertentu (tetap satu pertanyaan tunggal).",
-          "Seluruh kriteria dalam kriteria_rubrik_yang_tersedia wajib tercakup oleh minimal satu soal.",
+          "Untuk setiap soal, tentukan tepat satu learningOutcomeId dari daftar learning_outcomes.",
+          "Question harus benar-benar memberi kesempatan siswa mendemonstrasikan kemampuan pada Learning Outcome tersebut, bukan hanya menyebut topiknya.",
+          "Kata kerja tuntutan soal harus selaras dengan tuntutan kognitif Learning Outcome.",
+          "Untuk setiap soal, tentukan SUBSET kriteria rubrik yang BENAR-BENAR diukur oleh substansi soal itu.",
+          "Soal tidak boleh memetakan kriteria yang tidak dapat dibuktikan dari jawaban.",
+          "Seluruh learning outcome wajib tercakup oleh minimal satu soal.",
+          "Seluruh kriteria yang memang dimaksudkan untuk dinilai harus memiliki jalur Question -> Criterion -> Learning Outcome.",
           "Pertahankan jumlah dan urutan soal persis sama dengan input.",
         ].join(". "),
         jumlah_dan_urutan_hasil: "harus sama persis dengan input",
@@ -224,7 +242,7 @@ function buildAlignMessages(payload, questions) {
 }
 
 const ALIGN_SCHEMA =
-  'Format: {"questions":[{"index":0,"prompt":"...","focus":"...","criteria":["nama_kriteria1","nama_kriteria2"],"reason":"..."}]}. Jumlah dan urutan questions HARUS sama dengan input. criteria hanya boleh memakai nama kriteria pada kriteria_rubrik_yang_tersedia.';
+  'Format: {"questions":[{"index":0,"prompt":"...","focus":"...","learningOutcomeId":"LO1","outcome":"...","criteria":["nama_kriteria1","nama_kriteria2"],"reason":"..."}]}. Jumlah dan urutan questions HARUS sama dengan input. learningOutcomeId hanya boleh memakai id pada learning_outcomes.';
 
 function mergeCalibration(original, calibrated) {
   const out = (original || []).map((q) => ({ ...q }));
@@ -232,25 +250,15 @@ function mergeCalibration(original, calibrated) {
   for (const entry of calibrated) {
     const idx = Number(entry?.index);
     if (!Number.isInteger(idx) || idx < 0 || idx >= out.length) continue;
-    if (typeof entry.prompt === "string" && String(entry.prompt).trim()) {
-      out[idx].prompt = String(entry.prompt).trim();
-    }
-    if (typeof entry.focus === "string" && entry.focus.trim()) {
-      out[idx].focus = String(entry.focus).trim();
-    }
-    if (Array.isArray(entry.criteria)) {
-      out[idx].criteria = entry.criteria.map(String).filter(Boolean);
-    }
+    if (typeof entry.prompt === "string" && String(entry.prompt).trim()) out[idx].prompt = String(entry.prompt).trim();
+    if (typeof entry.focus === "string" && entry.focus.trim()) out[idx].focus = String(entry.focus).trim();
+    if (typeof entry.learningOutcomeId === "string" && entry.learningOutcomeId.trim()) out[idx].learningOutcomeId = entry.learningOutcomeId.trim();
+    if (typeof entry.outcome === "string" && entry.outcome.trim()) out[idx].outcome = entry.outcome.trim();
+    if (Array.isArray(entry.criteria)) out[idx].criteria = entry.criteria.map(String).filter(Boolean);
   }
   return out;
 }
 
-/**
- * Kalibrasi penuh: AI menentukan subset kriteria per soal (dan bila perlu
- * memperbaiki substansi soal), lalu enforcement deterministik menutup celah
- * coverage/kesalahan penulisan nama kriteria. Jika AI tidak tersedia, hasil
- * collision tetap ditutup deterministik — penilaian TIDAK pernah under-estimate.
- */
 async function calibrateSoalRubrik(payload) {
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
   if (questions.length === 0) return enforceRubricAlignment(questions, payload);
@@ -270,19 +278,16 @@ async function calibrateSoalRubrik(payload) {
   return enforceRubricAlignment(merged, payload);
 }
 
-/** Versi streaming untuk UI wizard (SSE). */
 async function streamCalibrateSoalRubrik(payload, onChunk) {
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
-  let content = "";
   let calibrated = null;
   try {
-    const { content: raw } = await streamOpenRouter(
+    const { content } = await streamOpenRouter(
       buildAlignMessages(payload, questions),
       ALIGN_SCHEMA,
       { tenantId: payload.tenantId, userId: payload.userId, action: "align-rubric" },
       onChunk
     );
-    content = raw;
     calibrated = parseJson(content);
   } catch (err) {
     console.error("Gagal streaming kalibrasi AI, memakai alignment deterministik:", err.message);
@@ -294,19 +299,17 @@ async function streamCalibrateSoalRubrik(payload, onChunk) {
 
 module.exports = {
   name: "rubricAlignment",
-  version: "1.0.0",
+  version: "2.0.0",
   parseRubricCriteria,
   enforceRubricAlignment,
+  enforceLearningOutcomeAlignment,
   calibrateSoalRubrik,
   streamCalibrateSoalRubrik,
   buildQuestionRubricText,
   mergeCalibration,
-  /**
-   * Plugin hook — menjaga alignment saat evaluasi dijalankan. Memastikan
-   * mapping soal↔rubrik tetap valid dan konsisten dengan kriteria yang benar
-   * diukur soal; menandai kriteria yang sama sekali tidak diukur soal mana pun
-   * (biarkan evaluator mengabaikannya, jangan menghukum siswa).
-   */
+  parseLearningOutcomes: learningOutcomeAlignment.parseLearningOutcomes,
+  coverageReport: learningOutcomeAlignment.coverageReport,
+  mapCriteriaToLearningOutcomes: learningOutcomeAlignment.mapCriteriaToLearningOutcomes,
   async before(context) {
     const assessment = context.assessment;
     const questions = Array.isArray(assessment && assessment.questions) ? assessment.questions : [];
@@ -316,8 +319,6 @@ module.exports = {
     const criteria = Array.isArray(rubric) ? rubric : parseRubricCriteria({ rubric });
     if (!criteria.length) return context;
 
-    // Anotasi ulang non-destruktif: bila sebuah soal belum punya mapping,
-    // berikan kriteria terdekat sehingga evaluasi tidak "all-criteria apply".
     const covered = new Set();
     for (const q of questions) {
       const ids = Array.isArray(q.criteria) ? q.criteria.map((c) => String(typeof c === "object" ? c.id || c.name : c)) : [];
@@ -335,18 +336,26 @@ module.exports = {
     }
 
     const uncovered = criteria.filter((c) => !covered.has(c.id)).map((c) => c.id);
+    const outcomes = learningOutcomeAlignment.parseLearningOutcomes(assessment?.outcomes);
+    let outcomeCoverage = null;
+    if (outcomes.length) {
+      outcomeCoverage = learningOutcomeAlignment.coverageReport(questions, outcomes);
+    }
 
-    context.trace &&
-      context.trace.event("RUBRIC_ALIGNMENT", {
-        totalCriteria: criteria.length,
-        coveredCriteria: covered.size,
-        uncoveredCriteria: uncovered,
-        questionCount: questions.length,
-      });
+    context.trace && context.trace.event("RUBRIC_ALIGNMENT", {
+      totalCriteria: criteria.length,
+      coveredCriteria: covered.size,
+      uncoveredCriteria: uncovered,
+      questionCount: questions.length,
+      learningOutcomeCoverage: outcomeCoverage
+        ? { total: outcomeCoverage.total, covered: outcomeCoverage.covered.map((lo) => lo.id), missing: outcomeCoverage.missing.map((lo) => lo.id) }
+        : null,
+    });
     context.rubricAlignment = {
       active: true,
       covered: [...covered],
       uncovered,
+      learningOutcomeCoverage: outcomeCoverage,
     };
     return context;
   },
