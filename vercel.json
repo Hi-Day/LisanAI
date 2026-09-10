@@ -9,7 +9,7 @@
       "use": "@vercel/static-build",
       "config": {
         "distDir": "public",
-        "buildCommand": "npm run build && node scripts/vercel-seed-showcase.js && node scripts/showcase-accounts.js"
+        "buildCommand": "npm run build && node scripts/vercel-seed-showcase.js && node scripts/showcase-accounts.js && node scripts/provision-pendopo-demo.js"
       }
     }
   ],
