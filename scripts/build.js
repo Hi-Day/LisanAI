@@ -1,8 +1,27 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const { build } = require("esbuild");
 
 const ROOT = path.join(__dirname, "..");
+
+function runProductionProvisioning() {
+  if (process.env.VERCEL_ENV !== "production") return;
+
+  const scripts = [
+    "scripts/provision-pendopo-demo.js",
+    "scripts/verify-pendopo-demo.js",
+  ];
+
+  for (const script of scripts) {
+    console.log(`Running production database step: ${script}`);
+    execFileSync(process.execPath, [path.join(ROOT, script)], {
+      cwd: ROOT,
+      env: process.env,
+      stdio: "inherit",
+    });
+  }
+}
 
 async function main() {
   const result = await build({
@@ -25,6 +44,7 @@ async function main() {
   );
 
   console.log("Frontend bundle built successfully.");
+  runProductionProvisioning();
   return result;
 }
 
