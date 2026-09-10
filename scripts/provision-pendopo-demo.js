@@ -3,7 +3,7 @@ const { loadEnv } = require("../server/config");
 loadEnv();
 
 const { getDb, initDatabase } = require("../server/database");
-const { registerTenantUser, createTenantUser } = require("../server/auth-service");
+const { registerTenantUser } = require("../server/auth-service");
 const { seedDemoData } = require("../server/seed-demo");
 
 const DEFAULTS = {
@@ -14,10 +14,6 @@ const DEFAULTS = {
   student1: { name: "Mahasiswa 1", email: "mahasiswa1@pendopo.lisan.ai", role: "student" },
   student2: { name: "Mahasiswa 2", email: "mahasiswa2@pendopo.lisan.ai", role: "student" },
 };
-
-function uid(prefix) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("base64url");
@@ -33,38 +29,6 @@ function tenantSlug(tenantId) {
   return crypto.createHash("sha256").update(tenantId).digest("hex").slice(0, 8);
 }
 
-async function ensureAccount(db, tenantId, spec, password) {
-  let user = await db.get(
-    "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
-    tenantId,
-    spec.email
-  );
-
-  if (!user) {
-    const existing = await db.get("SELECT * FROM users WHERE email = ?", spec.email);
-    if (existing && existing.tenant_id !== tenantId) {
-      throw new Error(`Email ${spec.email} sudah dipakai tenant lain.`);
-    }
-    user = await createTenantUser(tenantId, {
-      name: spec.name,
-      email: spec.email,
-      password,
-      role: spec.role,
-    });
-  }
-
-  await db.run(
-    "UPDATE users SET name = ?, role = ?, password_hash = ? WHERE id = ? AND tenant_id = ?",
-    spec.name,
-    spec.role,
-    await hashPassword(password),
-    user.id,
-    tenantId
-  );
-
-  return { ...user, name: spec.name, email: spec.email, role: spec.role };
-}
-
 async function ensureTenantAndAdmin(db) {
   let tenant = await db.get("SELECT * FROM tenants WHERE name = ?", DEFAULTS.tenantName);
   if (!tenant) {
@@ -74,64 +38,117 @@ async function ensureTenantAndAdmin(db) {
       email: DEFAULTS.admin.email,
       password: DEFAULTS.password,
     });
-    tenant = result.tenant;
-    return { tenant, admin: result.user };
+    return { tenant: result.tenant, admin: result.user };
   }
 
-  const admin = await ensureAccount(db, tenant.id, DEFAULTS.admin, DEFAULTS.password);
+  let admin = await db.get(
+    "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
+    tenant.id,
+    DEFAULTS.admin.email
+  );
+  if (!admin) {
+    const existing = await db.get("SELECT * FROM users WHERE email = ?", DEFAULTS.admin.email);
+    if (existing && existing.tenant_id !== tenant.id) {
+      throw new Error(`Email ${DEFAULTS.admin.email} sudah dipakai tenant lain.`);
+    }
+    const passwordHash = await hashPassword(DEFAULTS.password);
+    const id = `user-${crypto.randomUUID()}`;
+    await db.run(
+      `INSERT INTO users (id, tenant_id, name, email, password_hash, role, created_at)
+       VALUES (?, ?, ?, ?, ?, 'admin', ?)`,
+      id,
+      tenant.id,
+      DEFAULTS.admin.name,
+      DEFAULTS.admin.email,
+      passwordHash,
+      new Date().toISOString()
+    );
+    admin = await db.get("SELECT * FROM users WHERE id = ?", id);
+  } else {
+    await db.run(
+      "UPDATE users SET name = ?, role = 'admin', password_hash = ? WHERE id = ? AND tenant_id = ?",
+      DEFAULTS.admin.name,
+      await hashPassword(DEFAULTS.password),
+      admin.id,
+      tenant.id
+    );
+  }
+
   return { tenant, admin };
 }
 
-async function renameSeedAccounts(db, tenantId, teacher, student1, student2) {
+async function migrateAccount(db, tenantId, source, target) {
+  const passwordHash = await hashPassword(DEFAULTS.password);
+  await db.run(
+    `UPDATE users
+        SET name = ?, email = ?, role = ?, password_hash = ?
+      WHERE id = ? AND tenant_id = ?`,
+    target.name,
+    target.email,
+    target.role,
+    passwordHash,
+    source.id,
+    tenantId
+  );
+
+  return { ...source, name: target.name, email: target.email, role: target.role };
+}
+
+async function normalizePendopoAccounts(db, tenantId) {
   const tag = tenantSlug(tenantId);
   const genericTeacherEmail = `guru.${tag}.demo@lisan.ai`;
+  const classRow = await db.get(
+    "SELECT * FROM classes WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1",
+    tenantId
+  );
+  if (!classRow) throw new Error("Kelas demo Pendopo tidak ditemukan.");
 
-  let teacherSource = await db.get(
+  let teacher = await db.get(
+    "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
+    tenantId,
+    DEFAULTS.teacher.email
+  );
+  const genericTeacher = await db.get(
     "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
     tenantId,
     genericTeacherEmail
   );
-  if (!teacherSource) {
-    teacherSource = await db.get(
-      "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
-      tenantId,
-      teacher.email
-    );
-  }
-  if (!teacherSource) throw new Error("Akun dosen seed tidak ditemukan.");
+  if (!teacher) teacher = genericTeacher;
+  if (!teacher) throw new Error("Akun dosen seed tidak ditemukan.");
 
-  if (teacherSource.email !== teacher.email) {
-    await db.run(
-      "UPDATE users SET name = ?, email = ?, role = ? WHERE id = ? AND tenant_id = ?",
-      teacher.name,
-      teacher.email,
-      teacher.role,
-      teacherSource.id,
-      tenantId
-    );
+  // The generic seeder creates the real class/assessment data first. Reuse
+  // that teacher row so all existing relationships remain intact.
+  if (teacher.email !== DEFAULTS.teacher.email) {
+    teacher = await migrateAccount(db, tenantId, teacher, DEFAULTS.teacher);
   } else {
     await db.run(
-      "UPDATE users SET name = ?, role = ? WHERE id = ? AND tenant_id = ?",
-      teacher.name,
-      teacher.role,
-      teacherSource.id,
+      "UPDATE users SET name = ?, role = 'teacher', password_hash = ? WHERE id = ? AND tenant_id = ?",
+      DEFAULTS.teacher.name,
+      await hashPassword(DEFAULTS.password),
+      teacher.id,
       tenantId
     );
   }
 
-  const classRow = await db.get(
-    "SELECT id FROM classes WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1",
+  await db.run(
+    "UPDATE classes SET name = ?, teacher_id = ? WHERE id = ? AND tenant_id = ?",
+    "Pendopo - Kelas A",
+    teacher.id,
+    classRow.id,
     tenantId
   );
-  if (classRow) {
-    await db.run(
-      "UPDATE classes SET name = ?, teacher_id = ? WHERE id = ? AND tenant_id = ?",
-      "Pendopo - Kelas A",
-      teacherSource.id,
-      classRow.id,
-      tenantId
-    );
-  }
+  await db.run(
+    "UPDATE assessments SET teacher_id = ? WHERE tenant_id = ? AND teacher_id = ?",
+    teacher.id,
+    tenantId,
+    genericTeacher?.id || teacher.id
+  );
+  await db.run(
+    "UPDATE ai_logs SET user_id = ? WHERE tenant_id = ? AND user_id = ?",
+    teacher.id,
+    tenantId,
+    genericTeacher?.id || teacher.id
+  );
 
   let students = await db.all(
     `SELECT u.*
@@ -140,10 +157,12 @@ async function renameSeedAccounts(db, tenantId, teacher, student1, student2) {
       WHERE u.tenant_id = ? AND u.role = 'student' AND cm.class_id = ?
       ORDER BY cm.requested_at ASC`,
     tenantId,
-    classRow?.id || ""
+    classRow.id
   );
 
-  const desired = [student1, student2];
+  const desired = [DEFAULTS.student1, DEFAULTS.student2];
+  const keptIds = [];
+
   for (let i = 0; i < desired.length; i += 1) {
     let source = await db.get(
       "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
@@ -154,23 +173,17 @@ async function renameSeedAccounts(db, tenantId, teacher, student1, student2) {
     if (!source) throw new Error(`Akun mahasiswa ${i + 1} seed tidak ditemukan.`);
 
     if (source.email !== desired[i].email) {
-      await db.run(
-        "UPDATE users SET name = ?, email = ?, role = ? WHERE id = ? AND tenant_id = ?",
-        desired[i].name,
-        desired[i].email,
-        desired[i].role,
-        source.id,
-        tenantId
-      );
+      source = await migrateAccount(db, tenantId, source, desired[i]);
     } else {
       await db.run(
-        "UPDATE users SET name = ?, role = ? WHERE id = ? AND tenant_id = ?",
+        "UPDATE users SET name = ?, role = 'student', password_hash = ? WHERE id = ? AND tenant_id = ?",
         desired[i].name,
-        desired[i].role,
+        await hashPassword(DEFAULTS.password),
         source.id,
         tenantId
       );
     }
+    keptIds.push(source.id);
 
     const submissions = await db.all(
       "SELECT id, payload FROM submissions WHERE tenant_id = ? AND user_id = ?",
@@ -178,11 +191,11 @@ async function renameSeedAccounts(db, tenantId, teacher, student1, student2) {
       source.id
     );
     for (const submission of submissions) {
-      let payload;
+      let payload = null;
       try {
         payload = JSON.parse(submission.payload);
       } catch {
-        payload = null;
+        // Keep the original payload if it is not valid JSON.
       }
       if (payload) {
         payload.studentName = desired[i].name;
@@ -204,22 +217,16 @@ async function renameSeedAccounts(db, tenantId, teacher, student1, student2) {
     }
   }
 
-  // Keep the showcase focused on exactly two student accounts. Remove the
-  // additional students generated by the generic demo seeder, together with
-  // their submissions/evaluation traces.
-  const keepIds = [];
-  for (const account of desired) {
-    const row = await db.get("SELECT id FROM users WHERE tenant_id = ? AND email = ?", tenantId, account.email);
-    if (row) keepIds.push(row.id);
-  }
+  // Remove the extra generic students so the Accounts screen presents only
+  // the two requested student accounts.
+  const placeholders = keptIds.map(() => "?").join(",");
   const extras = await db.all(
     `SELECT id FROM users
       WHERE tenant_id = ? AND role = 'student'
-        AND id NOT IN (${keepIds.map(() => "?").join(",") || "NULL"})`,
+        AND id NOT IN (${placeholders})`,
     tenantId,
-    ...keepIds
+    ...keptIds
   );
-
   for (const extra of extras) {
     const submissions = await db.all(
       "SELECT id FROM submissions WHERE tenant_id = ? AND user_id = ?",
@@ -241,11 +248,13 @@ async function renameSeedAccounts(db, tenantId, teacher, student1, student2) {
     await db.run("DELETE FROM users WHERE tenant_id = ? AND id = ?", tenantId, extra.id);
   }
 
-  return {
-    teacherId: teacherSource.id,
-    studentIds: keepIds,
-    classId: classRow?.id || null,
-  };
+  // If an earlier attempt created the desired accounts before the generic
+  // seed accounts were normalized, remove the now-unused generic teacher.
+  if (genericTeacher && genericTeacher.id !== teacher.id) {
+    await db.run("DELETE FROM users WHERE tenant_id = ? AND id = ?", tenantId, genericTeacher.id);
+  }
+
+  return { teacherId: teacher.id, studentIds: keptIds, classId: classRow.id };
 }
 
 async function main() {
@@ -262,20 +271,17 @@ async function main() {
     "admin"
   );
 
-  const teacher = await ensureAccount(db, tenantId, DEFAULTS.teacher, DEFAULTS.password);
-  const student1 = await ensureAccount(db, tenantId, DEFAULTS.student1, DEFAULTS.password);
-  const student2 = await ensureAccount(db, tenantId, DEFAULTS.student2, DEFAULTS.password);
-  const normalized = await renameSeedAccounts(db, tenantId, teacher, student1, student2);
+  const normalized = await normalizePendopoAccounts(db, tenantId);
 
   console.log("\n=== PENDOPO DEMO ===");
-  console.log(`Tenant   : ${DEFAULTS.tenantName}`);
-  console.log(`Password : ${DEFAULTS.password}`);
-  console.log(`Admin    : ${DEFAULTS.admin.email}`);
-  console.log(`Dosen    : ${DEFAULTS.teacher.email}`);
+  console.log(`Tenant     : ${DEFAULTS.tenantName}`);
+  console.log(`Password   : ${DEFAULTS.password}`);
+  console.log(`Admin      : ${DEFAULTS.admin.email}`);
+  console.log(`Dosen      : ${DEFAULTS.teacher.email}`);
   console.log(`Mahasiswa 1: ${DEFAULTS.student1.email}`);
   console.log(`Mahasiswa 2: ${DEFAULTS.student2.email}`);
-  console.log(`Tenant ID: ${tenantId}`);
-  console.log(`Class ID : ${normalized.classId}`);
+  console.log(`Tenant ID  : ${tenantId}`);
+  console.log(`Class ID   : ${normalized.classId}`);
   console.log("====================\n");
 }
 
