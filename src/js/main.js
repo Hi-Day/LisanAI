@@ -51,6 +51,14 @@ export async function initApp() {
     if (btn) switchView(ctx, btn.dataset.view);
   });
 
+  // Browser/Android Back navigation for the SPA. View changes create history
+  // entries in app-context.js; popstate only renders the already-selected entry.
+  window.addEventListener("popstate", () => {
+    if (!ctx.auth?.authenticated) return;
+    const viewId = history.state?.lisanView;
+    if (viewId) switchView(ctx, viewId, { fromHistory: true });
+  });
+
   // Student filter tabs (tryout/assessment toggle)
   document.addEventListener("click", async (e) => {
     const filterBtn = e.target.closest("[data-student-filter]");
