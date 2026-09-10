@@ -33,20 +33,18 @@ export function createAppContext() {
     pendingQuestions: [],
     isEvaluating: false,
     lastModalTrigger: null,
-    // Pre-exam readiness modal (mic check + tombol mulai)
     micCheck: null,
     pendingExamAssessmentId: null,
     preExamTrigger: null,
     isStartingExam: false,
     currentWizardStep: 1,
-    // Pagination state for members
     memberSearchQuery: "",
     memberCurrentPage: 1,
     MEMBERS_PER_PAGE: 10,
-    // Question timer state
     questionTimerInterval: null,
     currentQuestionTimeLeft: 0,
     questionStartTime: Date.now(),
+    currentViewId: null,
   };
 }
 
@@ -59,7 +57,6 @@ export async function bootstrapAuthenticatedApp(ctx, nextAuth) {
   showApp(ctx);
   applyRoleAccess(ctx);
   await renderCurrentState(ctx);
-  // Dynamic import breaks the circular dependency (user-management imports from this file).
   const { renderUsers } = await import("./user-management.js");
   renderUsers(ctx);
   refreshSimulatorIfEnabled(ctx);
@@ -102,9 +99,7 @@ export function openRegisterModal(ctx) {
   if (els.registerModal) {
     ctx.lastModalTrigger = document.activeElement;
     els.registerModal.classList.remove("hidden");
-    if (els.registerTenant) {
-      els.registerTenant.focus();
-    }
+    if (els.registerTenant) els.registerTenant.focus();
   }
 }
 
@@ -112,9 +107,7 @@ export function closeRegisterModal(ctx) {
   const { els } = ctx;
   if (els.registerModal) {
     els.registerModal.classList.add("hidden");
-    if (ctx.lastModalTrigger instanceof HTMLElement && document.contains(ctx.lastModalTrigger)) {
-      ctx.lastModalTrigger.focus();
-    }
+    if (ctx.lastModalTrigger instanceof HTMLElement && document.contains(ctx.lastModalTrigger)) ctx.lastModalTrigger.focus();
     ctx.lastModalTrigger = null;
   }
 }
@@ -124,9 +117,7 @@ export function closeResultModal(ctx) {
   if (!els.resultPanel || els.resultPanel.classList.contains("hidden")) return;
   els.resultPanel.classList.add("hidden");
   const returnFocus = els.resultPanel._returnFocus;
-  if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) {
-    returnFocus.focus();
-  }
+  if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) returnFocus.focus();
 }
 
 export function trapFocus(event, modal) {
@@ -177,7 +168,6 @@ export async function renderCurrentState(ctx) {
     if (session.currentAssessmentId && !state.assessments.some((a) => a.id === session.currentAssessmentId)) {
       session.currentAssessmentId = null;
     }
-
     const currentAssessment = session.getCurrentAssessment();
     if (currentAssessment && isAssessmentLocked(ctx, currentAssessment)) {
       session.currentAssessmentId = null;
@@ -187,14 +177,11 @@ export async function renderCurrentState(ctx) {
   }
   renderApp(els, state, session);
   if (auth.user) renderStudentHistory(els, state.submissions, auth.user.name);
-  // Dynamic imports break the circular dependency: these feature modules
-  // import renderCurrentState from this file.
   const { renderClasses } = await import("./class-management.js");
   const { renderQuestionEditor } = await import("./assessment-wizard.js");
   renderClasses(ctx);
   renderQuestionEditor(ctx);
 
-  // Complaint UI: teacher badge + centralized list, student status notification.
   const { renderComplaints, updateComplaintBadge, notifyStudentComplaintStatus } = await import("./complaints.js");
   if (auth.user?.role === "teacher") {
     renderComplaints(ctx);
@@ -203,10 +190,7 @@ export async function renderCurrentState(ctx) {
     notifyStudentComplaintStatus(ctx);
   }
 
-  // Hide the seed buttons once there is at least one assessment. The
-  // admin button stays hidden for teachers; both are hidden for students.
   const hasData = state.assessments.length > 0;
-  // Hide dev tools in production (when demo simulation is not enabled).
   const isDev = window.ENABLE_DEMO_SIMULATION === "true" || window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
   const devTools = document.querySelectorAll(".sidebar-settings");
   devTools.forEach((el) => el.classList.toggle("hidden", !isDev));
@@ -214,21 +198,12 @@ export async function renderCurrentState(ctx) {
   if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", hasData);
   if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", hasData);
   if (els.seedDemo) els.seedDemo.classList.toggle("hidden", hasData);
-  // "Remove dummy data" appears ONLY when demo data exists, and never for
-  // students. It removes exactly the seeded rows (not organic data).
-  if (els.removeDemoData) {
-    els.removeDemoData.classList.toggle(
-      "hidden",
-      auth.user?.role === "student" || !hasData
-    );
-  }
+  if (els.removeDemoData) els.removeDemoData.classList.toggle("hidden", auth.user?.role === "student" || !hasData);
 
   if (auth.user?.role === "student") {
     els.studentName.value = auth.user.name;
     els.studentName.readOnly = true;
-    if (session.getCurrentAssessment()?.oralExamEnabled === false) {
-      ctx.recorder.setEnabled(false);
-    }
+    if (session.getCurrentAssessment()?.oralExamEnabled === false) ctx.recorder.setEnabled(false);
   } else {
     els.studentName.readOnly = false;
   }
@@ -238,14 +213,9 @@ export function applyRoleAccess(ctx) {
   const { els, auth } = ctx;
   const role = auth.user.role;
   if (els.seedDemo) els.seedDemo.classList.toggle("hidden", role === "student");
-  // Both role demo buttons are hidden for students; the admin-only button is
-  // hidden for teachers.
   if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", role === "student");
-  if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", role !== "admin");  // "Remove dummy data" is visible only when demo data exists (and never
-  // for students) — handled in renderCurrentState which has the data.
-  if (els.removeDemoData) {
-    els.removeDemoData.classList.toggle("hidden", role === "student");
-  }
+  if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", role !== "admin");
+  if (els.removeDemoData) els.removeDemoData.classList.toggle("hidden", role === "student");
   document.body.classList.remove("teacher-mode", "student-mode", "admin-mode");
 
   let navHtml = "";
@@ -267,14 +237,8 @@ export function applyRoleAccess(ctx) {
       <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">◉</span> Siswa</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
       <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
-      <button class="nav-button" data-view="notifView">
-        <span aria-hidden="true">🔔</span> Notifikasi
-        <span id="notifBadge" class="nav-badge hidden">0</span>
-      </button>
-      <button class="nav-button" data-view="complaintView">
-        <span aria-hidden="true">📩</span> Komplain
-        <span id="complaintNavBadge" class="nav-badge hidden">0</span>
-      </button>
+      <button class="nav-button" data-view="notifView"><span aria-hidden="true">🔔</span> Notifikasi <span id="notifBadge" class="nav-badge hidden">0</span></button>
+      <button class="nav-button" data-view="complaintView"><span aria-hidden="true">📩</span> Komplain <span id="complaintNavBadge" class="nav-badge hidden">0</span></button>
     `;
   } else if (role === "student") {
     navHtml = `
@@ -293,7 +257,6 @@ export function applyRoleAccess(ctx) {
   }
   els.mainNav.innerHTML = navHtml;
 
-  // Penilaian submenu: expand/collapse + tab filtering.
   const penulisGroup = els.mainNav.querySelector(".nav-group");
   const penulisSub = penulisGroup?.querySelector(".nav-sub");
   penulisGroup?.querySelector(".nav-button")?.addEventListener("click", (e) => {
@@ -309,9 +272,7 @@ export function applyRoleAccess(ctx) {
       switchView(ctx, "assessmentListView");
     });
   });
-  els.mainNav.querySelectorAll("[data-nav-view]").forEach((btn) => {
-    btn.addEventListener("click", () => switchView(ctx, btn.dataset.navView));
-  });
+  els.mainNav.querySelectorAll("[data-nav-view]").forEach((btn) => btn.addEventListener("click", () => switchView(ctx, btn.dataset.navView)));
 
   if (role === "student") {
     document.body.classList.add("student-mode");
@@ -340,18 +301,29 @@ export function canAccessView(ctx, viewId) {
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
   if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView" || viewId === "questionBankView";
-  if (role === "teacher") {
-    return [
-      "dashboardView", "teacherView", "assessmentListView", "assessmentDetailView",
-      "monitorView", "manageClassView", "studentProfileView", "complaintView",
-      "questionBankView", "notifView",
-    ].includes(viewId);
-  }
+  if (role === "teacher") return ["dashboardView", "teacherView", "assessmentListView", "assessmentDetailView", "monitorView", "manageClassView", "studentProfileView", "complaintView", "questionBankView", "notifView"].includes(viewId);
   return false;
 }
 
-export async function switchView(ctx, viewId) {
+/**
+ * Switch the visible SPA view and keep browser/Android Back navigation in sync.
+ * When fromHistory=true, the browser has already moved the history pointer,
+ * so we only render the requested state and never create another entry.
+ */
+export async function switchView(ctx, viewId, { fromHistory = false } = {}) {
   if (!canAccessView(ctx, viewId)) return;
+
+  const previousViewId = ctx.currentViewId;
+  if (!fromHistory && previousViewId === viewId) return;
+
+  if (!fromHistory) {
+    const nextState = { ...(history.state || {}), lisanView: viewId };
+    const hash = `#${viewId}`;
+    if (history.state?.lisanView) history.pushState(nextState, "", hash);
+    else history.replaceState(nextState, "", hash);
+  }
+
+  ctx.currentViewId = viewId;
   const { els } = ctx;
   const navBtns = els.mainNav.querySelectorAll(".nav-button");
   navBtns.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
@@ -369,15 +341,11 @@ export async function switchView(ctx, viewId) {
     populateProfileSelect(ctx);
     const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))];
     if (names.length) {
-      const selected =
-        ctx.profileSelectedStudent && names.includes(ctx.profileSelectedStudent)
-          ? ctx.profileSelectedStudent
-          : names[0];
+      const selected = ctx.profileSelectedStudent && names.includes(ctx.profileSelectedStudent) ? ctx.profileSelectedStudent : names[0];
       elProfileSet(ctx, selected);
       renderStudentProfile(ctx, selected);
     } else {
-      els.studentProfileContent.innerHTML =
-        '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
+      els.studentProfileContent.innerHTML = '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
     }
   }
   if (viewId === "observabilityView") {
@@ -407,9 +375,7 @@ function populateProfileSelect(ctx) {
   if (!els.profileStudentSelect) return;
   const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))].sort((a, b) => a.localeCompare(b));
   const options = names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-  if (els.profileStudentSelect.innerHTML !== options) {
-    els.profileStudentSelect.innerHTML = options;
-  }
+  if (els.profileStudentSelect.innerHTML !== options) els.profileStudentSelect.innerHTML = options;
 }
 
 function elProfileSet(ctx, name) {
@@ -435,9 +401,7 @@ export async function refreshSimulator(ctx) {
     renderSimulator(ctx, data);
   } catch (error) {
     console.error("Gagal memuat data simulator:", error);
-    if (els.simulatorTenantList) {
-      els.simulatorTenantList.innerHTML = `<div class="empty-state">Gagal memuat tenant: ${escapeHtml(error.message)}</div>`;
-    }
+    if (els.simulatorTenantList) els.simulatorTenantList.innerHTML = `<div class="empty-state">Gagal memuat tenant: ${escapeHtml(error.message)}</div>`;
   }
 }
 
@@ -469,10 +433,7 @@ export function renderSimulator(ctx, data) {
             <span class="simulator-user-detail">${escapeHtml(u.email)}</span>
             <span class="simulator-user-role-badge ${roleClass}">${escapeHtml(roleLabel(u.role))}</span>
           </div>
-          ${isActive
-            ? `<span class="simulator-login-btn active" style="background: var(--emerald); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Aktif</span>`
-            : `<button class="simulator-login-btn" data-user-id="${escapeHtml(u.id)}" type="button">Masuk</button>`
-          }
+          ${isActive ? `<span class="simulator-login-btn active" style="background: var(--emerald); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Aktif</span>` : `<button class="simulator-login-btn" data-user-id="${escapeHtml(u.id)}" type="button">Masuk</button>`}
         </div>
       `;
     }).join("");
@@ -480,9 +441,7 @@ export function renderSimulator(ctx, data) {
     return `
       <div class="simulator-tenant-group">
         <div class="simulator-tenant-name">${escapeHtml(t.name)}</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          ${userRows.length ? userRows : '<p style="font-size: 0.75rem; color: var(--muted); margin: 0;">Tidak ada akun</p>'}
-        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">${userRows.length ? userRows : '<p style="font-size: 0.75rem; color: var(--muted); margin: 0;">Tidak ada akun</p>'}</div>
       </div>
     `;
   }).join("");
