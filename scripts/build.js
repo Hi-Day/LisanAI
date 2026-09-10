@@ -1,3 +1,4 @@
+const fs = require("node:fs");
 const path = require("node:path");
 const { build } = require("esbuild");
 
@@ -13,7 +14,15 @@ async function main() {
     format: "esm",
     target: ["es2020"],
     logLevel: "info",
+    banner: {
+      js: `import("/js/learning-outcome-trend.js").catch(() => {});`,
+    },
   });
+
+  fs.copyFileSync(
+    path.join(ROOT, "src", "js", "learning-outcome-trend.js"),
+    path.join(ROOT, "public", "js", "learning-outcome-trend.js")
+  );
 
   console.log("Frontend bundle built successfully.");
   return result;
