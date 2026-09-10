@@ -51,7 +51,6 @@ async function ensureTenantAndAdmin(db) {
     if (existing && existing.tenant_id !== tenant.id) {
       throw new Error(`Email ${DEFAULTS.admin.email} sudah dipakai tenant lain.`);
     }
-    const passwordHash = await hashPassword(DEFAULTS.password);
     const id = `user-${crypto.randomUUID()}`;
     await db.run(
       `INSERT INTO users (id, tenant_id, name, email, password_hash, role, created_at)
@@ -60,7 +59,7 @@ async function ensureTenantAndAdmin(db) {
       tenant.id,
       DEFAULTS.admin.name,
       DEFAULTS.admin.email,
-      passwordHash,
+      await hashPassword(DEFAULTS.password),
       new Date().toISOString()
     );
     admin = await db.get("SELECT * FROM users WHERE id = ?", id);
@@ -78,7 +77,6 @@ async function ensureTenantAndAdmin(db) {
 }
 
 async function migrateAccount(db, tenantId, source, target) {
-  const passwordHash = await hashPassword(DEFAULTS.password);
   await db.run(
     `UPDATE users
         SET name = ?, email = ?, role = ?, password_hash = ?
@@ -86,11 +84,10 @@ async function migrateAccount(db, tenantId, source, target) {
     target.name,
     target.email,
     target.role,
-    passwordHash,
+    await hashPassword(DEFAULTS.password),
     source.id,
     tenantId
   );
-
   return { ...source, name: target.name, email: target.email, role: target.role };
 }
 
@@ -116,8 +113,6 @@ async function normalizePendopoAccounts(db, tenantId) {
   if (!teacher) teacher = genericTeacher;
   if (!teacher) throw new Error("Akun dosen seed tidak ditemukan.");
 
-  // The generic seeder creates the real class/assessment data first. Reuse
-  // that teacher row so all existing relationships remain intact.
   if (teacher.email !== DEFAULTS.teacher.email) {
     teacher = await migrateAccount(db, tenantId, teacher, DEFAULTS.teacher);
   } else {
@@ -150,7 +145,7 @@ async function normalizePendopoAccounts(db, tenantId) {
     genericTeacher?.id || teacher.id
   );
 
-  let students = await db.all(
+  const students = await db.all(
     `SELECT u.*
        FROM users u
        JOIN class_memberships cm ON cm.student_id = u.id
@@ -162,7 +157,6 @@ async function normalizePendopoAccounts(db, tenantId) {
 
   const desired = [DEFAULTS.student1, DEFAULTS.student2];
   const keptIds = [];
-
   for (let i = 0; i < desired.length; i += 1) {
     let source = await db.get(
       "SELECT * FROM users WHERE tenant_id = ? AND email = ?",
@@ -217,8 +211,6 @@ async function normalizePendopoAccounts(db, tenantId) {
     }
   }
 
-  // Remove the extra generic students so the Accounts screen presents only
-  // the two requested student accounts.
   const placeholders = keptIds.map(() => "?").join(",");
   const extras = await db.all(
     `SELECT id FROM users
@@ -248,8 +240,6 @@ async function normalizePendopoAccounts(db, tenantId) {
     await db.run("DELETE FROM users WHERE tenant_id = ? AND id = ?", tenantId, extra.id);
   }
 
-  // If an earlier attempt created the desired accounts before the generic
-  // seed accounts were normalized, remove the now-unused generic teacher.
   if (genericTeacher && genericTeacher.id !== teacher.id) {
     await db.run("DELETE FROM users WHERE tenant_id = ? AND id = ?", tenantId, genericTeacher.id);
   }
@@ -263,13 +253,16 @@ async function main() {
   const { tenant, admin } = await ensureTenantAndAdmin(db);
   const tenantId = tenant.id;
 
-  // Reuse the production-quality demo dataset so Pendopo exercises the same
-  // Dashboard, Assessment, Monitoring, Complaint, Research, Observability,
-  // and API-key surfaces as the existing demo.
-  await seedDemoData(
-    { tenant: { id: tenantId }, user: { id: admin.id, role: "admin", name: admin.name } },
-    "admin"
+  const seeded = await db.get(
+    "SELECT COUNT(*) AS c FROM assessments WHERE tenant_id = ?",
+    tenantId
   );
+  if (!Number(seeded?.c || 0)) {
+    await seedDemoData(
+      { tenant: { id: tenantId }, user: { id: admin.id, role: "admin", name: admin.name } },
+      "admin"
+    );
+  }
 
   const normalized = await normalizePendopoAccounts(db, tenantId);
 
