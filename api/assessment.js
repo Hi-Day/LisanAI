@@ -9,6 +9,7 @@ const {
   streamProbing,
   streamRecommendAssessmentConfig,
 } = require("../server/assessment-service");
+const { prepareProbingPayload, normalizeProbeResult } = require("../server/adaptive-probing");
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson } = require("../server/http-utils");
@@ -74,8 +75,9 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
       writeSse(res, { type: "result", data: { evaluation, harness: true } });
     } else if (action === "generate-probing") {
-      const probing = await streamProbing(payload, onChunk);
-      writeSse(res, { type: "result", data: { probing } });
+      const adaptivePayload = prepareProbingPayload(payload);
+      const probing = await streamProbing(adaptivePayload, onChunk);
+      writeSse(res, { type: "result", data: { probing: normalizeProbeResult(probing, adaptivePayload) } });
     } else {
       writeSse(res, { type: "error", message: "Action not found" });
     }
@@ -194,8 +196,9 @@ module.exports = async (req, res) => {
     }
 
     if (action === "generate-probing") {
-      const probing = await generateProbing(payload);
-      return sendJson(res, 200, { probing, model: process.env.OPENROUTER_MODEL });
+      const adaptivePayload = prepareProbingPayload(payload);
+      const probing = await generateProbing(adaptivePayload);
+      return sendJson(res, 200, { probing: normalizeProbeResult(probing, adaptivePayload), model: process.env.OPENROUTER_MODEL });
     }
 
     return sendJson(res, 404, { error: "Action not found" });
