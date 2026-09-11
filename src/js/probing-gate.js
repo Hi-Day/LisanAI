@@ -16,10 +16,14 @@ export function installProbingGate() {
   window.fetch = async (input, init = {}) => {
     const url = typeof input === "string" ? input : input?.url || "";
     const bodyText = init?.body;
-    if (!url.endsWith("/api/assessment") || typeof bodyText !== "string") return originalFetch(input, init);
+    if (!url.endsWith("/api/assessment") || typeof bodyText !== "string") {
+      return interceptSubmissionSave(input, init);
+    }
     let body;
-    try { body = JSON.parse(bodyText); } catch { return originalFetch(input, init); }
-    if (body?.action !== "generate-probing" || body?.stream !== true) return originalFetch(input, init);
+    try { body = JSON.parse(bodyText); } catch { return interceptSubmissionSave(input, init); }
+    if (body?.action !== "generate-probing" || body?.stream !== true) {
+      return interceptSubmissionSave(input, init);
+    }
 
     const response = await originalFetch(input, init);
     if (!response.ok || !response.body) return response;
@@ -47,7 +51,7 @@ export function installProbingGate() {
           return buildProbeResponse(`data: ${JSON.stringify({ type: "error", message: decision.status === "skipped" ? "Guru melewati probing." : "Guru menghentikan probing." })}\n\n`);
         }
         const approved = decision?.approvedPrompt || result.prompt;
-        return buildProbeResponse(replaceProbeResult(text, { ...result, prompt: approved, gateDecision: decision?.status || "accepted" }));
+        return buildProbeResponse(replaceProbeResult(text, { ...result, prompt: approved, gateDecision: decision?.status || "accepted", gateId: gate.id }));
       }
     } catch (error) {
       console.warn("[probing-gate] teacher gate unavailable; continuing with AI probe", error);
@@ -55,6 +59,38 @@ export function installProbingGate() {
     return buildProbeResponse(text, response.headers);
   };
   bootTeacherPanel();
+}
+
+async function interceptSubmissionSave(input, init) {
+  const response = await originalFetch(input, init);
+  const url = typeof input === "string" ? input : input?.url || "";
+  if (!url.endsWith("/api/database") || typeof init?.body !== "string") return response;
+  let body;
+  try { body = JSON.parse(init.body); } catch { return response; }
+  if (body?.action !== "save-submission" || !body?.payload?.id) return response;
+  if (!response.ok) return response;
+
+  // The normal save endpoint remains the source of truth. Feedback enrichment
+  // is deliberately asynchronous so it cannot block the student's submission.
+  const submission = body.payload;
+  void persistEvidenceFeedback(submission).catch((error) => {
+    console.warn("[evidence-feedback] enrichment failed", error);
+  });
+  return response;
+}
+
+async function persistEvidenceFeedback(submission) {
+  const response = await originalFetch("/api/evidence-feedback", {
+    method: "POST",
+    credentials: "include",
+    headers: await csrfHeaders(),
+    body: JSON.stringify({ submission }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${response.status}`);
+  }
+  return response.json();
 }
 
 async function createGate(payload, result, headers) {
