@@ -7,6 +7,7 @@
 // level.
 
 const { parseLearningOutcomes, questionOutcomeMap } = require("./harness/learning-outcome-alignment");
+const { buildEvidenceQuality } = require("./evidence-quality");
 
 function clampScore(value) {
   const n = Number(value);
@@ -75,9 +76,6 @@ function buildQuestionFeedback(question, questionScore, index) {
       },
     },
     score: {
-      // A true pre-probe score is intentionally null until the system performs
-      // a separate baseline evaluation. Never manufacture one from the final
-      // score. The current score is explicitly marked as post-probe verified.
       beforeProbing: Number.isFinite(Number(probing.baselineScore)) ? clampScore(probing.baselineScore) : null,
       verifiedAfterProbing: finalScore,
       delta: Number.isFinite(Number(probing.baselineScore))
@@ -131,6 +129,7 @@ function applyEvidenceFeedbackLoop(submission, assessment) {
   const questionFeedback = questionScores.map((qs, index) => buildQuestionFeedback(questions[index], qs, index));
   const probeCount = questionFeedback.filter((item) => item.probingUsed).length;
   const additionalEvidenceCount = questionFeedback.filter((item) => item.evidence?.probe?.present).length;
+  const evidenceQuality = buildEvidenceQuality(assessment, questionScores);
 
   return {
     ...safe,
@@ -141,6 +140,11 @@ function applyEvidenceFeedbackLoop(submission, assessment) {
       additionalEvidenceCount,
       questions: questionFeedback,
       generatedAt: new Date().toISOString(),
+    },
+    evidenceQuality: {
+      version: 1,
+      method: "transparent_evidence_signal_v1",
+      questions: evidenceQuality,
     },
     competencyState: deriveCompetencyState(assessment, questionScores),
     scoreState: probeCount > 0 ? "VERIFIED_AFTER_ADAPTIVE_PROBING" : "VERIFIED",
