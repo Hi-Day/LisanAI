@@ -9,8 +9,20 @@ const { parseCookies, sendJson } = require("../server/http-utils");
  * Keep showcase provisioning out of the normal application state path. A
  * showcase seed is a deployment/bootstrap concern; running it for every
  * authenticated tenant can make a serverless request exceed its timeout.
+ *
+ * /api/health is intentionally handled by this same serverless function to
+ * stay within Vercel Hobby's per-deployment function limit.
  */
 module.exports = async (req, res) => {
+  if (req.url && req.url.split("?")[0] === "/api/health") {
+    return sendJson(res, 200, {
+      ok: true,
+      service: "lisan-ai",
+      runtime: "vercel",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   try {
     await ensureDatabase();
     const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
