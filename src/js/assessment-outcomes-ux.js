@@ -40,7 +40,7 @@ function renumber(list) {
 function render(list, textarea, values) {
   list.innerHTML = "";
   const initial = values.length ? values : DEFAULT_OUTCOMES;
-  initial.slice(0, 3).forEach((value) => createRow(list, textarea, value));
+  initial.forEach((value) => createRow(list, textarea, value));
   if (!initial.length) createRow(list, textarea, "");
   syncTextarea(list, textarea);
 }
@@ -82,8 +82,6 @@ function install() {
   label.insertBefore(add, textarea);
   render(list, textarea, normalize(textarea.value));
 
-  // Recommendation writes directly to the legacy textarea. Detect that value
-  // change without requiring changes to the existing recommendation flow.
   let lastValue = textarea.value;
   window.setInterval(() => {
     if (textarea.value === lastValue) return;
