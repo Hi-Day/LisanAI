@@ -40,9 +40,11 @@ function renumber(list) {
 }
 
 function render(list, textarea, state, values, max = 3) {
+  const shown = values.slice(0, max);
   list.innerHTML = "";
-  values.slice(0, max).forEach((value) => createRow(list, textarea, state, value));
+  shown.forEach((value) => createRow(list, textarea, state, value));
   if (!list.children.length) createRow(list, textarea, state, "");
+  textarea.value = shown.join("\n");
   state.lastValue = textarea.value;
 }
 
@@ -53,6 +55,54 @@ function setGenerating(list, add, generating) {
 
 function isGenerating(button) {
   return Boolean(button?.disabled || /membuat rekomendasi|membuat.*\.\.\.|generat.*\.\.\./i.test(button?.textContent || ""));
+}
+
+function validateCounts(list, questionCount) {
+  const outcomes = [...list.querySelectorAll("[data-outcome-input]")]
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+  const questions = Math.max(0, Number(questionCount?.value || 0));
+  if (!questions) return { valid: false, outcomes, questions, message: "Jumlah soal harus minimal 1." };
+  if (outcomes.length > questions) {
+    return {
+      valid: false,
+      outcomes,
+      questions,
+      message: `Ada ${outcomes.length} capaian pembelajaran tetapi hanya ${questions} soal. Tambahkan soal atau kurangi capaian pembelajaran menjadi maksimal ${questions}.`,
+    };
+  }
+  return { valid: true, outcomes, questions, message: "" };
+}
+
+function installCountGuard(list) {
+  const button = document.getElementById("wizardToQuestions");
+  const questionCount = document.getElementById("questionCount");
+  if (!button || !questionCount) return;
+
+  const message = document.createElement("div");
+  message.className = "assessment-outcomes-validation";
+  message.setAttribute("role", "alert");
+  message.hidden = true;
+  list.after(message);
+
+  const validate = () => {
+    const result = validateCounts(list, questionCount);
+    message.hidden = result.valid;
+    message.textContent = result.message;
+    return result.valid;
+  };
+
+  list.addEventListener("input", validate);
+  questionCount.addEventListener("input", validate);
+  questionCount.addEventListener("change", validate);
+
+  button.addEventListener("click", (event) => {
+    if (validate()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    list.querySelector("[data-outcome-input]:not([value])")?.focus();
+    message.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, true);
 }
 
 function install() {
@@ -97,8 +147,9 @@ function install() {
   textarea.style.display = "none";
 
   label.append(heading, list, add, textarea);
-  // Intentionally blank on first open. AI suggestions are only materialized after generation.
+  // New assessment starts with one empty editable placeholder, not a fake final LO.
   render(list, textarea, state, normalize(textarea.value), 3);
+  installCountGuard(list);
 
   const refresh = () => {
     const generating = isGenerating(recommendationButton);
@@ -142,6 +193,7 @@ function installStyles() {
     .assessment-outcome-remove { width: 34px; height: 34px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 1.25rem; cursor: pointer; }
     .assessment-outcome-remove:hover { background: rgba(180, 35, 24, .08); color: #b42318; }
     .assessment-outcome-add { margin-top: 10px; width: 100%; min-height: 42px; }
+    .assessment-outcomes-validation { margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(180, 35, 24, .25); border-radius: 10px; background: rgba(180, 35, 24, .06); color: #8f1d15; font-size: .88rem; line-height: 1.45; }
     .assessment-advanced-settings { margin-top: 24px; }
     @media (max-width: 639px) {
       .wizard-panel[data-wizard-panel="1"] { padding: 22px 18px 24px; }
