@@ -46,6 +46,13 @@ function apply() {
     '        aturan_rubrik_per_soal: "Buat rubric khusus untuk setiap soal berdasarkan pertanyaan dan learning_outcome. Setiap criterion harus memiliki evidence demand yang eksplisit di pertanyaan. Jangan menambahkan indikator contoh, penerapan, alasan, analisis, perbandingan, atau evaluasi jika pertanyaan tidak memintanya. Jika criterion tidak dapat dibuktikan dari jawaban atas pertanyaan, jangan mapping-kan criterion tersebut.",',
     "generation rubric evidence rule"
   );
+
+  replaceOnce(
+    "src/js/assessment-wizard.js",
+    "  _wizardCtx = ctx;\n  const { els } = ctx;",
+    "  _wizardCtx = ctx;\n  window.__lisanAssessmentWizardBridge = {\n    get ctx() { return _wizardCtx; },\n    sync() { if (_wizardCtx) syncQuestionsFromEditor(_wizardCtx); },\n    render() { if (_wizardCtx) renderQuestionEditor(_wizardCtx); },\n  };\n  const { els } = ctx;",
+    "wizard repair bridge"
+  );
 }
 
 apply();
