@@ -44,7 +44,7 @@ export function installProbingGate() {
         const decision = await waitForDecision(gate.id);
         hideStudentGateWaiting();
         if (decision?.status === "skipped" || decision?.status === "terminated") {
-          return buildProbeResponse(replaceProbeResult(text, { ...result, prompt: "", gateDecision: decision.status }));
+          return buildProbeResponse(`data: ${JSON.stringify({ type: "error", message: decision.status === "skipped" ? "Guru melewati probing." : "Guru menghentikan probing." })}\n\n`);
         }
         const approved = decision?.approvedPrompt || result.prompt;
         return buildProbeResponse(replaceProbeResult(text, { ...result, prompt: approved, gateDecision: decision?.status || "accepted" }));
@@ -63,16 +63,7 @@ async function createGate(payload, result, headers) {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({
-      action: "create",
-      payload: {
-        assessmentId: payload.assessmentId,
-        questionIndex: payload.questionIndex,
-        answer: payload.answer || "",
-        evidenceGap: result.evidenceGap || payload.evidenceGap || null,
-        prompt: result.prompt,
-      },
-    }),
+    body: JSON.stringify({ action: "create", payload: { assessmentId: payload.assessmentId, questionIndex: payload.questionIndex, answer: payload.answer || "", evidenceGap: result.evidenceGap || payload.evidenceGap || null, prompt: result.prompt } }),
   });
   if (!response.ok) return null;
   return (await response.json()).probe;
