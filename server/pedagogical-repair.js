@@ -93,13 +93,19 @@ function rebuildRubricForCriteria(rubric, criteria) {
   return normalized.map((criterion) => `${criterion.name} ${criterion.weight}%`).join("\n");
 }
 
+function reconcileRubric(question) {
+  if (!question) return question;
+  const criteria = Array.isArray(question.criteria) ? question.criteria : [];
+  if (criteria.length === 0) return { ...question, rubric: "" };
+  return {
+    ...question,
+    rubric: rebuildRubricForCriteria(question.rubric, criteria),
+  };
+}
+
 function fallbackRepair(questions, mode, payload) {
   const grounded = groundQuestionsAgainstRubric(questions, payload);
-  if (mode === "question") return grounded.map((question) => ({ ...question }));
-  return grounded.map((question) => ({
-    ...question,
-    rubric: rebuildRubricForCriteria(question.rubric, question.criteria),
-  }));
+  return grounded.map((question) => reconcileRubric(question));
 }
 
 async function repairPedagogicalGrounding(payload = {}) {
@@ -122,7 +128,7 @@ async function repairPedagogicalGrounding(payload = {}) {
     return { questions: fallbackRepair(questions, payload.mode || "auto", payload), repairedBy: "deterministic-fallback" };
   }
 
-  const repaired = candidate.map((question, index) => ({
+  const repaired = candidate.map((question, index) => reconcileRubric({
     ...questions[index],
     ...question,
     id: questions[index].id,
