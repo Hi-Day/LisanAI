@@ -1,5 +1,29 @@
 const TREND_COLORS = ["--brand", "--success", "--info", "--danger", "--warning", "--ai", "--voice", "--success-strong"];
 
+function installLoginMotion() {
+  if (document.getElementById("lisan-login-motion")) return;
+  const style = document.createElement("style");
+  style.id = "lisan-login-motion";
+  style.textContent = `
+    .auth-view {
+      animation-name: lisanAuthEnter !important;
+      animation-duration: 1.2s !important;
+      animation-timing-function: cubic-bezier(.22, 1, .36, 1) !important;
+      animation-fill-mode: both !important;
+    }
+    @keyframes lisanAuthEnter {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .auth-view { animation: none !important; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+installLoginMotion();
+
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 function escapeHtml(value) { const div = document.createElement("div"); div.textContent = String(value ?? ""); return div.innerHTML; }
 
