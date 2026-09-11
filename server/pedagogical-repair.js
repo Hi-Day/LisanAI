@@ -71,32 +71,55 @@ function parseRubricCriteria(text) {
   }).filter((item) => item.name);
 }
 
-function rebuildRubricForCriteria(rubric, criteria) {
-  const original = parseRubricCriteria(rubric);
-  if (!original.length) return rubric;
-  const names = new Set(criteria.map((criterion) => String(criterion?.name || criterion?.id || "").trim().toLowerCase()));
-  const kept = original.filter((criterion) => names.has(String(criterion.name || "").trim().toLowerCase()));
-  if (!kept.length) return rubric;
-  const total = kept.reduce((sum, criterion) => sum + (Number(criterion.weight) || 0), 0) || kept.length;
-  const normalized = kept.map((criterion, index) => ({
+function normalizeCriteriaWeights(criteria) {
+  const source = (Array.isArray(criteria) ? criteria : []).map((criterion) => ({
     ...criterion,
-    weight: index === kept.length - 1
-      ? Number((100 - kept.slice(0, -1).reduce((sum, item) => sum + Math.round(((Number(item.weight) || 0) / total) * 100), 0)).toFixed(2))
-      : Number((((Number(criterion.weight) || 0) / total) * 100).toFixed(2)),
+    name: String(criterion?.name || criterion?.id || "").trim(),
+    weight: Number(criterion?.weight) || 0,
+  })).filter((criterion) => criterion.name);
+  if (!source.length) return [];
+  const total = source.reduce((sum, criterion) => sum + criterion.weight, 0) || source.length;
+  return source.map((criterion, index) => ({
+    ...criterion,
+    weight: index === source.length - 1
+      ? Number((100 - source.slice(0, -1).reduce((sum, item) => sum + Math.round((item.weight / total) * 100), 0)).toFixed(2))
+      : Number(((criterion.weight / total) * 100).toFixed(2)),
   }));
-  if (String(rubric).trim().startsWith("{")) {
+}
+
+function rebuildRubricForCriteria(rubric, criteria) {
+  const normalizedCriteria = normalizeCriteriaWeights(criteria);
+  if (!normalizedCriteria.length) return "";
+
+  const original = parseRubricCriteria(rubric);
+  const names = new Set(normalizedCriteria.map((criterion) => criterion.name.toLowerCase()));
+  const kept = original.filter((criterion) => names.has(String(criterion.name || "").trim().toLowerCase()));
+
+  if (String(rubric).trim().startsWith("{") && kept.length) {
     try {
       const parsed = JSON.parse(rubric);
-      if (parsed.version === "2") return JSON.stringify({ ...parsed, criteria: normalized });
-    } catch { /* keep original */ }
+      if (parsed.version === "2") {
+        const total = kept.reduce((sum, criterion) => sum + (Number(criterion.weight) || 0), 0) || kept.length;
+        const normalized = kept.map((criterion, index) => ({
+          ...criterion,
+          weight: index === kept.length - 1
+            ? Number((100 - kept.slice(0, -1).reduce((sum, item) => sum + Math.round(((Number(item.weight) || 0) / total) * 100), 0)).toFixed(2))
+            : Number((((Number(criterion.weight) || 0) / total) * 100).toFixed(2)),
+        }));
+        return JSON.stringify({ ...parsed, criteria: normalized });
+      }
+    } catch { /* fall through to a clean rubric */ }
   }
-  return normalized.map((criterion) => `${criterion.name} ${criterion.weight}%`).join("\n");
+
+  // If the previous rubric is stale or empty, rebuild it from the grounded
+  // criteria instead of returning the stale text. This makes criteria the
+  // authoritative source after an AI repair.
+  return normalizedCriteria.map((criterion) => `${criterion.name} ${criterion.weight}%`).join("\n");
 }
 
 function reconcileRubric(question) {
   if (!question) return question;
   const criteria = Array.isArray(question.criteria) ? question.criteria : [];
-  if (criteria.length === 0) return { ...question, rubric: "" };
   return {
     ...question,
     rubric: rebuildRubricForCriteria(question.rubric, criteria),
