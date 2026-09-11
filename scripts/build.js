@@ -89,7 +89,7 @@ const uiPolishEnhancement = `
 (function installLisanUIPolish() {
   const style = document.createElement("style");
   style.id = "lisan-ui-polish";
-  style.textContent = `
+  style.textContent = ${JSON.stringify(`
     /* Adaptive probing belongs to the teacher's monitoring workflow, not assessment creation. */
     #probingGatePanel {
       margin: 0 0 20px;
@@ -118,13 +118,8 @@ const uiPolishEnhancement = `
     .probing-gate-list-wrap {
       padding: 0 20px 20px;
     }
-    .probing-gate-empty {
-      padding: 12px 20px 18px;
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
 
-    /* Replace rapid blinking with slower, eased motion. */
+    /* Slower, eased motion: loading should feel continuous, not like a blink. */
     @keyframes lisanSmoothCaret {
       0%, 42% { opacity: 1; }
       50%, 92% { opacity: 0.2; }
@@ -136,9 +131,6 @@ const uiPolishEnhancement = `
     }
     @keyframes lisanSmoothSpin {
       to { transform: rotate(360deg); }
-    }
-    .probing-text {
-      animation: none !important;
     }
     .probing-caret,
     .probing-stream-caret {
@@ -171,7 +163,7 @@ const uiPolishEnhancement = `
         animation: none !important;
       }
     }
-  `;
+  `)};
   document.head.appendChild(style);
 })();
 `;
