@@ -70,8 +70,6 @@ async function interceptSubmissionSave(input, init) {
   if (body?.action !== "save-submission" || !body?.payload?.id) return response;
   if (!response.ok) return response;
 
-  // The normal save endpoint remains the source of truth. Feedback enrichment
-  // is deliberately asynchronous so it cannot block the student's submission.
   const submission = body.payload;
   void persistEvidenceFeedback(submission).catch((error) => {
     console.warn("[evidence-feedback] enrichment failed", error);
@@ -175,27 +173,31 @@ async function bootTeacherPanel() {
 
 function ensureTeacherPanel() {
   if (document.getElementById("probingGatePanel")) return;
-  const view = document.getElementById("teacherView");
+  const view = document.getElementById("monitorView");
   if (!view) return;
   const panel = document.createElement("section");
   panel.id = "probingGatePanel";
-  panel.className = "probing-gate-panel";
-  panel.innerHTML = `<div class="probing-gate-heading"><div><h3>⚡ Probing menunggu keputusan</h3><p>Siswa hanya menerima probe setelah guru menyetujui atau mengeditnya. Maksimal 1 probe per soal.</p></div><span class="tag" id="probingGateCount">0</span></div><div id="probingGateList"></div>`;
-  view.prepend(panel);
+  panel.className = "probing-gate-panel is-empty";
+  panel.innerHTML = `<div class="probing-gate-heading"><div><h3>⚡ Probing membutuhkan keputusan</h3><p>Probe adaptif muncul di sini ketika siswa selesai menjawab soal yang mengaktifkan probing. Guru dapat menerima, mengedit, melewati, atau menghentikannya.</p></div><span class="tag" id="probingGateCount">0</span></div><div id="probingGateList" class="probing-gate-list-wrap"></div>`;
+  const heading = view.querySelector(".section-heading");
+  if (heading) heading.after(panel);
+  else view.prepend(panel);
 }
 
 async function refreshTeacherPanel() {
   if (!teacherReady) return;
   ensureTeacherPanel();
+  const panel = document.getElementById("probingGatePanel");
   const list = document.getElementById("probingGateList");
-  if (!list) return;
+  if (!list || !panel) return;
   try {
     const response = await originalFetch("/api/probing?action=pending", { credentials: "include" });
     if (!response.ok) return;
     const probes = (await response.json()).probes || [];
     const count = document.getElementById("probingGateCount");
     if (count) count.textContent = String(probes.length);
-    list.innerHTML = probes.length ? probes.map(renderProbeCard).join("") : `<div class="probing-gate-empty">Tidak ada probing yang menunggu.</div>`;
+    panel.classList.toggle("is-empty", probes.length === 0);
+    list.innerHTML = probes.length ? probes.map(renderProbeCard).join("") : "";
     bindDecisionButtons(list);
   } catch {}
 }
