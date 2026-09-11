@@ -23,36 +23,6 @@ function runProductionProvisioning() {
   }
 }
 
-function removeRedundantAssessmentPreview() {
-  const indexPath = path.join(ROOT, "public", "index.html");
-  const html = fs.readFileSync(indexPath, "utf8");
-  const block = `
-          <div class="preview-panel">
-            <div class="visual-card">
-              <div class="voice-waves" aria-hidden="true">
-                <span></span><span></span><span></span><span></span><span></span>
-              </div>
-              <div>
-                <strong>Alur evaluasi</strong>
-                <p>Topik → soal adaptif → rekaman suara → transkripsi → skor rubrik → verifikasi → umpan balik personal.</p>
-              </div>
-            </div>
-            <h3>Tentang penilaian</h3>
-            <p style="font-size:0.95rem;color:var(--muted);line-height:1.6;">
-              Setiap jawaban siswa dievaluasi berbasis rubrik, dengan bukti yang dapat ditelusuri dan status verifikasi.
-              Hanya hasil yang <strong>terverifikasi</strong> yang masuk ke rata-rata kelas.
-            </p>
-          </div>`;
-
-  if (!html.includes(block)) {
-    console.log("Assessment preview panel not found; no cleanup needed.");
-    return;
-  }
-
-  fs.writeFileSync(indexPath, html.replace(block, ""), "utf8");
-  console.log("Removed redundant assessment preview panel.");
-}
-
 const assessmentUxEnhancement = `
 (function enhanceAssessmentWizardUX() {
   function apply() {
@@ -115,9 +85,98 @@ const assessmentUxEnhancement = `
 })();
 `;
 
-async function main() {
-  removeRedundantAssessmentPreview();
+const uiPolishEnhancement = `
+(function installLisanUIPolish() {
+  const style = document.createElement("style");
+  style.id = "lisan-ui-polish";
+  style.textContent = `
+    /* Adaptive probing belongs to the teacher's monitoring workflow, not assessment creation. */
+    #probingGatePanel {
+      margin: 0 0 20px;
+    }
+    #probingGatePanel.is-empty {
+      display: none;
+    }
+    .probing-gate-panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow-subtle);
+      overflow: hidden;
+    }
+    .probing-gate-heading {
+      padding: 18px 20px;
+    }
+    .probing-gate-heading h3 {
+      margin: 0 0 5px;
+    }
+    .probing-gate-heading p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .probing-gate-list-wrap {
+      padding: 0 20px 20px;
+    }
+    .probing-gate-empty {
+      padding: 12px 20px 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
 
+    /* Replace rapid blinking with slower, eased motion. */
+    @keyframes lisanSmoothCaret {
+      0%, 42% { opacity: 1; }
+      50%, 92% { opacity: 0.2; }
+      100% { opacity: 1; }
+    }
+    @keyframes lisanSmoothShimmer {
+      0% { background-position: 180% 0; }
+      100% { background-position: -80% 0; }
+    }
+    @keyframes lisanSmoothSpin {
+      to { transform: rotate(360deg); }
+    }
+    .probing-text {
+      animation: none !important;
+    }
+    .probing-caret,
+    .probing-stream-caret {
+      animation: lisanSmoothCaret 1.8s ease-in-out infinite !important;
+    }
+    .skeleton,
+    .ai-skeleton-card {
+      animation: lisanSmoothShimmer 2.8s ease-in-out infinite !important;
+    }
+    .ai-stream-spinner,
+    .loading-spinner,
+    .spinner,
+    .button-spinner,
+    .evaluation-spinner {
+      animation: lisanSmoothSpin 1.8s linear infinite !important;
+    }
+    .recording-indicator,
+    .record-button.recording::before,
+    .record-button.recording::after {
+      animation-duration: 1.8s !important;
+      animation-timing-function: ease-in-out !important;
+    }
+    .fade-in,
+    .fadeIn {
+      animation-duration: 0.45s !important;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #probingGatePanel *, .skeleton, .ai-skeleton-card {
+        animation: none !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+})();
+`;
+
+async function main() {
   const result = await build({
     entryPoints: [path.join(ROOT, "src", "js", "app.js")],
     outfile: path.join(ROOT, "public", "js", "app.bundle.js"),
@@ -128,7 +187,7 @@ async function main() {
     target: ["es2020"],
     logLevel: "info",
     banner: {
-      js: `import("/js/learning-outcome-trend.js").catch(() => {});import("/js/probing-gate.js").then(m=>m.installProbingGate()).catch(()=>{});${assessmentUxEnhancement}`,
+      js: `import("/js/learning-outcome-trend.js").catch(() => {});import("/js/probing-gate.js").then(m=>m.installProbingGate()).catch(()=>{});${assessmentUxEnhancement}${uiPolishEnhancement}`,
     },
   });
 
