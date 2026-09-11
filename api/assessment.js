@@ -63,8 +63,8 @@ async function handleStreamingAction(req, res, auth, action, payload) {
     else if (action === "align-rubric") { result = await streamAlignRubricSet(payload, onChunk); writeSse(res, { type: "result", data: { questions: result, aligned: true } }); }
     else if (action === "improve-questions") { result = await streamImproveQuestionSet(payload, onChunk); writeSse(res, { type: "result", data: { questions: result } }); }
     else if (action === "repair-pedagogical-grounding") {
-      const { repairPedagogicalGrounding } = require("../server/pedagogical-repair");
-      result = await repairPedagogicalGrounding(payload);
+      const { streamRepairPedagogicalGrounding } = require("../server/pedagogical-repair");
+      result = await streamRepairPedagogicalGrounding(payload, onChunk);
       writeSse(res, { type: "result", data: result });
     }
     else if (action === "recommend-assessment-config") { result = await streamRecommendAssessmentConfig(payload, onChunk); writeSse(res, { type: "result", data: { recommendation: result } }); }
