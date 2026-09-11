@@ -20,9 +20,10 @@ const REPAIR_RULES = [
   "Setiap soal tetap satu substansi, satu tujuan utama, dan cocok untuk ujian lisan spontan.",
   "Jangan mengubah learning outcome hanya untuk menghilangkan masalah grounding.",
   "Pertahankan jumlah dan urutan soal.",
+  "HANYA soal yang tercantum dalam masalah_grounding boleh berubah. Soal lain harus dikembalikan persis seperti input, termasuk prompt, focus, outcome, ideal, criteria, rubric, dan probing.",
 ].join(" ");
 
-const SCHEMA = `Format JSON persis: {"questions":[{"prompt":"...","focus":"...","outcome":"...","rubric":"...","ideal":"...","criteria":[{"id":"...","name":"...","weight":40}]}]}. Jumlah dan urutan questions harus sama dengan input. criteria harus hanya berisi criterion yang benar-benar dapat dibuktikan oleh prompt. Bobot criterion yang tersisa harus berjumlah 100% untuk setiap soal.`;
+const SCHEMA = `Format JSON persis: {"questions":[{"prompt":"...","focus":"...","outcome":"...","rubric":"...","ideal":"...","criteria":[{"id":"...","name":"...","weight":40}]}]}. Jumlah dan urutan questions harus sama dengan input. HANYA soal yang disebut dalam masalah_grounding yang boleh berubah. Soal lain harus dikembalikan persis seperti input. criteria harus hanya berisi criterion yang benar-benar dapat dibuktikan oleh prompt. Bobot criterion yang tersisa harus berjumlah 100% untuk setiap soal.`;
 
 function normalizeQuestions(questions) {
   return (Array.isArray(questions) ? questions : []).map((question, index) => ({
@@ -35,6 +36,39 @@ function normalizeQuestions(questions) {
     ideal: String(question?.ideal || "").trim(),
     criteria: Array.isArray(question?.criteria) ? question.criteria : [],
   }));
+}
+
+function affectedQuestionIndexes(payload = {}, length = 0) {
+  const indexes = new Set();
+  for (const issue of Array.isArray(payload.issues) ? payload.issues : []) {
+    const index = Number(issue?.index ?? issue?.questionIndex);
+    if (Number.isInteger(index) && index >= 0 && index < length) indexes.add(index);
+  }
+  return indexes;
+}
+
+/**
+ * Hard boundary for repair scope. The AI response may contain all questions,
+ * but only questions with an actual reported issue are allowed to replace the
+ * original. This prevents an unrelated Soal 1 from appearing as a "change"
+ * when only Soal 2 needs repair.
+ */
+function mergeOnlyAffectedQuestions(original, candidate, payload = {}) {
+  const source = normalizeQuestions(original);
+  const proposed = normalizeQuestions(candidate);
+  if (proposed.length !== source.length) return source;
+  const affected = affectedQuestionIndexes(payload, source.length);
+  if (affected.size === 0) return source;
+
+  return source.map((question, index) => affected.has(index)
+    ? {
+        ...question,
+        ...proposed[index],
+        id: question.id,
+        probing: question.probing,
+      }
+    : question
+  );
 }
 
 function buildMessages(payload, mode) {
@@ -127,13 +161,23 @@ function reconcileRubric(question) {
 }
 
 function fallbackRepair(questions, mode, payload) {
-  const grounded = groundQuestionsAgainstRubric(questions, payload);
-  return grounded.map((question) => reconcileRubric(question));
+  const source = normalizeQuestions(questions);
+  const grounded = groundQuestionsAgainstRubric(source, payload);
+  const affected = affectedQuestionIndexes(payload, source.length);
+  return source.map((question, index) => {
+    if (!affected.has(index)) return question;
+    return reconcileRubric(grounded[index]);
+  });
 }
 
 async function repairPedagogicalGrounding(payload = {}) {
   const questions = normalizeQuestions(payload.questions);
   if (!questions.length) return { questions: [], repairedBy: "deterministic" };
+
+  const affected = affectedQuestionIndexes(payload, questions.length);
+  // Nothing is broken: do not ask AI and do not manufacture a different
+  // version of an otherwise valid question set.
+  if (affected.size === 0) return { questions, repairedBy: "none" };
 
   let result = null;
   try {
@@ -151,14 +195,8 @@ async function repairPedagogicalGrounding(payload = {}) {
     return { questions: fallbackRepair(questions, payload.mode || "auto", payload), repairedBy: "deterministic-fallback" };
   }
 
-  const repaired = candidate.map((question, index) => reconcileRubric({
-    ...questions[index],
-    ...question,
-    id: questions[index].id,
-    probing: questions[index].probing,
-  }));
-
-  const stillInvalid = repaired.some((question) => !validateQuestionCriterionGrounding(question).valid);
+  const repaired = mergeOnlyAffectedQuestions(questions, candidate, payload);
+  const stillInvalid = [...affected].some((index) => !validateQuestionCriterionGrounding(repaired[index]).valid);
   if (stillInvalid) {
     return { questions: fallbackRepair(repaired, payload.mode || "auto", payload), repairedBy: "ai-plus-deterministic" };
   }
@@ -166,4 +204,9 @@ async function repairPedagogicalGrounding(payload = {}) {
   return { questions: repaired, repairedBy: "ai" };
 }
 
-module.exports = { repairPedagogicalGrounding, rebuildRubricForCriteria };
+module.exports = {
+  repairPedagogicalGrounding,
+  rebuildRubricForCriteria,
+  affectedQuestionIndexes,
+  mergeOnlyAffectedQuestions,
+};
