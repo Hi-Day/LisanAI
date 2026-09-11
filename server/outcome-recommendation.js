@@ -1,4 +1,4 @@
-const { callOpenRouter, streamOpenRouter } = require("./openrouter");
+const { streamOpenRouter } = require("./openrouter");
 
 const DEFAULT_COUNT = 3;
 const FOCUSES = [
@@ -76,8 +76,8 @@ async function generateOne(payload, index, onChunk) {
 }
 
 /**
- * Generates three independent outcomes concurrently. Each model request has
- * its own stream; events are multiplexed by outcome index by the API layer.
+ * Generates up to three independent outcomes concurrently. Default is exactly
+ * three; callers may request one for the explicit "+ Tambah dengan AI" action.
  */
 async function streamLearningOutcomes(payload, onEvent) {
   const count = Math.min(DEFAULT_COUNT, Math.max(1, Number(payload.count) || DEFAULT_COUNT));
@@ -102,14 +102,15 @@ async function streamLearningOutcomes(payload, onEvent) {
   })());
 
   await Promise.all(jobs);
-  return results.filter(Boolean).slice(0, DEFAULT_COUNT);
+  return results.filter(Boolean).slice(0, count);
 }
 
 async function recommendLearningOutcomes(payload) {
+  const count = Math.min(DEFAULT_COUNT, Math.max(1, Number(payload.count) || DEFAULT_COUNT));
   const results = await Promise.all(
-    Array.from({ length: DEFAULT_COUNT }, (_, index) => generateOne({ ...payload, existingOutcomes: payload.existingOutcomes || [] }, index))
+    Array.from({ length: count }, (_, index) => generateOne({ ...payload, existingOutcomes: payload.existingOutcomes || [] }, index))
   );
-  return results.slice(0, DEFAULT_COUNT);
+  return results.slice(0, count);
 }
 
 module.exports = {
