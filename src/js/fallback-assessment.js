@@ -1,6 +1,48 @@
 import { FALLBACK_KEYWORDS, FALLBACK_QUESTION_STEMS } from "./config.js";
 import { getKeywords, uid } from "./utils.js";
 
+const DEMANDS = [
+  { type: "reasoning", pattern: /\b(?:mengapa|kenapa|alasan|jelaskan\s+(?:mengapa|alasan|hubungan|proses)|argumen|argumentasi|sebab|akibat|konsekuensi)\b/i, label: "penalaran sebab-akibat" },
+  { type: "application", pattern: /\b(?:contoh|misal|misalnya|penerapan|diterapkan|kasus|situasi|gunakan)\b/i, label: "penerapan/contoh" },
+  { type: "comparison", pattern: /\b(?:bandingkan|perbandingan|persamaan|perbedaan)\b/i, label: "perbandingan" },
+  { type: "analysis", pattern: /\b(?:analisis|analisa|hubungan|dampak|pengaruh|keterkaitan)\b/i, label: "analisis" },
+  { type: "evaluation", pattern: /\b(?:evaluasi|nilai|menilai|kritik|kelemahan|kelebihan|keterbatasan)\b/i, label: "evaluasi" },
+  { type: "identification", pattern: /\b(?:sebutkan|identifikasi|tentukan|nama(?:kan)?)\b/i, label: "identifikasi" },
+];
+
+function inferFallbackCriteria(prompt, keyword) {
+  const text = String(prompt || "");
+  const criteria = [];
+  const base = /\b(?:jelaskan|pengertian|konsep|pemahaman|uraikan|terangkan)\b/i.test(text)
+    ? `Ketepatan menjelaskan konsep ${keyword}`
+    : `Ketepatan memahami ${keyword}`;
+  criteria.push(base);
+
+  for (const demand of DEMANDS) {
+    if (!demand.pattern.test(text)) continue;
+    const name = demand.type === "reasoning"
+      ? `Kualitas ${demand.label}`
+      : `Kesesuaian ${demand.label}`;
+    if (!criteria.includes(name)) criteria.push(name);
+  }
+  return criteria.slice(0, 3);
+}
+
+function buildFallbackRubric(criteria) {
+  if (!criteria.length) return "";
+  const rawWeights = criteria.length === 1 ? [100] : criteria.map(() => 100 / criteria.length);
+  return criteria
+    .map((name, index) => `${name}: ${Number(rawWeights[index].toFixed(2))}%`)
+    .join("\n");
+}
+
+/**
+ * Local fallback generator with the same core pedagogical invariant as the
+ * server-side grounding harness: a criterion may only be attached when the
+ * question explicitly provides an evidence demand for it. It deliberately
+ * does NOT use a generic 40/25/20/15 rubric, because that would score evidence
+ * the fallback question never asked for.
+ */
 export function generateFallbackQuestions({ topic, outcomes, rubric, difficulty, examples, count }) {
   const keywords = getKeywords(topic, outcomes, rubric, examples);
   const core = keywords.length ? keywords : FALLBACK_KEYWORDS;
@@ -11,14 +53,29 @@ export function generateFallbackQuestions({ topic, outcomes, rubric, difficulty,
     const prompt = stems[index % stems.length]
       .replaceAll("{topic}", topic)
       .replaceAll("{keyword}", keyword);
+    const criteria = inferFallbackCriteria(prompt, keyword);
+    const questionRubric = buildFallbackRubric(criteria);
 
     return {
       id: uid("q"),
       prompt,
       focus: keyword,
       outcome: `Siswa mampu menjelaskan konsep ${keyword} pada materi ${topic} dengan bahasa sendiri.`,
-      rubric: `Ketepatan konsep ${keyword}: 40%, penalaran sebab-akibat: 25%, contoh relevan: 20%, kejelasan komunikasi: 15%.`,
-      ideal: `Jawaban kuat menyebut konsep ${keyword}, memberi alasan, memakai contoh relevan, dan mengaitkannya dengan ${topic}.`,
+      criteria,
+      rubric: questionRubric,
+      ideal: `Jawaban kuat menunjukkan pemahaman ${keyword}${criteria.length > 1 ? ", disertai evidence sesuai tuntutan pertanyaan" : ""} dan mengaitkannya dengan ${topic}.`,
+    };
+  });
+}
+
+/** Re-ground existing local fallback questions without changing their prompts. */
+export function groundFallbackQuestions(questions = []) {
+  return questions.map((question) => {
+    const criteria = inferFallbackCriteria(question.prompt, question.focus || "konsep");
+    return {
+      ...question,
+      criteria,
+      rubric: buildFallbackRubric(criteria),
     };
   });
 }
