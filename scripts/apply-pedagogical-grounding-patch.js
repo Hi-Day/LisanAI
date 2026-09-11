@@ -34,6 +34,53 @@ function apply() {
   );
 
   replaceOnce(
+    "server/harness/alignment.js",
+    "function enforceRubricAlignment(questions, payload) {",
+    `function syncRubricWithGroundedCriteria(question, allCriteria) {
+  if (!question || !Array.isArray(question.criteria)) return question;
+  const selectedIds = new Set(question.criteria.map((criterion) => String(typeof criterion === "object" ? criterion.id || criterion.name : criterion)));
+  if (selectedIds.size === 0) return { ...question, rubric: "" };
+
+  const sourceRubric = String(question.rubric || "").trim();
+  if (sourceRubric.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(sourceRubric);
+      if (parsed.version === "2" && Array.isArray(parsed.criteria)) {
+        const selected = parsed.criteria.filter((criterion) => {
+          const id = String(criterion.id || criterion.name || "");
+          const name = normalizeCriterionName(criterion.name || "");
+          return selectedIds.has(id) || [...selectedIds].some((selectedId) => normalizeCriterionName(selectedId) === name);
+        });
+        if (selected.length) {
+          const total = selected.reduce((sum, criterion) => sum + (Number(criterion.weight) || 0), 0) || selected.length;
+          const normalized = selected.map((criterion, index) => ({
+            ...criterion,
+            weight: index === selected.length - 1
+              ? Number((100 - selected.slice(0, -1).reduce((sum, item) => sum + Math.round(((Number(item.weight) || 0) / total) * 100), 0)).toFixed(2))
+              : Number((((Number(criterion.weight) || 0) / total) * 100).toFixed(2)),
+          }));
+          return { ...question, rubric: JSON.stringify({ ...parsed, criteria: normalized }) };
+        }
+      }
+    } catch { /* fall through to generated subset rubric */ }
+  }
+
+  const subsetText = buildQuestionRubricText(question, allCriteria);
+  return subsetText ? { ...question, rubric: subsetText } : question;
+}
+
+function enforceRubricAlignment(questions, payload) {`,
+    "rubric synchronization"
+  );
+
+  replaceOnce(
+    "server/harness/alignment.js",
+    "  return enforceLearningOutcomeAlignment(groundQuestionsAgainstRubric(finalized, payload), payload);",
+    "  return enforceLearningOutcomeAlignment(groundQuestionsAgainstRubric(finalized.map((question) => syncRubricWithGroundedCriteria(question, criteria), payload), payload), payload);",
+    "sync rubric after grounding"
+  );
+
+  replaceOnce(
     "server/assessment-service.js",
     '          "Seluruh kriteria dalam daftar kriteria_rubrik_yang_tersedia wajib muncul di setidaknya satu soal.",',
     '          "Setiap criterion hanya boleh muncul pada soal jika pertanyaan tersebut secara eksplisit meminta evidence yang diperlukan criterion itu. Jangan memaksakan criterion hanya demi coverage; jika tidak grounded, jangan mapping-kan ke soal.",',
