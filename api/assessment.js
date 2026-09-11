@@ -62,6 +62,11 @@ async function handleStreamingAction(req, res, auth, action, payload) {
     if (action === "generate-questions") { result = await streamGenerateQuestions(payload, onChunk); writeSse(res, { type: "result", data: { questions: result } }); }
     else if (action === "align-rubric") { result = await streamAlignRubricSet(payload, onChunk); writeSse(res, { type: "result", data: { questions: result, aligned: true } }); }
     else if (action === "improve-questions") { result = await streamImproveQuestionSet(payload, onChunk); writeSse(res, { type: "result", data: { questions: result } }); }
+    else if (action === "repair-pedagogical-grounding") {
+      const { repairPedagogicalGrounding } = require("../server/pedagogical-repair");
+      result = await repairPedagogicalGrounding(payload);
+      writeSse(res, { type: "result", data: result });
+    }
     else if (action === "recommend-assessment-config") { result = await streamRecommendAssessmentConfig(payload, onChunk); writeSse(res, { type: "result", data: { recommendation: result } }); }
     else if (action === "evaluate") {
       const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
@@ -105,6 +110,10 @@ module.exports = async (req, res) => {
     if (action === "generate-questions") return sendJson(res, 200, { questions: await generateQuestions(payload), model: process.env.OPENROUTER_MODEL });
     if (action === "align-rubric") { const { calibrateRubricSet } = require("../server/assessment-service"); return sendJson(res, 200, { questions: await calibrateRubricSet(payload), model: process.env.OPENROUTER_MODEL, aligned: true }); }
     if (action === "improve-questions") return sendJson(res, 200, { questions: await improveQuestionSet(payload), model: process.env.OPENROUTER_MODEL });
+    if (action === "repair-pedagogical-grounding") {
+      const { repairPedagogicalGrounding } = require("../server/pedagogical-repair");
+      return sendJson(res, 200, { ...(await repairPedagogicalGrounding(payload)), model: process.env.OPENROUTER_MODEL });
+    }
     if (action === "recommend-assessment-config") return sendJson(res, 200, { recommendation: await recommendAssessmentConfig(payload), model: process.env.OPENROUTER_MODEL });
     return sendJson(res, 404, { error: "Action not found" });
   } catch (error) { console.error(error); return sendJson(res, error.status || 500, { error: error.message || "Server error" }); }
