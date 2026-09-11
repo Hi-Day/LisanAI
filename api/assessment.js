@@ -13,17 +13,6 @@ const { assertRateLimit } = require("../server/rate-limit");
 
 function writeSse(res, data) { res.write(`data: ${JSON.stringify(data)}\n\n`); }
 
-function normalizeOutcomeRecommendation(result) {
-  if (!result || typeof result !== "object") return result;
-  const outcomes = String(result.outcomes || "")
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
-    .filter(Boolean)
-    .slice(0, 3);
-  return { ...result, outcomes: outcomes.join("\n") };
-}
-
 function recommendationFromOutcomes(outcomes) {
   const normalized = Array.isArray(outcomes) ? outcomes.filter(Boolean).slice(0, 3) : [];
   return { outcomes: normalized.join("\n"), items: normalized, count: normalized.length };
@@ -84,8 +73,13 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRepairPedagogicalGrounding(payload, onChunk);
       writeSse(res, { type: "result", data: result });
     }
+    else if (action === "generate-question-for-uncovered-criterion") {
+      const { streamCoverageQuestion } = require("../server/pedagogical-coverage");
+      result = await streamCoverageQuestion(payload, onChunk);
+      writeSse(res, { type: "result", data: { question: result } });
+    }
     else if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") {
-      const count = action === "recommend-assessment-config" ? 3 : Math.min(3, Math.max(1, Number(payload.count) || 3));
+      const count = 3;
       result = await streamLearningOutcomes({ ...payload, count }, (event) => {
         if (res.writableEnded === false) writeSse(res, event);
       });
@@ -137,9 +131,12 @@ module.exports = async (req, res) => {
       const { repairPedagogicalGrounding } = require("../server/pedagogical-repair");
       return sendJson(res, 200, { ...(await repairPedagogicalGrounding(payload)), model: process.env.OPENROUTER_MODEL });
     }
+    if (action === "generate-question-for-uncovered-criterion") {
+      const { generateCoverageQuestion } = require("../server/pedagogical-coverage");
+      return sendJson(res, 200, { question: await generateCoverageQuestion(payload), model: process.env.OPENROUTER_MODEL });
+    }
     if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") {
-      const count = action === "recommend-assessment-config" ? 3 : Math.min(3, Math.max(1, Number(payload.count) || 3));
-      const outcomes = await recommendLearningOutcomes({ ...payload, count });
+      const outcomes = await recommendLearningOutcomes({ ...payload, count: 3 });
       return sendJson(res, 200, { recommendation: recommendationFromOutcomes(outcomes), outcomes, count: outcomes.length, model: process.env.OPENROUTER_MODEL });
     }
     return sendJson(res, 404, { error: "Action not found" });
