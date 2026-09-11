@@ -6,7 +6,7 @@
  * issue. The model must never add evidence requests merely to satisfy a rubric.
  */
 
-const { callOpenRouter } = require("./openrouter");
+const { callOpenRouter, streamOpenRouter } = require("./openrouter");
 const {
   groundQuestionsAgainstRubric,
   validateQuestionCriterionGrounding,
@@ -145,9 +145,6 @@ function rebuildRubricForCriteria(rubric, criteria) {
     } catch { /* fall through to a clean rubric */ }
   }
 
-  // If the previous rubric is stale or empty, rebuild it from the grounded
-  // criteria instead of returning the stale text. This makes criteria the
-  // authoritative source after an AI repair.
   return normalizedCriteria.map((criterion) => `${criterion.name} ${criterion.weight}%`).join("\n");
 }
 
@@ -170,13 +167,46 @@ function fallbackRepair(questions, mode, payload) {
   });
 }
 
+function parseModelQuestions(content) {
+  const trimmed = String(content || "").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  try {
+    return JSON.parse(trimmed)?.questions || null;
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try { return JSON.parse(match[0])?.questions || null; } catch { return null; }
+  }
+}
+
+async function streamRepairPedagogicalGrounding(payload = {}, onChunk) {
+  const questions = normalizeQuestions(payload.questions);
+  const affected = affectedQuestionIndexes(payload, questions.length);
+  if (!questions.length || affected.size === 0) return { questions, repairedBy: "none" };
+
+  try {
+    const streamed = await streamOpenRouter(
+      buildMessages({ ...payload, questions }, payload.mode || "auto"),
+      SCHEMA,
+      { tenantId: payload.tenantId, userId: payload.userId, action: "repair-pedagogical-grounding" },
+      onChunk
+    );
+    const candidate = normalizeQuestions(parseModelQuestions(streamed.content));
+    if (candidate.length !== questions.length) throw new Error("AI mengembalikan jumlah soal yang tidak sesuai.");
+    const repaired = mergeOnlyAffectedQuestions(questions, candidate, payload);
+    const stillInvalid = [...affected].some((index) => !validateQuestionCriterionGrounding(repaired[index]).valid);
+    if (stillInvalid) return { questions: fallbackRepair(repaired, payload.mode || "auto", payload), repairedBy: "ai-plus-deterministic" };
+    return { questions: repaired, repairedBy: "ai" };
+  } catch (error) {
+    console.error("Pedagogical repair streaming unavailable:", error.message);
+    return { questions: fallbackRepair(questions, payload.mode || "auto", payload), repairedBy: "deterministic-fallback", streamError: error.message };
+  }
+}
+
 async function repairPedagogicalGrounding(payload = {}) {
   const questions = normalizeQuestions(payload.questions);
   if (!questions.length) return { questions: [], repairedBy: "deterministic" };
 
   const affected = affectedQuestionIndexes(payload, questions.length);
-  // Nothing is broken: do not ask AI and do not manufacture a different
-  // version of an otherwise valid question set.
   if (affected.size === 0) return { questions, repairedBy: "none" };
 
   let result = null;
@@ -206,6 +236,7 @@ async function repairPedagogicalGrounding(payload = {}) {
 
 module.exports = {
   repairPedagogicalGrounding,
+  streamRepairPedagogicalGrounding,
   rebuildRubricForCriteria,
   affectedQuestionIndexes,
   mergeOnlyAffectedQuestions,
