@@ -21,7 +21,7 @@ function competencyLevel(score, hasEvidence) {
 }
 
 function probeDecision(probing) {
-  const status = String(probing?.status || probing?.decision || "").toLowerCase();
+  const status = String(probing?.status || probing?.decision || probing?.gateDecision || "").toLowerCase();
   if (status === "accepted") return "ACCEPTED";
   if (status === "skipped") return "SKIPPED";
   if (status === "terminated") return "TERMINATED";
@@ -59,6 +59,7 @@ function buildQuestionFeedback(question, questionScore, index) {
     questionIndex: index,
     probingUsed: true,
     probeDecision: probeDecision(probing),
+    gateId: probing.gateId || null,
     teacherDecisionNote: probing.decisionNote || probing.teacherNote || null,
     evidence: {
       original: {
@@ -68,7 +69,7 @@ function buildQuestionFeedback(question, questionScore, index) {
       probe: {
         present: hasAdditionalEvidence,
         source: hasAdditionalEvidence ? "adaptive_probe_answer" : null,
-        prompt: probing.prompt || probing.approvedPrompt || null,
+        prompt: probing.approvedPrompt || probing.prompt || null,
         answer: hasAdditionalEvidence ? String(probing.answer).trim() : null,
         evidenceGap: probing.evidenceGap || null,
       },
