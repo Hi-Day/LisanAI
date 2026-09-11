@@ -85,7 +85,8 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       writeSse(res, { type: "result", data: result });
     }
     else if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") {
-      result = await streamLearningOutcomes({ ...payload, count: 3 }, (event) => {
+      const count = action === "recommend-assessment-config" ? 3 : Math.min(3, Math.max(1, Number(payload.count) || 3));
+      result = await streamLearningOutcomes({ ...payload, count }, (event) => {
         if (res.writableEnded === false) writeSse(res, event);
       });
       writeSse(res, { type: "result", data: { recommendation: recommendationFromOutcomes(result), outcomes: result, count: result.length } });
@@ -137,7 +138,8 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, { ...(await repairPedagogicalGrounding(payload)), model: process.env.OPENROUTER_MODEL });
     }
     if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") {
-      const outcomes = await recommendLearningOutcomes({ ...payload, count: 3 });
+      const count = action === "recommend-assessment-config" ? 3 : Math.min(3, Math.max(1, Number(payload.count) || 3));
+      const outcomes = await recommendLearningOutcomes({ ...payload, count });
       return sendJson(res, 200, { recommendation: recommendationFromOutcomes(outcomes), outcomes, count: outcomes.length, model: process.env.OPENROUTER_MODEL });
     }
     return sendJson(res, 404, { error: "Action not found" });
