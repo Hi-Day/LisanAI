@@ -9,7 +9,7 @@ test("learning outcome recommendation is exactly three by default", async () => 
   assert.equal(new Set(outcomes).size, 3);
 });
 
-test("learning outcome recommendation can generate one additional outcome", async () => {
+test("AI add generates exactly one additional outcome", async () => {
   const existing = ["Siswa mampu menjelaskan konsep utama sistem pernapasan."];
   const outcomes = await recommendLearningOutcomes({
     topic: "Sistem pernapasan",
@@ -17,6 +17,6 @@ test("learning outcome recommendation can generate one additional outcome", asyn
     count: 1,
     mock: true,
   });
-  assert.equal(outcomes.length, 3);
+  assert.equal(outcomes.length, 1);
   assert.ok(outcomes.every((outcome) => typeof outcome === "string" && outcome.length > 0));
 });
