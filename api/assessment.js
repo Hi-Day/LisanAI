@@ -24,6 +24,11 @@ function normalizeOutcomeRecommendation(result) {
   return { ...result, outcomes: outcomes.join("\n") };
 }
 
+function recommendationFromOutcomes(outcomes) {
+  const normalized = Array.isArray(outcomes) ? outcomes.filter(Boolean).slice(0, 3) : [];
+  return { outcomes: normalized.join("\n"), items: normalized, count: normalized.length };
+}
+
 async function evaluateProbeBaseline(payload, auth) {
   const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
   const question = payload.question || {};
@@ -79,13 +84,12 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRepairPedagogicalGrounding(payload, onChunk);
       writeSse(res, { type: "result", data: result });
     }
-    else if (action === "recommend-learning-outcomes") {
-      result = await streamLearningOutcomes(payload, (event) => {
+    else if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") {
+      result = await streamLearningOutcomes({ ...payload, count: 3 }, (event) => {
         if (res.writableEnded === false) writeSse(res, event);
       });
-      writeSse(res, { type: "result", data: { outcomes: result, count: result.length } });
+      writeSse(res, { type: "result", data: { recommendation: recommendationFromOutcomes(result), outcomes: result, count: result.length } });
     }
-    else if (action === "recommend-assessment-config") { result = await streamRecommendAssessmentConfig(payload, onChunk); writeSse(res, { type: "result", data: { recommendation: normalizeOutcomeRecommendation(result) } }); }
     else if (action === "evaluate") {
       const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
       const evaluation = await evaluateWithHarness({ ...payload, auth, onProgress: (text) => { if (res.writableEnded === false) writeSse(res, { type: "chunk", text }); } });
@@ -132,8 +136,10 @@ module.exports = async (req, res) => {
       const { repairPedagogicalGrounding } = require("../server/pedagogical-repair");
       return sendJson(res, 200, { ...(await repairPedagogicalGrounding(payload)), model: process.env.OPENROUTER_MODEL });
     }
-    if (action === "recommend-learning-outcomes") return sendJson(res, 200, { outcomes: await recommendLearningOutcomes(payload), model: process.env.OPENROUTER_MODEL });
-    if (action === "recommend-assessment-config") return sendJson(res, 200, { recommendation: normalizeOutcomeRecommendation(await recommendAssessmentConfig(payload)), model: process.env.OPENROUTER_MODEL });
+    if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") {
+      const outcomes = await recommendLearningOutcomes({ ...payload, count: 3 });
+      return sendJson(res, 200, { recommendation: recommendationFromOutcomes(outcomes), outcomes, count: outcomes.length, model: process.env.OPENROUTER_MODEL });
+    }
     return sendJson(res, 404, { error: "Action not found" });
   } catch (error) { console.error(error); return sendJson(res, error.status || 500, { error: error.message || "Server error" }); }
 };
