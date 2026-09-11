@@ -13,6 +13,17 @@ const { assertRateLimit } = require("../server/rate-limit");
 
 function writeSse(res, data) { res.write(`data: ${JSON.stringify(data)}\n\n`); }
 
+function normalizeOutcomeRecommendation(result) {
+  if (!result || typeof result !== "object") return result;
+  const outcomes = String(result.outcomes || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return { ...result, outcomes: outcomes.join("\n") };
+}
+
 async function evaluateProbeBaseline(payload, auth) {
   const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
   const question = payload.question || {};
@@ -74,7 +85,7 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       });
       writeSse(res, { type: "result", data: { outcomes: result, count: result.length } });
     }
-    else if (action === "recommend-assessment-config") { result = await streamRecommendAssessmentConfig(payload, onChunk); writeSse(res, { type: "result", data: { recommendation: result } }); }
+    else if (action === "recommend-assessment-config") { result = await streamRecommendAssessmentConfig(payload, onChunk); writeSse(res, { type: "result", data: { recommendation: normalizeOutcomeRecommendation(result) } }); }
     else if (action === "evaluate") {
       const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
       const evaluation = await evaluateWithHarness({ ...payload, auth, onProgress: (text) => { if (res.writableEnded === false) writeSse(res, { type: "chunk", text }); } });
@@ -122,7 +133,7 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, { ...(await repairPedagogicalGrounding(payload)), model: process.env.OPENROUTER_MODEL });
     }
     if (action === "recommend-learning-outcomes") return sendJson(res, 200, { outcomes: await recommendLearningOutcomes(payload), model: process.env.OPENROUTER_MODEL });
-    if (action === "recommend-assessment-config") return sendJson(res, 200, { recommendation: await recommendAssessmentConfig(payload), model: process.env.OPENROUTER_MODEL });
+    if (action === "recommend-assessment-config") return sendJson(res, 200, { recommendation: normalizeOutcomeRecommendation(await recommendAssessmentConfig(payload)), model: process.env.OPENROUTER_MODEL });
     return sendJson(res, 404, { error: "Action not found" });
   } catch (error) { console.error(error); return sendJson(res, error.status || 500, { error: error.message || "Server error" }); }
 };
