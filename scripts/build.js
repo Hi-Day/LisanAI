@@ -96,13 +96,17 @@ async function main() {
     target: ["es2020"],
     logLevel: "info",
     banner: {
-      js: `import("/js/learning-outcome-trend.js").catch(() => {});${assessmentUxEnhancement}`,
+      js: `import("/js/learning-outcome-trend.js").catch(() => {});import("/js/probing-gate.js").then(m=>m.installProbingGate()).catch(()=>{});${assessmentUxEnhancement}`,
     },
   });
 
   fs.copyFileSync(
     path.join(ROOT, "src", "js", "learning-outcome-trend.js"),
     path.join(ROOT, "public", "js", "learning-outcome-trend.js")
+  );
+  fs.copyFileSync(
+    path.join(ROOT, "src", "js", "probing-gate.js"),
+    path.join(ROOT, "public", "js", "probing-gate.js")
   );
 
   console.log("Frontend bundle built successfully.");
