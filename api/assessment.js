@@ -2,6 +2,7 @@ const {
   generateProbing, generateQuestions, improveQuestionSet, recommendAssessmentConfig,
   streamAlignRubricSet, streamGenerateQuestions, streamImproveQuestionSet, streamProbing, streamRecommendAssessmentConfig,
 } = require("../server/assessment-service");
+const { streamLearningOutcomes, recommendLearningOutcomes } = require("../server/outcome-recommendation");
 const { prepareProbingPayload, normalizeProbeResult } = require("../server/adaptive-probing");
 const { getSessionUser, SESSION_COOKIE } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
@@ -67,6 +68,12 @@ async function handleStreamingAction(req, res, auth, action, payload) {
       result = await streamRepairPedagogicalGrounding(payload, onChunk);
       writeSse(res, { type: "result", data: result });
     }
+    else if (action === "recommend-learning-outcomes") {
+      result = await streamLearningOutcomes(payload, (event) => {
+        if (res.writableEnded === false) writeSse(res, event);
+      });
+      writeSse(res, { type: "result", data: { outcomes: result, count: result.length } });
+    }
     else if (action === "recommend-assessment-config") { result = await streamRecommendAssessmentConfig(payload, onChunk); writeSse(res, { type: "result", data: { recommendation: result } }); }
     else if (action === "evaluate") {
       const { evaluateWithHarness } = require("../server/harness/harness-evaluator");
@@ -114,6 +121,7 @@ module.exports = async (req, res) => {
       const { repairPedagogicalGrounding } = require("../server/pedagogical-repair");
       return sendJson(res, 200, { ...(await repairPedagogicalGrounding(payload)), model: process.env.OPENROUTER_MODEL });
     }
+    if (action === "recommend-learning-outcomes") return sendJson(res, 200, { outcomes: await recommendLearningOutcomes(payload), model: process.env.OPENROUTER_MODEL });
     if (action === "recommend-assessment-config") return sendJson(res, 200, { recommendation: await recommendAssessmentConfig(payload), model: process.env.OPENROUTER_MODEL });
     return sendJson(res, 404, { error: "Action not found" });
   } catch (error) { console.error(error); return sendJson(res, error.status || 500, { error: error.message || "Server error" }); }
