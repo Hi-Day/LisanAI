@@ -147,4 +147,15 @@ function renderAlignmentCoverage(ctx) {
 
 source = source.slice(0, coverageStart) + replacement + source.slice(coverageEnd);
 fs.writeFileSync(FILE, source, "utf8");
-console.log("Applied assessment coverage actions.");
+
+const BUILD_FILE = path.join(ROOT, "scripts", "build.js");
+let build = fs.readFileSync(BUILD_FILE, "utf8");
+const cssMarker = '    /* Slower, eased motion: loading should feel continuous, not like a blink. */';
+const css = `    .review-coverage-actions { margin: 12px 0 16px; padding: 14px; border: 1px solid rgba(180, 35, 24, .22); border-radius: 14px; background: rgba(180, 35, 24, .055); }\n    .review-coverage-title { font-weight: 800; margin-bottom: 7px; }\n    .review-coverage-actions p { margin: 6px 0; line-height: 1.5; }\n    .review-coverage-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }\n    .review-coverage-actions-row .secondary-button { min-height: 38px; }\n`;
+if (!build.includes(".review-coverage-actions {")) {
+  if (!build.includes(cssMarker)) throw new Error("Build CSS marker not found.");
+  build = build.replace(cssMarker, `${css}${cssMarker}`);
+  fs.writeFileSync(BUILD_FILE, build, "utf8");
+}
+
+console.log("Applied assessment coverage actions and styles.");
