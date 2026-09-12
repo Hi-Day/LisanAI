@@ -2,6 +2,7 @@
 const { OpenRouterProvider } = require("./openrouter-provider");
 const { MockProvider } = require("./mock-provider");
 const { recordAiCall } = require("./telemetry");
+const { parseJson } = require("./response-parser");
 
 let provider;
 
@@ -63,12 +64,12 @@ async function generate(request) {
 
 async function call(messages, schemaHint, context = {}) {
   const content = await generate(normalizeRequest(messages, schemaHint, context));
-  return typeof content === "string" ? JSON.parse(content) : content;
+  return typeof content === "string" ? parseJson(content) : content;
 }
 
 async function stream(messages, schemaHint, context, onChunk) {
   const content = await generate(normalizeRequest(messages, schemaHint, context, onChunk));
-  return { content, parsed: typeof content === "string" ? JSON.parse(content) : content };
+  return { content, parsed: typeof content === "string" ? parseJson(content) : content };
 }
 
 function resetProvider() {
