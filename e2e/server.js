@@ -28,6 +28,8 @@ const API_ROUTE_ALIASES = {
   evidence-feedback: "evaluation",
   apikeys: "auth",
   docs: "v1",
+  research: "admin",
+  observability: "admin",
 };
 
 const requestHandler = async (req, res) => {
