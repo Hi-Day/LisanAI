@@ -141,7 +141,9 @@ function enforceRubricAlignment(questions, payload) {
     if (isDefaultRubric) { const subsetText = buildQuestionRubricText(next, criteria); if (subsetText) next.rubric = subsetText; }
     return next;
   });
-  return enforceLearningOutcomeAlignment(groundQuestionsAgainstRubric(finalized, payload), payload);
+  const grounded = groundQuestionsAgainstRubric(finalized, payload);
+  const rubricSynchronized = grounded.map((question) => syncRubricWithGroundedCriteria(question, criteria));
+  return enforceLearningOutcomeAlignment(rubricSynchronized, payload);
 }
 
 function buildAlignMessages(payload, questions) {
