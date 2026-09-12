@@ -1,51 +1,46 @@
 const { AIProvider } = require("./provider");
-const { callOpenRouter, streamOpenRouter } = require("../openrouter");
+const { MockProvider } = require("./mock-provider");
+const { requestModel, streamModel } = require("./openrouter-client");
 
-/**
- * OpenRouter provider adapter — hides provider details from the harness.
- */
 class OpenRouterProvider extends AIProvider {
   constructor(options = {}) {
     super();
     this.name = "openrouter";
-    this.version = "1.0.0";
+    this.version = "1.1.0";
     this.options = options;
   }
 
+  hasApiKey() {
+    const key = process.env.OPENROUTER_API_KEY;
+    return Boolean(key && key !== "mock-key" && !key.includes("your_api_key"));
+  }
+
   async generate(request) {
-    let messages = [];
-    if (request.systemPrompt) {
-      messages.push({ role: "system", content: request.systemPrompt });
+    if (!this.hasApiKey()) return new MockProvider().generate(request);
+
+    const messages = [];
+    if (request.systemPrompt) messages.push({ role: "system", content: request.systemPrompt });
+    messages.push({ role: "user", content: request.userMessage || request.prompt || "" });
+
+    const primaryModel = request.model || process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
+    const models = [primaryModel, fallbackModel].filter((value, index, array) => array.indexOf(value) === index);
+    const gen = { temperature: request.temperature, topP: request.topP, maxTokens: request.maxTokens };
+
+    let lastError = null;
+    for (const model of models) {
+      try {
+        if (typeof request.onToken === "function") {
+          const result = await streamModel(model, messages, request.schemaHint || "Balas JSON valid.", gen, request.onToken);
+          return result.content;
+        }
+        const result = await requestModel(model, messages, request.schemaHint || "Balas JSON valid.", gen);
+        return result.content;
+      } catch (error) {
+        lastError = error;
+      }
     }
-    messages.push({ role: "user", content: request.userMessage || request.prompt });
-
-    const context = {
-      tenantId: request.tenantId,
-      userId: request.userId,
-      action: "evaluate-harness",
-      runId: request.runId,
-      gen: {
-        temperature: request.temperature,
-        topP: request.topP,
-        maxTokens: request.maxTokens,
-      },
-    };
-
-    // Streaming: when the harness forwards an onToken callback (via a wrapped
-    // provider), stream the raw LLM output token-by-token so the UI can render
-    // the evaluation JSON incrementally instead of waiting for completion.
-    if (typeof request.onToken === "function") {
-      const { content } = await streamOpenRouter(
-        messages,
-        request.schemaHint || "Balas JSON valid.",
-        context,
-        (delta) => request.onToken(delta)
-      );
-      return content;
-    }
-
-    const result = await callOpenRouter(messages, request.schemaHint || "Balas JSON valid.", context);
-    return JSON.stringify(result);
+    throw lastError || new Error("OpenRouter request gagal");
   }
 }
 
