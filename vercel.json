@@ -22,6 +22,9 @@
     { "src": "/api/openapi.json", "dest": "/api/openapi.json" },
     { "src": "/api/database", "dest": "/api/data.js" },
     { "src": "/api/data", "dest": "/api/data.js" },
+    { "src": "/api/probing", "dest": "/api/evaluation.js" },
+    { "src": "/api/evaluation", "dest": "/api/evaluation.js" },
+    { "src": "/api/assessment", "dest": "/api/assessment.js" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
