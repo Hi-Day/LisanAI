@@ -1,9 +1,9 @@
 const { test, expect } = require("@playwright/test");
 const { WRITTEN_ID } = require("./seed-assessment");
 
-async function loginAsStudent(page) {
+async function loginAs(page, email) {
   await page.goto("/");
-  await page.fill("#loginEmail", "e2e.siswa@example.com");
+  await page.fill("#loginEmail", email);
   await page.fill("#loginPassword", "password123");
   await page.click("#loginForm button[type='submit']");
   await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
@@ -11,7 +11,7 @@ async function loginAsStudent(page) {
 
 test.describe("Student assessment flow", () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsStudent(page);
+    await loginAs(page, "e2e.siswa@example.com");
   });
 
   test("student sees the student dashboard with their class", async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe("Student assessment flow", () => {
     await expect(page.locator("#studentHistoryView")).toBeVisible();
   });
 
-  test("student can complete a written assessment and receive an evaluated result", async ({ page }) => {
+  test("student can complete a written assessment and teacher can see the evaluated submission", async ({ page }) => {
     const card = page.locator(`.assessment-card[data-id='${WRITTEN_ID}']`);
     await expect(card).toBeVisible();
     await card.locator(".start-assessment-btn").click();
@@ -49,5 +49,17 @@ test.describe("Student assessment flow", () => {
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#resultPanel")).toContainText("Nilai");
     await expect(page.locator("#resultPanel .close-result-btn")).toBeVisible();
+
+    await page.click("#resultPanel .close-result-btn");
+    await page.click("#logoutButton");
+    await expect(page.locator("#authView")).toBeVisible({ timeout: 10_000 });
+
+    await loginAs(page, "e2e.guru@example.com");
+    await page.click("#mainNav .nav-sub-item[data-nav-view='monitorView']");
+    await expect(page.locator("#monitorView")).toBeVisible();
+    await expect(page.locator("#submissionList")).toContainText("Siswa E2E");
+    await expect(page.locator("#submissionList")).toContainText("Ujian Tulis E2E");
+    await expect(page.locator("#submissionCount")).not.toHaveText("0");
+    await expect(page.locator("#classAverage")).not.toHaveText("—");
   });
 });
