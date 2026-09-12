@@ -2,11 +2,9 @@ const { generateProbing, streamProbing } = require("../assessment-service");
 const { prepareProbingPayload, normalizeProbeResult } = require("../adaptive-probing");
 const { ensureDatabase } = require("../bootstrap");
 const { readJson, sendJson } = require("../http-utils");
-const { applySecurityHeaders } = require("../security-headers");
 const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
+const { beginStream, createChunkWriter, endStream, writeEvent } = require("../http/sse");
 const { assertCanSubmitAssessment } = require("../database");
-
-function writeSse(res, data) { res.write(`data: ${JSON.stringify(data)}\n\n`); }
 
 async function evaluateProbeBaseline(payload, auth) {
   const { evaluateWithHarness } = require("../harness/harness-evaluator");
@@ -31,25 +29,22 @@ async function buildAdaptiveProbe(payload, auth, onChunk) {
 }
 
 async function handleStreamingAction(res, auth, action, payload) {
-  applySecurityHeaders(res);
-  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
-  res.write("retry: 2000\n\n");
-  const onChunk = (text) => { if (text && res.writableEnded === false) writeSse(res, { type: "chunk", text }); };
+  beginStream(res);
+  const onChunk = createChunkWriter(res);
   try {
-    let result;
     if (action === "evaluate") {
       const { evaluateWithHarness } = require("../harness/harness-evaluator");
-      const evaluation = await evaluateWithHarness({ ...payload, auth, onProgress: (text) => { if (res.writableEnded === false) writeSse(res, { type: "chunk", text }); } });
-      writeSse(res, { type: "chunk", text: "Evaluasi selesai." });
-      writeSse(res, { type: "result", data: { evaluation, harness: true } });
+      const evaluation = await evaluateWithHarness({ ...payload, auth, onProgress: onChunk });
+      writeEvent(res, { type: "chunk", text: "Evaluasi selesai." });
+      writeEvent(res, { type: "result", data: { evaluation, harness: true } });
     } else if (action === "generate-probing") {
-      result = await buildAdaptiveProbe(payload, auth, onChunk);
-      writeSse(res, { type: "result", data: { probing: result } });
+      const result = await buildAdaptiveProbe(payload, auth, onChunk);
+      writeEvent(res, { type: "result", data: { probing: result } });
     } else {
-      writeSse(res, { type: "error", message: "Action not found" });
+      writeEvent(res, { type: "error", message: "Action not found" });
     }
-  } catch (error) { console.error(error); writeSse(res, { type: "error", message: error.message || "Server error" }); }
-  finally { res.end(); }
+  } catch (error) { console.error(error); writeEvent(res, { type: "error", message: error.message || "Server error" }); }
+  finally { endStream(res); }
 }
 
 module.exports = async (req, res) => {
