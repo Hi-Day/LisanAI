@@ -26,8 +26,7 @@ async function saveSubmission(db, tenantId, userId, submission, bypassCheck = fa
 
 async function getVisibleSubmissions(db, auth) {
   if (auth.user.role === "student") return db.all("SELECT payload FROM submissions WHERE tenant_id = ? AND user_id = ? ORDER BY submitted_at ASC", auth.tenant.id, auth.user.id);
-  if (auth.user.role === "teacher") return db.all(`SELECT s.payload FROM submissions s JOIN assessments a ON a.id = s.assessment_id
-       WHERE s.tenant_id = ? AND a.tenant_id = ? AND a.teacher_id = ? ORDER BY s.submitted_at ASC`, auth.tenant.id, auth.tenant.id, auth.user.id);
+  if (auth.user.role === "teacher") return db.all(`SELECT s.payload FROM submissions s JOIN assessments a ON a.id = s.assessment_id WHERE s.tenant_id = ? AND a.tenant_id = ? AND a.teacher_id = ? ORDER BY s.submitted_at ASC`, auth.tenant.id, auth.tenant.id, auth.user.id);
   return db.all("SELECT payload FROM submissions WHERE tenant_id = ? ORDER BY submitted_at ASC", auth.tenant.id);
 }
 
@@ -43,6 +42,35 @@ async function getSubmissionDetail(db, auth, submissionId) {
   return JSON.parse(row.payload);
 }
 
+async function getSubmissionForUpdate(db, auth, submissionId) {
+  const row = await db.get("SELECT * FROM submissions WHERE id = ? AND tenant_id = ?", submissionId, auth.tenant.id);
+  if (!row) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+  if (auth.user.role === "teacher") {
+    const assessment = row.assessment_id ? await db.get("SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?", row.assessment_id, auth.tenant.id) : null;
+    if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
+    const classroom = await db.get("SELECT teacher_id FROM classes WHERE id = ? AND tenant_id = ?", assessment.class_id, auth.tenant.id);
+    if (!classroom || classroom.teacher_id !== auth.user.id) throw Object.assign(new Error("Guru hanya boleh mengoreksi kelas miliknya"), { status: 403 });
+  }
+  return row;
+}
+
+async function getStudentSubmission(db, auth, submissionId) {
+  const row = await db.get("SELECT * FROM submissions WHERE id = ? AND tenant_id = ? AND user_id = ?", submissionId, auth.tenant.id, auth.user.id);
+  if (!row) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+  return row;
+}
+
+async function saveComplaint(db, auth, submissionId, questionIndex, reason) {
+  const row = await getStudentSubmission(db, auth, submissionId);
+  let submission;
+  try { submission = JSON.parse(row.payload); } catch { throw Object.assign(new Error("Data submission tidak valid"), { status: 500 }); }
+  const qs = submission.questionScores?.[questionIndex];
+  if (!qs) throw Object.assign(new Error("Soal tidak ditemukan"), { status: 400 });
+  qs.complaint = { reason: String(reason).trim(), status: "pending", submittedAt: new Date().toISOString() };
+  await saveSubmission(db, auth.tenant.id, auth.user.id, submission, true);
+  return submission;
+}
+
 function stripSubmissionAudio(submission) {
   if (!submission || typeof submission !== "object") return submission;
   const { audio: rootAudio, ...rest } = submission; const out = { ...rest };
@@ -54,4 +82,4 @@ function stripSubmissionAudio(submission) {
   return out;
 }
 
-module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, stripSubmissionAudio };
+module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio };
