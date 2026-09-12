@@ -20,6 +20,8 @@
     { "src": "/api/health", "dest": "/api/state.js" },
     { "src": "/api/notifications", "dest": "/api/state.js" },
     { "src": "/api/openapi.json", "dest": "/api/openapi.json" },
+    { "src": "/api/database", "dest": "/api/data.js" },
+    { "src": "/api/data", "dest": "/api/data.js" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
