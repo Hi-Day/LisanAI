@@ -14,17 +14,17 @@ source = source.replace(/Semua kompetensi sudah terhubung ke soal\./g, "Semua ca
 
 // The purple chip beside each question is the CP mapping. Rubric criteria are
 // rendered in the rubric section below it and are not used as the CP label.
-const oldCriteriaChip = `      ${
+const oldCriteriaChip = `      \${
         Array.isArray(question.criteria) && question.criteria.length
-          ? `<div class="q-criteria-chip">Rubrik yang diukur soal ini: ${question.criteria
+          ? \`<div class="q-criteria-chip">Rubrik yang diukur soal ini: \${question.criteria
               .map((c) => (typeof c === "string" ? c : c.name || prettifyId(c.id)))
               .map(escapeHtml)
-              .join(" · ")}</div>`
+              .join(" · ")}</div>\`
           : ""
       }`;
-const newOutcomeChip = `      ${
+const newOutcomeChip = `      \${
         question.outcome
-          ? `<div class="q-criteria-chip">Capaian Pembelajaran yang diukur: ${escapeHtml(question.outcome)}</div>`
+          ? \`<div class="q-criteria-chip">Capaian Pembelajaran yang diukur: \${escapeHtml(question.outcome)}</div>\`
           : ""
       }`;
 if (source.includes(oldCriteriaChip)) {
