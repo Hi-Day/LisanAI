@@ -21,6 +21,15 @@ const { assessmentPayload, ORAL_ID, WRITTEN_ID } = require("./seed-assessment");
 
 let isDbInitialized = false;
 
+const API_ROUTE_ALIASES = {
+  database: "data",
+  state: "data",
+  probing: "evaluation",
+  evidence-feedback: "evaluation",
+  apikeys: "auth",
+  docs: "v1",
+};
+
 const requestHandler = async (req, res) => {
   try {
     if (!isDbInitialized) {
@@ -30,11 +39,13 @@ const requestHandler = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname.startsWith("/api/")) {
-      const endpointName = url.pathname.replace("/api/", "");
+      const endpointName = url.pathname.replace(/^\/api\//, "").split("/")[0];
+      const handlerName = API_ROUTE_ALIASES[endpointName] || endpointName;
       try {
-        const handler = require(`../api/${endpointName}`);
+        const handler = require(`../api/${handlerName}`);
         return await handler(req, res);
       } catch (err) {
+        console.error(`E2E API route failed: /api/${endpointName}`, err);
         return sendJson(res, 404, { error: "API endpoint not found" });
       }
     }
