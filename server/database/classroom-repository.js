@@ -24,8 +24,7 @@ async function deleteClass(db, auth, classId) {
 }
 
 async function getVisibleClasses(db, auth) {
-  if (auth.user.role === "student") return db.all(`SELECT classes.*, class_memberships.status FROM class_memberships JOIN classes ON classes.id = class_memberships.class_id
-       WHERE class_memberships.tenant_id = ? AND class_memberships.student_id = ? ORDER BY classes.created_at DESC`, auth.tenant.id, auth.user.id);
+  if (auth.user.role === "student") return db.all(`SELECT classes.*, class_memberships.status FROM class_memberships JOIN classes ON classes.id = class_memberships.class_id WHERE class_memberships.tenant_id = ? AND class_memberships.student_id = ? ORDER BY classes.created_at DESC`, auth.tenant.id, auth.user.id);
   if (auth.user.role === "teacher") return db.all("SELECT *, 'teacher' AS status FROM classes WHERE tenant_id = ? AND teacher_id = ? ORDER BY created_at DESC", auth.tenant.id, auth.user.id);
   return db.all("SELECT *, 'admin' AS status FROM classes WHERE tenant_id = ? ORDER BY created_at DESC", auth.tenant.id);
 }
@@ -33,9 +32,18 @@ async function getVisibleClasses(db, auth) {
 async function requestJoinClass(db, tenantId, studentId, joinCode, membership) {
   const classroom = await db.get("SELECT * FROM classes WHERE tenant_id = ? AND join_code = ?", tenantId, joinCode);
   if (!classroom) throw Object.assign(new Error("Kode kelas tidak ditemukan"), { status: 404 });
-  await db.run(`INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, NULL)`, membership.id, tenantId, classroom.id, studentId, membership.requestedAt);
+  await db.run(`INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, 'pending', ?, NULL)`, membership.id, tenantId, classroom.id, studentId, membership.requestedAt);
   return classroom;
+}
+
+async function assertTeacherOwnsClass(db, tenantId, teacherId, classId) {
+  const classroom = await db.get("SELECT id FROM classes WHERE id = ? AND tenant_id = ? AND teacher_id = ?", classId, tenantId, teacherId);
+  if (!classroom) throw Object.assign(new Error("Kelas tidak ditemukan atau tidak milik Anda"), { status: 404 });
+  return classroom;
+}
+
+async function addApprovedStudent(db, tenantId, classId, studentId, membershipId, now) {
+  await db.run(`INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, 'approved', ?, ?)`, membershipId, tenantId, classId, studentId, now, now);
 }
 
 async function clearData(db, tenantId) {
@@ -52,4 +60,4 @@ async function clearData(db, tenantId) {
   await db.run("DELETE FROM question_bank WHERE tenant_id = ?", tenantId);
 }
 
-module.exports = { createClass, updateClass, deleteClass, getWritableClass, getVisibleClasses, requestJoinClass, clearData };
+module.exports = { createClass, updateClass, deleteClass, getWritableClass, getVisibleClasses, requestJoinClass, assertTeacherOwnsClass, addApprovedStudent, clearData };
