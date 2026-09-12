@@ -19,60 +19,53 @@ if (rendererStart < 0) throw new Error("Assessment coverage renderer not found."
 const rendererEnd = wizard.indexOf("\nfunction ", rendererStart + 10);
 if (rendererEnd < 0) throw new Error("Assessment coverage renderer boundary not found.");
 
-const renderer = `function getUncoveredOutcomes(ctx) {
-  const outcomes = Array.isArray(ctx.pendingAssessmentConfig?.outcomes)
-    ? ctx.pendingAssessmentConfig.outcomes.map((value) => String(value || "").trim()).filter(Boolean)
-    : String(ctx.pendingAssessmentConfig?.outcomes || "")
-        .split(/\\n|[;|]/)
-        .map((value) => value.trim())
-        .filter(Boolean);
-  const questions = Array.isArray(ctx.pendingQuestions) ? ctx.pendingQuestions : [];
-  return outcomes.filter((outcome) => !questions.some((question) => String(question?.outcome || "").trim() === outcome));
-}
-
-function renderAlignmentCoverage(ctx) {
-  const container = document.getElementById("alignmentCoverage");
-  if (!container) return;
-
-  const outcomes = Array.isArray(ctx.pendingAssessmentConfig?.outcomes)
-    ? ctx.pendingAssessmentConfig.outcomes.map((value) => String(value || "").trim()).filter(Boolean)
-    : String(ctx.pendingAssessmentConfig?.outcomes || "")
-        .split(/\\n|[;|]/)
-        .map((value) => value.trim())
-        .filter(Boolean);
-  const questions = Array.isArray(ctx.pendingQuestions) ? ctx.pendingQuestions : [];
-  const uncovered = getUncoveredOutcomes(ctx);
-
-  if (!outcomes.length) {
-    container.innerHTML = "";
-    return;
-  }
-
-  const covered = outcomes.length - uncovered.length;
-  const items = outcomes.map((outcome) => {
-    const questionCount = questions.filter((question) => String(question?.outcome || "").trim() === outcome).length;
-    return `<div class="alignment-item ${questionCount ? "is-covered" : "is-uncovered"}">
-      <span class="alignment-status">${questionCount ? "✓" : "!"}</span>
-      <span><strong>${escapeHtml(outcome)}</strong><small>${questionCount ? `${questionCount} soal mengukur CP ini` : "Belum ada soal yang mengukur CP ini"}</small></span>
-    </div>`;
-  }).join("");
-
-  container.innerHTML = `
-    <div class="alignment-summary">
-      <div><strong>Capaian Pembelajaran</strong><span>${covered}/${outcomes.length} terukur</span></div>
-      <div class="alignment-items">${items}</div>
-      ${uncovered.length ? `<div class="coverage-actions" data-coverage-actions="1">
-        <p><strong>Masih ada CP yang belum terukur.</strong> Pilih tindakan berikut:</p>
-        <div class="coverage-action-buttons">
-          <button type="button" class="btn btn-primary" data-coverage-action="ai-align">✨ AI selaraskan soal</button>
-          <button type="button" class="btn btn-secondary" data-coverage-action="ai-add">✨ Tambah soal dengan AI</button>
-          <button type="button" class="btn btn-secondary" data-coverage-action="manual-add">＋ Tambah soal manual</button>
-          <button type="button" class="btn btn-ghost" data-coverage-action="delete-outcomes">🗑 Hapus CP yang belum terukur</button>
-        </div>
-      </div>` : ""}
-    </div>`;
-}
-`;
+// Build the generated renderer as plain string fragments. Do not use nested
+// template literals here: this file itself is evaluated by Node during build.
+const renderer = [
+  'function getUncoveredOutcomes(ctx) {',
+  '  const rawOutcomes = ctx.pendingAssessmentConfig?.outcomes;',
+  '  const outcomes = Array.isArray(rawOutcomes)',
+  '    ? rawOutcomes.map((value) => String(value || "").trim()).filter(Boolean)',
+  '    : String(rawOutcomes || "").split(/\\n|[;|]/).map((value) => value.trim()).filter(Boolean);',
+  '  const questions = Array.isArray(ctx.pendingQuestions) ? ctx.pendingQuestions : [];',
+  '  return outcomes.filter((outcome) => !questions.some((question) => String(question?.outcome || "").trim() === outcome));',
+  '}',
+  '',
+  'function renderAlignmentCoverage(ctx) {',
+  '  const container = document.getElementById("alignmentCoverage");',
+  '  if (!container) return;',
+  '  const rawOutcomes = ctx.pendingAssessmentConfig?.outcomes;',
+  '  const outcomes = Array.isArray(rawOutcomes)',
+  '    ? rawOutcomes.map((value) => String(value || "").trim()).filter(Boolean)',
+  '    : String(rawOutcomes || "").split(/\\n|[;|]/).map((value) => value.trim()).filter(Boolean);',
+  '  const questions = Array.isArray(ctx.pendingQuestions) ? ctx.pendingQuestions : [];',
+  '  const uncovered = getUncoveredOutcomes(ctx);',
+  '  if (!outcomes.length) { container.innerHTML = ""; return; }',
+  '  const covered = outcomes.length - uncovered.length;',
+  '  const items = outcomes.map((outcome) => {',
+  '    const questionCount = questions.filter((question) => String(question?.outcome || "").trim() === outcome).length;',
+  '    const stateClass = questionCount ? "is-covered" : "is-uncovered";',
+  '    const status = questionCount ? "✓" : "!";',
+  '    const detail = questionCount ? String(questionCount) + " soal mengukur CP ini" : "Belum ada soal yang mengukur CP ini";',
+  '    return "<div class=\\"alignment-item " + stateClass + "\\">" +',
+  '      "<span class=\\"alignment-status\\">" + status + "</span>" +',
+  '      "<span><strong>" + escapeHtml(outcome) + "</strong><small>" + detail + "</small></span></div>";',
+  '  }).join("");',
+  '  const actions = uncovered.length ? (',
+  '    "<div class=\\"coverage-actions\\" data-coverage-actions=\\"1\\">" +',
+  '      "<p><strong>Masih ada CP yang belum terukur.</strong> Pilih tindakan berikut:</p>" +',
+  '      "<div class=\\"coverage-action-buttons\\">" +',
+  '      "<button type=\\"button\\" class=\\"btn btn-primary\\" data-coverage-action=\\"ai-align\\">✨ AI selaraskan soal</button>" +',
+  '      "<button type=\\"button\\" class=\\"btn btn-secondary\\" data-coverage-action=\\"ai-add\\">✨ Tambah soal dengan AI</button>" +',
+  '      "<button type=\\"button\\" class=\\"btn btn-secondary\\" data-coverage-action=\\"manual-add\\">＋ Tambah soal manual</button>" +',
+  '      "<button type=\\"button\\" class=\\"btn btn-ghost\\" data-coverage-action=\\"delete-outcomes\\">🗑 Hapus CP yang belum terukur</button>" +',
+  '      "</div></div>"',
+  '  ) : "";',
+  '  container.innerHTML = "<div class=\\"alignment-summary\\">" +',
+  '    "<div><strong>Capaian Pembelajaran</strong><span>" + covered + "/" + outcomes.length + " terukur</span></div>" +',
+  '    "<div class=\\"alignment-items\\">" + items + "</div>" + actions + "</div>";',
+  '}',
+].join("\n") + "\n";
 
 wizard = wizard.slice(0, rendererStart) + renderer + wizard.slice(rendererEnd + 1);
 
@@ -117,9 +110,6 @@ if (!build.includes(".alignment-summary")) {
   const match = build.match(styleTextPattern);
   if (!match) throw new Error("Build UI polish style block not found.");
   const updated = match[1] + css;
-  const replacement = `style.textContent = ${JSON.stringify(JSON.stringify(updated))};`;
-  // The replacement above intentionally produces a JS string expression. Normalize
-  // it back to a template-literal-compatible assignment when build.js uses one.
   build = build.replace(styleTextPattern, () => `style.textContent = ${JSON.stringify(updated)};`);
 }
 
