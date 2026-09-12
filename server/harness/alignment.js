@@ -2,6 +2,7 @@ const { call: callOpenRouter, stream: streamOpenRouter } = require("../ai/gatewa
 const { parseJson } = require("../ai/response-parser");
 const { parseRubricText } = require("./plugins/rubric");
 const learningOutcomeAlignment = require("./learning-outcome-alignment");
+const { groundQuestionsAgainstRubric } = require("./question-grounding");
 
 // ---------------------------------------------------------------------------
 // Soal ↔ Rubrik Alignment Harness
@@ -68,6 +69,39 @@ function buildQuestionRubricText(question, allCriteria) {
   return subset.map((c) => `${c.name}: ${sum > 0 ? Math.round((Number(c.weight) / sum) * 100) : 100 / subset.length}%`).join("\n");
 }
 
+function syncRubricWithGroundedCriteria(question, allCriteria) {
+  if (!question || !Array.isArray(question.criteria)) return question;
+  const selectedIds = new Set(question.criteria.map((criterion) => String(typeof criterion === "object" ? criterion.id || criterion.name : criterion)));
+  if (selectedIds.size === 0) return { ...question, rubric: "" };
+
+  const sourceRubric = String(question.rubric || "").trim();
+  if (sourceRubric.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(sourceRubric);
+      if (parsed.version === "2" && Array.isArray(parsed.criteria)) {
+        const selected = parsed.criteria.filter((criterion) => {
+          const id = String(criterion.id || criterion.name || "");
+          const name = normalizeCriterionName(criterion.name || "");
+          return selectedIds.has(id) || [...selectedIds].some((selectedId) => normalizeCriterionName(selectedId) === name);
+        });
+        if (selected.length) {
+          const total = selected.reduce((sum, criterion) => sum + (Number(criterion.weight) || 0), 0) || selected.length;
+          const normalized = selected.map((criterion, index) => ({
+            ...criterion,
+            weight: index === selected.length - 1
+              ? Number((100 - selected.slice(0, -1).reduce((sum, item) => sum + Math.round(((Number(item.weight) || 0) / total) * 100), 0)).toFixed(2))
+              : Number((((Number(criterion.weight) || 0) / total) * 100).toFixed(2)),
+          }));
+          return { ...question, rubric: JSON.stringify({ ...parsed, criteria: normalized }) };
+        }
+      }
+    } catch { /* fall through to generated subset rubric */ }
+  }
+
+  const subsetText = buildQuestionRubricText(question, allCriteria);
+  return subsetText ? { ...question, rubric: subsetText } : question;
+}
+
 function enforceLearningOutcomeAlignment(questions, payload) {
   const outcomes = learningOutcomeAlignment.parseLearningOutcomes(payload?.outcomes);
   if (outcomes.length === 0) return questions;
@@ -107,7 +141,7 @@ function enforceRubricAlignment(questions, payload) {
     if (isDefaultRubric) { const subsetText = buildQuestionRubricText(next, criteria); if (subsetText) next.rubric = subsetText; }
     return next;
   });
-  return enforceLearningOutcomeAlignment(finalized, payload);
+  return enforceLearningOutcomeAlignment(groundQuestionsAgainstRubric(finalized, payload), payload);
 }
 
 function buildAlignMessages(payload, questions) {
