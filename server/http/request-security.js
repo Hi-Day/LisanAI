@@ -3,11 +3,11 @@ const { parseCookies, sendJson } = require("./../http-utils");
 const { authenticateApiKey } = require("../api-auth");
 const { resolveRateLimiter } = require("../rate-limit");
 
-async function authenticateRequest(req) {
+async function authenticateRequest(req, options = {}) {
   let auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
   let viaApiKey = false;
 
-  if (!auth) {
+  if (!auth && options.allowApiKey !== false) {
     const apiAuth = await authenticateApiKey(req);
     if (apiAuth) {
       auth = {
@@ -27,7 +27,7 @@ async function authenticateRequest(req) {
 }
 
 async function requireAuthenticatedRequest(req, res, options = {}) {
-  const { auth, viaApiKey } = await authenticateRequest(req);
+  const { auth, viaApiKey } = await authenticateRequest(req, options);
   if (!auth) {
     sendJson(res, 401, { error: "Unauthorized" });
     return null;
