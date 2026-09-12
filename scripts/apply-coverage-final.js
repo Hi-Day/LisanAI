@@ -5,23 +5,30 @@ const ROOT = path.join(__dirname, "..");
 const FILE = path.join(ROOT, "src", "js", "assessment-wizard.js");
 let source = fs.readFileSync(FILE, "utf8");
 
-// Canonical terminology: CP is the competency target; rubric criteria are
-// evidence/scoring dimensions and must never be presented as the CP itself.
+// Canonical terminology: Capaian Pembelajaran is the competency target;
+// rubric criteria remain the evidence/scoring dimensions.
 source = source.replace(/Learning outcome \(kompetensi yang diukur\)/g, "Capaian Pembelajaran (kompetensi yang diukur)");
 source = source.replace(/Rubrik yang diukur soal ini:/g, "Kriteria rubrik yang diukur soal ini:");
 source = source.replace(/kompetensi yang belum terukur/g, "capaian pembelajaran yang belum terukur");
 source = source.replace(/Semua kompetensi sudah terhubung ke soal\./g, "Semua capaian pembelajaran sudah terhubung ke soal.");
 
-// The purple context chip beside each question is the CP mapping, not the
-// rubric-criterion mapping. Keep rubric criteria visible only in the rubric
-// section below it.
-const criteriaChipPattern = /\$\{\s*Array\.isArray\(question\.criteria\)[\s\S]*?\n\s*\}\s*\}/;
-if (criteriaChipPattern.test(source)) {
-  source = source.replace(criteriaChipPattern, `\${
-        question.outcome
-          ? \`<div class="q-criteria-chip">Capaian Pembelajaran yang diukur: \${escapeHtml(question.outcome)}</div>\`
+// The purple chip beside each question is the CP mapping. Rubric criteria are
+// rendered in the rubric section below it and are not used as the CP label.
+const oldCriteriaChip = `      ${
+        Array.isArray(question.criteria) && question.criteria.length
+          ? `<div class="q-criteria-chip">Rubrik yang diukur soal ini: ${question.criteria
+              .map((c) => (typeof c === "string" ? c : c.name || prettifyId(c.id)))
+              .map(escapeHtml)
+              .join(" · ")}</div>`
           : ""
-      }`);
+      }`;
+const newOutcomeChip = `      ${
+        question.outcome
+          ? `<div class="q-criteria-chip">Capaian Pembelajaran yang diukur: ${escapeHtml(question.outcome)}</div>`
+          : ""
+      }`;
+if (source.includes(oldCriteriaChip)) {
+  source = source.replace(oldCriteriaChip, newOutcomeChip);
 }
 
 source = source.replace(
@@ -46,7 +53,26 @@ source = source.replace(
 
 if (!source.includes('action === "add-manual-question"')) {
   const marker = '    if (action === "delete-uncovered-outcomes") {';
-  const handler = `    if (action === "add-manual-question") {\n      const outcome = targetType === "outcome" ? target : getAssessmentOutcomes(ctx)[0] || "";\n      ctx.pendingQuestions.push({\n        id: \`q-\${ctx.pendingQuestions.length}\`,\n        prompt: "",\n        focus: targetType === "outcome" ? \`Buktikan capaian pembelajaran: \${target}\` : \`Buktikan kriteria rubrik: \${target}\`,\n        outcome,\n        rubric: "",\n        ideal: "",\n        criteria: [],\n        probing: false,\n      });\n      ctx.pendingAssessmentConfig.count = ctx.pendingQuestions.length;\n      renderQuestionEditor(ctx);\n      goToWizardStep(ctx, 2);\n      showToast(\`Soal manual ditambahkan untuk \${targetType === "outcome" ? "capaian pembelajaran" : "kriteria rubrik"}.\`);\n      return;\n    }\n\n`;
+  const handler = `    if (action === "add-manual-question") {
+      const outcome = targetType === "outcome" ? target : getAssessmentOutcomes(ctx)[0] || "";
+      ctx.pendingQuestions.push({
+        id: \`q-\${ctx.pendingQuestions.length}\`,
+        prompt: "",
+        focus: targetType === "outcome" ? \`Buktikan capaian pembelajaran: \${target}\` : \`Buktikan kriteria rubrik: \${target}\`,
+        outcome,
+        rubric: "",
+        ideal: "",
+        criteria: [],
+        probing: false,
+      });
+      ctx.pendingAssessmentConfig.count = ctx.pendingQuestions.length;
+      renderQuestionEditor(ctx);
+      goToWizardStep(ctx, 2);
+      showToast(\`Soal manual ditambahkan untuk \${targetType === "outcome" ? "capaian pembelajaran" : "kriteria rubrik"}.\`);
+      return;
+    }
+
+`;
   if (!source.includes(marker)) throw new Error("Coverage action handler marker not found.");
   source = source.replace(marker, handler + marker);
 }
@@ -55,8 +81,9 @@ const start = source.indexOf('function renderAlignmentCoverage(ctx) {');
 const end = source.indexOf('\nexport function goToWizardStep', start);
 if (start < 0 || end < 0) throw new Error("Coverage renderer boundary not found.");
 
-// Review coverage is about Capaian Pembelajaran. Rubric criteria are deliberately
-// excluded here because criteria are question-level scoring evidence, not CPs.
+// Review coverage is about Capaian Pembelajaran only. Rubric criteria are
+// question-level evidence dimensions and are intentionally excluded from the
+// CP coverage warning.
 const renderer = `function renderAlignmentCoverage(ctx) {
   const uncoveredOutcomes = getUncoveredOutcomes(ctx);
   if (!uncoveredOutcomes.length) return "";
