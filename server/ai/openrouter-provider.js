@@ -6,7 +6,7 @@ class OpenRouterProvider extends AIProvider {
   constructor(options = {}) {
     super();
     this.name = "openrouter";
-    this.version = "1.1.0";
+    this.version = "1.2.0";
     this.options = options;
   }
 
@@ -16,7 +16,23 @@ class OpenRouterProvider extends AIProvider {
   }
 
   async generate(request) {
-    if (!this.hasApiKey()) return new MockProvider().generate(request);
+    const result = await this.generateWithMetadata(request);
+    return result.content;
+  }
+
+  async generateWithMetadata(request) {
+    if (!this.hasApiKey()) {
+      return {
+        content: await new MockProvider().generate(request),
+        model: request.model || "mock",
+        promptTokens: 0,
+        completionTokens: 0,
+        retries: 0,
+        cacheReadInputTokens: 0,
+        cacheCreationInputTokens: 0,
+        kvCacheMeasured: false,
+      };
+    }
 
     const messages = [];
     if (request.systemPrompt) messages.push({ role: "system", content: request.systemPrompt });
@@ -30,12 +46,19 @@ class OpenRouterProvider extends AIProvider {
     let lastError = null;
     for (const model of models) {
       try {
-        if (typeof request.onToken === "function") {
-          const result = await streamModel(model, messages, request.schemaHint || "Balas JSON valid.", gen, request.onToken);
-          return result.content;
-        }
-        const result = await requestModel(model, messages, request.schemaHint || "Balas JSON valid.", gen);
-        return result.content;
+        const result = typeof request.onToken === "function"
+          ? await streamModel(model, messages, request.schemaHint || "Balas JSON valid.", gen, request.onToken)
+          : await requestModel(model, messages, request.schemaHint || "Balas JSON valid.", gen);
+        return {
+          content: result.content,
+          model,
+          promptTokens: result.promptTokens || 0,
+          completionTokens: result.completionTokens || 0,
+          retries: result.retries || 0,
+          cacheReadInputTokens: result.cacheReadInputTokens || 0,
+          cacheCreationInputTokens: result.cacheCreationInputTokens || 0,
+          kvCacheMeasured: typeof result.cacheReadInputTokens === "number" || typeof result.cacheCreationInputTokens === "number",
+        };
       } catch (error) {
         lastError = error;
       }
