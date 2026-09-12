@@ -67,13 +67,7 @@ function validateQuestions() {
       const name = typeof criterion === "string" ? criterion : criterion?.name || criterion?.id || "";
       const result = criterionGrounding(q.prompt, name);
       if (!result.grounded) {
-        issues.push({
-          index: q.index,
-          type: "ungrounded",
-          criterion: name,
-          demand: result.demand?.label || "evidence spesifik",
-          message: `Soal ${q.index + 1}: criterion “${name}” membutuhkan ${result.demand?.label || "evidence spesifik"}, tetapi pertanyaannya belum memintanya.`,
-        });
+        issues.push({ index: q.index, type: "ungrounded", criterion: name, demand: result.demand?.label || "evidence spesifik", message: `Soal ${q.index + 1}: criterion “${name}” membutuhkan ${result.demand?.label || "evidence spesifik"}, tetapi pertanyaannya belum memintanya.` });
       }
     }
   }
@@ -96,6 +90,14 @@ function installStyles() {
     .pedagogical-gate .gate-actions button { width: 100%; }
     .pedagogical-gate .gate-action { margin-top: 12px; font-size: .9rem; }
     .pedagogical-gate .gate-repair-status { margin-top: 10px; font-size: .9rem; }
+    .pedagogical-gate .gate-repair-stream { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+    .pedagogical-gate .repair-stream-label { font-weight: 700; margin-bottom: 8px; }
+    .pedagogical-gate .repair-stream-text { color: var(--muted); white-space: pre-wrap; word-break: break-word; line-height: 1.5; font-size: .88rem; }
+    .pedagogical-gate .repair-stream-item { padding: 8px 0; border-top: 1px solid var(--line); }
+    .pedagogical-gate .repair-stream-item strong { display: block; margin-bottom: 4px; }
+    .pedagogical-gate .repair-stream-item span { display: block; line-height: 1.5; }
+    .pedagogical-gate .repair-stream-caret { display: inline-block; width: 7px; height: 16px; margin-left: 4px; vertical-align: middle; border-radius: 2px; background: currentColor; opacity: .55; animation: pedagogicalStreamCaret 1.4s ease-in-out infinite; }
+    @keyframes pedagogicalStreamCaret { 0%, 45% { opacity: .15; } 50%, 100% { opacity: .65; } }
     .pedagogical-gate .repair-preview { margin-top: 14px; display: grid; gap: 10px; }
     .pedagogical-gate .repair-card { padding: 12px; border: 1px solid var(--line); border-radius: 11px; }
     .pedagogical-gate .repair-card.before { background: color-mix(in srgb, var(--panel) 94%, #b42318 6%); }
@@ -105,8 +107,13 @@ function installStyles() {
     .pedagogical-gate .repair-meta { margin-top: 8px; font-size: .82rem; color: var(--muted); }
     .pedagogical-gate .repair-apply-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
     .pedagogical-gate .repair-apply-row button { flex: 1 1 180px; }
-    @media (min-width: 640px) { .pedagogical-gate .gate-actions { grid-template-columns: 1.25fr 1fr 1fr; } .pedagogical-gate .repair-preview { grid-template-columns: 1fr 1fr; } }
-    @media (prefers-reduced-motion: reduce) { .pedagogical-gate * { scroll-behavior: auto !important; } }
+    .pedagogical-gate .repair-question-pair { display: grid; gap: 10px; }
+    .pedagogical-gate .repair-stream-output { min-height: 48px; line-height: 1.55; white-space: normal; }
+    .pedagogical-gate .repair-stream-placeholder { color: var(--muted); font-style: italic; }
+    .pedagogical-gate .repair-stream-meta { min-height: 18px; }
+    .pedagogical-gate .repair-stream-error { color: #b42318; }
+    @media (min-width: 640px) { .pedagogical-gate .gate-actions { grid-template-columns: 1.25fr 1fr 1fr; } .pedagogical-gate .repair-preview { grid-template-columns: 1fr 1fr; } .pedagogical-gate .repair-question-pair { grid-template-columns: 1fr 1fr; } }
+    @media (prefers-reduced-motion: reduce) { .pedagogical-gate * { scroll-behavior: auto !important; animation: none !important; } }
   `;
   document.head.appendChild(style);
 }
@@ -127,11 +134,7 @@ function buildChanges(beforeQuestions, afterQuestions) {
     const beforeCriteria = JSON.stringify(before.criteria || []);
     const afterCriteria = JSON.stringify(after.criteria || []);
     const changed = normalizeText(before.prompt) !== normalizeText(after.prompt) || beforeCriteria !== afterCriteria || normalizeText(before.rubric) !== normalizeText(after.rubric);
-    return changed ? {
-      questionIndex: index,
-      before: { prompt: before.prompt || "", rubricSummary: questionSummary(before) },
-      after: { prompt: after.prompt || "", rubricSummary: questionSummary(after) },
-    } : null;
+    return changed ? { questionIndex: index, before: { prompt: before.prompt || "", rubricSummary: questionSummary(before) }, after: { prompt: after.prompt || "", rubricSummary: questionSummary(after) } } : null;
   }).filter(Boolean);
 }
 
@@ -145,7 +148,7 @@ function renderGate(container, result, mode = "review") {
   if (result.valid) {
     gate.innerHTML = `<h4>✓ Quality Gate: evidence grounded</h4><p>Setiap criterion yang terhubung ke soal memiliki tuntutan evidence yang dapat ditelusuri dari pertanyaan. Assessment siap ditinjau${mode === "publish" ? " dan dipublish" : ""}.</p>`;
   } else {
-    gate.innerHTML = `<h4>⚠ Quality Gate: perlu diperbaiki</h4><p>${result.issues.length} masalah grounding ditemukan. AI dapat memperbaikinya tanpa memaksakan evidence baru.</p><ul>${result.issues.map((issue) => `<li>${escapeHtml(issue.message)}</li>`).join("")}</ul><div class="gate-actions"><button type="button" class="primary-button pedagogical-repair-btn" data-repair-mode="auto">✨ Perbaiki dengan AI</button><button type="button" class="secondary-button pedagogical-repair-btn" data-repair-mode="question">↻ Regenerate soal</button><button type="button" class="secondary-button pedagogical-repair-btn" data-repair-mode="rubric">⚖ Sesuaikan rubrik</button></div><p class="gate-repair-status" aria-live="polite"></p><div class="gate-repair-preview"></div><p class="gate-action"><strong>Prinsip:</strong> jika criterion memang penting, AI memperjelas permintaan evidence pada soal. Jika tidak, AI menyesuaikan rubric agar tidak menilai hal yang tidak ditanyakan.</p>`;
+    gate.innerHTML = `<h4>⚠ Quality Gate: perlu diperbaiki</h4><p>${result.issues.length} masalah grounding ditemukan. AI dapat memperbaikinya tanpa memaksakan evidence baru.</p><ul>${result.issues.map((issue) => `<li>${escapeHtml(issue.message)}</li>`).join("")}</ul><div class="gate-actions"><button type="button" class="primary-button pedagogical-repair-btn" data-repair-mode="auto">✨ Perbaiki dengan AI</button><button type="button" class="secondary-button pedagogical-repair-btn" data-repair-mode="question">↻ Regenerate soal</button><button type="button" class="secondary-button pedagogical-repair-btn" data-repair-mode="rubric">⚖ Sesuaikan rubrik</button></div><p class="gate-repair-status" aria-live="polite"></p><div class="gate-repair-stream" aria-live="polite"></div><div class="gate-repair-preview"></div><p class="gate-action"><strong>Prinsip:</strong> jika criterion memang penting, AI memperjelas permintaan evidence pada soal. Jika tidak, AI menyesuaikan rubric agar tidak menilai hal yang tidak ditanyakan.</p>`;
   }
   container.prepend(gate);
 }
@@ -166,71 +169,122 @@ async function getCsrfToken() {
   return data.csrfToken;
 }
 
-async function requestRepair(mode, result) {
+async function requestRepair(mode, result, gate) {
   const bridge = window.__lisanAssessmentWizardBridge;
   if (!bridge?.ctx) throw new Error("Assessment wizard belum siap.");
   bridge.sync();
   const ctx = bridge.ctx;
   const beforeQuestions = (ctx.pendingQuestions || []).map((question) => ({ ...question, criteria: Array.isArray(question.criteria) ? question.criteria.map((c) => ({ ...c })) : [] }));
   const domQuestions = collectQuestions();
-  const questions = beforeQuestions.map((question, index) => ({
-    ...question,
-    prompt: domQuestions[index]?.prompt || question.prompt,
-    focus: domQuestions[index]?.focus || question.focus,
-    outcome: domQuestions[index]?.outcome || question.outcome,
-    ideal: domQuestions[index]?.ideal || question.ideal,
-  }));
+  const questions = beforeQuestions.map((question, index) => ({ ...question, prompt: domQuestions[index]?.prompt || question.prompt, focus: domQuestions[index]?.focus || question.focus, outcome: domQuestions[index]?.outcome || question.outcome, ideal: domQuestions[index]?.ideal || question.ideal }));
+  const affectedIndexes = [...new Set((result.issues || []).map((issue) => Number(issue.index ?? issue.questionIndex)).filter((index) => Number.isInteger(index) && index >= 0 && index < questions.length))].sort((a, b) => a - b);
+  const host = gate?.querySelector(".gate-repair-preview");
+  if (!host) throw new Error("Panel preview repair tidak ditemukan.");
+  host.innerHTML = `<div class="repair-meta">AI memperbaiki soal yang terdampak secara paralel. Soal sebelum langsung ditampilkan; hasil sesudah muncul saat token AI diterima.</div><div class="repair-preview repair-preview-streaming"></div>`;
+  const preview = host.querySelector(".repair-preview-streaming");
+  const afterNodes = new Map();
+  const afterQuestions = [...questions];
+  for (const index of affectedIndexes) {
+    const question = questions[index];
+    const card = document.createElement("article");
+    card.className = "repair-question-pair";
+    card.innerHTML = `<div class="repair-card before"><strong>Sebelum — Soal ${index + 1}</strong><div>${escapeHtml(question.prompt || "")}</div><p>${escapeHtml(questionSummary(question))}</p></div><div class="repair-card after"><strong>Sesudah — Soal ${index + 1}</strong><div class="repair-stream-output" data-question-index="${index}"><span class="repair-stream-placeholder">✨ AI sedang menyiapkan soal...</span></div><p class="repair-stream-meta">Menunggu stream AI…</p></div>`;
+    preview.appendChild(card);
+    afterNodes.set(index, { output: card.querySelector(".repair-stream-output"), meta: card.querySelector(".repair-stream-meta") });
+  }
+  const applyRow = document.createElement("div");
+  applyRow.className = "repair-apply-row";
+  applyRow.innerHTML = `<button type="button" class="primary-button apply-repair" disabled>✓ Terapkan semua perubahan</button><button type="button" class="secondary-button reject-repair">Tolak</button>`;
+  host.appendChild(applyRow);
   const topic = document.getElementById("topic")?.value?.trim() || ctx.pendingAssessmentConfig?.topic || "";
   const outcomes = document.getElementById("outcomes")?.value?.trim() || ctx.pendingAssessmentConfig?.outcomes || "";
   const csrfToken = await getCsrfToken();
-  const response = await fetch("/api/assessment", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
-    body: JSON.stringify({
-      action: "repair-pedagogical-grounding",
-      payload: { mode, topic, outcomes, issues: result.issues, questions },
-    }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "AI gagal memperbaiki grounding.");
-  if (!Array.isArray(data.questions) || data.questions.length !== questions.length) throw new Error("AI mengembalikan jumlah soal yang tidak sesuai.");
-  return { data, beforeQuestions, afterQuestions: data.questions };
-}
-
-function renderRepairPreview(gate, repair) {
-  const host = gate.querySelector(".gate-repair-preview");
-  if (!host) return;
-  const changes = buildChanges(repair.beforeQuestions, repair.afterQuestions);
-  const method = repair.data.repairedBy === "ai" ? "AI" : "AI + pemeriksaan deterministik";
-  host.innerHTML = `<div class="repair-meta">Rekomendasi dari ${method}. Perubahan belum diterapkan.</div>` +
-    (changes.length
-      ? `<div class="repair-preview">${changes.map((change) => `<article class="repair-card before"><strong>Sebelum — Soal ${change.questionIndex + 1}</strong><div>${escapeHtml(change.before.prompt)}</div><p>${escapeHtml(change.before.rubricSummary)}</p></article><article class="repair-card after"><strong>Sesudah — Soal ${change.questionIndex + 1}</strong><div>${escapeHtml(change.after.prompt)}</div><p>${escapeHtml(change.after.rubricSummary)}</p></article>`).join("")}</div>`
-      : `<p class="repair-meta">AI tidak mengusulkan perubahan pada soal yang tersedia.</p>`);
-  const row = document.createElement("div");
-  row.className = "repair-apply-row";
-  row.innerHTML = `<button type="button" class="primary-button apply-repair">✓ Terapkan perubahan</button><button type="button" class="secondary-button reject-repair">Tolak</button>`;
-  host.appendChild(row);
-
-  row.querySelector(".apply-repair").addEventListener("click", () => {
-    const bridge = window.__lisanAssessmentWizardBridge;
-    if (!bridge?.ctx) return;
-    bridge.ctx.pendingQuestions = repair.afterQuestions.map((question, index) => ({
-      ...repair.beforeQuestions[index],
-      ...question,
-      id: repair.beforeQuestions[index]?.id || question.id,
-      probing: repair.beforeQuestions[index]?.probing ?? question.probing,
-    }));
-    bridge.render();
-    const nextResult = validateQuestions();
-    showGateAtQuestionEditor(nextResult);
-    const status = document.querySelector(".pedagogical-gate .gate-repair-status");
-    if (status) status.textContent = nextResult.valid ? "✓ Perubahan diterapkan dan Quality Gate lulus." : "⚠ Perubahan diterapkan, tetapi masih ada masalah yang perlu ditinjau.";
-  });
-  row.querySelector(".reject-repair").addEventListener("click", () => {
+  const extractPrompt = (text) => {
+    const raw = String(text || "");
+    const marker = /"prompt"\s*:\s*"/i.exec(raw);
+    if (!marker) return "";
+    const startAt = marker.index + marker[0].length;
+    let escaped = false;
+    let value = "";
+    for (let i = startAt; i < raw.length; i += 1) {
+      const char = raw[i];
+      if (escaped) { value += char === "n" ? "\n" : char === "r" ? "\r" : char === "t" ? "\t" : char; escaped = false; }
+      else if (char === "\\") escaped = true;
+      else if (char === '"') break;
+      else value += char;
+    }
+    return value;
+  };
+  const parseSse = async (response, index) => {
+    if (!response.ok) { const errorData = await response.json().catch(() => ({})); throw new Error(errorData.error || `AI gagal memperbaiki Soal ${index + 1}.`); }
+    if (!response.body) throw new Error("Browser tidak mendukung streaming AI.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamedText = "";
+    let finalData = null;
+    const updateOutput = () => {
+      const nodes = afterNodes.get(index);
+      if (!nodes) return;
+      const prompt = extractPrompt(streamedText);
+      if (prompt) { nodes.output.innerHTML = escapeHtml(prompt).replace(/\n/g, "<br>"); nodes.meta.textContent = `✨ AI sedang menyusun Soal ${index + 1}…`; }
+      else if (streamedText.trim()) { nodes.output.innerHTML = `<span class="repair-stream-placeholder">✨ AI sedang menyusun…</span>`; nodes.meta.textContent = "Menerima output AI…"; }
+    };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) {
+        const line = event.split("\n").find((item) => item.startsWith("data: "));
+        if (!line) continue;
+        let packet;
+        try { packet = JSON.parse(line.slice(6)); } catch { continue; }
+        if (packet.type === "chunk") { streamedText += packet.text || ""; updateOutput(); }
+        else if (packet.type === "result") finalData = packet.data;
+        else if (packet.type === "error") throw new Error(packet.message || `AI gagal memperbaiki Soal ${index + 1}.`);
+      }
+    }
+    if (!finalData?.questions?.[0]) throw new Error(`AI tidak mengembalikan hasil untuk Soal ${index + 1}.`);
+    const repaired = finalData.questions[0];
+    afterQuestions[index] = { ...questions[index], ...repaired, id: questions[index]?.id || repaired.id, probing: questions[index]?.probing ?? repaired.probing };
+    const nodes = afterNodes.get(index);
+    if (nodes) { nodes.output.innerHTML = escapeHtml(afterQuestions[index].prompt || "Tidak ada prompt yang dikembalikan.").replace(/\n/g, "<br>"); nodes.meta.textContent = `✓ Selesai · ${finalData.repairedBy === "ai" ? "AI" : "AI + pemeriksaan deterministik"} · ${questionSummary(afterQuestions[index])}`; }
+  };
+  const results = await Promise.all(affectedIndexes.map(async (index) => {
+    const nodes = afterNodes.get(index);
+    if (nodes) nodes.meta.textContent = `⏳ Memproses Soal ${index + 1}…`;
+    try {
+      const response = await fetch("/api/assessment", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: JSON.stringify({ action: "repair-pedagogical-grounding", stream: true, payload: { mode, topic, outcomes, issues: (result.issues || []).filter((issue) => Number(issue.index ?? issue.questionIndex) === index), questions: [questions[index]] } }) });
+      await parseSse(response, index);
+      return true;
+    } catch (error) {
+      const node = afterNodes.get(index);
+      if (node) { node.output.innerHTML = `<span class="repair-stream-error">⚠ ${escapeHtml(error.message)}</span>`; node.meta.textContent = "Gagal diproses."; }
+      return false;
+    }
+  }));
+  const failed = results.some((ok) => !ok);
+  const applyButton = applyRow.querySelector(".apply-repair");
+  if (!failed) {
+    applyButton.disabled = false;
+    applyButton.addEventListener("click", () => {
+      const wizard = window.__lisanAssessmentWizardBridge;
+      if (!wizard?.ctx) return;
+      wizard.ctx.pendingQuestions = afterQuestions;
+      wizard.render();
+      const nextResult = validateQuestions();
+      showGateAtQuestionEditor(nextResult);
+      const status = document.querySelector(".pedagogical-gate .gate-repair-status");
+      if (status) status.textContent = nextResult.valid ? "✓ Semua perubahan diterapkan dan Quality Gate lulus." : "⚠ Perubahan diterapkan, tetapi masih ada masalah yang perlu ditinjau.";
+    });
+  } else { applyButton.textContent = "⚠ Ada soal yang gagal — coba lagi"; applyButton.disabled = true; }
+  host.querySelector(".reject-repair").addEventListener("click", () => {
     host.innerHTML = "<p class=\"gate-repair-status\">Perubahan AI ditolak. Soal dan rubrik tetap seperti semula.</p>";
     gate.querySelectorAll(".pedagogical-repair-btn").forEach((button) => { button.disabled = false; });
   });
+  return { data: { repairedBy: failed ? "partial-error" : "ai" }, beforeQuestions, afterQuestions };
 }
 
 function install() {
@@ -252,8 +306,7 @@ function install() {
       const status = gate.querySelector(".gate-repair-status");
       if (status) status.textContent = "Menganalisis masalah dan menyiapkan rekomendasi. Soal belum diubah.";
       try {
-        const repair = await requestRepair(mode, result);
-        renderRepairPreview(gate, repair);
+        await requestRepair(mode, result, gate);
         if (status) status.textContent = "✓ Rekomendasi siap ditinjau.";
       } catch (error) {
         if (status) status.textContent = `⚠ ${error.message}`;
