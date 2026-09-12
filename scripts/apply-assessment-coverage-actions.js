@@ -5,17 +5,25 @@ const ROOT = path.join(__dirname, "..");
 const FILE = path.join(ROOT, "src", "js", "assessment-wizard.js");
 let source = fs.readFileSync(FILE, "utf8");
 
+// Expose the active wizard context without depending on another patch's exact
+// whitespace or context marker. This script runs more than once in the build.
 if (!source.includes("window.__lisanAssessmentWizardCtx = ctx;")) {
-  const marker = "  _wizardCtx = ctx;\n  const { els } = ctx;";
-  if (!source.includes(marker)) throw new Error("Assessment wizard context marker not found.");
-  source = source.replace(marker, "  _wizardCtx = ctx;\n  window.__lisanAssessmentWizardCtx = ctx;\n  const { els } = ctx;");
+  const contextAssignment = /(^|\n)([ \t]*)_wizardCtx\s*=\s*ctx;/.exec(source);
+  if (!contextAssignment) throw new Error("Assessment wizard context assignment not found.");
+  const indent = contextAssignment[2];
+  const replacement = `${contextAssignment[0]}\n${indent}window.__lisanAssessmentWizardCtx = ctx;`;
+  source = source.replace(contextAssignment[0], replacement);
 }
 
-if (!source.includes("data-coverage-action")) {
-  const marker = '  els.recommendOutcomes.addEventListener("click", () => fillRecommendedFields(ctx, "outcomes"));';
-  if (!source.includes(marker)) throw new Error("Assessment wizard recommendation marker not found.");
-  const replacement = marker + '\n\n  if (els.reviewSummary) {\n    els.reviewSummary.addEventListener("click", async (event) => {\n      const button = event.target.closest("[data-coverage-action]");\n      if (!button) return;\n      const target = button.dataset.target || "";\n      const targetType = button.dataset.targetType || "outcome";\n      const action = button.dataset.coverageAction;\n      await handleCoverageAction(ctx, action, target, targetType, button);\n    });\n  }';
-  source = source.replace(marker, replacement);
+// Delegate coverage actions from the wizard review container. Using a stable
+// element id makes this independent of recommendation-button wording.
+if (!source.includes("__lisanCoverageActionsBound")) {
+  const marker = "  _wizardCtx = ctx;";
+  const contextIndex = source.indexOf(marker);
+  if (contextIndex < 0) throw new Error("Assessment wizard context marker not found.");
+  const end = contextIndex + marker.length;
+  const listener = `\n  if (!window.__lisanCoverageActionsBound && els.reviewSummary) {\n    window.__lisanCoverageActionsBound = true;\n    els.reviewSummary.addEventListener("click", async (event) => {\n      const button = event.target.closest("[data-coverage-action]");\n      if (!button) return;\n      const action = button.dataset.coverageAction;\n      const target = button.dataset.target || "";\n      const targetType = button.dataset.targetType || "outcome";\n      await handleCoverageAction(ctx, action, target, targetType, button);\n    });\n  }`;
+  source = source.slice(0, end) + listener + source.slice(end);
 }
 
 const coverageStart = source.indexOf("function renderAlignmentCoverage(ctx) {");
