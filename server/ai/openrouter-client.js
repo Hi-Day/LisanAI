@@ -43,6 +43,15 @@ function buildMessages(messages, schemaHint) {
   ];
 }
 
+function hasCacheTelemetry(usage) {
+  return Boolean(
+    usage && (
+      typeof usage.native_tokens_cached === "number" ||
+      typeof usage.prompt_tokens_details?.cached_tokens === "number"
+    )
+  );
+}
+
 async function requestModel(model, messages, schemaHint, gen = {}) {
   let lastError = null;
 
@@ -75,13 +84,15 @@ async function requestModel(model, messages, schemaHint, gen = {}) {
 
       const content = data.choices?.[0]?.message?.content;
       if (!content) throw new Error("Respons model kosong");
+      const cacheReadInputTokens = resolveCachedInputTokens(data.usage);
 
       return {
         content,
         data,
         promptTokens: data.usage?.prompt_tokens || 0,
         completionTokens: data.usage?.completion_tokens || 0,
-        cacheReadInputTokens: resolveCachedInputTokens(data.usage),
+        cacheReadInputTokens,
+        cacheReadMeasured: hasCacheTelemetry(data.usage),
         retries: attempt,
       };
     } catch (error) {
@@ -155,6 +166,7 @@ async function consumeStream(response, onChunk) {
       completionTokens: data.usage?.completion_tokens || 0,
       cacheReadInputTokens: cached,
       cacheCreationInputTokens: Math.max(0, (data.usage?.prompt_tokens || 0) - cached),
+      cacheReadMeasured: hasCacheTelemetry(data.usage),
     };
   }
 
@@ -166,6 +178,7 @@ async function consumeStream(response, onChunk) {
   let completionTokens = 0;
   let cacheReadInputTokens = 0;
   let cacheCreationInputTokens = 0;
+  let cacheReadMeasured = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -200,12 +213,13 @@ async function consumeStream(response, onChunk) {
           completionTokens = parsed.usage.completion_tokens || 0;
           cacheReadInputTokens = resolveCachedInputTokens(parsed.usage);
           cacheCreationInputTokens = Math.max(0, promptTokens - cacheReadInputTokens);
+          cacheReadMeasured = hasCacheTelemetry(parsed.usage);
         }
       }
     }
   }
 
-  return { content, promptTokens, completionTokens, cacheReadInputTokens, cacheCreationInputTokens };
+  return { content, promptTokens, completionTokens, cacheReadInputTokens, cacheCreationInputTokens, cacheReadMeasured };
 }
 
 function resolveCachedInputTokens(usage) {
