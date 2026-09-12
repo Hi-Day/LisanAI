@@ -1,5 +1,5 @@
-const { generateProbing, streamProbing } = require("../assessment-service");
 const { prepareProbingPayload, normalizeProbeResult } = require("../adaptive-probing");
+const { generateProbing, streamProbing } = require("../assessment/probing-service");
 const { ensureDatabase } = require("../bootstrap");
 const { readJson, sendJson } = require("../http-utils");
 const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
