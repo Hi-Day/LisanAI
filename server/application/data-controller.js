@@ -1,12 +1,12 @@
 const {
   approveMembership, createClass, deleteAssessment, deleteClass, deleteMembership,
-  getState, getSubmissionDetail, getDb, requestJoinClass, saveAssessment,
-  saveSubmission, updateAssessment, updateClass, updateMembershipStatus,
+  getState, getSubmissionDetail, getSubmissionForUpdate, requestJoinClass, saveAssessment,
+  saveSubmission, saveComplaint, updateAssessment, updateClass, updateMembershipStatus,
   saveQuestionToBank, listQuestionBank, deleteQuestionFromBank,
+  assertTeacherOwnsClass, addApprovedStudent,
 } = require("../database");
 const {
-  listTenantUsers, updateTenantUser, createTenantUser, deleteTenantUser,
-  getSessionUser, createTenantUsersBatch, SESSION_COOKIE,
+  listTenantUsers, createTenantUser, getSessionUser, createTenantUsersBatch, SESSION_COOKIE,
 } = require("../auth-service");
 const { ensureDatabase } = require("../bootstrap");
 const { ensureShowcaseDemo } = require("../showcase-bootstrap");
@@ -101,21 +101,19 @@ module.exports = async (req, res) => {
         return sendJson(res, 201, { submission: payload });
       }
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-      const database = getDb();
-      const existing = await database.get("SELECT * FROM submissions WHERE id = ? AND tenant_id = ?", payload.id, auth.tenant.id);
-      if (!existing) return sendJson(res, 404, { error: "Submission tidak ditemukan" });
-      if (auth.user.role === "teacher") {
-        const assessment = await database.get("SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?", existing.assessment_id, auth.tenant.id);
-        if (!assessment) return sendJson(res, 404, { error: "Assessment tidak ditemukan" });
-        const classroom = await database.get("SELECT teacher_id FROM classes WHERE id = ? AND tenant_id = ?", assessment.class_id, auth.tenant.id);
-        if (!classroom || classroom.teacher_id !== auth.user.id) return sendJson(res, 403, { error: "Guru hanya boleh mengoreksi kelas miliknya" });
-      }
+      const existing = await getSubmissionForUpdate(auth, payload.id);
       await saveSubmission(auth.tenant.id, existing.user_id, payload, true);
       try {
         const prev = (() => { try { return JSON.parse(existing.payload || "{}"); } catch { return {}; } })();
         const runId = payload.evaluationRunId || prev.evaluationRunId;
         if (runId && payload.finalScore !== undefined && payload.finalScore !== null) {
-          await recordTeacherScoreChange({ runId, finalScore: payload.finalScore, tenantId: auth.tenant.id, reviewerId: auth.user.id, reviewNote: (payload.questionScores || []).find((qs) => qs && qs.complaint && qs.complaint.status === "resolved") ? "Komplain siswa diterima." : "" });
+          await recordTeacherScoreChange({
+            runId,
+            finalScore: payload.finalScore,
+            tenantId: auth.tenant.id,
+            reviewerId: auth.user.id,
+            reviewNote: (payload.questionScores || []).find((qs) => qs && qs.complaint && qs.complaint.status === "resolved") ? "Komplain siswa diterima." : "",
+          });
         }
       } catch (recErr) { console.error("[research] recordTeacherScoreChange failed:", recErr); }
       return sendJson(res, 200, { submission: payload });
@@ -125,14 +123,7 @@ module.exports = async (req, res) => {
       if (!isStudent) return sendJson(res, 403, { error: "Forbidden" });
       const { submissionId, questionIndex, reason } = payload || {};
       if (!submissionId || questionIndex === undefined || !String(reason || "").trim()) return sendJson(res, 400, { error: "Alasan komplain wajib diisi" });
-      const database = getDb();
-      const existing = await database.get("SELECT * FROM submissions WHERE id = ? AND tenant_id = ? AND user_id = ?", submissionId, auth.tenant.id, auth.user.id);
-      if (!existing) return sendJson(res, 404, { error: "Submission tidak ditemukan" });
-      const submission = JSON.parse(existing.payload);
-      const qs = submission.questionScores?.[questionIndex];
-      if (!qs) return sendJson(res, 400, { error: "Soal tidak ditemukan" });
-      qs.complaint = { reason: String(reason).trim(), status: "pending", submittedAt: new Date().toISOString() };
-      await saveSubmission(auth.tenant.id, auth.user.id, submission, true);
+      const submission = await saveComplaint(auth, submissionId, questionIndex, reason);
       return sendJson(res, 200, { submission });
     }
 
@@ -181,14 +172,15 @@ module.exports = async (req, res) => {
       const { classId, emails } = payload || {};
       if (!classId || !Array.isArray(emails)) return sendJson(res, 400, { error: "Payload tidak valid" });
       const added = [], errors = [];
+      await assertTeacherOwnsClass(auth.tenant.id, auth.user.id, classId);
+      const users = await listTenantUsers(auth.tenant.id);
       for (const email of emails) {
         try {
           const normalized = String(email || "").trim().toLowerCase();
           if (!normalized) throw new Error("Email kosong");
-          const user = await listTenantUsers(auth.tenant.id).then(list => list.find(u => u.email === normalized));
+          const user = users.find((u) => u.email === normalized);
           if (!user) throw new Error("User tidak ditemukan");
-          const membershipId = `member-${cryptoRandom()}`, now = new Date().toISOString();
-          await getDb().run(`INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, 'approved', ?, ?)`, membershipId, auth.tenant.id, classId, user.id, now, now);
+          await addApprovedStudent(auth.tenant.id, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
           added.push({ id: user.id, email: user.email });
         } catch (err) { errors.push({ email, message: err.message }); }
       }
@@ -198,16 +190,15 @@ module.exports = async (req, res) => {
       if (!isTeacher) return sendJson(res, 403, { error: "Forbidden" });
       const { classId, users } = payload || {};
       if (!classId || !Array.isArray(users)) return sendJson(res, 400, { error: "Payload tidak valid" });
-      const classroom = await getDb().get("SELECT id FROM classes WHERE id = ? AND tenant_id = ? AND teacher_id = ?", classId, auth.tenant.id, auth.user.id);
-      if (!classroom) return sendJson(res, 404, { error: "Kelas tidak ditemukan atau tidak milik Anda" });
+      await assertTeacherOwnsClass(auth.tenant.id, auth.user.id, classId);
       const added = [], errors = [];
       for (const [index, u] of users.entries()) {
         try {
-          const name = String(u.name || '').trim(), email = String(u.email || '').trim().toLowerCase();
+          const name = String(u.name || "").trim();
+          const email = String(u.email || "").trim().toLowerCase();
           if (!name || !email) throw new Error("Nama dan email wajib diisi");
           const user = await createTenantUser(auth.tenant.id, { name, email, password: u.password || "password123", role: "student" });
-          const membershipId = `member-${cryptoRandom()}`, now = new Date().toISOString();
-          await getDb().run(`INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, 'approved', ?, ?)`, membershipId, auth.tenant.id, classId, user.id, now, now);
+          await addApprovedStudent(auth.tenant.id, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
           added.push({ id: user.id, name: user.name, email: user.email });
         } catch (err) { errors.push({ index, email: u?.email || "", message: err.message }); }
       }
