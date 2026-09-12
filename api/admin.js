@@ -5,7 +5,7 @@ module.exports = async (req, res) => {
     return require("../api-internal/research")(req, res);
   }
   if (pathname === "/api/observability") {
-    return require("../api-internal/observability")(req, res);
+    return require("../server/application/observability-controller")(req, res);
   }
   return res.statusCode = 404, res.end(JSON.stringify({ error: "Not found" }));
 };
