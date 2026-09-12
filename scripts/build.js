@@ -29,7 +29,6 @@ const assessmentUxEnhancement = `
     const form = document.getElementById("assessmentForm");
     const panel = form?.querySelector('[data-wizard-panel="1"]');
     if (!form || !panel || panel.dataset.uxEnhanced === "1") return;
-
     const classLabel = document.getElementById("classSelect")?.closest("label");
     const countLabel = document.getElementById("questionCount")?.closest("label");
     const difficultyLabel = document.getElementById("difficulty")?.closest("label");
@@ -39,47 +38,28 @@ const assessmentUxEnhancement = `
     const checks = panel.querySelector(":scope > .wizard-checks");
     const classRow = classLabel?.parentElement?.classList.contains("form-row-2") ? classLabel.parentElement : null;
     const countRow = countLabel?.parentElement?.classList.contains("form-row-2") ? countLabel.parentElement : null;
-
     if (!classLabel || !countLabel || !difficultyLabel || !timeLimitLabel || !attemptsLabel) return;
-
     const coreGrid = document.createElement("div");
     coreGrid.className = "assessment-core-grid";
     coreGrid.setAttribute("aria-label", "Pengaturan utama penilaian");
-    classLabel.remove();
-    countLabel.remove();
-    coreGrid.append(classLabel, countLabel);
-
+    classLabel.remove(); countLabel.remove(); coreGrid.append(classLabel, countLabel);
     const outcomesLabel = document.getElementById("outcomes")?.closest("label");
     outcomesLabel?.after(coreGrid);
-
     if (classRow) classRow.remove();
     if (countRow && countRow !== classRow) countRow.remove();
-
     const advanced = document.createElement("details");
     advanced.className = "assessment-advanced-settings";
-    const summary = document.createElement("summary");
-    summary.textContent = "⚙ Pengaturan lanjutan";
-    const hint = document.createElement("p");
-    hint.className = "assessment-advanced-hint";
-    hint.textContent = "Gunakan bila perlu. Pengaturan utama di atas sudah cukup untuk membuat penilaian.";
-    const body = document.createElement("div");
-    body.className = "assessment-advanced-body";
+    const summary = document.createElement("summary"); summary.textContent = "⚙ Pengaturan lanjutan";
+    const hint = document.createElement("p"); hint.className = "assessment-advanced-hint"; hint.textContent = "Gunakan bila perlu. Pengaturan utama di atas sudah cukup untuk membuat penilaian.";
+    const body = document.createElement("div"); body.className = "assessment-advanced-body";
     advanced.append(summary, hint, body);
-
-    [difficultyLabel, timeLimitLabel, attemptsLabel, checks, examplesLabel].forEach((node) => {
-      if (node) body.appendChild(node);
-    });
-    panel.appendChild(advanced);
-    panel.dataset.uxEnhanced = "1";
+    [difficultyLabel, timeLimitLabel, attemptsLabel, checks, examplesLabel].forEach((node) => { if (node) body.appendChild(node); });
+    panel.appendChild(advanced); panel.dataset.uxEnhanced = "1";
   }
-
   function start() {
     apply();
-    if (!document.getElementById("assessmentForm")?.querySelector('[data-wizard-panel="1"]')) {
-      requestAnimationFrame(start);
-    }
+    if (!document.getElementById("assessmentForm")?.querySelector('[data-wizard-panel="1"]')) requestAnimationFrame(start);
   }
-
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
   else start();
 })();
@@ -90,79 +70,22 @@ const uiPolishEnhancement = `
   const style = document.createElement("style");
   style.id = "lisan-ui-polish";
   style.textContent = ${JSON.stringify(`
-    /* Adaptive probing belongs to the teacher's monitoring workflow, not assessment creation. */
-    #probingGatePanel {
-      margin: 0 0 20px;
-    }
-    #probingGatePanel.is-empty {
-      display: none;
-    }
-    .probing-gate-panel {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--panel);
-      box-shadow: var(--shadow-subtle);
-      overflow: hidden;
-    }
-    .probing-gate-heading {
-      padding: 18px 20px;
-    }
-    .probing-gate-heading h3 {
-      margin: 0 0 5px;
-    }
-    .probing-gate-heading p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-    .probing-gate-list-wrap {
-      padding: 0 20px 20px;
-    }
-
-    /* Slower, eased motion: loading should feel continuous, not like a blink. */
-    @keyframes lisanSmoothCaret {
-      0%, 42% { opacity: 1; }
-      50%, 92% { opacity: 0.2; }
-      100% { opacity: 1; }
-    }
-    @keyframes lisanSmoothShimmer {
-      0% { background-position: 180% 0; }
-      100% { background-position: -80% 0; }
-    }
-    @keyframes lisanSmoothSpin {
-      to { transform: rotate(360deg); }
-    }
-    .probing-caret,
-    .probing-stream-caret {
-      animation: lisanSmoothCaret 1.8s ease-in-out infinite !important;
-    }
-    .skeleton,
-    .ai-skeleton-card {
-      animation: lisanSmoothShimmer 2.8s ease-in-out infinite !important;
-    }
-    .ai-stream-spinner,
-    .loading-spinner,
-    .spinner,
-    .button-spinner,
-    .evaluation-spinner {
-      animation: lisanSmoothSpin 1.8s linear infinite !important;
-    }
-    .recording-indicator,
-    .record-button.recording::before,
-    .record-button.recording::after {
-      animation-duration: 1.8s !important;
-      animation-timing-function: ease-in-out !important;
-    }
-    .fade-in,
-    .fadeIn {
-      animation-duration: 0.45s !important;
-      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #probingGatePanel *, .skeleton, .ai-skeleton-card {
-        animation: none !important;
-      }
-    }
+    #probingGatePanel { margin: 0 0 20px; }
+    #probingGatePanel.is-empty { display: none; }
+    .probing-gate-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-subtle); overflow: hidden; }
+    .probing-gate-heading { padding: 18px 20px; }
+    .probing-gate-heading h3 { margin: 0 0 5px; }
+    .probing-gate-heading p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .probing-gate-list-wrap { padding: 0 20px 20px; }
+    @keyframes lisanSmoothCaret { 0%, 42% { opacity: 1; } 50%, 92% { opacity: 0.2; } 100% { opacity: 1; } }
+    @keyframes lisanSmoothShimmer { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
+    @keyframes lisanSmoothSpin { to { transform: rotate(360deg); } }
+    .probing-caret, .probing-stream-caret { animation: lisanSmoothCaret 1.8s ease-in-out infinite !important; }
+    .skeleton, .ai-skeleton-card { animation: lisanSmoothShimmer 2.8s ease-in-out infinite !important; }
+    .ai-stream-spinner, .loading-spinner, .spinner, .button-spinner, .evaluation-spinner { animation: lisanSmoothSpin 1.8s linear infinite !important; }
+    .recording-indicator, .record-button.recording::before, .record-button.recording::after { animation-duration: 1.8s !important; animation-timing-function: ease-in-out !important; }
+    .fade-in, .fadeIn { animation-duration: 0.45s !important; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important; }
+    @media (prefers-reduced-motion: reduce) { #probingGatePanel *, .skeleton, .ai-skeleton-card { animation: none !important; } }
   `)};
   document.head.appendChild(style);
 })();
@@ -173,8 +96,8 @@ async function main() {
     entryPoints: [path.join(ROOT, "src", "js", "app.js")],
     outfile: path.join(ROOT, "public", "js", "app.bundle.js"),
     bundle: true,
-    minify: true,
-    sourcemap: false,
+    minify: false,
+    sourcemap: true,
     format: "esm",
     target: ["es2020"],
     logLevel: "info",
@@ -183,20 +106,10 @@ async function main() {
     },
   });
 
-  fs.copyFileSync(
-    path.join(ROOT, "src", "js", "learning-outcome-trend.js"),
-    path.join(ROOT, "public", "js", "learning-outcome-trend.js")
-  );
-  fs.copyFileSync(
-    path.join(ROOT, "src", "js", "probing-gate.js"),
-    path.join(ROOT, "public", "js", "probing-gate.js")
-  );
-  fs.copyFileSync(
-    path.join(ROOT, "src", "js", "pedagogical-gate.js"),
-    path.join(ROOT, "public", "js", "pedagogical-gate.js")
-  );
-
-  console.log("Frontend bundle built successfully.");
+  fs.copyFileSync(path.join(ROOT, "src", "js", "learning-outcome-trend.js"), path.join(ROOT, "public", "js", "learning-outcome-trend.js"));
+  fs.copyFileSync(path.join(ROOT, "src", "js", "probing-gate.js"), path.join(ROOT, "public", "js", "probing-gate.js"));
+  fs.copyFileSync(path.join(ROOT, "src", "js", "pedagogical-gate.js"), path.join(ROOT, "public", "js", "pedagogical-gate.js"));
+  console.log("Frontend bundle built successfully (unminified debug build).");
   runProductionProvisioning();
   return result;
 }
