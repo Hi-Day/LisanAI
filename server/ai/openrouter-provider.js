@@ -57,7 +57,7 @@ class OpenRouterProvider extends AIProvider {
           retries: result.retries || 0,
           cacheReadInputTokens: result.cacheReadInputTokens || 0,
           cacheCreationInputTokens: result.cacheCreationInputTokens || 0,
-          kvCacheMeasured: typeof result.cacheReadInputTokens === "number" || typeof result.cacheCreationInputTokens === "number",
+          kvCacheMeasured: result.cacheReadMeasured === true,
         };
       } catch (error) {
         lastError = error;
