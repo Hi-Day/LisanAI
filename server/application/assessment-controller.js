@@ -3,12 +3,10 @@ const {
   streamAlignRubricSet, streamGenerateQuestions, streamImproveQuestionSet,
 } = require("../assessment-service");
 const { streamLearningOutcomes, recommendLearningOutcomes } = require("../outcome-recommendation");
-const { getSessionUser, SESSION_COOKIE, assertCsrfToken } = require("../auth-service");
 const { ensureDatabase } = require("../bootstrap");
-const { parseCookies, readJson, sendJson } = require("../http-utils");
+const { readJson, sendJson } = require("../http-utils");
 const { applySecurityHeaders } = require("../security-headers");
-const { authenticateApiKey } = require("../api-auth");
-const { assertRateLimit } = require("../rate-limit");
+const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
 
 function writeSse(res, data) { res.write(`data: ${JSON.stringify(data)}\n\n`); }
 function recommendationFromOutcomes(outcomes) {
@@ -38,22 +36,13 @@ module.exports = async (req, res) => {
   try {
     await ensureDatabase();
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
-    let auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
-    let viaApiKey = false;
-    if (!auth) {
-      const apiAuth = await authenticateApiKey(req);
-      if (apiAuth) {
-        auth = { tenant: { id: apiAuth.tenantId, name: "API", plan: "api" }, user: { id: `apikey:${apiAuth.keyId}`, tenantId: apiAuth.tenantId, name: "API Key", role: "admin" } };
-        viaApiKey = true;
-      }
-    }
-    if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
-    assertRateLimit(`assessment:${auth.user.id}`, { limit: 30, windowMs: 60_000 });
-    if (!viaApiKey) { try { assertCsrfToken(req, auth); } catch (e) { return sendJson(res, 403, { error: e.message }); } }
+    const security = await requireAuthenticatedRequest(req, res, { rateLimit: "assessment", rateLimitOptions: { limit: 30, windowMs: 60_000 } });
+    if (!security) return;
+    const { auth } = security;
+    if (!requireRoles(res, auth, ["admin", "teacher"])) return;
     const body = await readJson(req); const { action, payload, stream } = body;
     if (payload) { payload.tenantId = auth.tenant.id; payload.userId = auth.user.id; }
     if (!["generate-questions", "align-rubric", "improve-questions", "repair-pedagogical-grounding", "generate-question-for-uncovered-criterion", "recommend-learning-outcomes", "recommend-assessment-config"].includes(action)) return sendJson(res, 404, { error: "Action not found" });
-    if (!["admin", "teacher"].includes(auth.user.role)) return sendJson(res, 403, { error: "Forbidden" });
     if (stream === true) return handleStreamingAction(res, auth, action, payload);
     if (action === "generate-questions") return sendJson(res, 200, { questions: await generateQuestions(payload), model: process.env.OPENROUTER_MODEL });
     if (action === "align-rubric") { const { calibrateRubricSet } = require("../assessment-service"); return sendJson(res, 200, { questions: await calibrateRubricSet(payload), model: process.env.OPENROUTER_MODEL, aligned: true }); }
