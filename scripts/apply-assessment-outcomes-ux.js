@@ -5,18 +5,20 @@ const ROOT = path.join(__dirname, "..");
 const FILE = path.join(ROOT, "scripts", "build.js");
 let source = fs.readFileSync(FILE, "utf8");
 
-const importMarker = 'import("/js/pedagogical-gate.js").catch(()=>{});';
-const importReplacement = `${importMarker}import("/js/assessment-outcomes-ux.js").catch(()=>{});`;
-if (!source.includes(importReplacement)) {
-  if (!source.includes(importMarker)) throw new Error("Assessment outcomes UX build import target not found.");
-  source = source.replace(importMarker, importReplacement);
+const importNeedle = 'import("/js/pedagogical-gate.js").catch(()=>{});';
+const importReplacement = `${importNeedle}import("/js/assessment-outcomes-ux.js").catch(()=>{});`;
+if (!source.includes('import("/js/assessment-outcomes-ux.js")')) {
+  if (!source.includes(importNeedle)) throw new Error("Assessment outcomes UX build import target not found.");
+  source = source.replace(importNeedle, importReplacement);
 }
 
-const copyMarker = `  fs.copyFileSync(\n    path.join(ROOT, "src", "js", "pedagogical-gate.js"),\n    path.join(ROOT, "public", "js", "pedagogical-gate.js")\n  );`;
-const copyReplacement = `${copyMarker}\n  fs.copyFileSync(\n    path.join(ROOT, "src", "js", "assessment-outcomes-ux.js"),\n    path.join(ROOT, "public", "js", "assessment-outcomes-ux.js")\n  );`;
-if (!source.includes(copyReplacement)) {
-  if (!source.includes(copyMarker)) throw new Error("Assessment outcomes UX copy target not found.");
-  source = source.replace(copyMarker, copyReplacement);
+const copyNeedle = 'path.join(ROOT, "src", "js", "pedagogical-gate.js")';
+const copyReplacement = 'fs.copyFileSync(path.join(ROOT, "src", "js", "assessment-outcomes-ux.js"), path.join(ROOT, "public", "js", "assessment-outcomes-ux.js"));';
+if (!source.includes('assessment-outcomes-ux.js"), path.join(ROOT, "public", "js", "assessment-outcomes-ux.js"')) {
+  if (!source.includes(copyNeedle)) throw new Error("Assessment outcomes UX copy target not found.");
+  const copyCallPattern = /fs\.copyFileSync\(\s*path\.join\(ROOT, "src", "js", "pedagogical-gate\.js"\),\s*path\.join\(ROOT, "public", "js", "pedagogical-gate\.js"\)\s*\);/;
+  if (!copyCallPattern.test(source)) throw new Error("Assessment outcomes UX pedagogical copy call not found.");
+  source = source.replace(copyCallPattern, (match) => `${match}\n  ${copyReplacement}`);
 }
 
 fs.writeFileSync(FILE, source, "utf8");
