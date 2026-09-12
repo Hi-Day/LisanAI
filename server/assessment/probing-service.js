@@ -1,5 +1,5 @@
-const { call: callOpenRouter, stream: streamOpenRouter } = require("./ai/gateway");
-const { parseJson } = require("./ai/response-parser");
+const { call: callOpenRouter, stream: streamOpenRouter } = require("../ai/gateway");
+const { parseJson } = require("../ai/response-parser");
 
 function buildProbingMessages(payload) {
   return [{ role: "user", content: JSON.stringify({
