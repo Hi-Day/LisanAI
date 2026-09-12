@@ -5,10 +5,24 @@ const ROOT = path.join(__dirname, "..");
 const FILE = path.join(ROOT, "src", "js", "assessment-wizard.js");
 let source = fs.readFileSync(FILE, "utf8");
 
+// Canonical terminology: CP is the competency target; rubric criteria are
+// evidence/scoring dimensions and must never be presented as the CP itself.
 source = source.replace(/Learning outcome \(kompetensi yang diukur\)/g, "Capaian Pembelajaran (kompetensi yang diukur)");
 source = source.replace(/Rubrik yang diukur soal ini:/g, "Kriteria rubrik yang diukur soal ini:");
 source = source.replace(/kompetensi yang belum terukur/g, "capaian pembelajaran yang belum terukur");
 source = source.replace(/Semua kompetensi sudah terhubung ke soal\./g, "Semua capaian pembelajaran sudah terhubung ke soal.");
+
+// The purple context chip beside each question is the CP mapping, not the
+// rubric-criterion mapping. Keep rubric criteria visible only in the rubric
+// section below it.
+const criteriaChipPattern = /\$\{\s*Array\.isArray\(question\.criteria\)[\s\S]*?\n\s*\}\s*\}/;
+if (criteriaChipPattern.test(source)) {
+  source = source.replace(criteriaChipPattern, `\${
+        question.outcome
+          ? \`<div class="q-criteria-chip">Capaian Pembelajaran yang diukur: \${escapeHtml(question.outcome)}</div>\`
+          : ""
+      }`);
+}
 
 source = source.replace(
   'const criterion = button.dataset.criterion || "";\n      await handleCoverageAction(ctx, action, criterion, button);',
@@ -41,29 +55,26 @@ const start = source.indexOf('function renderAlignmentCoverage(ctx) {');
 const end = source.indexOf('\nexport function goToWizardStep', start);
 if (start < 0 || end < 0) throw new Error("Coverage renderer boundary not found.");
 
+// Review coverage is about Capaian Pembelajaran. Rubric criteria are deliberately
+// excluded here because criteria are question-level scoring evidence, not CPs.
 const renderer = `function renderAlignmentCoverage(ctx) {
   const uncoveredOutcomes = getUncoveredOutcomes(ctx);
-  const uncoveredCriteria = getUncoveredCriteria(ctx);
-  if (!uncoveredOutcomes.length && !uncoveredCriteria.length) return "";
+  if (!uncoveredOutcomes.length) return "";
 
-  const primaryTarget = uncoveredOutcomes[0] || uncoveredCriteria[0] || "";
-  const primaryType = uncoveredOutcomes.length ? "outcome" : "criterion";
   const outcomePreview = uncoveredOutcomes.slice(0, 4);
   const outcomeMore = uncoveredOutcomes.length > outcomePreview.length ? \` dan \${uncoveredOutcomes.length - outcomePreview.length} lainnya\` : "";
-  const criterionPreview = uncoveredCriteria.slice(0, 6);
-  const criterionMore = uncoveredCriteria.length > criterionPreview.length ? \` dan \${uncoveredCriteria.length - criterionPreview.length} lainnya\` : "";
+  const primaryTarget = uncoveredOutcomes[0] || "";
 
   return \`
     <div class="review-coverage-actions" role="alert">
-      <div class="review-coverage-title">⚠ Cakupan penilaian belum lengkap</div>
-      \${uncoveredOutcomes.length ? \`<p><strong>\${uncoveredOutcomes.length} Capaian Pembelajaran belum terukur:</strong> \${outcomePreview.map((n) => escapeHtml(n)).join("; ")}\${escapeHtml(outcomeMore)}.</p>\` : ""}
-      \${uncoveredCriteria.length ? \`<p><strong>\${uncoveredCriteria.length} kriteria rubrik belum diukur:</strong> \${criterionPreview.map((n) => escapeHtml(n)).join("; ")}\${escapeHtml(criterionMore)}.</p>\` : ""}
+      <div class="review-coverage-title">⚠ Capaian Pembelajaran belum seluruhnya terukur</div>
+      <p><strong>\${uncoveredOutcomes.length} Capaian Pembelajaran belum terukur:</strong> \${outcomePreview.map((n) => escapeHtml(n)).join("; ")}\${escapeHtml(outcomeMore)}.</p>
       <p class="review-coverage-help">Pilih cara menyelesaikan gap ini sebelum assessment dipublikasikan.</p>
       <div class="review-coverage-actions-row">
-        <button type="button" class="secondary-button" data-coverage-action="ai-align">✨ AI selaraskan soal</button>
-        <button type="button" class="secondary-button" data-coverage-action="add-ai-question" data-target="\${escapeHtml(primaryTarget)}" data-target-type="\${primaryType}">✨ Tambah soal dengan AI</button>
-        <button type="button" class="secondary-button" data-coverage-action="add-manual-question" data-target="\${escapeHtml(primaryTarget)}" data-target-type="\${primaryType}">＋ Tambah soal manual</button>
-        \${uncoveredOutcomes.length ? \`<button type="button" class="secondary-button danger-button" data-coverage-action="delete-uncovered-outcomes">Hapus Capaian Pembelajaran yang tidak terukur</button>\` : ""}
+        <button type="button" class="secondary-button" data-coverage-action="ai-align" data-target="\${escapeHtml(primaryTarget)}" data-target-type="outcome">✨ AI selaraskan soal</button>
+        <button type="button" class="secondary-button" data-coverage-action="add-ai-question" data-target="\${escapeHtml(primaryTarget)}" data-target-type="outcome">✨ Tambah soal dengan AI</button>
+        <button type="button" class="secondary-button" data-coverage-action="add-manual-question" data-target="\${escapeHtml(primaryTarget)}" data-target-type="outcome">＋ Tambah soal manual</button>
+        <button type="button" class="secondary-button danger-button" data-coverage-action="delete-uncovered-outcomes">🗑 Hapus Capaian Pembelajaran</button>
       </div>
     </div>
   \`;
@@ -72,4 +83,4 @@ const renderer = `function renderAlignmentCoverage(ctx) {
 source = source.slice(0, start) + renderer + source.slice(end);
 
 fs.writeFileSync(FILE, source, "utf8");
-console.log("Finalized learning outcome coverage workflow.");
+console.log("Finalized Capaian Pembelajaran coverage workflow.");
