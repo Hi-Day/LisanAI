@@ -1,6 +1,5 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
 const FILE = path.join(ROOT, "scripts", "build.js");
@@ -24,18 +23,4 @@ if (!source.includes('assessment-outcomes-ai.js"), path.join(ROOT, "public", "js
 
 fs.writeFileSync(FILE, source, "utf8");
 
-// Coverage actions is the canonical wizard-side coverage patch. The old
-// apply-coverage-final.js duplicated this work and contained nested template
-// literals that could break the Vercel build, so it is intentionally not run.
-for (const script of [
-  "apply-assessment-coverage-actions.js",
-  "apply-coverage-backend.js",
-]) {
-  execFileSync(process.execPath, [path.join(__dirname, script)], {
-    cwd: ROOT,
-    env: process.env,
-    stdio: "inherit",
-  });
-}
-
-console.log("Applied assessment outcomes AI and coverage workflow integration.");
+console.log("Applied assessment outcomes AI integration.");
