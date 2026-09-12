@@ -22,9 +22,11 @@ if (!source.includes(copyReplacement)) {
 
 fs.writeFileSync(FILE, source, "utf8");
 
+// Coverage actions is the canonical wizard-side coverage patch. The old
+// apply-coverage-final.js duplicated this work and contained nested template
+// literals that could break the Vercel build, so it is intentionally not run.
 for (const script of [
   "apply-assessment-coverage-actions.js",
-  "apply-coverage-final.js",
   "apply-coverage-backend.js",
 ]) {
   execFileSync(process.execPath, [path.join(__dirname, script)], {
@@ -34,4 +36,4 @@ for (const script of [
   });
 }
 
-console.log("Applied parallel assessment outcomes AI and coverage workflow integration.");
+console.log("Applied assessment outcomes AI and coverage workflow integration.");
