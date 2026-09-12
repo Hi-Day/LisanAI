@@ -1,4 +1,6 @@
-const { streamOpenRouter } = require("./openrouter");
+// Only the streamed text is consumed; provider fallback + telemetry stay in the
+// gateway, so no model selection is needed at this call site.
+const { stream } = require("./ai/gateway");
 
 const SCHEMA = 'Format: {"question":{"prompt":"...","focus":"...","outcome":"...","rubric":"indikator 40%\\nindikator 35%\\nindikator 25%","ideal":"...","criteria":["target criterion"]}}';
 
@@ -40,16 +42,25 @@ function normalizeQuestion(question, criterion) {
 
 async function streamCoverageQuestion(payload, onChunk) {
   let raw = "";
-  const result = await streamOpenRouter(
-    buildMessages(payload),
-    SCHEMA,
-    (chunk) => {
-      raw += String(chunk || "");
-      onChunk?.(String(chunk || ""));
-    },
-    { tenantId: payload.tenantId, userId: payload.userId, action: "generate-question-for-uncovered-criterion" }
-  );
-  const question = normalizeQuestion(result?.question, payload.criterion);
+  let result = null;
+  try {
+    result = await stream(
+      buildMessages(payload),
+      SCHEMA,
+      { tenantId: payload.tenantId, userId: payload.userId, action: "generate-question-for-uncovered-criterion" },
+      (chunk) => {
+        raw += String(chunk || "");
+        onChunk?.(String(chunk || ""));
+      }
+    );
+  } catch (error) {
+    // Streaming or JSON parsing failed: no question can be derived, so fall
+    // through to the guarded error below instead of leaking provider details.
+    console.error("Pedagogical coverage streaming unavailable:", error.message);
+  }
+  // gateway.stream resolves to { content, parsed }; the question payload lives
+  // on `parsed`, never on the stream result itself.
+  const question = normalizeQuestion(result?.parsed?.question, payload.criterion);
   if (!question) throw new Error("AI tidak menghasilkan soal tambahan yang valid.");
   return question;
 }

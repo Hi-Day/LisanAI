@@ -1,4 +1,6 @@
-const { streamOpenRouter } = require("./openrouter");
+// Token metadata is not consumed here: only the accumulated raw text matters,
+// so the gateway (which also owns provider fallback + telemetry) is enough.
+const { stream } = require("./ai/gateway");
 
 const DEFAULT_COUNT = 3;
 const FOCUSES = [
@@ -38,6 +40,11 @@ function fallbackOutcome(topic, index, existing = []) {
     `Siswa mampu menyampaikan alasan dan penerapan konsep ${topic} secara runtut.`,
   ];
   const used = new Set(existing.map((x) => String(x).trim().toLowerCase()));
+  // Concurrent recommendations share the same `existing` list, so each index
+  // claims its own candidate first; otherwise every slot would return the same
+  // fallback outcome.
+  const preferred = candidates[index % candidates.length];
+  if (!used.has(preferred.toLowerCase())) return preferred;
   return candidates.find((x) => !used.has(x.toLowerCase())) || `Siswa mampu menjelaskan aspek penting ${topic} secara runtut.`;
 }
 
@@ -62,16 +69,16 @@ async function generateOne(payload, index, onChunk) {
   }
 
   let raw = "";
-  const result = await streamOpenRouter(
+  await stream(
     buildMessages(payload, index),
     SCHEMA,
+    { tenantId: payload.tenantId, userId: payload.userId, action: "recommend-learning-outcome" },
     (chunk) => {
       raw += String(chunk || "");
       onChunk?.(extractOutcome(raw));
-    },
-    { tenantId: payload.tenantId, userId: payload.userId, action: "recommend-learning-outcome" }
+    }
   );
-  const outcome = extractOutcome(result?.outcome || raw);
+  const outcome = extractOutcome(raw);
   return outcome || fallbackOutcome(payload.topic, index, existing);
 }
 

@@ -7,11 +7,15 @@
  */
 
 const DEMAND_PATTERNS = {
-  identification: /\b(?:identifikasi|pilih|tentukan|sebutkan|nama(?:kan)?|menentukan|memilih)\b/i,
+  // Inflected imperatives ("Pilihlah", "Tentukanlah") must still count as a
+  // demand; the -lah suffix is optional on every identification verb.
+  identification: /\b(?:identifikasi(?:lah)?|pilih(?:lah)?|tentukan(?:lah)?|sebutkan(?:lah)?|nama(?:kan)?|menentukan|memilih)\b/i,
   reasoning: /\b(?:mengapa|kenapa|alasan|jelaskan\s+(?:mengapa|alasan|pilihan|hubungan|proses)|uraikan\s+alasan|argumentasi|argumen)\b/i,
   application: /\b(?:contoh|misal|misalnya|penerapan|diterapkan|kasus|situasi konkret|situasi)\b/i,
-  comparison: /\b(?:bandingkan|perbandingan|persamaan|perbedaan|berbeda)\b/i,
-  analysis: /\b(?:analisis|analisa|hubungan sebab|sebab-akibat|menghubungkan|hubungkan|dampak|pengaruh)\b/i,
+  comparison: /\b(?:banding(?:kan)?(?:lah)?|perbandingan|persamaan|perbedaan|berbeda)\b/i,
+  // Affixed forms count too: "mempengaruhi"/"dipengaruhi" ask for the same
+  // causal evidence as the bare stem "pengaruh".
+  analysis: /\b(?:analisis|analisa|hubungan sebab|sebab-akibat|menghubungkan|hubungkan|dampak|(?:mem|di)?pengaruh(?:i)?)\b/i,
   evaluation: /\b(?:evaluasi|nilai|menilai|kritisi|kritik|kelebihan|kelemahan|batasan)\b/i,
   procedure: /\b(?:langkah|prosedur|cara|tahapan|proses)\b/i,
 };
