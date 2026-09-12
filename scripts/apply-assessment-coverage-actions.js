@@ -8,14 +8,12 @@ const BUILD = path.join(ROOT, "scripts", "build.js");
 let wizard = fs.readFileSync(WIZARD, "utf8");
 let build = fs.readFileSync(BUILD, "utf8");
 
-// Expose the active wizard context for the coverage action bridge.
 const contextNeedle = /export function bindAssessmentWizardEvents\(ctx\)\s*\{\s*_wizardCtx = ctx;/;
 if (!wizard.includes("window.__lisanAssessmentWizardCtx = ctx;")) {
   if (!contextNeedle.test(wizard)) throw new Error("Assessment wizard context marker not found.");
   wizard = wizard.replace(contextNeedle, (match) => `${match}\n  window.__lisanAssessmentWizardCtx = ctx;`);
 }
 
-// Replace the old rubric-criteria coverage renderer with CP coverage.
 const rendererStart = wizard.indexOf("function renderAlignmentCoverage(ctx)");
 if (rendererStart < 0) throw new Error("Assessment coverage renderer not found.");
 const rendererEnd = wizard.indexOf("\nfunction ", rendererStart + 10);
@@ -78,7 +76,6 @@ function renderAlignmentCoverage(ctx) {
 
 wizard = wizard.slice(0, rendererStart) + renderer + wizard.slice(rendererEnd + 1);
 
-// Install the coverage action listener once. It delegates to the bridge exposed by the AI module.
 const listenerMarker = "window.__lisanAssessmentCoverageActionsInstalled";
 if (!wizard.includes(listenerMarker)) {
   const exportMarker = "export function bindAssessmentWizardEvents(ctx)";
@@ -103,9 +100,6 @@ if (!wizard.includes(listenerMarker)) {
 
 fs.writeFileSync(WIZARD, wizard, "utf8");
 
-// Add only the styles required by the coverage panel. Use a regex so formatting
-// changes in build.js do not break the build-time patch.
-const cssMarker = "#probingGatePanel";
 const css = `
     .alignment-summary { margin-top: 14px; }
     .alignment-summary > div:first-child { display:flex; justify-content:space-between; gap:12px; margin-bottom:12px; }
@@ -119,12 +113,14 @@ const css = `
 `;
 
 if (!build.includes(".alignment-summary")) {
-  if (!build.includes(cssMarker)) throw new Error("Build CSS insertion marker not found.");
   const styleTextPattern = /style\.textContent\s*=\s*\$\{JSON\.stringify\(`([\s\S]*?)`\)\};/;
   const match = build.match(styleTextPattern);
   if (!match) throw new Error("Build UI polish style block not found.");
   const updated = match[1] + css;
-  build = build.replace(styleTextPattern, `style.textContent = \${JSON.stringify(${JSON.stringify(updated)})};`);
+  const replacement = `style.textContent = ${JSON.stringify(JSON.stringify(updated))};`;
+  // The replacement above intentionally produces a JS string expression. Normalize
+  // it back to a template-literal-compatible assignment when build.js uses one.
+  build = build.replace(styleTextPattern, () => `style.textContent = ${JSON.stringify(updated)};`);
 }
 
 fs.writeFileSync(BUILD, build, "utf8");
