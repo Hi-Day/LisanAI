@@ -5,31 +5,28 @@ const {
 const { streamLearningOutcomes, recommendLearningOutcomes } = require("../outcome-recommendation");
 const { ensureDatabase } = require("../bootstrap");
 const { readJson, sendJson } = require("../http-utils");
-const { applySecurityHeaders } = require("../security-headers");
 const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
+const { beginStream, createChunkWriter, endStream, writeEvent } = require("../http/sse");
 
-function writeSse(res, data) { res.write(`data: ${JSON.stringify(data)}\n\n`); }
 function recommendationFromOutcomes(outcomes) {
   const normalized = Array.isArray(outcomes) ? outcomes.filter(Boolean).slice(0, 3) : [];
   return { outcomes: normalized.join("\n"), items: normalized, count: normalized.length };
 }
 
 async function handleStreamingAction(res, auth, action, payload) {
-  applySecurityHeaders(res);
-  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
-  res.write("retry: 2000\n\n");
-  const onChunk = (text) => { if (text && res.writableEnded === false) writeSse(res, { type: "chunk", text }); };
+  beginStream(res);
+  const onChunk = createChunkWriter(res);
   try {
     let result;
-    if (action === "generate-questions") { result = await streamGenerateQuestions(payload, onChunk); writeSse(res, { type: "result", data: { questions: result } }); }
-    else if (action === "align-rubric") { result = await streamAlignRubricSet(payload, onChunk); writeSse(res, { type: "result", data: { questions: result, aligned: true } }); }
-    else if (action === "improve-questions") { result = await streamImproveQuestionSet(payload, onChunk); writeSse(res, { type: "result", data: { questions: result } }); }
-    else if (action === "repair-pedagogical-grounding") { const { streamRepairPedagogicalGrounding } = require("../pedagogical-repair"); result = await streamRepairPedagogicalGrounding(payload, onChunk); writeSse(res, { type: "result", data: result }); }
-    else if (action === "generate-question-for-uncovered-criterion") { const { streamCoverageQuestion } = require("../pedagogical-coverage"); result = await streamCoverageQuestion(payload, onChunk); writeSse(res, { type: "result", data: { question: result } }); }
-    else if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") { result = await streamLearningOutcomes({ ...payload, count: 3 }, (event) => { if (res.writableEnded === false) writeSse(res, event); }); writeSse(res, { type: "result", data: { recommendation: recommendationFromOutcomes(result), outcomes: result, count: result.length } }); }
-    else writeSse(res, { type: "error", message: "Action not found" });
-  } catch (error) { console.error(error); writeSse(res, { type: "error", message: error.message || "Server error" }); }
-  finally { res.end(); }
+    if (action === "generate-questions") { result = await streamGenerateQuestions(payload, onChunk); writeEvent(res, { type: "result", data: { questions: result } }); }
+    else if (action === "align-rubric") { result = await streamAlignRubricSet(payload, onChunk); writeEvent(res, { type: "result", data: { questions: result, aligned: true } }); }
+    else if (action === "improve-questions") { result = await streamImproveQuestionSet(payload, onChunk); writeEvent(res, { type: "result", data: { questions: result } }); }
+    else if (action === "repair-pedagogical-grounding") { const { streamRepairPedagogicalGrounding } = require("../pedagogical-repair"); result = await streamRepairPedagogicalGrounding(payload, onChunk); writeEvent(res, { type: "result", data: result }); }
+    else if (action === "generate-question-for-uncovered-criterion") { const { streamCoverageQuestion } = require("../pedagogical-coverage"); result = await streamCoverageQuestion(payload, onChunk); writeEvent(res, { type: "result", data: { question: result } }); }
+    else if (action === "recommend-learning-outcomes" || action === "recommend-assessment-config") { result = await streamLearningOutcomes({ ...payload, count: 3 }, (event) => { writeEvent(res, event); }); writeEvent(res, { type: "result", data: { recommendation: recommendationFromOutcomes(result), outcomes: result, count: result.length } }); }
+    else writeEvent(res, { type: "error", message: "Action not found" });
+  } catch (error) { console.error(error); writeEvent(res, { type: "error", message: error.message || "Server error" }); }
+  finally { endStream(res); }
 }
 
 module.exports = async (req, res) => {
