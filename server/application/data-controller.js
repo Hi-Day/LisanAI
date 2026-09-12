@@ -6,11 +6,12 @@ const {
   assertTeacherOwnsClass, addApprovedStudent,
 } = require("../database");
 const {
-  listTenantUsers, createTenantUser, getSessionUser, createTenantUsersBatch, SESSION_COOKIE,
+  listTenantUsers, createTenantUser, createTenantUsersBatch,
 } = require("../auth-service");
 const { ensureDatabase } = require("../bootstrap");
 const { ensureShowcaseDemo } = require("../showcase-bootstrap");
-const { parseCookies, readJson, sendJson } = require("../http-utils");
+const { readJson, sendJson } = require("../http-utils");
+const { requireAuthenticatedRequest } = require("../http/request-security");
 const { recordTeacherScoreChange } = require("../evaluation/research");
 const crypto = require("node:crypto");
 
@@ -19,10 +20,11 @@ function cryptoRandom() { return crypto.randomUUID().replace(/-/g, ""); }
 module.exports = async (req, res) => {
   try {
     await ensureDatabase();
-    const auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
-    if (!auth) return sendJson(res, 401, { error: "Unauthorized" });
 
     if (req.method === "GET") {
+      const security = await requireAuthenticatedRequest(req, res, { allowApiKey: false, csrf: false });
+      if (!security) return;
+      const { auth } = security;
       const url = new URL(req.url, `http://${req.headers.host}`);
       const action = url.searchParams.get("action");
       if (action === "state") {
@@ -42,8 +44,9 @@ module.exports = async (req, res) => {
     }
 
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
-    const { assertCsrfToken } = require("../auth-service");
-    try { assertCsrfToken(req, auth); } catch (e) { return sendJson(res, 403, { error: e.message }); }
+    const security = await requireAuthenticatedRequest(req, res, { allowApiKey: false, rateLimit: "data", rateLimitOptions: { limit: 60, windowMs: 60_000 } });
+    if (!security) return;
+    const { auth } = security;
 
     const body = await readJson(req);
     const { action, payload, id } = body;
