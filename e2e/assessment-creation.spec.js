@@ -97,6 +97,7 @@ test.describe("Assessment creation workflow", () => {
     await page.locator(".editable-question [data-field='prompt']").fill("Jelaskan hubungan produsen dan konsumen.");
     await page.click("#saveToBankBtn");
 
+    await page.click("#mainNav button[data-nav-view='questionBankView']");
     await expect(page.locator("#questionBankView")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#questionBankList")).toContainText("Jelaskan hubungan produsen dan konsumen.");
   });
