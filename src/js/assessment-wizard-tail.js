@@ -29,20 +29,30 @@ export function renderReviewSummary(ctx) {
     </div>`;
 }
 
-function parseRubricNames(text) {
-  if (!text) return [];
-  const t = String(text).trim();
-  if (t.startsWith("{")) { try { const p = JSON.parse(t); if (p.version === "2" && Array.isArray(p.criteria)) return p.criteria.map((c) => c.name || "").filter(Boolean); } catch {} }
-  return t.split(/[;\n,]+/).map((s) => s.replace(/^\d+(\.\d+)?\s*%?\s*/, "").replace(/\s*[-:–]\s*(\d+(\.\d+)?\s*%?)?$/, "").replace(/\s*\(?\d+(\.\d+)?\s*%?\s*\)?$/, "").trim()).filter((s) => s.length > 2);
+function parseLearningOutcomeNames(text) {
+  if (Array.isArray(text)) return text.map((x) => typeof x === "string" ? x.trim() : String(x?.text || x?.name || "").trim()).filter(Boolean);
+  return String(text || "").split(/\r?\n|\s*;\s*/).map((line) => line.trim()).filter(Boolean).map((line) => line.replace(/^(?:[-*•]\s*)?(?:LO|CPL|CPMK|Learning Outcome)\s*[-#:.)]?\s*\d+\s*[-:.):]?\s*/i, "").replace(/^(?:[-*•]\s*)?\d+[.)]\s*/, "").trim()).filter(Boolean);
 }
 function normalizeCoverageKey(value) { return String(value || "").trim().toLowerCase().replace(/\s+/g, " "); }
+function getQuestionLearningOutcomeIds(question) {
+  if (Array.isArray(question?.learningOutcomeIds)) return question.learningOutcomeIds.map(String).filter(Boolean);
+  const id = String(question?.learningOutcomeId || "").trim();
+  return id ? [id] : [];
+}
 function renderAlignmentCoverage(ctx) {
   const questions = ctx.pendingQuestions || [];
-  const covered = new Set(questions.flatMap((q) => Array.isArray(q.criteria) ? q.criteria.map((c) => normalizeCoverageKey(typeof c === "string" ? c : c.name || c.id)) : []));
-  const expected = [...new Set(questions.flatMap((q) => parseRubricNames(q.rubric)))];
-  const uncovered = expected.filter((name) => !covered.has(normalizeCoverageKey(name)));
-  if (!uncovered.length) return "";
-  return `<p class="review-align-warning">⚠ Kriteria rubrik berikut belum diukur oleh soal manapun: <strong>${uncovered.map(escapeHtml).join("; ")}</strong>.</p>`;
+  const expected = parseLearningOutcomeNames(ctx.pendingAssessmentConfig?.outcomes);
+  if (!expected.length) return "";
+  const expectedKeys = expected.map(normalizeCoverageKey);
+  const coveredIds = new Set(questions.flatMap(getQuestionLearningOutcomeIds).map(normalizeCoverageKey));
+  const coveredText = new Set(questions.map((q) => normalizeCoverageKey(q.outcome)).filter(Boolean));
+  const uncovered = expected.filter((name, index) => {
+    const id = `lo${index + 1}`;
+    return !coveredIds.has(normalizeCoverageKey(id)) && !coveredText.has(normalizeCoverageKey(name));
+  });
+  const coveredCount = expected.length - uncovered.length;
+  if (!uncovered.length) return `<p class="review-align-success">✓ Semua ${expected.length} Learning Outcome sudah terpetakan ke minimal satu soal.</p>`;
+  return `<p class="review-align-warning">⚠ Capaian pembelajaran berikut belum terukur oleh soal manapun: <strong>${uncovered.map(escapeHtml).join("; ")}</strong>. (${coveredCount}/${expected.length} LO terukur)</p>`;
 }
 
 export function goToWizardStep(ctx, step) {
