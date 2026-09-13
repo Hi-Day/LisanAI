@@ -17,8 +17,16 @@ function beginStream(res) {
 }
 
 function createChunkWriter(res) {
-  return (text) => {
-    if (text) writeEvent(res, { type: "chunk", text });
+  return (value) => {
+    if (!value) return;
+    // Streaming application services may emit structured domain events (for
+    // example outcome-start/outcome-result) as well as raw text chunks. Keep
+    // the SSE transport agnostic to the event shape instead of nesting a
+    // structured event inside `chunk.text`.
+    if (typeof value === "object" && !Array.isArray(value)) {
+      return writeEvent(res, value);
+    }
+    return writeEvent(res, { type: "chunk", text: value });
   };
 }
 
