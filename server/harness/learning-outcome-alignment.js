@@ -90,15 +90,71 @@ function questionLearningOutcomeScore(question, outcome) {
   return score;
 }
 
+function learningOutcomeSimilarity(a, b) {
+  const left = learningOutcomeTokens(a?.text);
+  const right = learningOutcomeTokens(b?.text);
+  if (!left.size || !right.size) return 0;
+  let intersection = 0;
+  left.forEach((token) => { if (right.has(token)) intersection += 1; });
+  return intersection / new Set([...left, ...right]).size;
+}
+
 /**
- * Fill missing LO mappings without changing question order or creating a
- * many-to-many question mapping. Explicit model mappings always win. When a
- * generated question omitted an ID, an unmapped question is preferred first
- * so existing explicit assignments are never stolen. If no unmapped question
- * remains, a question assigned to an over-represented LO may be reassigned to
- * the missing LO so the assessment cannot silently proceed with an unmeasured
- * target. Remaining unmapped questions are then assigned to the best-fit LO.
+ * Plan LO -> question mapping BEFORE asking the model to write questions.
+ *
+ * The plan is deterministic so the pedagogical coverage decision does not
+ * depend on model output. If there are at least as many questions as LOs,
+ * every LO gets its own question first and remaining questions are balanced
+ * across LOs. If there are fewer questions than LOs, related LOs are grouped
+ * into the same question using lexical similarity, with a maximum group size
+ * derived from ceil(LO count / question count).
  */
+function buildLearningOutcomeQuestionPlan(outcomes, questionCount) {
+  const list = Array.isArray(outcomes) ? outcomes.filter((lo) => lo?.id && lo?.text) : [];
+  const count = Math.max(0, Number(questionCount || 0));
+  if (!list.length || !count) return [];
+
+  if (count >= list.length) {
+    const assignments = Array.from({ length: count }, () => []);
+    list.forEach((lo, index) => { assignments[index].push(lo); });
+    for (let i = list.length; i < count; i += 1) {
+      const counts = list.map((lo) => assignments.filter((group) => group.some((item) => item.id === lo.id)).length);
+      const targetIndex = counts.indexOf(Math.min(...counts));
+      assignments[i].push(list[targetIndex]);
+    }
+    return assignments.map((los, questionIndex) => ({
+      questionIndex,
+      learningOutcomes: los.map((lo) => ({ id: lo.id, text: lo.text })),
+      learningOutcomeIds: los.map((lo) => lo.id),
+    }));
+  }
+
+  const groups = list.map((lo) => [lo]);
+  const maxPerQuestion = Math.ceil(list.length / count);
+  while (groups.length > count) {
+    let bestI = 0;
+    let bestJ = 1;
+    let bestScore = -1;
+    for (let i = 0; i < groups.length; i += 1) {
+      for (let j = i + 1; j < groups.length; j += 1) {
+        if (groups[i].length + groups[j].length > maxPerQuestion) continue;
+        const pairs = groups[i].flatMap((a) => groups[j].map((b) => learningOutcomeSimilarity(a, b)));
+        const score = pairs.length ? Math.max(...pairs) : 0;
+        if (score > bestScore) { bestScore = score; bestI = i; bestJ = j; }
+      }
+    }
+    if (bestScore < 0) { bestI = 0; bestJ = 1; }
+    groups[bestI] = groups[bestI].concat(groups[bestJ]);
+    groups.splice(bestJ, 1);
+  }
+
+  return groups.map((los, questionIndex) => ({
+    questionIndex,
+    learningOutcomes: los.map((lo) => ({ id: lo.id, text: lo.text })),
+    learningOutcomeIds: los.map((lo) => lo.id),
+  }));
+}
+
 function ensureLearningOutcomeCoverage(questions, outcomes) {
   const list = Array.isArray(outcomes) ? outcomes : [];
   const result = (questions || []).map((question) => ({ ...question }));
@@ -119,24 +175,11 @@ function ensureLearningOutcomeCoverage(questions, outcomes) {
   const findCandidate = (missing, currentCounts) => {
     const candidates = result.map((question, index) => {
       const current = assigned.get(index);
-      if (!current) {
-        return {
-          index,
-          current: null,
-          priority: 0,
-          score: questionLearningOutcomeScore(question, missing),
-        };
-      }
+      if (!current) return { index, current: null, priority: 0, score: questionLearningOutcomeScore(question, missing) };
       const canReassign = (currentCounts.get(current.id) || 0) > 1;
       if (!canReassign) return null;
-      return {
-        index,
-        current,
-        priority: 1,
-        score: questionLearningOutcomeScore(question, missing),
-      };
+      return { index, current, priority: 1, score: questionLearningOutcomeScore(question, missing) };
     }).filter(Boolean);
-
     candidates.sort((a, b) => a.priority - b.priority || b.score - a.score || a.index - b.index);
     return candidates[0] || null;
   };
@@ -147,32 +190,16 @@ function ensureLearningOutcomeCoverage(questions, outcomes) {
     const candidate = findCandidate(missing, currentCounts);
     if (!candidate) continue;
     assigned.set(candidate.index, missing);
-    result[candidate.index] = {
-      ...result[candidate.index],
-      learningOutcomeId: missing.id,
-      outcome: missing.text,
-    };
+    result[candidate.index] = { ...result[candidate.index], learningOutcomeId: missing.id, outcome: missing.text };
   }
 
-  // A question set can contain more questions than learning outcomes. Those
-  // additional questions must still have an explicit LO rather than carrying
-  // an arbitrary/free-text outcome that breaks the pedagogical traceability.
   result.forEach((question, index) => {
     if (assigned.has(index)) return;
-    const best = list
-      .map((lo, outcomeIndex) => ({
-        lo,
-        score: questionLearningOutcomeScore(question, lo),
-        outcomeIndex,
-      }))
+    const best = list.map((lo, outcomeIndex) => ({ lo, score: questionLearningOutcomeScore(question, lo), outcomeIndex }))
       .sort((a, b) => b.score - a.score || a.outcomeIndex - b.outcomeIndex)[0];
     if (!best) return;
     assigned.set(index, best.lo);
-    result[index] = {
-      ...result[index],
-      learningOutcomeId: best.lo.id,
-      outcome: best.lo.text,
-    };
+    result[index] = { ...result[index], learningOutcomeId: best.lo.id, outcome: best.lo.text };
   });
 
   return result.map((question, index) => {
@@ -244,4 +271,5 @@ module.exports = {
   validateLearningOutcomeCoverage,
   enrichQuestionLearningOutcome,
   ensureLearningOutcomeCoverage,
+  buildLearningOutcomeQuestionPlan,
 };
