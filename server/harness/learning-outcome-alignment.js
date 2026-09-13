@@ -93,10 +93,11 @@ function questionLearningOutcomeScore(question, outcome) {
 /**
  * Fill missing LO mappings without changing question order or creating a
  * many-to-many question mapping. Explicit model mappings always win. When a
- * generated question omitted an ID, the best semantic match is selected. If
- * coverage is still incomplete, a question already assigned to an
- * over-represented LO may be reassigned to the missing LO so the assessment
- * cannot silently proceed with an unmeasured target.
+ * generated question omitted an ID, an unmapped question is preferred first
+ * so existing explicit assignments are never stolen. If no unmapped question
+ * remains, a question assigned to an over-represented LO may be reassigned to
+ * the missing LO so the assessment cannot silently proceed with an unmeasured
+ * target.
  */
 function ensureLearningOutcomeCoverage(questions, outcomes) {
   const list = Array.isArray(outcomes) ? outcomes : [];
@@ -118,16 +119,25 @@ function ensureLearningOutcomeCoverage(questions, outcomes) {
   const findCandidate = (missing, currentCounts) => {
     const candidates = result.map((question, index) => {
       const current = assigned.get(index);
-      const canReassign = !current || (currentCounts.get(current.id) || 0) > 1;
+      if (!current) {
+        return {
+          index,
+          current: null,
+          priority: 0,
+          score: questionLearningOutcomeScore(question, missing),
+        };
+      }
+      const canReassign = (currentCounts.get(current.id) || 0) > 1;
       if (!canReassign) return null;
       return {
         index,
         current,
+        priority: 1,
         score: questionLearningOutcomeScore(question, missing),
       };
     }).filter(Boolean);
 
-    candidates.sort((a, b) => b.score - a.score || (a.current ? 1 : 0) - (b.current ? 1 : 0) || a.index - b.index);
+    candidates.sort((a, b) => a.priority - b.priority || b.score - a.score || a.index - b.index);
     return candidates[0] || null;
   };
 
