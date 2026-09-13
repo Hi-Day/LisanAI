@@ -69,9 +69,10 @@ function buildMessages(payload) {
 
 const SCHEMA = 'Format: {"questions":[{"prompt":"...","focus":"...","learningOutcomeIds":["LO1"],"learningOutcomeId":"LO1","outcome":"teks Learning Outcome persis dari plan","rubric":"indikator 40%\\nindikator 35%\\nindikator 25%","ideal":"...","criteria":["nama_kriteria1","nama_kriteria2"]}]}. learningOutcomeIds WAJIB sama persis dengan LO-to-question plan. learningOutcomeId adalah ID pertama untuk kompatibilitas. outcome WAJIB mengikuti LO pada plan. rubric WAJIB khusus untuk setiap soal. Jumlah questions harus sesuai jumlah_soal.';
 
-function buildFallbackRubric(question, payload) {
+function buildFallbackRubric(question, payload, planItem) {
   const focus = String(question.focus || payload.topic || "konsep").trim();
-  const outcome = String(question.outcome || "kompetensi pembelajaran").trim();
+  const mappedText = planItem?.learningOutcomes?.map((lo) => lo.text).join("; ").trim();
+  const outcome = mappedText || String(question.outcome || "").trim() || String(learningOutcomeAlignment.parseLearningOutcomes(payload.outcomes)[0]?.text || "kompetensi pembelajaran").trim();
   return [`Ketepatan menjawab pertanyaan tentang ${focus}: 40%`, `Keselarasan dengan learning outcome (${outcome}): 30%`, "Kelengkapan evidence yang diminta pertanyaan: 20%", "Kejelasan penyampaian jawaban: 10%"].join("\n");
 }
 
@@ -87,7 +88,7 @@ function normalizeQuestion(payload, planItem) {
       learningOutcomeIds: mappedIds.length ? [...mappedIds] : (Array.isArray(question.learningOutcomeIds) ? question.learningOutcomeIds.map(String) : []),
       learningOutcomeId: mappedIds[0] || String(question.learningOutcomeId || question.outcomeId || "").trim(),
       outcome: mappedText || String(question.outcome || "").trim(),
-      rubric: String(question.rubric || "").trim() || buildFallbackRubric(question, payload),
+      rubric: String(question.rubric || "").trim() || buildFallbackRubric(question, payload, mapped),
       ideal: String(question.ideal || "Jawaban kuat sesuai rubrik guru.").trim(),
       criteria: Array.isArray(question.criteria) ? question.criteria.map(String) : [],
     };
