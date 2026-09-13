@@ -6,6 +6,7 @@ const {
   validateLearningOutcomeCoverage,
   mapCriteriaToLearningOutcomes,
   ensureLearningOutcomeCoverage,
+  buildLearningOutcomeQuestionPlan,
 } = require("../server/harness/learning-outcome-alignment");
 
 test("parses numbered learning outcomes into stable IDs", () => {
@@ -16,15 +17,11 @@ test("parses numbered learning outcomes into stable IDs", () => {
 
 test("reports incomplete learning outcome coverage", () => {
   const outcomes = parseLearningOutcomes("LO1 - Menganalisis masalah\nLO2 - Mengevaluasi alternatif");
-  const questions = [
-    { prompt: "Mengapa masalah terjadi?", learningOutcomeId: "LO1" },
-  ];
+  const questions = [{ prompt: "Mengapa masalah terjadi?", learningOutcomeId: "LO1" }];
   const report = coverageReport(questions, outcomes);
   assert.equal(report.coveragePercent, 50);
   assert.deepEqual(report.missing.map((x) => x.id), ["LO2"]);
-  assert.throws(() => validateLearningOutcomeCoverage(questions, outcomes), {
-    code: "LEARNING_OUTCOME_COVERAGE_INCOMPLETE",
-  });
+  assert.throws(() => validateLearningOutcomeCoverage(questions, outcomes), { code: "LEARNING_OUTCOME_COVERAGE_INCOMPLETE" });
 });
 
 test("maps criteria to the learning outcome of their question", () => {
@@ -36,6 +33,22 @@ test("maps criteria to the learning outcome of their question", () => {
   const map = mapCriteriaToLearningOutcomes(questions, outcomes);
   assert.deepEqual(map.byCriterion.get("C1").map((x) => x.id), ["LO1"]);
   assert.deepEqual(map.byCriterion.get("C2").map((x) => x.id), ["LO2"]);
+});
+
+test("plans 3 LOs across 5 questions before question generation", () => {
+  const outcomes = parseLearningOutcomes("LO1 - Menjelaskan mekanisme pertukaran gas\nLO2 - Menganalisis hubungan struktur dan mekanisme\nLO3 - Menjelaskan mekanisme dengan penalaran logis");
+  const plan = buildLearningOutcomeQuestionPlan(outcomes, 5);
+  assert.equal(plan.length, 5);
+  assert.deepEqual(plan.map((x) => x.learningOutcomeIds), [["LO1"], ["LO2"], ["LO3"], ["LO1"], ["LO2"]]);
+  assert.deepEqual(new Set(plan.flatMap((x) => x.learningOutcomeIds)), new Set(["LO1", "LO2", "LO3"]));
+});
+
+test("groups related LOs when there are fewer questions than LOs", () => {
+  const outcomes = parseLearningOutcomes("LO1 - Menjelaskan mekanisme pertukaran gas\nLO2 - Menjelaskan mekanisme pertukaran oksigen\nLO3 - Menganalisis dampak gangguan pernafasan");
+  const plan = buildLearningOutcomeQuestionPlan(outcomes, 2);
+  assert.equal(plan.length, 2);
+  assert.equal(new Set(plan.flatMap((x) => x.learningOutcomeIds)).size, 3);
+  assert.ok(plan.some((x) => x.learningOutcomeIds.length > 1));
 });
 
 test("fills missing learning outcome mappings without changing question count or order", () => {
@@ -52,6 +65,13 @@ test("fills missing learning outcome mappings without changing question count or
   assert.deepEqual(mapped.map((q) => q.learningOutcomeId), ["LO1", "LO2", "LO3", "LO1", "LO2"]);
   assert.deepEqual(mapped.slice(0, 3).map((q) => q.outcome), outcomes.map((lo) => lo.text));
   assert.equal(coverageReport(mapped, outcomes).coveragePercent, 100);
+});
+
+test("supports multiple LOs on one question", () => {
+  const outcomes = parseLearningOutcomes("LO1 - Menjelaskan mekanisme pertukaran gas\nLO2 - Menganalisis hubungan struktur dan mekanisme");
+  const questions = [{ learningOutcomeIds: ["LO1", "LO2"], learningOutcomeId: "LO1" }];
+  const report = coverageReport(questions, outcomes);
+  assert.equal(report.coveragePercent, 100);
 });
 
 test("uses explicit learning outcome IDs when the model provides them", () => {
