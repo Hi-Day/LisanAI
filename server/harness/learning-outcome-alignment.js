@@ -63,10 +63,16 @@ function learningOutcomeTokens(text) {
 }
 
 function questionLearningOutcomeScore(question, outcome) {
-  const questionTokens = learningOutcomeTokens([question?.prompt, question?.focus, question?.outcome].filter(Boolean).join(" "));
-  const outcomeTokens = learningOutcomeTokens(outcome?.text);
+  const promptTokens = learningOutcomeTokens(question?.prompt || "");
+  const focusTokens = learningOutcomeTokens(question?.focus || "");
+  const outcomeTokens = learningOutcomeTokens(question?.outcome || "");
+  const loTokens = learningOutcomeTokens(outcome?.text);
   let score = 0;
-  outcomeTokens.forEach((token) => { if (questionTokens.has(token)) score += 1; });
+  loTokens.forEach((token) => {
+    if (focusTokens.has(token)) score += 4;
+    else if (promptTokens.has(token)) score += 1;
+    if (outcomeTokens.has(token)) score += 2;
+  });
   return score;
 }
 
