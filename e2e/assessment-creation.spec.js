@@ -37,7 +37,7 @@ test.describe("Assessment creation workflow", () => {
     await page.click("#recommendOutcomes");
 
     await expect(page.locator(".assessment-outcome-ai-stream")).toBeVisible();
-    await expect(page.locator("[data-outcome-input]").first()).not.toHaveValue("", { timeout: 30_000 });
+    await expect(page.locator("#outcomes")).not.toHaveValue("", { timeout: 30_000 });
   });
 
   test("AI generation opens the refactored question editor with streamed questions", async ({ page }) => {
