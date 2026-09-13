@@ -36,6 +36,85 @@ function buildFallbackRubric(criteria) {
     .join("\n");
 }
 
+function normalizeLearningOutcomes(value) {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => {
+      if (typeof item === "string") return { id: `LO${index + 1}`, text: item.trim() };
+      return {
+        id: String(item?.id || item?.learningOutcomeId || `LO${index + 1}`).trim(),
+        text: String(item?.text || item?.name || item?.title || item?.outcome || "").trim(),
+      };
+    }).filter((item) => item.text);
+  }
+  return String(value || "").split(/\r?\n|\s*;\s*/).map((text, index) => ({
+    id: `LO${index + 1}`,
+    text: text.trim().replace(/^(?:\d+|LO\d+)[.)\-:]?\s*/i, ""),
+  })).filter((item) => item.text);
+}
+
+function outcomeTokens(text) {
+  return new Set(String(text || "").toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]+/gi, " ").split(/\s+/).filter((token) => token.length >= 4));
+}
+
+function outcomeFitScore(question, outcome) {
+  const qTokens = outcomeTokens([question.prompt, question.focus].filter(Boolean).join(" "));
+  let score = 0;
+  outcomeTokens(outcome.text).forEach((token) => { if (qTokens.has(token)) score += 1; });
+  return score;
+}
+
+/**
+ * Preserve the teacher's LO list as the single source of competency targets.
+ * Every generated fallback question gets exactly one LO, and when there are
+ * enough questions every target is represented at least once.
+ */
+export function ensureFallbackLearningOutcomeCoverage(questions = [], outcomesValue = "") {
+  const outcomes = normalizeLearningOutcomes(outcomesValue);
+  if (!outcomes.length || !questions.length) return questions;
+  const result = questions.map((question) => ({ ...question }));
+  const assigned = new Map();
+
+  // First respect any valid explicit mapping.
+  result.forEach((question, index) => {
+    const id = String(question.learningOutcomeId || question.outcomeId || "").trim().toLowerCase();
+    const match = outcomes.find((outcome) => outcome.id.toLowerCase() === id);
+    if (match) assigned.set(index, match);
+  });
+
+  const counts = () => {
+    const map = new Map(outcomes.map((outcome) => [outcome.id, 0]));
+    assigned.forEach((outcome) => map.set(outcome.id, (map.get(outcome.id) || 0) + 1));
+    return map;
+  };
+
+  for (const outcome of outcomes) {
+    if ((counts().get(outcome.id) || 0) > 0) continue;
+    const currentCounts = counts();
+    const candidates = result.map((question, index) => {
+      const current = assigned.get(index);
+      if (current && (currentCounts.get(current.id) || 0) <= 1) return null;
+      return { index, score: outcomeFitScore(question, outcome), current };
+    }).filter(Boolean).sort((a, b) => b.score - a.score || Number(Boolean(a.current)) - Number(Boolean(b.current)) || a.index - b.index);
+    if (candidates[0]) assigned.set(candidates[0].index, outcome);
+  }
+
+  // If the number of questions is smaller than the number of LOs, coverage is
+  // impossible; otherwise fill remaining questions with their best LO.
+  result.forEach((question, index) => {
+    if (!assigned.has(index)) {
+      const best = outcomes.slice().sort((a, b) => outcomeFitScore(question, b) - outcomeFitScore(question, a) || a.id.localeCompare(b.id))[0];
+      if (best) assigned.set(index, best);
+    }
+  });
+
+  return result.map((question, index) => {
+    const outcome = assigned.get(index);
+    return outcome
+      ? { ...question, learningOutcomeId: outcome.id, outcome: outcome.text }
+      : question;
+  });
+}
+
 /**
  * Local fallback generator with the same core pedagogical invariant as the
  * server-side grounding harness: a criterion may only be attached when the
@@ -48,7 +127,7 @@ export function generateFallbackQuestions({ topic, outcomes, rubric, difficulty,
   const core = keywords.length ? keywords : FALLBACK_KEYWORDS;
   const stems = FALLBACK_QUESTION_STEMS[difficulty] || FALLBACK_QUESTION_STEMS.Menengah;
 
-  return Array.from({ length: count }, (_, index) => {
+  const questions = Array.from({ length: count }, (_, index) => {
     const keyword = core[index % core.length];
     const prompt = stems[index % stems.length]
       .replaceAll("{topic}", topic)
@@ -60,12 +139,15 @@ export function generateFallbackQuestions({ topic, outcomes, rubric, difficulty,
       id: uid("q"),
       prompt,
       focus: keyword,
-      outcome: `Siswa mampu menjelaskan konsep ${keyword} pada materi ${topic} dengan bahasa sendiri.`,
+      outcome: "",
+      learningOutcomeId: "",
       criteria,
       rubric: questionRubric,
       ideal: `Jawaban kuat menunjukkan pemahaman ${keyword}${criteria.length > 1 ? ", disertai evidence sesuai tuntutan pertanyaan" : ""} dan mengaitkannya dengan ${topic}.`,
     };
   });
+
+  return ensureFallbackLearningOutcomeCoverage(questions, outcomes);
 }
 
 /** Re-ground existing local fallback questions without changing their prompts. */
