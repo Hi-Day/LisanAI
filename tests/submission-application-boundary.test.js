@@ -6,6 +6,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const servicePath = path.join(root, "server", "application", "submission-service.js");
 const evaluationPath = path.join(root, "server", "application", "evaluation-service.js");
+const gatewayPath = path.join(root, "server", "database", "submission-gateway.js");
 const repositoryPath = path.join(root, "server", "database", "submission-repository.js");
 
 function read(file) { return fs.readFileSync(file, "utf8"); }
@@ -17,6 +18,9 @@ test("submission application service owns submission orchestration", () => {
   assert.match(source, /saveTeacherSubmission/);
   assert.match(source, /getSubmission/);
   assert.doesNotMatch(source, /\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
+  assert.doesNotMatch(source, /require\(["']\.\.\/database\/client["']\)/);
+  assert.doesNotMatch(source, /getDb\s*\(/);
+  assert.match(source, /submissionGateway/);
 });
 
 test("evaluation application service delegates submission authorization", () => {
@@ -27,8 +31,15 @@ test("evaluation application service delegates submission authorization", () => 
   assert.doesNotMatch(source, /assertCanSubmitAssessment/);
 });
 
+test("submission gateway owns database client access", () => {
+  const source = read(gatewayPath);
+  assert.match(source, /require\(["']\.\/client["']\)/);
+  assert.match(source, /getDb\s*\(/);
+  assert.match(source, /submission-repository/);
+});
+
 test("submission repository remains persistence boundary", () => {
   const source = read(repositoryPath);
-  assert.match(source, /getDb|db\.get|db\.run/);
+  assert.match(source, /db\.get|db\.run|db\.all/);
   assert.match(source, /submissions/);
 });
