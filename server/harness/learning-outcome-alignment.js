@@ -72,6 +72,84 @@ function questionOutcomeMap(questions, outcomes) {
   return map;
 }
 
+function learningOutcomeTokens(text) {
+  return new Set(normalizeText(text).split(" ").filter((token) => token.length >= 4));
+}
+
+function questionLearningOutcomeScore(question, outcome) {
+  const questionTokens = learningOutcomeTokens([
+    question?.prompt,
+    question?.focus,
+    question?.outcome,
+  ].filter(Boolean).join(" "));
+  const outcomeTokens = learningOutcomeTokens(outcome?.text);
+  let score = 0;
+  outcomeTokens.forEach((token) => {
+    if (questionTokens.has(token)) score += 1;
+  });
+  return score;
+}
+
+/**
+ * Fill missing LO mappings without changing question order or creating a
+ * many-to-many question mapping. Explicit model mappings always win. When a
+ * generated question omitted an ID, the best semantic match is selected. If
+ * coverage is still incomplete, a question already assigned to an
+ * over-represented LO may be reassigned to the missing LO so the assessment
+ * cannot silently proceed with an unmeasured target.
+ */
+function ensureLearningOutcomeCoverage(questions, outcomes) {
+  const list = Array.isArray(outcomes) ? outcomes : [];
+  const result = (questions || []).map((question) => ({ ...question }));
+  if (!list.length || !result.length) return result;
+
+  const assigned = new Map();
+  result.forEach((question, index) => {
+    const lo = resolveLearningOutcome(question, list);
+    if (lo) assigned.set(index, lo);
+  });
+
+  const counts = () => {
+    const map = new Map(list.map((lo) => [lo.id, 0]));
+    assigned.forEach((lo) => map.set(lo.id, (map.get(lo.id) || 0) + 1));
+    return map;
+  };
+
+  const findCandidate = (missing, currentCounts) => {
+    const candidates = result.map((question, index) => {
+      const current = assigned.get(index);
+      const canReassign = !current || (currentCounts.get(current.id) || 0) > 1;
+      if (!canReassign) return null;
+      return {
+        index,
+        current,
+        score: questionLearningOutcomeScore(question, missing),
+      };
+    }).filter(Boolean);
+
+    candidates.sort((a, b) => b.score - a.score || (a.current ? 1 : 0) - (b.current ? 1 : 0) || a.index - b.index);
+    return candidates[0] || null;
+  };
+
+  for (const missing of list) {
+    const currentCounts = counts();
+    if ((currentCounts.get(missing.id) || 0) > 0) continue;
+    const candidate = findCandidate(missing, currentCounts);
+    if (!candidate) continue;
+    assigned.set(candidate.index, missing);
+    result[candidate.index] = {
+      ...result[candidate.index],
+      learningOutcomeId: missing.id,
+      outcome: missing.text,
+    };
+  }
+
+  return result.map((question, index) => {
+    const lo = assigned.get(index);
+    return lo ? { ...question, learningOutcomeId: lo.id, outcome: lo.text } : question;
+  });
+}
+
 function mapCriteriaToLearningOutcomes(questions, outcomes) {
   const byCriterion = new Map();
   const byQuestion = questionOutcomeMap(questions, outcomes);
@@ -134,4 +212,5 @@ module.exports = {
   coverageReport,
   validateLearningOutcomeCoverage,
   enrichQuestionLearningOutcome,
+  ensureLearningOutcomeCoverage,
 };
