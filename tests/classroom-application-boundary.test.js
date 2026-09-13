@@ -17,32 +17,36 @@ test("classroom application service owns classroom orchestration", () => {
   for (const method of ["createClass", "updateClass", "deleteClass", "joinClass", "approveMembership", "updateMembership", "deleteMembership", "assertTeacherOwnsClass", "addApprovedStudent"]) {
     assert.match(source, new RegExp(`\\b${method}\\b`));
   }
-  assert.doesNotMatch(source, /\\b(?:SELECT|INSERT|UPDATE|DELETE)\\b/i);
-  assert.doesNotMatch(source, /require\\(["']\\.\\.\\/database\\/client["']\\)/);
-  assert.doesNotMatch(source, /getDb\\s*\\(/);
+  assert.doesNotMatch(source, /\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
+  assert.doesNotMatch(source, /require\(["']\.\.\/database\/client["']\)/);
+  assert.doesNotMatch(source, /getDb\s*\(/);
   assert.match(source, /classroomGateway/);
 });
 
 test("data controller delegates classroom actions", () => {
   const source = read(controllerPath);
-  assert.match(source, /require\\(["']\\.\\/classroom-service["']\\)/);
+  assert.match(source, /require\(["']\.\/classroom-service["']\)/);
   for (const method of ["createClass", "updateClass", "deleteClass", "joinClass", "approveMembership", "updateMembership", "deleteMembership", "assertTeacherOwnsClass", "addApprovedStudent"]) {
     assert.match(source, new RegExp(`classroomService\\.${method}`));
   }
-  assert.doesNotMatch(source, /\\b(?:approveMembership|createClass|deleteClass|deleteMembership|requestJoinClass|updateClass|updateMembershipStatus|assertTeacherOwnsClass|addApprovedStudent)\\s*,/);
+  const databaseImport = source.match(/const \{([\s\S]*?)\} = require\(["']\.\.\/database["']\);/);
+  assert.ok(databaseImport, "data controller should retain its database facade for non-classroom concerns");
+  for (const method of ["approveMembership", "createClass", "deleteClass", "deleteMembership", "requestJoinClass", "updateClass", "updateMembershipStatus", "assertTeacherOwnsClass", "addApprovedStudent"]) {
+    assert.doesNotMatch(databaseImport[1], new RegExp(`\\b${method}\\b`));
+  }
 });
 
 test("classroom gateway owns database client access", () => {
   const source = read(gatewayPath);
-  assert.match(source, /require\\(["']\\.\\/client["']\\)/);
-  assert.match(source, /getDb\\s*\\(/);
+  assert.match(source, /require\(["']\.\/client["']\)/);
+  assert.match(source, /getDb\s*\(/);
   assert.match(source, /classroom-repository/);
   assert.match(source, /membership-repository/);
 });
 
 test("classroom repositories remain persistence boundaries", () => {
-  assert.match(read(classroomRepositoryPath), /db\\.(?:get|run|all)/);
+  assert.match(read(classroomRepositoryPath), /db\.(?:get|run|all)/);
   assert.match(read(classroomRepositoryPath), /classes/);
-  assert.match(read(membershipRepositoryPath), /db\\.(?:get|run|all)/);
+  assert.match(read(membershipRepositoryPath), /db\.(?:get|run|all)/);
   assert.match(read(membershipRepositoryPath), /class_memberships/);
 });
