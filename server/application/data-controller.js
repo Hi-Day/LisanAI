@@ -1,10 +1,11 @@
 const {
   approveMembership, createClass, deleteAssessment, deleteClass, deleteMembership,
-  getState, getSubmissionDetail, getSubmissionForUpdate, requestJoinClass, saveAssessment,
-  saveSubmission, saveComplaint, updateAssessment, updateClass, updateMembershipStatus,
+  getState, requestJoinClass, saveAssessment,
+  updateAssessment, updateClass, updateMembershipStatus,
   saveQuestionToBank, listQuestionBank, deleteQuestionFromBank,
   assertTeacherOwnsClass, addApprovedStudent,
 } = require("../database");
+const submissionService = require("./submission-service");
 const {
   listTenantUsers, createTenantUser, createTenantUsersBatch,
 } = require("../auth-service");
@@ -34,7 +35,7 @@ module.exports = async (req, res) => {
       if (action === "submission") {
         const submissionId = url.searchParams.get("id");
         if (!submissionId) return sendJson(res, 400, { error: "Parameter id wajib" });
-        return sendJson(res, 200, { submission: await getSubmissionDetail(auth, submissionId) });
+        return sendJson(res, 200, { submission: await submissionService.getSubmission(auth, submissionId) });
       }
       if (action === "users") {
         if (auth.user.role !== "admin") return sendJson(res, 403, { error: "Forbidden" });
@@ -96,7 +97,7 @@ module.exports = async (req, res) => {
 
     if (action === "save-submission") {
       if (isStudent) {
-        await saveSubmission(auth.tenant.id, auth.user.id, payload);
+        await submissionService.saveStudentSubmission(auth, payload);
         try {
           const { broadcast } = require("../../api/notifications");
           broadcast({ type: "submission", title: "Penilaian baru", message: `${auth.user.name} mengumpulkan "${payload.assessmentTitle || "penilaian"}"`, assessmentId: payload.assessmentId, tenantId: auth.tenant.id });
@@ -104,8 +105,7 @@ module.exports = async (req, res) => {
         return sendJson(res, 201, { submission: payload });
       }
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-      const existing = await getSubmissionForUpdate(auth, payload.id);
-      await saveSubmission(auth.tenant.id, existing.user_id, payload, true);
+      const existing = await submissionService.saveTeacherSubmission(auth, payload);
       try {
         const prev = (() => { try { return JSON.parse(existing.payload || "{}"); } catch { return {}; } })();
         const runId = payload.evaluationRunId || prev.evaluationRunId;
@@ -126,7 +126,7 @@ module.exports = async (req, res) => {
       if (!isStudent) return sendJson(res, 403, { error: "Forbidden" });
       const { submissionId, questionIndex, reason } = payload || {};
       if (!submissionId || questionIndex === undefined || !String(reason || "").trim()) return sendJson(res, 400, { error: "Alasan komplain wajib diisi" });
-      const submission = await saveComplaint(auth, submissionId, questionIndex, reason);
+      const submission = await submissionService.saveComplaint(auth, submissionId, questionIndex, reason);
       return sendJson(res, 200, { submission });
     }
 
