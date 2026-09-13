@@ -37,16 +37,14 @@ module.exports = async (req, res) => {
 
     const body = await readJson(req);
     const { action, payload, stream } = body;
-    if (!evaluationService.isSupportedAction(action)) {
-      return sendJson(res, 404, { error: "Action not found" });
-    }
+    if (!evaluationService.isSupportedAction(action)) return sendJson(res, 404, { error: "Action not found" });
     if (payload) {
       payload.tenantId = auth.tenant.id;
       payload.userId = auth.user.id;
     }
 
     try {
-      await evaluationService.assertCanEvaluate(payload, auth);
+      await evaluationService.assertCanEvaluate(action, payload, auth);
     } catch (error) {
       return sendJson(res, error.status || 403, { error: error.message });
     }
