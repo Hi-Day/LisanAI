@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const servicePath = path.join(root, "server", "application", "submission-service.js");
+const controllerPath = path.join(root, "server", "application", "data-controller.js");
 const evaluationPath = path.join(root, "server", "application", "evaluation-service.js");
 const gatewayPath = path.join(root, "server", "database", "submission-gateway.js");
 const repositoryPath = path.join(root, "server", "database", "submission-repository.js");
@@ -21,6 +22,19 @@ test("submission application service owns submission orchestration", () => {
   assert.doesNotMatch(source, /require\(["']\.\.\/database\/client["']\)/);
   assert.doesNotMatch(source, /getDb\s*\(/);
   assert.match(source, /submissionGateway/);
+});
+
+test("data controller delegates submission actions", () => {
+  const source = read(controllerPath);
+  assert.match(source, /require\(["']\.\/submission-service["']\)/);
+  assert.match(source, /submissionService\.getSubmission/);
+  assert.match(source, /submissionService\.saveStudentSubmission/);
+  assert.match(source, /submissionService\.saveTeacherSubmission/);
+  assert.match(source, /submissionService\.saveComplaint/);
+  assert.doesNotMatch(source, /\bgetSubmissionDetail\b/);
+  assert.doesNotMatch(source, /\bgetSubmissionForUpdate\b/);
+  assert.doesNotMatch(source, /\bsaveComplaint\b/);
+  assert.doesNotMatch(source, /\bsaveSubmission\b/);
 });
 
 test("evaluation application service delegates submission authorization", () => {
