@@ -6,6 +6,7 @@ const {
   assertTeacherOwnsClass, addApprovedStudent,
 } = require("../database");
 const submissionService = require("./submission-service");
+const classroomService = require("./classroom-service");
 const {
   listTenantUsers, createTenantUser, createTenantUsersBatch,
 } = require("../auth-service");
@@ -134,32 +135,32 @@ module.exports = async (req, res) => {
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
       const classroom = { id: `class-${cryptoRandom()}`, name: String(payload.name || "").trim(), joinCode: cryptoRandom().slice(0, 8).toUpperCase(), createdAt: new Date().toISOString() };
       if (!classroom.name) throw Object.assign(new Error("Nama kelas wajib diisi"), { status: 400 });
-      await createClass(auth.tenant.id, auth.user.id, classroom); return sendJson(res, 201, { class: classroom });
+      await classroomService.createClass(auth, classroom); return sendJson(res, 201, { class: classroom });
     }
     if (action === "update-class") {
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-      return sendJson(res, 200, { class: await updateClass(auth, id, payload) });
+      return sendJson(res, 200, { class: await classroomService.updateClass(auth, id, payload) });
     }
     if (action === "delete-class") {
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-      await deleteClass(auth, id); return sendJson(res, 200, { ok: true });
+      await classroomService.deleteClass(auth, id); return sendJson(res, 200, { ok: true });
     }
 
     if (action === "join-class") {
       if (!isStudent) return sendJson(res, 403, { error: "Forbidden" });
-      const classroom = await requestJoinClass(auth.tenant.id, auth.user.id, String(payload.joinCode || "").trim().toUpperCase(), { id: `member-${cryptoRandom()}`, requestedAt: new Date().toISOString() });
+      const classroom = await classroomService.joinClass(auth, String(payload.joinCode || "").trim().toUpperCase(), { id: `member-${cryptoRandom()}`, requestedAt: new Date().toISOString() });
       return sendJson(res, 201, { class: classroom });
     }
     if (action === "approve-membership") {
       if (!isTeacher) return sendJson(res, 403, { error: "Forbidden" });
-      await approveMembership(auth.tenant.id, auth.user.id, payload.membershipId); return sendJson(res, 200, { ok: true });
+      await classroomService.approveMembership(auth, payload.membershipId); return sendJson(res, 200, { ok: true });
     }
     if (action === "update-membership") {
       if (!isTeacher) return sendJson(res, 403, { error: "Forbidden" });
-      await updateMembershipStatus(auth, id, payload.status); return sendJson(res, 200, { ok: true });
+      await classroomService.updateMembership(auth, id, payload.status); return sendJson(res, 200, { ok: true });
     }
     if (action === "delete-membership") {
-      await deleteMembership(auth, id); return sendJson(res, 200, { ok: true });
+      await classroomService.deleteMembership(auth, id); return sendJson(res, 200, { ok: true });
     }
 
     if (action === "create-user") {
@@ -175,7 +176,7 @@ module.exports = async (req, res) => {
       const { classId, emails } = payload || {};
       if (!classId || !Array.isArray(emails)) return sendJson(res, 400, { error: "Payload tidak valid" });
       const added = [], errors = [];
-      await assertTeacherOwnsClass(auth.tenant.id, auth.user.id, classId);
+      await classroomService.assertTeacherOwnsClass(auth, classId);
       const users = await listTenantUsers(auth.tenant.id);
       for (const email of emails) {
         try {
@@ -183,7 +184,7 @@ module.exports = async (req, res) => {
           if (!normalized) throw new Error("Email kosong");
           const user = users.find((u) => u.email === normalized);
           if (!user) throw new Error("User tidak ditemukan");
-          await addApprovedStudent(auth.tenant.id, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
+          await classroomService.addApprovedStudent(auth, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
           added.push({ id: user.id, email: user.email });
         } catch (err) { errors.push({ email, message: err.message }); }
       }
@@ -193,7 +194,7 @@ module.exports = async (req, res) => {
       if (!isTeacher) return sendJson(res, 403, { error: "Forbidden" });
       const { classId, users } = payload || {};
       if (!classId || !Array.isArray(users)) return sendJson(res, 400, { error: "Payload tidak valid" });
-      await assertTeacherOwnsClass(auth.tenant.id, auth.user.id, classId);
+      await classroomService.assertTeacherOwnsClass(auth, classId);
       const added = [], errors = [];
       for (const [index, u] of users.entries()) {
         try {
@@ -201,7 +202,7 @@ module.exports = async (req, res) => {
           const email = String(u.email || "").trim().toLowerCase();
           if (!name || !email) throw new Error("Nama dan email wajib diisi");
           const user = await createTenantUser(auth.tenant.id, { name, email, password: u.password || "password123", role: "student" });
-          await addApprovedStudent(auth.tenant.id, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
+          await classroomService.addApprovedStudent(auth, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
           added.push({ id: user.id, name: user.name, email: user.email });
         } catch (err) { errors.push({ index, email: u?.email || "", message: err.message }); }
       }
