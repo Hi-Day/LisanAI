@@ -6,7 +6,9 @@
  * issue. The model must never add evidence requests merely to satisfy a rubric.
  */
 
-const { callOpenRouter, streamOpenRouter } = require("./openrouter");
+// Gateway owns provider fallback + telemetry; `call` returns parsed JSON while
+// `stream` returns { content, parsed }, matching how both results are consumed.
+const { call, stream } = require("./ai/gateway");
 const {
   groundQuestionsAgainstRubric,
   validateQuestionCriterionGrounding,
@@ -137,7 +139,7 @@ function rebuildRubricForCriteria(rubric, criteria) {
         const normalized = kept.map((criterion, index) => ({
           ...criterion,
           weight: index === kept.length - 1
-            ? Number((100 - kept.slice(0, -1).reduce((sum, item) => sum + Math.round(((Number(item.weight) || 0) / total) * 100), 0)).toFixed(2))
+            ? Number((100 - kept.slice(0, -1).reduce((sum, item) => sum + Number((((Number(item.weight) || 0) / total) * 100).toFixed(2)), 0)).toFixed(2))
             : Number((((Number(criterion.weight) || 0) / total) * 100).toFixed(2)),
         }));
         return JSON.stringify({ ...parsed, criteria: normalized });
@@ -184,7 +186,7 @@ async function streamRepairPedagogicalGrounding(payload = {}, onChunk) {
   if (!questions.length || affected.size === 0) return { questions, repairedBy: "none" };
 
   try {
-    const streamed = await streamOpenRouter(
+    const streamed = await stream(
       buildMessages({ ...payload, questions }, payload.mode || "auto"),
       SCHEMA,
       { tenantId: payload.tenantId, userId: payload.userId, action: "repair-pedagogical-grounding" },
@@ -211,7 +213,7 @@ async function repairPedagogicalGrounding(payload = {}) {
 
   let result = null;
   try {
-    result = await callOpenRouter(
+    result = await call(
       buildMessages({ ...payload, questions }, payload.mode || "auto"),
       SCHEMA,
       { tenantId: payload.tenantId, userId: payload.userId, action: "repair-pedagogical-grounding" }

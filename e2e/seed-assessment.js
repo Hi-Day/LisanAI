@@ -19,8 +19,8 @@ function assessmentPayload(id, topic, oralExamEnabled) {
     maxAttempts: 0,
     createdAt: new Date().toISOString(),
     questions: [
-      { prompt: "Apa itu fotosintesis?", focus: "konsep", rubric: "Sebut reaktan dan produk." },
-      { prompt: "Mengapa cahaya penting?", focus: "sebab-akibat", rubric: "Hubungkan energi dan glukosa." },
+      { prompt: "Apa itu fotosintesis?", focus: "konsep", rubric: "Sebut reaktan dan produk.", probing: Boolean(oralExamEnabled) },
+      { prompt: "Mengapa cahaya penting?", focus: "sebab-akibat", rubric: "Hubungkan energi dan glukosa.", probing: false },
     ],
   };
 }

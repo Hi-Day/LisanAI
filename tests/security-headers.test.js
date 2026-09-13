@@ -12,7 +12,8 @@ const { initDatabase } = require("../server/database");
 const { SECURITY_HEADERS, applySecurityHeaders } = require("../server/security-headers");
 const { sendJson } = require("../server/http-utils");
 const { serveStaticFile } = require("../server/static");
-const { callOpenRouter, isRetryableStatus, fetchWithTimeout } = require("../server/openrouter");
+const { requestModel, isRetryableStatus, fetchWithTimeout } = require("../server/ai/openrouter-client");
+const { call, stream } = require("../server/ai/gateway");
 
 let originalFetch;
 let originalApiKey;
@@ -110,7 +111,7 @@ test("fetchWithTimeout aborts after the timeout", async () => {
   );
 });
 
-test("callOpenRouter retries a 429 then succeeds", async () => {
+test("requestModel retries a 429 then succeeds", async () => {
   let attempts = 0;
   global.fetch = async () => {
     attempts += 1;
@@ -127,17 +128,18 @@ test("callOpenRouter retries a 429 then succeeds", async () => {
     };
   };
 
-  const result = await callOpenRouter(
+  const result = await requestModel(
+    process.env.OPENROUTER_MODEL || "test-model",
     [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
-    "return valid JSON",
-    { tenantId: "tenant-retry", userId: "user-retry", action: "generate-questions" }
+    "return valid JSON"
   );
 
-  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(JSON.parse(result.content), { ok: true });
   assert.ok(attempts >= 2, `expected retry, got ${attempts} attempts`);
+  assert.ok(result.retries >= 1, `expected retry metadata, got ${result.retries}`);
 });
 
-test("callOpenRouter saves retry_count, cost_usd, and estimated_prefix_cache_savings telemetry", async () => {
+test("AI gateway saves retry_count, cost_usd, and estimated_prefix_cache_savings telemetry", async () => {
   let attempts = 0;
   global.fetch = async () => {
     attempts += 1;
@@ -157,18 +159,24 @@ test("callOpenRouter saves retry_count, cost_usd, and estimated_prefix_cache_sav
   const { getDb } = require("../server/database");
   const db = getDb();
 
+  // The streaming path is the one that splits prompt tokens into cache read +
+  // cache creation, so these calls use gateway.stream with a no-op chunk sink.
+  const noop = () => {};
+
   // First call: no prior successful call, so estimated_prefix_cache_savings = 0.
-  await callOpenRouter(
+  await stream(
     [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
     "return valid JSON",
-    { tenantId: "tenant-telemetry", userId: "user-telemetry", action: "generate-questions" }
+    { tenantId: "tenant-telemetry", userId: "user-telemetry", action: "generate-questions" },
+    noop
   );
 
   // Second call: a recent successful call exists, so the prefix estimate is applied.
-  await callOpenRouter(
+  await stream(
     [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
     "return valid JSON",
-    { tenantId: "tenant-telemetry", userId: "user-telemetry", action: "generate-questions" }
+    { tenantId: "tenant-telemetry", userId: "user-telemetry", action: "generate-questions" },
+    noop
   );
 
   const logs = await db.all(
@@ -193,7 +201,7 @@ test("callOpenRouter saves retry_count, cost_usd, and estimated_prefix_cache_sav
   assert.ok(second.estimated_prefix_cache_savings > 0, "second call should estimate prefix cache savings");
 });
 
-test("callOpenRouter captures native_tokens_cached as the KV cache hit count", async () => {
+test("AI gateway captures native_tokens_cached as the KV cache hit count", async () => {
   global.fetch = async () => ({
     ok: true,
     status: 200,
@@ -209,10 +217,11 @@ test("callOpenRouter captures native_tokens_cached as the KV cache hit count", a
     }),
   });
 
-  await callOpenRouter(
+  await stream(
     [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
     "return valid JSON",
-    { tenantId: "tenant-native-cache", userId: "user-native-cache", action: "generate-questions" }
+    { tenantId: "tenant-native-cache", userId: "user-native-cache", action: "generate-questions" },
+    () => {}
   );
 
   const { getDb } = require("../server/database");
@@ -231,7 +240,7 @@ test("callOpenRouter captures native_tokens_cached as the KV cache hit count", a
   assert.equal(log.cache_creation_input_tokens, 30000 - 25088, "cache miss = prompt tokens minus cache hit");
 });
 
-test("callOpenRouter falls back to the fallback model when primary fails", async () => {
+test("AI gateway falls back to the fallback model when primary fails", async () => {
   const attempts = [];
   global.fetch = async (_url, options) => {
     const body = JSON.parse(options.body);
@@ -249,7 +258,7 @@ test("callOpenRouter falls back to the fallback model when primary fails", async
     };
   };
 
-  const result = await callOpenRouter(
+  const result = await call(
     [{ role: "user", content: '{"jumlah_soal":1,"topik":"AI"}' }],
     "return valid JSON",
     { tenantId: "tenant-fallback2", userId: "user-fallback2", action: "generate-questions" }
