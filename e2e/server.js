@@ -7,6 +7,7 @@ const path = require("node:path");
 const E2E_DB = path.join(os.tmpdir(), `oralai-e2e-${Date.now()}.db`);
 process.env.TURSO_DATABASE_URL = `file:${E2E_DB}`;
 process.env.ENABLE_DEMO_SIMULATION = "false";
+process.env.AI_PROVIDER = "mock";
 // One shared server serves the whole suite; login rate limits would fail
 // legitimate sequential test logins.
 process.env.E2E_DISABLE_RATE_LIMIT = "true";
@@ -99,7 +100,6 @@ async function seedDemoData() {
   });
   await approveMembership(tenant.id, teacher.id, "e2e-member-1");
 
-  // Penilaian siap pakai untuk spec pra-ujian (lisan + non-lisan).
   const teacherAuth = { tenant, user: teacher };
   await saveAssessment(teacherAuth, assessmentPayload(ORAL_ID, "Ujian Lisan E2E", true));
   await saveAssessment(teacherAuth, assessmentPayload(WRITTEN_ID, "Ujian Tulis E2E", false));
