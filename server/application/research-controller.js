@@ -1,5 +1,4 @@
 const { ensureDatabase } = require("../bootstrap");
-const { getDb } = require("../database");
 const { listEvaluationRuns, getEvaluationTrace } = require("../database/research-repository");
 const { readJson, sendJson } = require("../http-utils");
 const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
@@ -30,13 +29,13 @@ module.exports = async function researchController(req, res) {
       if (action === "drift") return sendJson(res, 200, await research.detectDrift(auth.tenant.id));
       if (action === "repeatability") return sendJson(res, 200, await research.repeatabilitySummary(auth.tenant.id));
       if (action === "runs") {
-        const rows = await listEvaluationRuns(getDb(), auth.tenant.id, assessmentId);
+        const rows = await listEvaluationRuns(auth.tenant.id, assessmentId);
         return sendJson(res, 200, { runs: rows });
       }
       if (action === "trace") {
         const runId = url.searchParams.get("runId");
         if (!runId) return sendJson(res, 400, { error: "Parameter runId wajib" });
-        return sendJson(res, 200, await getEvaluationTrace(getDb(), runId, auth.tenant.id));
+        return sendJson(res, 200, await getEvaluationTrace(runId, auth.tenant.id));
       }
       return sendJson(res, 404, { error: "Action not found" });
     }
