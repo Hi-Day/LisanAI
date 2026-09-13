@@ -1,4 +1,5 @@
 const { AIProvider } = require("./provider");
+const { generateAssessmentOutput } = require("./mock-assessment-output");
 
 /**
  * Deterministic mock provider for tests, CI/CD, and frontend development.
@@ -25,10 +26,14 @@ class MockProvider extends AIProvider {
   }
 
   /**
-   * Produce a deterministic, valid harness output for each criterion.
-   * Evidence is derived deterministically from the answer.
+   * Produce deterministic assessment fixtures for assessment-generation flows.
+   * These are intentionally separated from evaluation output so CI/frontend
+   * development exercises the same JSON contract as the real provider.
    */
   async generate(request) {
+    const assessmentOutput = generateAssessmentOutput(request);
+    if (assessmentOutput !== null) return assessmentOutput;
+
     const { prompt, runId } = request;
     let rubric = { criteria: [] };
     let answers = [];

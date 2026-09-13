@@ -1,9 +1,8 @@
 const {
-  approveMembership, createClass, deleteAssessment, deleteClass, deleteMembership,
-  getState, requestJoinClass, saveAssessment,
-  updateAssessment, updateClass, updateMembershipStatus,
+  deleteAssessment,
+  getState, saveAssessment,
+  updateAssessment,
   saveQuestionToBank, listQuestionBank, deleteQuestionFromBank,
-  assertTeacherOwnsClass, addApprovedStudent,
 } = require("../database");
 const submissionService = require("./submission-service");
 const classroomService = require("./classroom-service");
