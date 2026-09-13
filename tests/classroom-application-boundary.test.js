@@ -32,7 +32,7 @@ test("data controller delegates classroom actions", () => {
   const databaseImport = source.match(/const \{([\s\S]*?)\} = require\(["']\.\.\/database["']\);/);
   assert.ok(databaseImport, "data controller should retain its database facade for non-classroom concerns");
   for (const method of ["approveMembership", "createClass", "deleteClass", "deleteMembership", "requestJoinClass", "updateClass", "updateMembershipStatus", "assertTeacherOwnsClass", "addApprovedStudent"]) {
-    assert.doesNotMatch(databaseImport[1], new RegExp(`\\b${method}\\b`));
+    assert.ok(!new RegExp(`\\b${method}\\b`).test(databaseImport[1]), `database facade import should not contain ${method}`);
   }
 });
 
