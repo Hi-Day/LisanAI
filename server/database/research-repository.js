@@ -64,10 +64,14 @@ async function listAiVsHumanRows(assessmentId, tenantId) {
   );
 }
 
-async function getEvaluationRunScore(runId, tenantId) {
+async function getEvaluationRunScore(runId, tenantId = null) {
   return getDb().get(
-    "SELECT run_id, final_score FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
+    `SELECT run_id, final_score
+       FROM evaluation_runs
+      WHERE run_id = ?
+        AND (? IS NULL OR tenant_id = ?)`,
     runId,
+    tenantId || null,
     tenantId || null
   );
 }
