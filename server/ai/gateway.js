@@ -1,6 +1,7 @@
 /** Application-facing AI gateway. Provider and telemetry details stay behind this seam. */
 const { OpenRouterProvider } = require("./openrouter-provider");
 const { MockProvider } = require("./mock-provider");
+const { generateAssessmentOutput } = require("./mock-assessment-output");
 const { recordAiCall } = require("./telemetry");
 const { parseJson } = require("./response-parser");
 
@@ -59,6 +60,10 @@ async function invoke(request) {
 }
 
 async function generate(request) {
+  if (String(process.env.AI_PROVIDER || "openrouter").toLowerCase() === "mock") {
+    const deterministic = generateAssessmentOutput(request);
+    if (deterministic) return deterministic;
+  }
   return invoke(request);
 }
 
