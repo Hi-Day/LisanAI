@@ -1,7 +1,7 @@
 const { prepareProbingPayload, normalizeProbeResult } = require("../adaptive-probing");
 const { generateProbing, streamProbing } = require("../assessment/probing-service");
 const { evaluateWithHarness } = require("../harness/harness-evaluator");
-const { assertCanSubmitAssessment } = require("../database");
+const submissionService = require("./submission-service");
 
 const ACTIONS = ["evaluate", "generate-probing"];
 
@@ -11,7 +11,7 @@ function isSupportedAction(action) {
 
 async function assertCanEvaluate(action, payload, auth) {
   if (action !== "evaluate" || auth.user.role !== "student") return;
-  await assertCanSubmitAssessment(auth.tenant.id, auth.user.id, payload.assessment.id);
+  await submissionService.assertCanSubmit(auth, payload.assessment.id);
 }
 
 async function evaluate(payload, auth, onProgress = null) {
@@ -21,14 +21,7 @@ async function evaluate(payload, auth, onProgress = null) {
 async function evaluateProbeBaseline(payload, auth) {
   const question = payload.question || {};
   const source = payload.assessment || {};
-  const assessment = {
-    ...source,
-    id: source.id || payload.assessmentId,
-    questions: [question],
-    criteria: source.criteria || payload.criteria || [],
-    rubric: source.rubric || payload.rubric || "",
-    outcomes: source.outcomes || payload.outcomes || payload.focus || "",
-  };
+  const assessment = { ...source, id: source.id || payload.assessmentId, questions: [question], criteria: source.criteria || payload.criteria || [], rubric: source.rubric || payload.rubric || "", outcomes: source.outcomes || payload.outcomes || payload.focus || "" };
   const result = await evaluateWithHarness({ ...payload, auth, assessment, answers: [String(payload.answer || "")], onProgress: null });
   const qs = result.questionScores?.[0] || {};
   return { score: Number.isFinite(Number(qs.score)) ? Number(qs.score) : null, evidence: Array.isArray(qs.evidence) ? qs.evidence : [], evaluationId: result.evaluationId || null, evaluationRunId: result.evaluationRunId || null };
