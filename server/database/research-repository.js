@@ -48,4 +48,147 @@ async function getEvaluationTrace(runId, tenantId) {
   };
 }
 
-module.exports = { listEvaluationRuns, getEvaluationTrace };
+async function listAiVsHumanRows(assessmentId, tenantId) {
+  return getDb().all(
+    `SELECT r.run_id, r.final_score, h.human_score, h.human_feedback
+       FROM evaluation_runs r
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+       WHERE (? IS NULL OR r.assessment_id = ?)
+        AND (? IS NULL OR r.tenant_id = ?)
+        AND r.final_score IS NOT NULL
+        AND h.human_score IS NOT NULL`,
+    assessmentId || null,
+    assessmentId || null,
+    tenantId || null,
+    tenantId || null
+  );
+}
+
+async function getEvaluationRunScore(runId, tenantId = null) {
+  return getDb().get(
+    `SELECT run_id, final_score
+       FROM evaluation_runs
+      WHERE run_id = ?
+        AND (? IS NULL OR tenant_id = ?)`,
+    runId,
+    tenantId || null,
+    tenantId || null
+  );
+}
+
+async function saveHumanScore({ runId, humanScore, humanFeedback, reviewerId, reviewedAt }) {
+  await getDb().run(
+    `INSERT OR REPLACE INTO evaluation_human_scores
+       (run_id, human_score, human_feedback, reviewed_at, reviewer_id)
+     VALUES (?, ?, ?, ?, ?)`,
+    runId,
+    humanScore,
+    humanFeedback || null,
+    reviewedAt || new Date().toISOString(),
+    reviewerId || null
+  );
+}
+
+async function listRubricComplianceRows(assessmentId, tenantId) {
+  return getDb().all(
+    `SELECT run_id, criterion_id, score FROM evaluation_criteria
+      WHERE run_id IN (
+        SELECT run_id FROM evaluation_runs
+         WHERE ($1 IS NULL OR assessment_id = $1)
+           AND ($2 IS NULL OR tenant_id = $2)
+      )`,
+    assessmentId || null,
+    tenantId || null
+  );
+}
+
+async function listCalibrationRows(assessmentId, tenantId) {
+  return getDb().all(
+    `SELECT r.run_id, r.final_score AS ai_score, h.human_score,
+            (SELECT AVG(c.confidence) FROM evaluation_criteria c WHERE c.run_id = r.run_id) AS avg_conf
+       FROM evaluation_runs r
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+      WHERE ($1 IS NULL OR r.assessment_id = $1)
+        AND ($2 IS NULL OR r.tenant_id = $2)
+        AND r.final_score IS NOT NULL
+        AND h.human_score IS NOT NULL
+      ORDER BY r.created_at ASC`,
+    assessmentId || null,
+    tenantId || null
+  );
+}
+
+async function listReviewedScoreRows(tenantId) {
+  return getDb().all(
+    `SELECT r.final_score AS ai, h.human_score AS human
+       FROM evaluation_runs r
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+      WHERE r.tenant_id = $1 AND r.final_score IS NOT NULL AND h.human_score IS NOT NULL`,
+    tenantId || null
+  );
+}
+
+async function listReliabilityRuns(tenantId) {
+  return getDb().all(
+    `SELECT verification_status, requires_human_review, final_score
+       FROM evaluation_runs WHERE tenant_id = $1`,
+    tenantId || null
+  );
+}
+
+async function getAiLogStats(tenantId) {
+  return getDb().get(
+    `SELECT COUNT(*) AS calls,
+            SUM(COALESCE(cost_usd, 0)) AS cost,
+            SUM(CASE WHEN retry_count > 0 THEN 1 ELSE 0 END) AS retried,
+            AVG(latency_ms) AS avg_latency
+       FROM ai_logs WHERE tenant_id = $1`,
+    tenantId || null
+  );
+}
+
+async function listAiLogLatencies(tenantId) {
+  return getDb().all(
+    `SELECT latency_ms FROM ai_logs
+      WHERE tenant_id = $1 AND latency_ms IS NOT NULL ORDER BY latency_ms ASC`,
+    tenantId || null
+  );
+}
+
+async function listDriftRows(tenantId) {
+  return getDb().all(
+    `SELECT r.created_at, r.final_score AS ai, h.human_score AS human
+       FROM evaluation_runs r
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+      WHERE r.tenant_id = $1
+        AND r.final_score IS NOT NULL
+        AND h.human_score IS NOT NULL`,
+    tenantId || null
+  );
+}
+
+async function listRepeatabilityRows(tenantId) {
+  return getDb().all(
+    `SELECT input_hash, final_score, created_at
+       FROM evaluation_runs
+      WHERE tenant_id = $1 AND input_hash IS NOT NULL AND final_score IS NOT NULL
+      ORDER BY input_hash, created_at ASC`,
+    tenantId || null
+  );
+}
+
+module.exports = {
+  listEvaluationRuns,
+  getEvaluationTrace,
+  listAiVsHumanRows,
+  getEvaluationRunScore,
+  saveHumanScore,
+  listRubricComplianceRows,
+  listCalibrationRows,
+  listReviewedScoreRows,
+  listReliabilityRuns,
+  getAiLogStats,
+  listAiLogLatencies,
+  listDriftRows,
+  listRepeatabilityRows,
+};
