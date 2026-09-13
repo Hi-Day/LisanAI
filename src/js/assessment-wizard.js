@@ -16,7 +16,6 @@ import {
   renderReviewSummary,
   goToWizardStep,
   handleRecommendConfig,
-  fillRecommendedFields,
   recommendConfigWithFallback,
   generateQuestionsWithFallback,
   improveQuestionsWithFallback,
@@ -59,7 +58,6 @@ export function bindAssessmentWizardEvents(ctx) {
   if (els.editDisableManualTyping) els.editDisableManualTyping.addEventListener("change", (e) => { if (ctx.pendingAssessmentConfig) ctx.pendingAssessmentConfig.disableManualTyping = e.target.checked; });
   if (els.editOralExamEnabled) els.editOralExamEnabled.addEventListener("change", (e) => { if (ctx.pendingAssessmentConfig) ctx.pendingAssessmentConfig.oralExamEnabled = e.target.checked; });
   if (els.editAllowRetakes) els.editAllowRetakes.addEventListener("change", (e) => { if (ctx.pendingAssessmentConfig) ctx.pendingAssessmentConfig.allowRetakes = e.target.checked; });
-  els.recommendOutcomes.addEventListener("click", () => fillRecommendedFields(ctx, "outcomes"));
 }
 
 export async function handleAssessmentSubmit(ctx, event) {
