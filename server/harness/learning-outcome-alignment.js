@@ -97,7 +97,7 @@ function questionLearningOutcomeScore(question, outcome) {
  * so existing explicit assignments are never stolen. If no unmapped question
  * remains, a question assigned to an over-represented LO may be reassigned to
  * the missing LO so the assessment cannot silently proceed with an unmeasured
- * target.
+ * target. Remaining unmapped questions are then assigned to the best-fit LO.
  */
 function ensureLearningOutcomeCoverage(questions, outcomes) {
   const list = Array.isArray(outcomes) ? outcomes : [];
@@ -153,6 +153,27 @@ function ensureLearningOutcomeCoverage(questions, outcomes) {
       outcome: missing.text,
     };
   }
+
+  // A question set can contain more questions than learning outcomes. Those
+  // additional questions must still have an explicit LO rather than carrying
+  // an arbitrary/free-text outcome that breaks the pedagogical traceability.
+  result.forEach((question, index) => {
+    if (assigned.has(index)) return;
+    const best = list
+      .map((lo, outcomeIndex) => ({
+        lo,
+        score: questionLearningOutcomeScore(question, lo),
+        outcomeIndex,
+      }))
+      .sort((a, b) => b.score - a.score || a.outcomeIndex - b.outcomeIndex)[0];
+    if (!best) return;
+    assigned.set(index, best.lo);
+    result[index] = {
+      ...result[index],
+      learningOutcomeId: best.lo.id,
+      outcome: best.lo.text,
+    };
+  });
 
   return result.map((question, index) => {
     const lo = assigned.get(index);
