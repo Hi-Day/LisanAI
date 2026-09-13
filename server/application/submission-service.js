@@ -10,7 +10,8 @@ async function saveStudentSubmission(auth, submission) {
 
 async function saveTeacherSubmission(auth, submission) {
   const existing = await submissionGateway.getSubmissionForUpdate(auth, submission.id);
-  return submissionGateway.saveTeacherSubmission(auth.tenant.id, existing.user_id, submission);
+  await submissionGateway.saveTeacherSubmission(auth.tenant.id, existing.user_id, submission);
+  return { submission, existing };
 }
 
 async function getSubmission(auth, submissionId) {
