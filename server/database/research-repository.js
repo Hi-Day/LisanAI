@@ -1,5 +1,7 @@
-async function listEvaluationRuns(db, tenantId, assessmentId = null) {
-  return db.all(
+const { getDb } = require("./client");
+
+async function listEvaluationRuns(tenantId, assessmentId = null) {
+  return getDb().all(
     `SELECT r.run_id, r.assessment_id, r.model, r.final_score,
             r.harness_version, r.prompt_version, r.verification_status,
             r.verification_valid, r.requires_human_review,
@@ -16,7 +18,8 @@ async function listEvaluationRuns(db, tenantId, assessmentId = null) {
   );
 }
 
-async function getEvaluationTrace(db, runId, tenantId) {
+async function getEvaluationTrace(runId, tenantId) {
+  const db = getDb();
   const run = await db.get(
     "SELECT * FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
     runId,
@@ -28,14 +31,8 @@ async function getEvaluationTrace(db, runId, tenantId) {
     "SELECT type, data, ts FROM evaluation_events WHERE run_id = ? ORDER BY seq ASC",
     runId
   );
-  const result = await db.get(
-    "SELECT * FROM evaluation_results WHERE run_id = ?",
-    runId
-  );
-  const versions = await db.get(
-    "SELECT * FROM evaluation_versions WHERE run_id = ?",
-    runId
-  );
+  const result = await db.get("SELECT * FROM evaluation_results WHERE run_id = ?", runId);
+  const versions = await db.get("SELECT * FROM evaluation_versions WHERE run_id = ?", runId);
 
   return {
     runId,
