@@ -89,7 +89,7 @@ test.describe("Assessment creation workflow", () => {
     await expect(page.locator(".editable-question")).toHaveCount(1);
   });
 
-  test("can save the edited question set to the question bank", async ({ page }) =>
+  test("can save the edited question set to the question bank", async ({ page }) => {
     await fillContext(page, "Ekosistem", "Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
     await page.fill("#questionCount", "1");
     await page.click("#wizardToQuestions");
