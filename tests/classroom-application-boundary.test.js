@@ -15,7 +15,7 @@ function read(file) { return fs.readFileSync(file, "utf8"); }
 test("classroom application service owns classroom orchestration", () => {
   const source = read(servicePath);
   for (const method of ["createClass", "updateClass", "deleteClass", "joinClass", "approveMembership", "updateMembership", "deleteMembership", "assertTeacherOwnsClass", "addApprovedStudent"]) {
-    assert.match(source, new RegExp(`\\b${method}\\b`));
+    assert.ok(source.includes(method), `classroom service should expose ${method}`);
   }
   assert.doesNotMatch(source, /\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
   assert.doesNotMatch(source, /require\(["']\.\.\/database\/client["']\)/);
@@ -27,7 +27,7 @@ test("data controller delegates classroom actions", () => {
   const source = read(controllerPath);
   assert.match(source, /require\(["']\.\/classroom-service["']\)/);
   for (const method of ["createClass", "updateClass", "deleteClass", "joinClass", "approveMembership", "updateMembership", "deleteMembership", "assertTeacherOwnsClass", "addApprovedStudent"]) {
-    assert.match(source, new RegExp(`classroomService\\.${method}`));
+    assert.ok(source.includes(`classroomService.${method}`), `data controller should delegate ${method}`);
   }
   const databaseImport = source.match(/const \{([\s\S]*?)\} = require\(["']\.\.\/database["']\);/);
   assert.ok(databaseImport, "data controller should retain its database facade for non-classroom concerns");
