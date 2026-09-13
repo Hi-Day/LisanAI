@@ -1,31 +1,13 @@
-const { getDb } = require("../database");
-const { computeMetrics: evaluateMetrics } = require("./metrics");
+const researchRepository = require("../database/research-repository");
+const { computeMetrics: evaluateMetrics, expectedCalibrationError, brierScore, calibrationBins, adjacentAgreement, std, scoreStability } = require("./metrics");
 
 /**
  * Research service (PRD §20, §33).
- * Compares baseline (legacy evaluator) vs harness evaluations for the same
- * submissions, and AI score vs human score.
+ * Business calculations stay here; persistence is delegated to the repository.
  */
 
-/**
- * Compare AI scores (harness evaluation_runs) against human scores for runs
- * that have both. Returns validity + reliability metrics + data rows.
- */
 async function compareAiVsHuman(assessmentId, tenantId) {
-  const db = getDb();
-  const rows = await db.all(
-    `SELECT r.run_id, r.final_score, h.human_score, h.human_feedback
-       FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
-       WHERE (? IS NULL OR r.assessment_id = ?)
-        AND (? IS NULL OR r.tenant_id = ?)
-        AND r.final_score IS NOT NULL
-        AND h.human_score IS NOT NULL`,
-    assessmentId || null,
-    assessmentId || null,
-    tenantId || null,
-    tenantId || null
-  );
+  const rows = await researchRepository.listAiVsHumanRows(assessmentId, tenantId);
   const ai = rows.map((r) => r.final_score);
   const human = rows.map((r) => r.human_score);
   return {
@@ -40,10 +22,6 @@ async function compareAiVsHuman(assessmentId, tenantId) {
   };
 }
 
-/**
- * Compare baseline vs harness results for a set of submissions.
- * Expects rows: [{ baselineScore, harnessScore }].
- */
 function compareBaselineVsHarness(pairs) {
   const baseline = pairs.map((p) => p.baselineScore);
   const harness = pairs.map((p) => p.harness);
@@ -55,41 +33,15 @@ function compareBaselineVsHarness(pairs) {
   };
 }
 
-/**
- * Persist a human score for a given evaluation run (PRD §22).
- */
 async function saveHumanScore({ runId, humanScore, humanFeedback, reviewerId }) {
-  const db = getDb();
-  const run = await db.get("SELECT run_id FROM evaluation_runs WHERE run_id = ?", runId);
+  const run = await researchRepository.getEvaluationRunScore(runId, null);
   if (!run) throw Object.assign(new Error("Evaluation run tidak ditemukan"), { status: 404 });
-  await db.run(
-    `INSERT OR REPLACE INTO evaluation_human_scores
-       (run_id, human_score, human_feedback, reviewed_at, reviewer_id)
-     VALUES (?, ?, ?, ?, ?)`,
-    runId,
-    humanScore,
-    humanFeedback || null,
-    new Date().toISOString(),
-    reviewerId || null
-  );
+  await researchRepository.saveHumanScore({ runId, humanScore, humanFeedback, reviewerId });
   return { runId, humanScore };
 }
 
-/**
- * Gather per-criterion coverage metrics for a set of runs.
- */
 async function rubricCompliance(assessmentId, tenantId) {
-  const db = getDb();
-  const rows = await db.all(
-    `SELECT run_id, criterion_id, score FROM evaluation_criteria
-      WHERE run_id IN (
-        SELECT run_id FROM evaluation_runs
-         WHERE ($1 IS NULL OR assessment_id = $1)
-           AND ($2 IS NULL OR tenant_id = $2)
-      )`,
-    assessmentId || null,
-    tenantId || null
-  );
+  const rows = await researchRepository.listRubricComplianceRows(assessmentId, tenantId);
   if (rows.length === 0) return { n: 0 };
   const byRun = new Map();
   for (const r of rows) {
@@ -110,36 +62,13 @@ function mean(xs) {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/**
- * P1-6/P1-7/P1-8 — Confidence calibration dataset + ECE/Brier.
- *
- * Builds the (confidence, correctness) pairs from the existing calibration
- * substrate: AI per-run confidence (evaluation_criteria.confidence) joined to
- * the human-reviewed scores (evaluation_human_scores). "Correct" is defined as
- * the AI score agreeing with the human score within ±tolerance.
- *
- * Returns ECE, Brier, a reliability diagram, and the per-run rows so the data
- * can be filtered by assessment/teacher/rubric/model downstream.
- */
 async function compareCalibration(assessmentId, tenantId, opts = {}) {
-  const db = getDb();
   const tolerance = Number(opts.tolerance ?? 5);
-  const rows = await db.all(
-    `SELECT r.run_id, r.final_score AS ai_score, h.human_score,
-            (SELECT AVG(c.confidence) FROM evaluation_criteria c WHERE c.run_id = r.run_id) AS avg_conf
-       FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
-      WHERE ($1 IS NULL OR r.assessment_id = $1)
-        AND ($2 IS NULL OR r.tenant_id = $2)
-        AND r.final_score IS NOT NULL
-        AND h.human_score IS NOT NULL
-      ORDER BY r.created_at ASC`,
-    assessmentId || null,
-    tenantId || null
-  );
-  if (rows.length === 0) return { n: 0, ece: null, brier: null, diagram: [], rows: [], dataSufficient: false, minSamples: MIN_CALIBRATION_N };
+  const rows = await researchRepository.listCalibrationRows(assessmentId, tenantId);
+  if (rows.length === 0) {
+    return { n: 0, ece: null, brier: null, diagram: [], rows: [], dataSufficient: false, minSamples: MIN_CALIBRATION_N };
+  }
 
-  const { expectedCalibrationError, brierScore, calibrationBins } = require("./metrics");
   const confidence = rows.map((r) => (Number.isFinite(r.avg_conf) ? r.avg_conf : 0));
   const correctness = rows.map((r) => (Math.abs(Number(r.ai_score) - Number(r.human_score)) <= tolerance ? 1 : 0));
 
@@ -149,10 +78,6 @@ async function compareCalibration(assessmentId, tenantId, opts = {}) {
     ece: expectedCalibrationError(confidence, correctness),
     brier: brierScore(confidence, correctness),
     diagram: calibrationBins(confidence, correctness).bins,
-    // Transparency about dataset sufficiency: below ~30 reviewed runs the ECE/
-    // Brier numbers are unstable and should be read as preliminary, not as an
-    // empirical claim (P1-6: measurable AND monitored; P1-29: thresholds are
-    // initial operational targets, not scientific claims).
     dataSufficient: rows.length >= MIN_CALIBRATION_N,
     minSamples: MIN_CALIBRATION_N,
     rows: rows.map((r) => ({
@@ -165,59 +90,27 @@ async function compareCalibration(assessmentId, tenantId, opts = {}) {
   };
 }
 
-// Minimum number of human-reviewed runs before calibration metrics are treated
-// as meaningful. Below this the dashboard should warn rather than present ECE/
-// Brier as stable (P1-6 monitoring principle).
 const MIN_CALIBRATION_N = 30;
 
-/**
- * P1-20 — Reliability dashboard aggregate for a tenant.
- * Pulls together human agreement, evidence validity, review/retry rates, and
- * cost/latency (P1-12/P1-13) from the existing telemetry tables.
- */
 async function reliabilityDashboard(tenantId) {
-  const db = getDb();
-  const { adjacentAgreement, std } = require("./metrics");
+  const [scored, runs, aiStats, latRows] = await Promise.all([
+    researchRepository.listReviewedScoreRows(tenantId),
+    researchRepository.listReliabilityRuns(tenantId),
+    researchRepository.getAiLogStats(tenantId),
+    researchRepository.listAiLogLatencies(tenantId),
+  ]);
 
-  // Human agreement on runs that have a reviewed human score.
-  const scored = await db.all(
-    `SELECT r.final_score AS ai, h.human_score AS human
-       FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
-      WHERE r.tenant_id = $1 AND r.final_score IS NOT NULL AND h.human_score IS NOT NULL`,
-    tenantId || null
-  );
   const nReviewed = scored.length;
   const ai = scored.map((r) => Number(r.ai));
   const human = scored.map((r) => Number(r.human));
   const humanAgreement = nReviewed > 0 ? adjacentAgreement(ai, human) : null;
 
-  // Evidence validity + review rate from the verification gate.
-  const runs = await db.all(
-    `SELECT verification_status, requires_human_review, final_score
-       FROM evaluation_runs WHERE tenant_id = $1`,
-    tenantId || null
-  );
   const total = runs.length;
   const evidenceFailure = total ? runs.filter((r) => r.verification_status === "FAIL").length : 0;
   const reviewCount = total ? runs.filter((r) => r.requires_human_review === 1 || r.verification_status === "REVIEW").length : 0;
   const evidenceValidity = total ? round(1 - evidenceFailure / total, 4) : null;
   const reviewRate = total ? round(reviewCount / total, 4) : null;
 
-  // Cost + latency from ai_logs (P1-13 cost attribution, P1-12 observability).
-  const aiStats = await db.get(
-    `SELECT COUNT(*) AS calls,
-            SUM(COALESCE(cost_usd, 0)) AS cost,
-            SUM(CASE WHEN retry_count > 0 THEN 1 ELSE 0 END) AS retried,
-            AVG(latency_ms) AS avg_latency
-       FROM ai_logs WHERE tenant_id = $1`,
-    tenantId || null
-  );
-  const latRows = await db.all(
-    `SELECT latency_ms FROM ai_logs
-      WHERE tenant_id = $1 AND latency_ms IS NOT NULL ORDER BY latency_ms ASC`,
-    tenantId || null
-  );
   const lats = latRows.map((r) => r.latency_ms);
   const calls = Number(aiStats?.calls || 0);
   const retryRate = calls ? round(Number(aiStats?.retried || 0) / calls, 4) : null;
@@ -240,34 +133,19 @@ async function reliabilityDashboard(tenantId) {
   };
 }
 
-/**
- * P1-19 — Drift detection. Compares recent human agreement against an older
- * baseline. When recent reliability drops below baseline by more than
- * `threshold`, emits EVALUATION_DRIFT.
- */
 async function detectDrift(tenantId, opts = {}) {
-  const db = getDb();
   const baselineDays = Number(opts.baselineDays ?? 30);
   const recentDays = Number(opts.recentDays ?? 7);
   const threshold = Number(opts.threshold ?? 0.05);
   const minN = Number(opts.minN ?? 10);
 
-  const rows = await db.all(
-    `SELECT r.created_at, r.final_score AS ai, h.human_score AS human
-       FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
-      WHERE r.tenant_id = $1
-        AND r.final_score IS NOT NULL
-        AND h.human_score IS NOT NULL`,
-    tenantId || null
-  );
+  const rows = await researchRepository.listDriftRows(tenantId);
   const now = Date.now();
   const recentCutoff = now - recentDays * 86400_000;
   const baselineCutoff = now - baselineDays * 86400_000;
   const recent = rows.filter((r) => Date.parse(r.created_at) > recentCutoff);
   const baseline = rows.filter((r) => Date.parse(r.created_at) <= recentCutoff && Date.parse(r.created_at) > baselineCutoff);
 
-  const { adjacentAgreement } = require("./metrics");
   const agg = (arr) => {
     if (arr.length < minN) return null;
     const a = arr.map((r) => Number(r.ai));
@@ -277,8 +155,7 @@ async function detectDrift(tenantId, opts = {}) {
 
   const recentAgg = agg(recent);
   const baselineAgg = agg(baseline);
-  const detected =
-    recentAgg && baselineAgg && baselineAgg.agreement - recentAgg.agreement > threshold;
+  const detected = recentAgg && baselineAgg && baselineAgg.agreement - recentAgg.agreement > threshold;
 
   return {
     detected,
@@ -292,25 +169,13 @@ async function detectDrift(tenantId, opts = {}) {
   };
 }
 
-/**
- * P1-10 — Repeatability summary over runs that share the same input_hash
- * (same submission re-evaluated under identical configuration).
- */
 async function repeatabilitySummary(tenantId) {
-  const db = getDb();
-  const rows = await db.all(
-    `SELECT input_hash, final_score, created_at
-       FROM evaluation_runs
-      WHERE tenant_id = $1 AND input_hash IS NOT NULL AND final_score IS NOT NULL
-      ORDER BY input_hash, created_at ASC`,
-    tenantId || null
-  );
+  const rows = await researchRepository.listRepeatabilityRows(tenantId);
   const byHash = new Map();
   for (const r of rows) {
     if (!byHash.has(r.input_hash)) byHash.set(r.input_hash, []);
     byHash.get(r.input_hash).push(Number(r.final_score));
   }
-  const { scoreStability } = require("./metrics");
   const groups = [];
   for (const [hash, scores] of byHash) {
     if (scores.length < 2) continue;
@@ -333,29 +198,11 @@ function round(v, places = 4) {
   return Math.round((v + Number.EPSILON) * f) / f;
 }
 
-/**
- * Record a teacher's corrected final score as the human score for a harness
- * evaluation run (so it counts in AI-vs-human research metrics) and mark the
- * approval as `human_reviewed` so the 7-day auto-approval sweep can never
- * overwrite the correction with the AI score.
- *
- * Triggers (handled by the caller):
- *  - teacher accepted a student complaint and re-scored the submission;
- *  - teacher corrected the score directly (manual override).
- *
- * Returns { runId, humanScore, approvalStatus } or null when there is no
- * eligible run or the score did not actually change.
- */
 async function recordTeacherScoreChange({ runId, finalScore, tenantId, reviewerId, reviewNote }) {
   const { markHumanReviewed } = require("./human-approval");
   if (!runId || finalScore === undefined || finalScore === null) return null;
 
-  const db = getDb();
-  const run = await db.get(
-    "SELECT run_id, final_score FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
-    runId,
-    tenantId || null
-  );
+  const run = await researchRepository.getEvaluationRunScore(runId, tenantId);
   if (!run || run.final_score === undefined || run.final_score === null) return null;
   if (Number(run.final_score) === Number(finalScore)) return null;
 
@@ -363,7 +210,7 @@ async function recordTeacherScoreChange({ runId, finalScore, tenantId, reviewerI
   const note = reviewNote ? ` ${reviewNote}` : "";
   const feedback = `Koreksi guru: skor AI ${previous} → manusia ${finalScore}.${note}`.slice(0, 2000);
 
-  await saveHumanScore({
+  await researchRepository.saveHumanScore({
     runId,
     humanScore: finalScore,
     humanFeedback: feedback,
