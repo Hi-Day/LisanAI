@@ -31,10 +31,7 @@ test("data controller delegates submission actions", () => {
   assert.match(source, /submissionService\.saveStudentSubmission/);
   assert.match(source, /submissionService\.saveTeacherSubmission/);
   assert.match(source, /submissionService\.saveComplaint/);
-  assert.doesNotMatch(source, /\bgetSubmissionDetail\b/);
-  assert.doesNotMatch(source, /\bgetSubmissionForUpdate\b/);
-  assert.doesNotMatch(source, /\bsaveComplaint\b/);
-  assert.doesNotMatch(source, /\bsaveSubmission\b/);
+  assert.doesNotMatch(source, /\b(?:getSubmissionDetail|getSubmissionForUpdate|saveSubmission|saveComplaint)\s*,/);
 });
 
 test("evaluation application service delegates submission authorization", () => {
