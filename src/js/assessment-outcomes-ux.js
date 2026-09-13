@@ -166,7 +166,6 @@ function install() {
 
   const observer = new MutationObserver(refresh);
   observer.observe(recommendationButton || textarea, { attributes: true, childList: true, subtree: true, characterData: true });
-  window.setInterval(refresh, 400);
   refresh();
   return true;
 }
