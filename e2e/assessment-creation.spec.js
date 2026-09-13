@@ -37,7 +37,9 @@ test.describe("Assessment creation workflow", () => {
     await page.click("#recommendOutcomes");
 
     await expect(page.locator(".assessment-outcome-ai-stream")).toBeVisible();
-    await expect(page.locator("#outcomes")).not.toHaveValue("", { timeout: 30_000 });
+    await expect(
+      page.locator(".assessment-outcomes-list [data-outcome-input]").first()
+    ).not.toHaveValue("", { timeout: 30_000 });
   });
 
   test("AI generation opens the refactored question editor with streamed questions", async ({ page }) => {
@@ -87,7 +89,7 @@ test.describe("Assessment creation workflow", () => {
     await expect(page.locator(".editable-question")).toHaveCount(1);
   });
 
-  test("can save the edited question set to the question bank", async ({ page }) => {
+  test("can save the edited question set to the question bank", async ({ page }) =>
     await fillContext(page, "Ekosistem", "Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
     await page.fill("#questionCount", "1");
     await page.click("#wizardToQuestions");
