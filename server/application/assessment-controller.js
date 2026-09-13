@@ -2,7 +2,7 @@ const assessmentService = require("./assessment-service");
 const { ensureDatabase } = require("../bootstrap");
 const { readJson, sendJson } = require("../http-utils");
 const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
-const { beginStream, createChunkWriter, endStream, writeEvent } = require("../http/sse");
+const { beginStream, createChunkWriter, endStream, writeEvent } = require("../http/sse-writer");
 
 async function handleStreamingAction(res, action, payload) {
   beginStream(res);
