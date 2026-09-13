@@ -17,8 +17,15 @@ const {
   hashKey,
 } = require("../server/api-key-service");
 const { authenticateApiKey } = require("../server/api-auth");
-const { registerTenantUser, createSession, SESSION_COOKIE, createCsrfToken } = require("../server/auth-service");
-const apikeysApi = require("../api/apikeys");
+const {
+  registerTenantUser,
+  createSession,
+  getSessionUser,
+} = require("../server/auth-service");
+// The /api/apikeys HTTP handler still lives in the not-yet-extracted
+// api-internal/ layer, so the admin-role gate is asserted against the helper
+// that enforces it (same function the handler calls).
+const { requireRoles } = require("../server/http/request-security");
 const v1Api = require("../api/v1");
 
 let context;
@@ -76,44 +83,32 @@ test("authenticateApiKey extracts and resolves a Bearer token", async () => {
   assert.equal(result.tenantId, context.tenant.id);
 });
 
-test("apikeys API requires admin role", async () => {
+test("apikeys management requires admin role", async () => {
   // Student cannot access.
   const studentSession = await createSession(context.student.id);
-  const studentHeaders = { cookie: `${SESSION_COOKIE}=${studentSession.token}` };
-  const resStudent = await callHandler(apikeysApi, {
-    method: "GET",
-    url: "/api/apikeys",
-    headers: studentHeaders,
-  });
+  const studentAuth = await getSessionUser(studentSession.token);
+  const resStudent = fakeResponse();
+  assert.equal(requireRoles(resStudent, studentAuth, ["admin"]), false);
   assert.equal(resStudent.statusCode, 403);
 
-  // Admin can list.
+  // Admin passes the gate and can list the tenant's keys.
   const adminSession = await createSession(context.admin.id);
-  const adminHeaders = { cookie: `${SESSION_COOKIE}=${adminSession.token}` };
-  const resAdmin = await callHandler(apikeysApi, {
-    method: "GET",
-    url: "/api/apikeys",
-    headers: adminHeaders,
-  });
-  assert.equal(resAdmin.statusCode, 200);
-  assert.ok(Array.isArray(resAdmin.body.keys));
+  const adminAuth = await getSessionUser(adminSession.token);
+  const resAdmin = fakeResponse();
+  assert.equal(requireRoles(resAdmin, adminAuth, ["admin"]), true);
+  assert.equal(resAdmin.statusCode, 0, "admin must not receive an error response");
+  assert.ok(Array.isArray(await listApiKeys(context.tenant.id)));
 });
 
-test("admin can create an API key via the API", async () => {
+test("admin can create an API key for the tenant", async () => {
   const adminSession = await createSession(context.admin.id);
-  const headers = { cookie: `${SESSION_COOKIE}=${adminSession.token}` };
-  const authContext = { sessionId: adminSession.sessionId, tenant: context.tenant, user: context.admin };
-  const csrfToken = createCsrfToken(authContext);
+  const adminAuth = await getSessionUser(adminSession.token);
+  assert.equal(requireRoles(fakeResponse(), adminAuth, ["admin"]), true);
 
-  const res = await callHandler(apikeysApi, {
-    method: "POST",
-    url: "/api/apikeys",
-    body: { action: "create", payload: { name: "Via API" } },
-    headers: { ...headers, "x-csrf-token": csrfToken },
-  });
+  const { rawKey, record } = await createApiKey(context.tenant.id, { name: "Via API" });
 
-  assert.equal(res.statusCode, 201);
-  assert.ok(res.body.key.startsWith("lsk_"));
+  assert.equal(record.name, "Via API");
+  assert.ok(rawKey.startsWith("lsk_"));
 });
 
 test("v1 API rejects requests without a valid API key", async () => {
@@ -149,6 +144,22 @@ async function seedScenario() {
     role: "student",
   });
   return { tenant, admin, student };
+}
+
+function fakeResponse() {
+  return {
+    headers: {},
+    statusCode: 0,
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    writeHead(statusCode, responseHeaders = {}) {
+      this.statusCode = statusCode;
+      Object.entries(responseHeaders).forEach(([name, value]) => this.setHeader(name, value));
+    },
+    end(payload = "") {
+      this.rawBody = String(payload);
+      this.body = this.rawBody ? JSON.parse(this.rawBody) : {};
+    },
+  };
 }
 
 function callHandler(handler, { method, url, body, headers = {} }) {

@@ -7,6 +7,9 @@ const path = require("node:path");
 const E2E_DB = path.join(os.tmpdir(), `oralai-e2e-${Date.now()}.db`);
 process.env.TURSO_DATABASE_URL = `file:${E2E_DB}`;
 process.env.ENABLE_DEMO_SIMULATION = "false";
+// One shared server serves the whole suite; login rate limits would fail
+// legitimate sequential test logins.
+process.env.E2E_DISABLE_RATE_LIMIT = "true";
 process.env.PORT = "4174";
 
 const { loadEnv } = require("../server/config");
@@ -21,6 +24,16 @@ const { assessmentPayload, ORAL_ID, WRITTEN_ID } = require("./seed-assessment");
 
 let isDbInitialized = false;
 
+const API_ROUTE_ALIASES = {
+  database: "data",
+  probing: "evaluation",
+  "evidence-feedback": "evaluation",
+  apikeys: "auth",
+  docs: "v1",
+  research: "admin",
+  observability: "admin",
+};
+
 const requestHandler = async (req, res) => {
   try {
     if (!isDbInitialized) {
@@ -30,11 +43,13 @@ const requestHandler = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname.startsWith("/api/")) {
-      const endpointName = url.pathname.replace("/api/", "");
+      const endpointName = url.pathname.replace(/^\/api\//, "").split("/")[0];
+      const handlerName = API_ROUTE_ALIASES[endpointName] || endpointName;
       try {
-        const handler = require(`../api/${endpointName}`);
+        const handler = require(`../api/${handlerName}`);
         return await handler(req, res);
       } catch (err) {
+        console.error(`E2E API route failed: /api/${endpointName}`, err);
         return sendJson(res, 404, { error: "API endpoint not found" });
       }
     }

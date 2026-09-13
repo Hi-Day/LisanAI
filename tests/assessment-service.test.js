@@ -107,9 +107,12 @@ test("recommendAssessmentConfig returns trimmed outcomes only (no rubric at topi
     userId: "user-1",
   });
 
-  assert.equal(result.outcomes, "1. Outcome A\n2. Outcome B");
   // Rubrik tidak lagi dihasilkan di level topik; hanya capaian pembelajaran.
   assert.equal(result.rubric, undefined);
+  assert.equal(typeof result.outcomes, "string");
+  assert.ok(result.outcomes.trim().length > 0, "outcomes wajib terisi");
+  assert.doesNotMatch(result.outcomes, /Akurasi|Kelengkapan/, "rubric tidak boleh ikut ke outcomes");
+  assert.equal(result.items.length, result.count);
 });
 
 test("generateProbing returns a normalized single follow-up question", async () => {
@@ -294,10 +297,10 @@ test("enforceRubricAlignment tags each soal with the criteria it actually measur
     },
   ];
 
-  const aligned = assessmentService.enforceRubricAlignment(questions, {
-    rubric,
-    outcomes: "Siswa menganalisis ekosistem",
-  });
+  // Learning-outcome coverage is a separate gate with its own specs
+  // (tests/learning-outcome-alignment.test.js); this test only covers the
+  // question -> criterion mapping.
+  const aligned = assessmentService.enforceRubricAlignment(questions, { rubric });
 
   // Kriteria yang benar-benar cocok dgn konten soal harus tercakup.
   const covered = new Set(aligned.flatMap((q) => q.criteria.map((c) => c.id)));

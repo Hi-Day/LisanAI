@@ -274,6 +274,7 @@ export function getElements() {
 }
 
 export function setButtonLoading(button, loading, loadingText, defaultText) {
+  if (!button) return;
   button.disabled = loading;
   button.classList.toggle("is-loading", loading);
   button.setAttribute("aria-busy", String(loading));

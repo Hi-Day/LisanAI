@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { ORAL_ID, assessmentPayload, seedAssessments, loginAsStudent } = require("./seed-assessment");
+const { ORAL_ID, loginAsStudent } = require("./seed-assessment");
 
 // Mikrofon palsu Chromium: getUserMedia berhasil dan mengeluarkan nada uji.
 test.use({
@@ -9,12 +9,8 @@ test.use({
   },
 });
 
-test.describe("Pre-exam mic test", () => {
-  test.beforeAll(async ({ request }) => {
-    await seedAssessments(request, [assessmentPayload(ORAL_ID, "Ujian Lisan E2E", true)]);
-  });
-
-  test("mic test unlocks the start button and records a playback sample", async ({ page }) => {
+test.describe("Pre-exam mic and oral probing", () => {
+  test("mic test unlocks the start button and oral assessment can enter probing", async ({ page }) => {
     await loginAsStudent(page);
     await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
     await page.click(`.assessment-card[data-id='${ORAL_ID}'] .start-assessment-btn`);
@@ -28,5 +24,18 @@ test.describe("Pre-exam mic test", () => {
     await page.click("#preExamStart");
     await expect(page.locator("#studentWorkspace")).toBeVisible();
     await expect(page.locator("#timerDisplay")).toBeVisible();
+
+    await page.fill("#answerText", "Fotosintesis adalah proses tumbuhan menggunakan cahaya untuk menghasilkan energi kimia.");
+    await page.click("#saveAnswer");
+
+    await expect(page.locator("#activeQuestion")).toContainText("Pertanyaan lanjutan", { timeout: 20_000 });
+    await expect(page.locator("#answerText")).toBeEditable();
+
+    await page.fill("#answerText", "Karena cahaya menyediakan energi yang diperlukan untuk berlangsungnya fotosintesis.");
+    await page.click("#finishAssessment");
+    await expect(page.locator("#confirmModal")).toBeVisible();
+    await page.click("#confirmModalOk");
+    await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
+    await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
   });
 });

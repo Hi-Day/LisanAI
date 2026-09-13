@@ -14,6 +14,11 @@ const { parseCookies, readJson, sendJson, setCookie } = require("../server/http-
 const { assertRateLimit } = require("../server/rate-limit");
 
 module.exports = async (req, res) => {
+  const pathname = req.url ? req.url.split("?")[0] : "";
+  if (pathname === "/api/apikeys") {
+    return require("../api-internal/apikeys")(req, res);
+  }
+
   try {
     await ensureDatabase();
 
@@ -23,8 +28,6 @@ module.exports = async (req, res) => {
       if (action === "me") {
         const token = parseCookies(req)[SESSION_COOKIE];
         const auth = await getSessionUser(token);
-        // A session stays alive while the user is active. This prevents a user
-        // who regularly refreshes the app from being unexpectedly logged out.
         if (auth && await extendSession(token)) setSessionCookie(res, token, req);
         return sendJson(res, 200, {
           authenticated: Boolean(auth),
@@ -47,7 +50,6 @@ module.exports = async (req, res) => {
     if (req.method === "POST") {
       const body = await readJson(req);
       const { action, payload } = body;
-
       if (action === "register") {
         assertRateLimit(rateLimitKey(req, "register"), { limit: 3, windowMs: 10 * 60_000 });
         const auth = await registerTenantUser(payload);
@@ -56,7 +58,6 @@ module.exports = async (req, res) => {
         const authContext = { sessionId: session.sessionId, tenant: auth.tenant, user: auth.user };
         return sendJson(res, 201, { authenticated: true, tenant: auth.tenant, user: auth.user, csrfToken: createCsrfToken(authContext) });
       }
-
       if (action === "login") {
         assertRateLimit(rateLimitKey(req, `login:${payload?.email || ""}`), { limit: 5, windowMs: 60_000 });
         const auth = await loginUser(payload);
@@ -65,55 +66,31 @@ module.exports = async (req, res) => {
         const authContext = { sessionId: session.sessionId, tenant: auth.tenant, user: auth.user };
         return sendJson(res, 200, { authenticated: true, tenant: auth.tenant, user: auth.user, csrfToken: createCsrfToken(authContext) });
       }
-
       if (action === "simulate-login") {
         if (!isDemoSimulationEnabled()) return sendJson(res, 404, { error: "Action not found" });
         const { userId } = payload;
         const { getDb } = require("../server/database");
         const db = getDb();
-        const userRow = await db.get(
-          `SELECT users.*, tenants.name AS tenant_name, tenants.plan AS tenant_plan
-           FROM users
-           JOIN tenants ON tenants.id = users.tenant_id
-           WHERE users.id = ?`,
-          userId
-        );
+        const userRow = await db.get(`SELECT users.*, tenants.name AS tenant_name, tenants.plan AS tenant_plan FROM users JOIN tenants ON tenants.id = users.tenant_id WHERE users.id = ?`, userId);
         if (!userRow) throw Object.assign(new Error("User tidak ditemukan"), { status: 404 });
-
         const session = await createSession(userRow.id);
         setSessionCookie(res, session.token, req);
-        const authContext = {
-          sessionId: session.sessionId,
-          tenant: { id: userRow.tenant_id, name: userRow.tenant_name, plan: userRow.tenant_plan },
-          user: { id: userRow.id, tenantId: userRow.tenant_id, name: userRow.name, email: userRow.email, role: userRow.role }
-        };
-        return sendJson(res, 200, {
-          authenticated: true,
-          tenant: authContext.tenant,
-          user: authContext.user,
-          csrfToken: createCsrfToken(authContext)
-        });
+        const authContext = { sessionId: session.sessionId, tenant: { id: userRow.tenant_id, name: userRow.tenant_name, plan: userRow.tenant_plan }, user: { id: userRow.id, tenantId: userRow.tenant_id, name: userRow.name, email: userRow.email, role: userRow.role } };
+        return sendJson(res, 200, { authenticated: true, tenant: authContext.tenant, user: authContext.user, csrfToken: createCsrfToken(authContext) });
       }
-
       if (action === "logout") {
         const token = parseCookies(req)[SESSION_COOKIE];
         const auth = await getSessionUser(token);
         if (auth) {
           const { assertCsrfToken } = require("../server/auth-service");
-          try {
-            assertCsrfToken(req, auth);
-          } catch (csrfError) {
-            return sendJson(res, 403, { error: csrfError.message });
-          }
+          try { assertCsrfToken(req, auth); } catch (csrfError) { return sendJson(res, 403, { error: csrfError.message }); }
           await deleteSession(token);
         }
         setCookie(res, SESSION_COOKIE, "", cookieOptions(req, { maxAge: 0 }));
         return sendJson(res, 200, { ok: true });
       }
-
       return sendJson(res, 404, { error: "Action not found" });
     }
-
     return sendJson(res, 405, { error: "Method not allowed" });
   } catch (error) {
     console.error(error);
@@ -121,24 +98,7 @@ module.exports = async (req, res) => {
   }
 };
 
-function setSessionCookie(res, token, req) {
-  setCookie(res, SESSION_COOKIE, token, cookieOptions(req, {
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  }));
-}
-
-function cookieOptions(req, options = {}) {
-  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
-  const isSecure = forwardedProto === "https" || Boolean(req.socket?.encrypted);
-  return { ...options, sameSite: "Lax", secure: isSecure };
-}
-
-function isDemoSimulationEnabled() {
-  return String(process.env.ENABLE_DEMO_SIMULATION || "").toLowerCase() === "true";
-}
-
-function rateLimitKey(req, scope) {
-  const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  const ip = forwardedFor || req.socket?.remoteAddress || "local";
-  return `${scope}:${ip}`;
-}
+function setSessionCookie(res, token, req) { setCookie(res, SESSION_COOKIE, token, cookieOptions(req, { maxAge: SESSION_MAX_AGE_SECONDS })); }
+function cookieOptions(req, options = {}) { const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim(); const isSecure = forwardedProto === "https" || Boolean(req.socket?.encrypted); return { ...options, sameSite: "Lax", secure: isSecure }; }
+function isDemoSimulationEnabled() { return String(process.env.ENABLE_DEMO_SIMULATION || "").toLowerCase() === "true"; }
+function rateLimitKey(req, scope) { const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim(); const ip = forwardedFor || req.socket?.remoteAddress || "local"; return `${scope}:${ip}`; }

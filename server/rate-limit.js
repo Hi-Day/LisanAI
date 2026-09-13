@@ -12,6 +12,9 @@
 const buckets = new Map();
 
 function assertRateLimit(key, options = {}) {
+  // E2E runs dozens of sequential logins against one shared server process;
+  // rate limiting would fail legitimate test traffic. Unit tests cover the limiter.
+  if (process.env.E2E_DISABLE_RATE_LIMIT === "true") return;
   const limit = options.limit || 5;
   const windowMs = options.windowMs || 60_000;
   const now = Date.now();

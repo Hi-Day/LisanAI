@@ -17,11 +17,13 @@ async function compareAiVsHuman(assessmentId, tenantId) {
     `SELECT r.run_id, r.final_score, h.human_score, h.human_feedback
        FROM evaluation_runs r
        JOIN evaluation_human_scores h ON h.run_id = r.run_id
-      WHERE ($1 IS NULL OR r.assessment_id = $1)
-        AND ($2 IS NULL OR r.tenant_id = $2)
+       WHERE (? IS NULL OR r.assessment_id = ?)
+        AND (? IS NULL OR r.tenant_id = ?)
         AND r.final_score IS NOT NULL
         AND h.human_score IS NOT NULL`,
     assessmentId || null,
+    assessmentId || null,
+    tenantId || null,
     tenantId || null
   );
   const ai = rows.map((r) => r.final_score);

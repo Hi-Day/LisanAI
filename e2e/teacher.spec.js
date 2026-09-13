@@ -23,7 +23,7 @@ test.describe("Teacher assessment flow", () => {
   test("teacher can navigate the wizard to the questions step", async ({ page }) => {
     // Fill the context form
     await page.fill("#topic", "Fotosintesis");
-    await page.fill("#outcomes", "Siswa mampu menjelaskan proses fotosintesis.");
+    await page.locator("[data-outcome-input]").first().fill("Siswa mampu menjelaskan proses fotosintesis.");
     await page.selectOption("#classSelect", { label: "Kelas E2E" });
 
     // Click "Lanjut ke Soal"
@@ -34,8 +34,9 @@ test.describe("Teacher assessment flow", () => {
 
   test("teacher can create a manual assessment and publish it", async ({ page }) => {
     await page.fill("#topic", "Hukum Newton");
-    await page.fill("#outcomes", "Siswa mampu menerapkan hukum Newton.");
+    await page.locator("[data-outcome-input]").first().fill("Siswa mampu menerapkan hukum Newton.");
     await page.selectOption("#classSelect", { label: "Kelas E2E" });
+    await page.fill("#questionCount", "1");
 
     // Navigate to step 2 first
     await page.click("#wizardToQuestions");

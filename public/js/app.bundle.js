@@ -1,101 +1,1787 @@
-var Js=Object.defineProperty;var x=(e,t,a)=>()=>{if(a)throw a[0];try{return e&&(t=e(e=0)),t}catch(n){throw a=[n],n}};var Q=(e,t)=>{for(var a in t)Js(e,a,{get:t[a],enumerable:!0})};var ye={};Q(ye,{addStudentsToClass:()=>Ys,approveJoinRequest:()=>zt,createClassroom:()=>_t,createStudentsBatch:()=>Zs,createUser:()=>Ft,createUsersBatch:()=>Vt,deleteAssessment:()=>Wt,deleteClassroom:()=>Kt,deleteMembership:()=>Jt,deleteQuestionFromBank:()=>ea,deleteUser:()=>it,getCurrentUser:()=>Bt,getSimulationData:()=>Ve,getSubmissionDetail:()=>He,joinClass:()=>lt,listQuestionBank:()=>Zt,listUsers:()=>Ht,loadStateFromDatabase:()=>Ot,login:()=>Rt,logout:()=>jt,postJson:()=>C,registerTenant:()=>Nt,removeDemoData:()=>Xs,saveAssessmentToDatabase:()=>Fe,saveQuestionToBank:()=>Yt,saveSubmissionToDatabase:()=>X,seedDemoData:()=>ot,simulateLogin:()=>Xt,streamAssessmentAction:()=>ae,submitComplaint:()=>Ws,updateAssessment:()=>Ae,updateClassroom:()=>Qt,updateMembership:()=>Gt,updateUser:()=>Ut});async function C(e,t,a){let n={"Content-Type":"application/json"};Le&&(n["X-CSRF-Token"]=Le);let s=await fetch(e,{method:"POST",credentials:"include",headers:n,body:JSON.stringify(t)}),r=await s.json();if(r.csrfToken&&(Le=r.csrfToken),!s.ok)throw new Error(r.error||a);return r}async function Bt(){let e=await fetch("/api/auth?action=me",{credentials:"include"}),t=await e.json();if(t.csrfToken&&(Le=t.csrfToken),!e.ok)throw new Error(t.error||"Gagal memeriksa session");return t}async function Rt(e){return C("/api/auth",{action:"login",payload:e},"Login gagal")}async function Nt(e){return C("/api/auth",{action:"register",payload:e},"Registrasi gagal")}async function jt(){return C("/api/auth",{action:"logout"},"Logout gagal")}async function Ht(){let e=await fetch("/api/database?action=users"),t=await e.json();if(!e.ok)throw new Error(t.error||"Gagal memuat user");return t.users}async function Ft(e){return(await C("/api/database",{action:"create-user",payload:e},"Gagal membuat user")).user}async function Vt(e){return await C("/api/database",{action:"create-users-batch",payload:e},"Gagal membuat user batch")}async function Ut(e,t){return(await C("/api/database",{action:"update-user",id:e,payload:t},"Gagal mengubah user")).user}async function it(e){return C("/api/database",{action:"delete-user",id:e},"Gagal menghapus user")}async function Ot(){let e=await fetch("/api/database?action=state"),t=await e.json();if(!e.ok)throw new Error(t.error||"Gagal memuat data dari database");return{assessments:Array.isArray(t.assessments)?t.assessments:[],submissions:Array.isArray(t.submissions)?t.submissions:[],classes:Array.isArray(t.classes)?t.classes:[],memberships:Array.isArray(t.memberships)?t.memberships:[]}}async function He(e){let t=await fetch(`/api/database?action=submission&id=${encodeURIComponent(e)}`,{credentials:"include"}),a=await t.json();if(!t.ok)throw new Error(a.error||"Gagal memuat detail submission");return a.submission}async function Fe(e){await C("/api/database",{action:"save-assessment",payload:e},"Gagal menyimpan penilaian")}async function X(e){await C("/api/database",{action:"save-submission",payload:e},"Gagal menyimpan submission")}async function Ws(e,t,a){return C("/api/database",{action:"submit-complaint",payload:{submissionId:e,questionIndex:t,reason:a}},"Gagal mengirim komplain")}async function ot(e){return C("/api/database",{action:"seed-demo",payload:{target:e}},"Gagal mengisi data contoh")}async function Xs(){return C("/api/database",{action:"remove-demo-data"},"Gagal menghapus data dummy")}async function ae({action:e,payload:t,onChunk:a,onResult:n,onError:s}){let r={"Content-Type":"application/json"};Le&&(r["X-CSRF-Token"]=Le);let i=await fetch("/api/assessment",{method:"POST",credentials:"include",headers:r,body:JSON.stringify({action:e,payload:t,stream:!0})});if(!i.ok){let m=await i.json().catch(()=>({}));throw new Error(m.error||"Gagal memproses permintaan AI")}if(!i.body||typeof i.body.getReader!="function")throw new Error("Streaming tidak didukung oleh browser ini");let o=i.body.getReader(),l=new TextDecoder,c="",d=null;for(;;){let{done:m,value:k}=await o.read();if(m)break;c+=l.decode(k,{stream:!0});let h=c.split(`
+import("/js/learning-outcome-trend.js").catch(() => {});import("/js/probing-gate.js").then(m=>m.installProbingGate()).catch(()=>{});import("/js/pedagogical-gate.js").catch(()=>{});import("/js/assessment-outcomes-ux.js").catch(()=>{});import("/js/assessment-outcomes-ai.js").catch(()=>{});
+(function enhanceAssessmentWizardUX() {
+  function apply() {
+    const form = document.getElementById("assessmentForm");
+    const panel = form?.querySelector('[data-wizard-panel="1"]');
+    if (!form || !panel || panel.dataset.uxEnhanced === "1") return;
+    const classLabel = document.getElementById("classSelect")?.closest("label");
+    const countLabel = document.getElementById("questionCount")?.closest("label");
+    const difficultyLabel = document.getElementById("difficulty")?.closest("label");
+    const timeLimitLabel = document.getElementById("timeLimit")?.closest("label");
+    const attemptsLabel = document.getElementById("maxAttempts")?.closest("label");
+    const examplesLabel = document.getElementById("examples")?.closest("label");
+    const checks = panel.querySelector(":scope > .wizard-checks");
+    const classRow = classLabel?.parentElement?.classList.contains("form-row-2") ? classLabel.parentElement : null;
+    const countRow = countLabel?.parentElement?.classList.contains("form-row-2") ? countLabel.parentElement : null;
+    if (!classLabel || !countLabel || !difficultyLabel || !timeLimitLabel || !attemptsLabel) return;
+    const coreGrid = document.createElement("div");
+    coreGrid.className = "assessment-core-grid";
+    coreGrid.setAttribute("aria-label", "Pengaturan utama penilaian");
+    classLabel.remove(); countLabel.remove(); coreGrid.append(classLabel, countLabel);
+    const outcomesLabel = document.getElementById("outcomes")?.closest("label");
+    outcomesLabel?.after(coreGrid);
+    if (classRow) classRow.remove();
+    if (countRow && countRow !== classRow) countRow.remove();
+    const advanced = document.createElement("details");
+    advanced.className = "assessment-advanced-settings";
+    const summary = document.createElement("summary"); summary.textContent = "⚙ Pengaturan lanjutan";
+    const hint = document.createElement("p"); hint.className = "assessment-advanced-hint"; hint.textContent = "Gunakan bila perlu. Pengaturan utama di atas sudah cukup untuk membuat penilaian.";
+    const body = document.createElement("div"); body.className = "assessment-advanced-body";
+    advanced.append(summary, hint, body);
+    [difficultyLabel, timeLimitLabel, attemptsLabel, checks, examplesLabel].forEach((node) => { if (node) body.appendChild(node); });
+    panel.appendChild(advanced); panel.dataset.uxEnhanced = "1";
+  }
+  function start() {
+    apply();
+    if (!document.getElementById("assessmentForm")?.querySelector('[data-wizard-panel="1"]')) requestAnimationFrame(start);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+  else start();
+})();
 
-`);c=h.pop()||"";for(let w of h){let f=w.split(`
-`).filter(b=>b.startsWith("data:")).map(b=>b.slice(5).trim()).join("");if(!f)continue;let g;try{g=JSON.parse(f)}catch{continue}if(g.type==="chunk"&&typeof g.text=="string")a&&a(g.text);else if(g.type==="result")d=g.data||{},n&&n(d);else if(g.type==="error")throw s&&s(g.message||"Terjadi kesalahan"),new Error(g.message||"Terjadi kesalahan")}}return d}async function _t(e){return(await C("/api/database",{action:"create-class",payload:{name:e}},"Gagal membuat kelas")).class}async function Qt(e,t){return(await C("/api/database",{action:"update-class",id:e,payload:t},"Gagal mengubah kelas")).class}async function Kt(e){return C("/api/database",{action:"delete-class",id:e},"Gagal menghapus kelas")}async function lt(e){return(await C("/api/database",{action:"join-class",payload:{joinCode:e}},"Gagal join kelas")).class}async function Ys(e){return await C("/api/database",{action:"add-students-to-class",payload:e},"Gagal menambahkan siswa ke kelas")}async function Zs(e){return await C("/api/database",{action:"create-students-batch",payload:e},"Gagal membuat siswa batch")}async function zt(e){return C("/api/database",{action:"approve-membership",payload:{membershipId:e}},"Gagal approve siswa")}async function Gt(e,t){return C("/api/database",{action:"update-membership",id:e,payload:{status:t}},"Gagal mengubah membership")}async function Jt(e){return C("/api/database",{action:"delete-membership",id:e},"Gagal menghapus membership")}async function Ae(e,t){return(await C("/api/database",{action:"update-assessment",id:e,payload:t},"Gagal mengubah penilaian")).assessment}async function Wt(e){return C("/api/database",{action:"delete-assessment",id:e},"Gagal menghapus penilaian")}async function Ve(){let e=await fetch("/api/auth?action=simulation"),t=await e.json();if(!e.ok)throw new Error(t.error||"Gagal memuat data simulasi");return t}async function Xt(e){return C("/api/auth",{action:"simulate-login",payload:{userId:e}},"Gagal simulasi login")}async function Yt(e){return(await C("/api/database",{action:"save-question-bank",payload:e},"Gagal menyimpan soal")).id}async function Zt(e){return(await C("/api/database",{action:"list-question-bank",payload:e||{}},"Gagal memuat bank soal")).questions}async function ea(e){return C("/api/database",{action:"delete-question-bank",id:e},"Gagal menghapus soal")}var Le,B=x(()=>{Le=null});var aa={};Q(aa,{getElements:()=>ta,setButtonLoading:()=>D,showEmpty:()=>Te});function ta(){return{mainNav:document.getElementById("mainNav"),views:document.querySelectorAll(".view"),authView:document.querySelector("#authView"),appShell:document.querySelector("#appShell"),registerModal:document.querySelector("#registerModal"),openRegisterModalBtn:document.querySelector("#openRegisterModalBtn"),closeRegisterModalBtn:document.querySelector("#closeRegisterModalBtn"),loginForm:document.querySelector("#loginForm"),loginEmail:document.querySelector("#loginEmail"),loginPassword:document.querySelector("#loginPassword"),registerForm:document.querySelector("#registerForm"),registerTenant:document.querySelector("#registerTenant"),registerName:document.querySelector("#registerName"),registerEmail:document.querySelector("#registerEmail"),registerPassword:document.querySelector("#registerPassword"),logoutButton:document.querySelector("#logoutButton"),accountName:document.querySelector("#accountName"),tenantName:document.querySelector("#tenantName"),accountRole:document.querySelector("#accountRole"),adminNav:document.querySelector("#adminNav"),accountView:document.querySelector("#accountView"),userForm:document.querySelector("#userForm"),csvForm:document.querySelector("#csvForm"),csvFile:document.querySelector("#csvFile"),userName:document.querySelector("#userName"),userEmail:document.querySelector("#userEmail"),userPassword:document.querySelector("#userPassword"),userRole:document.querySelector("#userRole"),userList:document.querySelector("#userList"),selectAllUsers:document.querySelector("#selectAllUsers"),deleteSelectedUsers:document.querySelector("#deleteSelectedUsers"),form:document.querySelector("#assessmentForm"),createManualAssessment:document.querySelector("#createManualAssessment"),aiStreamPanel:document.querySelector("#aiStreamPanel"),aiStreamTitle:document.querySelector("#aiStreamTitle"),aiStreamPlaceholder:document.querySelector("#aiStreamPlaceholder"),aiStreamQuestions:document.querySelector("#aiStreamQuestions"),recommendStreamPanel:document.querySelector("#recommendStreamPanel"),recommendStreamTitle:document.querySelector("#recommendStreamTitle"),recommendStreamPlaceholder:document.querySelector("#recommendStreamPlaceholder"),recommendStreamContent:document.querySelector("#recommendStreamContent"),evaluationStreamContent:document.querySelector("#evaluationStreamContent"),evaluationProgressText:document.querySelector("#evaluationProgressText"),evaluationPreviewList:document.querySelector("#evaluationPreviewList"),assessmentList:document.querySelector("#assessmentList"),assessmentCount:document.querySelector("#assessmentCount"),studentSelect:document.querySelector("#studentAssessmentSelect"),studentDashboard:document.querySelector("#studentDashboard"),studentAssessmentGrid:document.querySelector("#studentAssessmentGrid"),studentClassFilter:document.querySelector("#studentClassFilter"),monitorClassFilter:document.querySelector("#monitorClassFilter"),monitorRangeFilter:document.querySelector("#monitorRangeFilter"),trendAssessmentCount:document.querySelector("#trendAssessmentCount"),downloadClassCsvBtn:document.getElementById("downloadClassCsvBtn"),backToDashboard:document.querySelector("#backToDashboard"),studentEmpty:document.querySelector("#studentEmpty"),studentWorkspace:document.querySelector("#studentWorkspace"),questionProgress:document.querySelector("#questionProgress"),activeDifficulty:document.querySelector("#activeDifficulty"),activeQuestion:document.querySelector("#activeQuestion"),activeHint:document.querySelector("#activeHint"),activeOutcome:document.querySelector("#activeOutcome"),activeRubric:document.querySelector("#activeRubric"),recordButton:document.querySelector("#recordButton"),recorderPanel:document.querySelector("#recorderPanel"),recordStatus:document.querySelector("#recordStatus"),recordTimer:document.querySelector("#recordTimer"),volumeIndicator:document.querySelector("#volumeIndicator"),testMicButton:document.querySelector("#testMicButton"),micStatus:document.querySelector("#micStatus"),micDiagnostics:document.querySelector("#micDiagnostics"),answerText:document.querySelector("#answerText"),prevQuestion:document.querySelector("#prevQuestion"),saveAnswer:document.querySelector("#saveAnswer"),answerMap:document.querySelector("#answerMap"),studentName:document.querySelector("#studentName"),finishAssessment:document.querySelector("#finishAssessment"),resultPanel:document.querySelector("#resultPanel"),evaluationLoadingModal:document.querySelector("#evaluationLoadingModal"),preExamModal:document.querySelector("#preExamModal"),preExamTitle:document.querySelector("#preExamTitle"),preExamMeta:document.querySelector("#preExamMeta"),preExamMicSection:document.querySelector("#preExamMicSection"),preExamMicTest:document.querySelector("#preExamMicTest"),preExamVolume:document.querySelector("#preExamVolume"),preExamMicStatus:document.querySelector("#preExamMicStatus"),preExamPlayback:document.querySelector("#preExamPlayback"),preExamMicDiagnostics:document.querySelector("#preExamMicDiagnostics"),preExamStartNote:document.querySelector("#preExamStartNote"),preExamStart:document.querySelector("#preExamStart"),preExamCancel:document.querySelector("#preExamCancel"),preExamClose:document.querySelector("#preExamClose"),submissionCount:document.querySelector("#submissionCount"),submissionList:document.querySelector("#submissionList"),studentHistoryList:document.querySelector("#studentHistoryList"),classAverage:document.querySelector("#classAverage"),trendList:document.querySelector("#trendList"),seedDemo:document.querySelector("#seedDemo"),seedDemoTeacher:document.querySelector("#seedDemoTeacher"),seedDemoAdmin:document.querySelector("#seedDemoAdmin"),removeDemoData:document.querySelector("#removeDemoData"),recommendOutcomes:document.querySelector("#recommendOutcomes"),topic:document.querySelector("#topic"),outcomes:document.querySelector("#outcomes"),difficulty:document.querySelector("#difficulty"),timeLimit:document.querySelector("#timeLimit"),timerDisplay:document.querySelector("#timerDisplay"),examples:document.querySelector("#examples"),questionCount:document.querySelector("#questionCount"),classSelect:document.querySelector("#classSelect"),classPanel:document.querySelector("#classPanel"),classForm:document.querySelector("#classForm"),classNameInput:document.querySelector("#className"),classList:document.querySelector("#classList"),bulkAddClassSelect:document.querySelector("#bulkAddClassSelect"),bulkAddEmails:document.querySelector("#bulkAddEmails"),bulkAddButton:document.querySelector("#bulkAddButton"),bulkAddClear:document.querySelector("#bulkAddClear"),bulkAddCsvFile:document.querySelector("#bulkAddCsvFile"),bulkAddCsvUpload:document.querySelector("#bulkAddCsvUpload"),bulkAddCsvTemplate:document.querySelector("#bulkAddCsvTemplate"),joinClassForm:document.querySelector("#joinClassForm"),joinCode:document.querySelector("#joinCode"),pendingJoinList:document.querySelector("#pendingJoinList"),approvedMemberList:document.querySelector("#approvedMemberList"),memberSearchInput:document.querySelector("#memberSearchInput"),memberPaginationContainer:document.querySelector("#memberPaginationContainer"),memberPrevBtn:document.querySelector("#memberPrevBtn"),memberNextBtn:document.querySelector("#memberNextBtn"),memberPageInfo:document.querySelector("#memberPageInfo"),memberCountText:document.querySelector("#memberCountText"),studentJoinClassForm:document.querySelector("#studentJoinClassForm"),studentJoinCode:document.querySelector("#studentJoinCode"),studentClassList:document.querySelector("#studentClassList"),questionEditor:document.querySelector("#questionEditor"),editableQuestionList:document.querySelector("#editableQuestionList"),addManualQuestion:document.querySelector("#addManualQuestion"),saveQuestionSet:document.querySelector("#saveQuestionSet"),improveQuestionSet:document.querySelector("#improveQuestionSet"),wizardSteps:document.querySelectorAll(".wizard-step"),wizardPanels:document.querySelectorAll(".wizard-panel"),wizardToQuestions:document.querySelector("#wizardToQuestions"),wizardBackToContext:document.querySelector("#wizardBackToContext"),wizardToReview:document.querySelector("#wizardToReview"),wizardBackToQuestions:document.querySelector("#wizardBackToQuestions"),reviewSummary:document.querySelector("#reviewSummary"),simulatorWidget:document.querySelector("#simulatorWidget"),simulatorToggle:document.querySelector("#simulatorToggle"),simulatorPanel:document.querySelector("#simulatorPanel"),simulatorClose:document.querySelector("#simulatorClose"),simulatorTenantList:document.querySelector("#simulatorTenantList"),disableManualTyping:document.querySelector("#disableManualTyping"),oralExamEnabled:document.querySelector("#oralExamEnabled"),editDisableManualTyping:document.querySelector("#editDisableManualTyping"),editOralExamEnabled:document.querySelector("#editOralExamEnabled"),allowRetakes:document.querySelector("#allowRetakes"),editAllowRetakes:document.querySelector("#editAllowRetakes"),maxAttempts:document.querySelector("#maxAttempts"),recordInstructions:document.querySelector("#recordInstructions"),observabilityView:document.querySelector("#observabilityView"),telemetryRange:document.querySelector("#telemetryRange"),telemetryLastUpdated:document.querySelector("#telemetryLastUpdated"),telemetryTotalCalls:document.querySelector("#telemetryTotalCalls"),telemetryCallsDelta:document.querySelector("#telemetryCallsDelta"),telemetryErrorRate:document.querySelector("#telemetryErrorRate"),telemetryErrorHealth:document.querySelector("#telemetryErrorHealth"),telemetryP50:document.querySelector("#telemetryP50"),telemetryP95:document.querySelector("#telemetryP95"),telemetryP95Health:document.querySelector("#telemetryP95Health"),telemetryTailAlert:document.querySelector("#telemetryTailAlert"),telemetryLatencyDist:document.querySelector("#telemetryLatencyDist"),telemetryPercentileTable:document.querySelector("#telemetryPercentileTable"),telemetryTailRatio:document.querySelector("#telemetryTailRatio"),telemetryLatencyByOp:document.querySelector("#telemetryLatencyByOp"),telemetryTokens:document.querySelector("#telemetryTokens"),telemetryTokenSplit:document.querySelector("#telemetryTokenSplit"),telemetryAvgTokens:document.querySelector("#telemetryAvgTokens"),telemetryAvgPrompt:document.querySelector("#telemetryAvgPrompt"),telemetryAvgCompletion:document.querySelector("#telemetryAvgCompletion"),telemetryTokensPerCall:document.querySelector("#telemetryTokensPerCall"),telemetryTokensPerEval:document.querySelector("#telemetryTokensPerEval"),telemetryCost:document.querySelector("#telemetryCost"),telemetryCostPerEval:document.querySelector("#telemetryCostPerEval"),telemetryCostPer1K:document.querySelector("#telemetryCostPer1K"),telemetryCostByOp:document.querySelector("#telemetryCostByOp"),telemetryPrefixTokens:document.querySelector("#telemetryPrefixTokens"),telemetryPrefixPct:document.querySelector("#telemetryPrefixPct"),telemetryPrefixCost:document.querySelector("#telemetryPrefixCost"),telemetryCacheHits:document.querySelector("#telemetryCacheHits"),telemetryCacheMisses:document.querySelector("#telemetryCacheMisses"),telemetryKvStatus:document.querySelector("#telemetryKvStatus"),telemetryProviderTable:document.querySelector("#telemetryProviderTable"),telemetrySlowestCalls:document.querySelector("#telemetrySlowestCalls"),telemetryLogList:document.querySelector("#telemetryLogList"),telemetryFilterOp:document.querySelector("#telemetryFilterOp"),telemetryFilterModel:document.querySelector("#telemetryFilterModel"),telemetryFilterStatus:document.querySelector("#telemetryFilterStatus"),telemetryFilterLatency:document.querySelector("#telemetryFilterLatency"),telemetryFilterDate:document.querySelector("#telemetryFilterDate"),telemetryLogCount:document.querySelector("#telemetryLogCount"),telemetryLogPagination:document.querySelector("#telemetryLogPagination"),telemetryLogPrev:document.querySelector("#telemetryLogPrev"),telemetryLogNext:document.querySelector("#telemetryLogNext"),telemetryLogPageInfo:document.querySelector("#telemetryLogPageInfo"),sysHealthList:document.querySelector("#sysHealthList"),telemetryRestartAlert:document.querySelector("#telemetryRestartAlert"),sysMemoryHeap:document.querySelector("#sysMemoryHeap"),sysMemoryTotal:document.querySelector("#sysMemoryTotal"),sysCpuUsage:document.querySelector("#sysCpuUsage"),sysCpuSystem:document.querySelector("#sysCpuSystem"),sysUptime:document.querySelector("#sysUptime"),sysNodeVersion:document.querySelector("#sysNodeVersion"),refreshTelemetryBtn:document.querySelector("#refreshTelemetryBtn"),complaintView:document.querySelector("#complaintView"),complaintList:document.querySelector("#complaintList"),complaintCount:document.querySelector("#complaintCount"),complaintNavBadge:document.querySelector("#complaintNavBadge"),complaintNotification:document.querySelector("#complaintNotification"),studentNotifView:document.querySelector("#studentNotifView"),studentNotifList:document.querySelector("#studentNotifList"),researchView:document.querySelector("#researchView"),researchSelect:document.querySelector("#researchSelect"),researchValidity:document.querySelector("#researchValidity"),researchInterRater:document.querySelector("#researchInterRater"),researchRunsList:document.querySelector("#researchRunsList"),researchRubricPanel:document.querySelector("#researchRubricPanel"),researchResultPanel:document.querySelector("#researchResultPanel"),researchExportBtn:document.querySelector("#researchExportBtn"),refreshResearchBtn:document.querySelector("#refreshResearchBtn"),apiKeyName:document.querySelector("#apiKeyName"),createApiKeyBtn:document.querySelector("#createApiKeyBtn"),apiKeyResult:document.querySelector("#apiKeyResult"),apiKeyValue:document.querySelector("#apiKeyValue"),apiKeyList:document.querySelector("#apiKeyList"),apiKeysView:document.querySelector("#apiKeysView"),dashboardView:document.querySelector("#dashboardView"),dashboardSubtitle:document.querySelector("#dashboardSubtitle"),dashboardClassFilter:document.querySelector("#dashboardClassFilter"),dashboardRangeFilter:document.querySelector("#dashboardRangeFilter"),dashboardKpis:document.querySelector("#dashboardKpis"),performanceChart:document.querySelector("#performanceChart"),scoreDistribution:document.querySelector("#scoreDistribution"),competencyOverview:document.querySelector("#competencyOverview"),atRiskList:document.querySelector("#atRiskList"),atRiskCount:document.querySelector("#atRiskCount"),recentAssessmentsList:document.querySelector("#recentAssessmentsList"),assessmentListView:document.querySelector("#assessmentListView"),assessmentTabFilter:document.querySelector("#assessmentTabFilter"),assessmentDetailView:document.querySelector("#assessmentDetailView"),detailBackBtn:document.querySelector("#detailBackBtn"),assessmentDetailContent:document.querySelector("#assessmentDetailContent"),studentProfileView:document.querySelector("#studentProfileView"),profileStudentSelect:document.querySelector("#profileStudentSelect"),studentProfileContent:document.querySelector("#studentProfileContent"),questionBankView:document.querySelector("#questionBankView"),questionBankList:document.querySelector("#questionBankList"),questionBankCount:document.querySelector("#questionBankCount"),questionBankFilter:document.querySelector("#questionBankFilter"),questionBankImportBtn:document.querySelector("#questionBankImportBtn"),saveToBankBtn:document.querySelector("#saveToBankBtn"),isTryout:document.querySelector("#isTryout"),editIsTryout:document.querySelector("#editIsTryout"),notifBadge:document.querySelector("#notifBadge"),notifList:document.querySelector("#notifList"),notifView:document.querySelector("#notifView"),compTrendChart:document.querySelector("#compTrendChart"),compTrendLegend:document.querySelector("#compTrendLegend"),darkModeToggle:document.querySelector("#darkModeToggle"),hamburgerBtn:document.querySelector("#hamburgerBtn")}}function D(e,t,a,n){e.disabled=t,e.classList.toggle("is-loading",t),e.setAttribute("aria-busy",String(t)),e.textContent=t?a:n}function Te(e,t,a){e.className=t,e.setAttribute("role","status"),e.innerHTML=`
+(function installLisanUIPolish() {
+  const style = document.createElement("style");
+  style.id = "lisan-ui-polish";
+  style.textContent = "\n    #probingGatePanel { margin: 0 0 20px; }\n    #probingGatePanel.is-empty { display: none; }\n    .probing-gate-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-subtle); overflow: hidden; }\n    .probing-gate-heading { padding: 18px 20px; }\n    .probing-gate-heading h3 { margin: 0 0 5px; }\n    .probing-gate-heading p { margin: 0; color: var(--muted); line-height: 1.5; }\n    .probing-gate-list-wrap { padding: 0 20px 20px; }\n    @keyframes lisanSmoothCaret { 0%, 42% { opacity: 1; } 50%, 92% { opacity: 0.2; } 100% { opacity: 1; } }\n    @keyframes lisanSmoothShimmer { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }\n    @keyframes lisanSmoothSpin { to { transform: rotate(360deg); } }\n    .probing-caret, .probing-stream-caret { animation: lisanSmoothCaret 1.8s ease-in-out infinite !important; }\n    .skeleton, .ai-skeleton-card { animation: lisanSmoothShimmer 2.8s ease-in-out infinite !important; }\n    .ai-stream-spinner, .loading-spinner, .spinner, .button-spinner, .evaluation-spinner { animation: lisanSmoothSpin 1.8s linear infinite !important; }\n    .recording-indicator, .record-button.recording::before, .record-button.recording::after { animation-duration: 1.8s !important; animation-timing-function: ease-in-out !important; }\n    .fade-in, .fadeIn { animation-duration: 0.45s !important; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important; }\n    @media (prefers-reduced-motion: reduce) { #probingGatePanel *, .skeleton, .ai-skeleton-card { animation: none !important; } }\n  ";
+  document.head.appendChild(style);
+})();
+
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// src/js/api.js
+var api_exports = {};
+__export(api_exports, {
+  addStudentsToClass: () => addStudentsToClass,
+  approveJoinRequest: () => approveJoinRequest,
+  createClassroom: () => createClassroom,
+  createStudentsBatch: () => createStudentsBatch,
+  createUser: () => createUser,
+  createUsersBatch: () => createUsersBatch,
+  deleteAssessment: () => deleteAssessment,
+  deleteClassroom: () => deleteClassroom,
+  deleteMembership: () => deleteMembership,
+  deleteQuestionFromBank: () => deleteQuestionFromBank,
+  deleteUser: () => deleteUser,
+  getCurrentUser: () => getCurrentUser,
+  getSimulationData: () => getSimulationData,
+  getSubmissionDetail: () => getSubmissionDetail,
+  joinClass: () => joinClass,
+  listQuestionBank: () => listQuestionBank,
+  listUsers: () => listUsers,
+  loadStateFromDatabase: () => loadStateFromDatabase,
+  login: () => login,
+  logout: () => logout,
+  postJson: () => postJson,
+  registerTenant: () => registerTenant,
+  removeDemoData: () => removeDemoData,
+  saveAssessmentToDatabase: () => saveAssessmentToDatabase,
+  saveQuestionToBank: () => saveQuestionToBank,
+  saveSubmissionToDatabase: () => saveSubmissionToDatabase,
+  seedDemoData: () => seedDemoData,
+  simulateLogin: () => simulateLogin,
+  streamAssessmentAction: () => streamAssessmentAction,
+  submitComplaint: () => submitComplaint,
+  updateAssessment: () => updateAssessment,
+  updateClassroom: () => updateClassroom,
+  updateMembership: () => updateMembership,
+  updateUser: () => updateUser
+});
+async function postJson(url, payload, fallbackMessage) {
+  const headers = { "Content-Type": "application/json" };
+  if (clientCsrfToken) {
+    headers["X-CSRF-Token"] = clientCsrfToken;
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json();
+  if (data.csrfToken) {
+    clientCsrfToken = data.csrfToken;
+  }
+  if (!response.ok) throw new Error(data.error || fallbackMessage);
+  return data;
+}
+async function getCurrentUser() {
+  const response = await fetch("/api/auth?action=me", { credentials: "include" });
+  const data = await response.json();
+  if (data.csrfToken) {
+    clientCsrfToken = data.csrfToken;
+  }
+  if (!response.ok) throw new Error(data.error || "Gagal memeriksa session");
+  return data;
+}
+async function login(payload) {
+  return postJson("/api/auth", { action: "login", payload }, "Login gagal");
+}
+async function registerTenant(payload) {
+  return postJson("/api/auth", { action: "register", payload }, "Registrasi gagal");
+}
+async function logout() {
+  return postJson("/api/auth", { action: "logout" }, "Logout gagal");
+}
+async function listUsers() {
+  const response = await fetch("/api/database?action=users");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal memuat user");
+  return data.users;
+}
+async function createUser(payload) {
+  const data = await postJson("/api/database", { action: "create-user", payload }, "Gagal membuat user");
+  return data.user;
+}
+async function createUsersBatch(payload) {
+  const data = await postJson("/api/database", { action: "create-users-batch", payload }, "Gagal membuat user batch");
+  return data;
+}
+async function updateUser(userId, payload) {
+  const data = await postJson("/api/database", { action: "update-user", id: userId, payload }, "Gagal mengubah user");
+  return data.user;
+}
+async function deleteUser(userId) {
+  return postJson("/api/database", { action: "delete-user", id: userId }, "Gagal menghapus user");
+}
+async function loadStateFromDatabase() {
+  const response = await fetch("/api/state", { credentials: "include" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal memuat data dari database");
+  return {
+    assessments: Array.isArray(data.assessments) ? data.assessments : [],
+    submissions: Array.isArray(data.submissions) ? data.submissions : [],
+    classes: Array.isArray(data.classes) ? data.classes : [],
+    memberships: Array.isArray(data.memberships) ? data.memberships : []
+  };
+}
+async function getSubmissionDetail(submissionId) {
+  const response = await fetch(
+    `/api/database?action=submission&id=${encodeURIComponent(submissionId)}`,
+    { credentials: "include" }
+  );
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal memuat detail submission");
+  return data.submission;
+}
+async function saveAssessmentToDatabase(assessment) {
+  await postJson("/api/database", { action: "save-assessment", payload: assessment }, "Gagal menyimpan penilaian");
+}
+async function saveSubmissionToDatabase(submission) {
+  await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
+}
+async function submitComplaint(submissionId, questionIndex, reason) {
+  return postJson(
+    "/api/database",
+    { action: "submit-complaint", payload: { submissionId, questionIndex, reason } },
+    "Gagal mengirim komplain"
+  );
+}
+async function seedDemoData(target) {
+  return postJson(
+    "/api/database",
+    { action: "seed-demo", payload: { target } },
+    "Gagal mengisi data contoh"
+  );
+}
+async function removeDemoData() {
+  return postJson(
+    "/api/database",
+    { action: "remove-demo-data" },
+    "Gagal menghapus data dummy"
+  );
+}
+async function streamAssessmentAction({ action, payload, onChunk, onResult, onError }) {
+  const headers = { "Content-Type": "application/json" };
+  if (clientCsrfToken) {
+    headers["X-CSRF-Token"] = clientCsrfToken;
+  }
+  const response = await fetch("/api/assessment", {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify({ action, payload, stream: true })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "Gagal memproses permintaan AI");
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("Streaming tidak didukung oleh browser ini");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let resultData = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+    for (const event of events) {
+      const dataLine = event.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("");
+      if (!dataLine) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(dataLine);
+      } catch {
+        continue;
+      }
+      if (parsed.type === "chunk" && typeof parsed.text === "string") {
+        if (onChunk) onChunk(parsed.text);
+      } else if (parsed.type === "result") {
+        resultData = parsed.data || {};
+        if (onResult) onResult(resultData);
+      } else if (parsed.type === "error") {
+        if (onError) onError(parsed.message || "Terjadi kesalahan");
+        throw new Error(parsed.message || "Terjadi kesalahan");
+      }
+    }
+  }
+  return resultData;
+}
+async function createClassroom(name) {
+  const data = await postJson("/api/database", { action: "create-class", payload: { name } }, "Gagal membuat kelas");
+  return data.class;
+}
+async function updateClassroom(classId, payload) {
+  const data = await postJson("/api/database", { action: "update-class", id: classId, payload }, "Gagal mengubah kelas");
+  return data.class;
+}
+async function deleteClassroom(classId) {
+  return postJson("/api/database", { action: "delete-class", id: classId }, "Gagal menghapus kelas");
+}
+async function joinClass(joinCode) {
+  const data = await postJson("/api/database", { action: "join-class", payload: { joinCode } }, "Gagal join kelas");
+  return data.class;
+}
+async function addStudentsToClass(payload) {
+  const data = await postJson("/api/database", { action: "add-students-to-class", payload }, "Gagal menambahkan siswa ke kelas");
+  return data;
+}
+async function createStudentsBatch(payload) {
+  const data = await postJson("/api/database", { action: "create-students-batch", payload }, "Gagal membuat siswa batch");
+  return data;
+}
+async function approveJoinRequest(membershipId) {
+  return postJson("/api/database", { action: "approve-membership", payload: { membershipId } }, "Gagal approve siswa");
+}
+async function updateMembership(membershipId, status) {
+  return postJson("/api/database", { action: "update-membership", id: membershipId, payload: { status } }, "Gagal mengubah membership");
+}
+async function deleteMembership(membershipId) {
+  return postJson("/api/database", { action: "delete-membership", id: membershipId }, "Gagal menghapus membership");
+}
+async function updateAssessment(assessmentId, payload) {
+  const data = await postJson("/api/database", { action: "update-assessment", id: assessmentId, payload }, "Gagal mengubah penilaian");
+  return data.assessment;
+}
+async function deleteAssessment(assessmentId) {
+  return postJson("/api/database", { action: "delete-assessment", id: assessmentId }, "Gagal menghapus penilaian");
+}
+async function getSimulationData() {
+  const response = await fetch("/api/auth?action=simulation");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal memuat data simulasi");
+  return data;
+}
+async function simulateLogin(userId) {
+  return postJson("/api/auth", { action: "simulate-login", payload: { userId } }, "Gagal simulasi login");
+}
+async function saveQuestionToBank(question) {
+  const data = await postJson("/api/database", { action: "save-question-bank", payload: question }, "Gagal menyimpan soal");
+  return data.id;
+}
+async function listQuestionBank(filter) {
+  const data = await postJson("/api/database", { action: "list-question-bank", payload: filter || {} }, "Gagal memuat bank soal");
+  return data.questions;
+}
+async function deleteQuestionFromBank(questionId) {
+  return postJson("/api/database", { action: "delete-question-bank", id: questionId }, "Gagal menghapus soal");
+}
+var clientCsrfToken;
+var init_api = __esm({
+  "src/js/api.js"() {
+    clientCsrfToken = null;
+  }
+});
+
+// src/js/dom.js
+var dom_exports = {};
+__export(dom_exports, {
+  getElements: () => getElements,
+  setButtonLoading: () => setButtonLoading,
+  showEmpty: () => showEmpty
+});
+function getElements() {
+  return {
+    mainNav: document.getElementById("mainNav"),
+    views: document.querySelectorAll(".view"),
+    authView: document.querySelector("#authView"),
+    appShell: document.querySelector("#appShell"),
+    registerModal: document.querySelector("#registerModal"),
+    openRegisterModalBtn: document.querySelector("#openRegisterModalBtn"),
+    closeRegisterModalBtn: document.querySelector("#closeRegisterModalBtn"),
+    loginForm: document.querySelector("#loginForm"),
+    loginEmail: document.querySelector("#loginEmail"),
+    loginPassword: document.querySelector("#loginPassword"),
+    registerForm: document.querySelector("#registerForm"),
+    registerTenant: document.querySelector("#registerTenant"),
+    registerName: document.querySelector("#registerName"),
+    registerEmail: document.querySelector("#registerEmail"),
+    registerPassword: document.querySelector("#registerPassword"),
+    logoutButton: document.querySelector("#logoutButton"),
+    accountName: document.querySelector("#accountName"),
+    tenantName: document.querySelector("#tenantName"),
+    accountRole: document.querySelector("#accountRole"),
+    adminNav: document.querySelector("#adminNav"),
+    accountView: document.querySelector("#accountView"),
+    userForm: document.querySelector("#userForm"),
+    csvForm: document.querySelector("#csvForm"),
+    csvFile: document.querySelector("#csvFile"),
+    userName: document.querySelector("#userName"),
+    userEmail: document.querySelector("#userEmail"),
+    userPassword: document.querySelector("#userPassword"),
+    userRole: document.querySelector("#userRole"),
+    userList: document.querySelector("#userList"),
+    selectAllUsers: document.querySelector("#selectAllUsers"),
+    deleteSelectedUsers: document.querySelector("#deleteSelectedUsers"),
+    form: document.querySelector("#assessmentForm"),
+    createManualAssessment: document.querySelector("#createManualAssessment"),
+    aiStreamPanel: document.querySelector("#aiStreamPanel"),
+    aiStreamTitle: document.querySelector("#aiStreamTitle"),
+    aiStreamPlaceholder: document.querySelector("#aiStreamPlaceholder"),
+    aiStreamQuestions: document.querySelector("#aiStreamQuestions"),
+    recommendStreamPanel: document.querySelector("#recommendStreamPanel"),
+    recommendStreamTitle: document.querySelector("#recommendStreamTitle"),
+    recommendStreamPlaceholder: document.querySelector("#recommendStreamPlaceholder"),
+    recommendStreamContent: document.querySelector("#recommendStreamContent"),
+    evaluationStreamContent: document.querySelector("#evaluationStreamContent"),
+    evaluationProgressText: document.querySelector("#evaluationProgressText"),
+    evaluationPreviewList: document.querySelector("#evaluationPreviewList"),
+    assessmentList: document.querySelector("#assessmentList"),
+    assessmentCount: document.querySelector("#assessmentCount"),
+    studentSelect: document.querySelector("#studentAssessmentSelect"),
+    studentDashboard: document.querySelector("#studentDashboard"),
+    studentAssessmentGrid: document.querySelector("#studentAssessmentGrid"),
+    studentClassFilter: document.querySelector("#studentClassFilter"),
+    monitorClassFilter: document.querySelector("#monitorClassFilter"),
+    monitorRangeFilter: document.querySelector("#monitorRangeFilter"),
+    trendAssessmentCount: document.querySelector("#trendAssessmentCount"),
+    downloadClassCsvBtn: document.getElementById("downloadClassCsvBtn"),
+    backToDashboard: document.querySelector("#backToDashboard"),
+    studentEmpty: document.querySelector("#studentEmpty"),
+    studentWorkspace: document.querySelector("#studentWorkspace"),
+    questionProgress: document.querySelector("#questionProgress"),
+    activeDifficulty: document.querySelector("#activeDifficulty"),
+    activeQuestion: document.querySelector("#activeQuestion"),
+    activeHint: document.querySelector("#activeHint"),
+    activeOutcome: document.querySelector("#activeOutcome"),
+    activeRubric: document.querySelector("#activeRubric"),
+    recordButton: document.querySelector("#recordButton"),
+    recorderPanel: document.querySelector("#recorderPanel"),
+    recordStatus: document.querySelector("#recordStatus"),
+    recordTimer: document.querySelector("#recordTimer"),
+    volumeIndicator: document.querySelector("#volumeIndicator"),
+    testMicButton: document.querySelector("#testMicButton"),
+    micStatus: document.querySelector("#micStatus"),
+    micDiagnostics: document.querySelector("#micDiagnostics"),
+    answerText: document.querySelector("#answerText"),
+    prevQuestion: document.querySelector("#prevQuestion"),
+    saveAnswer: document.querySelector("#saveAnswer"),
+    answerMap: document.querySelector("#answerMap"),
+    studentName: document.querySelector("#studentName"),
+    finishAssessment: document.querySelector("#finishAssessment"),
+    resultPanel: document.querySelector("#resultPanel"),
+    evaluationLoadingModal: document.querySelector("#evaluationLoadingModal"),
+    preExamModal: document.querySelector("#preExamModal"),
+    preExamTitle: document.querySelector("#preExamTitle"),
+    preExamMeta: document.querySelector("#preExamMeta"),
+    preExamMicSection: document.querySelector("#preExamMicSection"),
+    preExamMicTest: document.querySelector("#preExamMicTest"),
+    preExamVolume: document.querySelector("#preExamVolume"),
+    preExamMicStatus: document.querySelector("#preExamMicStatus"),
+    preExamPlayback: document.querySelector("#preExamPlayback"),
+    preExamMicDiagnostics: document.querySelector("#preExamMicDiagnostics"),
+    preExamStartNote: document.querySelector("#preExamStartNote"),
+    preExamStart: document.querySelector("#preExamStart"),
+    preExamCancel: document.querySelector("#preExamCancel"),
+    preExamClose: document.querySelector("#preExamClose"),
+    submissionCount: document.querySelector("#submissionCount"),
+    submissionList: document.querySelector("#submissionList"),
+    studentHistoryList: document.querySelector("#studentHistoryList"),
+    classAverage: document.querySelector("#classAverage"),
+    trendList: document.querySelector("#trendList"),
+    seedDemo: document.querySelector("#seedDemo"),
+    seedDemoTeacher: document.querySelector("#seedDemoTeacher"),
+    seedDemoAdmin: document.querySelector("#seedDemoAdmin"),
+    removeDemoData: document.querySelector("#removeDemoData"),
+    recommendOutcomes: document.querySelector("#recommendOutcomes"),
+    topic: document.querySelector("#topic"),
+    outcomes: document.querySelector("#outcomes"),
+    difficulty: document.querySelector("#difficulty"),
+    timeLimit: document.querySelector("#timeLimit"),
+    timerDisplay: document.querySelector("#timerDisplay"),
+    examples: document.querySelector("#examples"),
+    questionCount: document.querySelector("#questionCount"),
+    classSelect: document.querySelector("#classSelect"),
+    classPanel: document.querySelector("#classPanel"),
+    classForm: document.querySelector("#classForm"),
+    classNameInput: document.querySelector("#className"),
+    classList: document.querySelector("#classList"),
+    bulkAddClassSelect: document.querySelector("#bulkAddClassSelect"),
+    bulkAddEmails: document.querySelector("#bulkAddEmails"),
+    bulkAddButton: document.querySelector("#bulkAddButton"),
+    bulkAddClear: document.querySelector("#bulkAddClear"),
+    bulkAddCsvFile: document.querySelector("#bulkAddCsvFile"),
+    bulkAddCsvUpload: document.querySelector("#bulkAddCsvUpload"),
+    bulkAddCsvTemplate: document.querySelector("#bulkAddCsvTemplate"),
+    joinClassForm: document.querySelector("#joinClassForm"),
+    joinCode: document.querySelector("#joinCode"),
+    pendingJoinList: document.querySelector("#pendingJoinList"),
+    approvedMemberList: document.querySelector("#approvedMemberList"),
+    memberSearchInput: document.querySelector("#memberSearchInput"),
+    memberPaginationContainer: document.querySelector("#memberPaginationContainer"),
+    memberPrevBtn: document.querySelector("#memberPrevBtn"),
+    memberNextBtn: document.querySelector("#memberNextBtn"),
+    memberPageInfo: document.querySelector("#memberPageInfo"),
+    memberCountText: document.querySelector("#memberCountText"),
+    studentJoinClassForm: document.querySelector("#studentJoinClassForm"),
+    studentJoinCode: document.querySelector("#studentJoinCode"),
+    studentClassList: document.querySelector("#studentClassList"),
+    questionEditor: document.querySelector("#questionEditor"),
+    editableQuestionList: document.querySelector("#editableQuestionList"),
+    addManualQuestion: document.querySelector("#addManualQuestion"),
+    saveQuestionSet: document.querySelector("#saveQuestionSet"),
+    improveQuestionSet: document.querySelector("#improveQuestionSet"),
+    wizardSteps: document.querySelectorAll(".wizard-step"),
+    wizardPanels: document.querySelectorAll(".wizard-panel"),
+    wizardToQuestions: document.querySelector("#wizardToQuestions"),
+    wizardBackToContext: document.querySelector("#wizardBackToContext"),
+    wizardToReview: document.querySelector("#wizardToReview"),
+    wizardBackToQuestions: document.querySelector("#wizardBackToQuestions"),
+    reviewSummary: document.querySelector("#reviewSummary"),
+    simulatorWidget: document.querySelector("#simulatorWidget"),
+    simulatorToggle: document.querySelector("#simulatorToggle"),
+    simulatorPanel: document.querySelector("#simulatorPanel"),
+    simulatorClose: document.querySelector("#simulatorClose"),
+    simulatorTenantList: document.querySelector("#simulatorTenantList"),
+    disableManualTyping: document.querySelector("#disableManualTyping"),
+    oralExamEnabled: document.querySelector("#oralExamEnabled"),
+    editDisableManualTyping: document.querySelector("#editDisableManualTyping"),
+    editOralExamEnabled: document.querySelector("#editOralExamEnabled"),
+    allowRetakes: document.querySelector("#allowRetakes"),
+    editAllowRetakes: document.querySelector("#editAllowRetakes"),
+    maxAttempts: document.querySelector("#maxAttempts"),
+    recordInstructions: document.querySelector("#recordInstructions"),
+    observabilityView: document.querySelector("#observabilityView"),
+    telemetryRange: document.querySelector("#telemetryRange"),
+    telemetryLastUpdated: document.querySelector("#telemetryLastUpdated"),
+    telemetryTotalCalls: document.querySelector("#telemetryTotalCalls"),
+    telemetryCallsDelta: document.querySelector("#telemetryCallsDelta"),
+    telemetryErrorRate: document.querySelector("#telemetryErrorRate"),
+    telemetryErrorHealth: document.querySelector("#telemetryErrorHealth"),
+    telemetryP50: document.querySelector("#telemetryP50"),
+    telemetryP95: document.querySelector("#telemetryP95"),
+    telemetryP95Health: document.querySelector("#telemetryP95Health"),
+    telemetryTailAlert: document.querySelector("#telemetryTailAlert"),
+    telemetryLatencyDist: document.querySelector("#telemetryLatencyDist"),
+    telemetryPercentileTable: document.querySelector("#telemetryPercentileTable"),
+    telemetryTailRatio: document.querySelector("#telemetryTailRatio"),
+    telemetryLatencyByOp: document.querySelector("#telemetryLatencyByOp"),
+    telemetryTokens: document.querySelector("#telemetryTokens"),
+    telemetryTokenSplit: document.querySelector("#telemetryTokenSplit"),
+    telemetryAvgTokens: document.querySelector("#telemetryAvgTokens"),
+    telemetryAvgPrompt: document.querySelector("#telemetryAvgPrompt"),
+    telemetryAvgCompletion: document.querySelector("#telemetryAvgCompletion"),
+    telemetryTokensPerCall: document.querySelector("#telemetryTokensPerCall"),
+    telemetryTokensPerEval: document.querySelector("#telemetryTokensPerEval"),
+    telemetryCost: document.querySelector("#telemetryCost"),
+    telemetryCostPerEval: document.querySelector("#telemetryCostPerEval"),
+    telemetryCostPer1K: document.querySelector("#telemetryCostPer1K"),
+    telemetryCostByOp: document.querySelector("#telemetryCostByOp"),
+    telemetryPrefixTokens: document.querySelector("#telemetryPrefixTokens"),
+    telemetryPrefixPct: document.querySelector("#telemetryPrefixPct"),
+    telemetryPrefixCost: document.querySelector("#telemetryPrefixCost"),
+    telemetryCacheHits: document.querySelector("#telemetryCacheHits"),
+    telemetryCacheMisses: document.querySelector("#telemetryCacheMisses"),
+    telemetryKvStatus: document.querySelector("#telemetryKvStatus"),
+    telemetryProviderTable: document.querySelector("#telemetryProviderTable"),
+    telemetrySlowestCalls: document.querySelector("#telemetrySlowestCalls"),
+    telemetryLogList: document.querySelector("#telemetryLogList"),
+    telemetryFilterOp: document.querySelector("#telemetryFilterOp"),
+    telemetryFilterModel: document.querySelector("#telemetryFilterModel"),
+    telemetryFilterStatus: document.querySelector("#telemetryFilterStatus"),
+    telemetryFilterLatency: document.querySelector("#telemetryFilterLatency"),
+    telemetryFilterDate: document.querySelector("#telemetryFilterDate"),
+    telemetryLogCount: document.querySelector("#telemetryLogCount"),
+    telemetryLogPagination: document.querySelector("#telemetryLogPagination"),
+    telemetryLogPrev: document.querySelector("#telemetryLogPrev"),
+    telemetryLogNext: document.querySelector("#telemetryLogNext"),
+    telemetryLogPageInfo: document.querySelector("#telemetryLogPageInfo"),
+    sysHealthList: document.querySelector("#sysHealthList"),
+    telemetryRestartAlert: document.querySelector("#telemetryRestartAlert"),
+    sysMemoryHeap: document.querySelector("#sysMemoryHeap"),
+    sysMemoryTotal: document.querySelector("#sysMemoryTotal"),
+    sysCpuUsage: document.querySelector("#sysCpuUsage"),
+    sysCpuSystem: document.querySelector("#sysCpuSystem"),
+    sysUptime: document.querySelector("#sysUptime"),
+    sysNodeVersion: document.querySelector("#sysNodeVersion"),
+    refreshTelemetryBtn: document.querySelector("#refreshTelemetryBtn"),
+    complaintView: document.querySelector("#complaintView"),
+    complaintList: document.querySelector("#complaintList"),
+    complaintCount: document.querySelector("#complaintCount"),
+    complaintNavBadge: document.querySelector("#complaintNavBadge"),
+    complaintNotification: document.querySelector("#complaintNotification"),
+    studentNotifView: document.querySelector("#studentNotifView"),
+    studentNotifList: document.querySelector("#studentNotifList"),
+    researchView: document.querySelector("#researchView"),
+    researchSelect: document.querySelector("#researchSelect"),
+    researchValidity: document.querySelector("#researchValidity"),
+    researchInterRater: document.querySelector("#researchInterRater"),
+    researchRunsList: document.querySelector("#researchRunsList"),
+    researchRubricPanel: document.querySelector("#researchRubricPanel"),
+    researchResultPanel: document.querySelector("#researchResultPanel"),
+    researchExportBtn: document.querySelector("#researchExportBtn"),
+    refreshResearchBtn: document.querySelector("#refreshResearchBtn"),
+    apiKeyName: document.querySelector("#apiKeyName"),
+    createApiKeyBtn: document.querySelector("#createApiKeyBtn"),
+    apiKeyResult: document.querySelector("#apiKeyResult"),
+    apiKeyValue: document.querySelector("#apiKeyValue"),
+    apiKeyList: document.querySelector("#apiKeyList"),
+    apiKeysView: document.querySelector("#apiKeysView"),
+    // Trustworthy assessment dashboard (PRD UX v1.0)
+    dashboardView: document.querySelector("#dashboardView"),
+    dashboardSubtitle: document.querySelector("#dashboardSubtitle"),
+    dashboardClassFilter: document.querySelector("#dashboardClassFilter"),
+    dashboardRangeFilter: document.querySelector("#dashboardRangeFilter"),
+    dashboardKpis: document.querySelector("#dashboardKpis"),
+    performanceChart: document.querySelector("#performanceChart"),
+    scoreDistribution: document.querySelector("#scoreDistribution"),
+    competencyOverview: document.querySelector("#competencyOverview"),
+    atRiskList: document.querySelector("#atRiskList"),
+    atRiskCount: document.querySelector("#atRiskCount"),
+    recentAssessmentsList: document.querySelector("#recentAssessmentsList"),
+    assessmentListView: document.querySelector("#assessmentListView"),
+    assessmentTabFilter: document.querySelector("#assessmentTabFilter"),
+    assessmentDetailView: document.querySelector("#assessmentDetailView"),
+    detailBackBtn: document.querySelector("#detailBackBtn"),
+    assessmentDetailContent: document.querySelector("#assessmentDetailContent"),
+    studentProfileView: document.querySelector("#studentProfileView"),
+    profileStudentSelect: document.querySelector("#profileStudentSelect"),
+    studentProfileContent: document.querySelector("#studentProfileContent"),
+    questionBankView: document.querySelector("#questionBankView"),
+    questionBankList: document.querySelector("#questionBankList"),
+    questionBankCount: document.querySelector("#questionBankCount"),
+    questionBankFilter: document.querySelector("#questionBankFilter"),
+    questionBankImportBtn: document.querySelector("#questionBankImportBtn"),
+    saveToBankBtn: document.querySelector("#saveToBankBtn"),
+    isTryout: document.querySelector("#isTryout"),
+    editIsTryout: document.querySelector("#editIsTryout"),
+    notifBadge: document.querySelector("#notifBadge"),
+    notifList: document.querySelector("#notifList"),
+    notifView: document.querySelector("#notifView"),
+    compTrendChart: document.querySelector("#compTrendChart"),
+    compTrendLegend: document.querySelector("#compTrendLegend"),
+    darkModeToggle: document.querySelector("#darkModeToggle"),
+    hamburgerBtn: document.querySelector("#hamburgerBtn")
+  };
+}
+function setButtonLoading(button, loading, loadingText, defaultText) {
+  if (!button) return;
+  button.disabled = loading;
+  button.classList.toggle("is-loading", loading);
+  button.setAttribute("aria-busy", String(loading));
+  button.textContent = loading ? loadingText : defaultText;
+}
+function showEmpty(container, className, message) {
+  container.className = className;
+  container.setAttribute("role", "status");
+  container.innerHTML = `
     <span class="empty-state-icon" aria-hidden="true">\u25CB</span>
     <div>
       <strong>Belum ada data</strong>
-      <p>${a}</p>
+      <p>${message}</p>
     </div>
-  `}var Y=x(()=>{});function yn(e){return{currentAssessmentId:null,currentQuestionIndex:0,currentAnswers:[],getCurrentAssessment(){return e.assessments.find(t=>t.id===this.currentAssessmentId)},ensureAssessmentSelected(){if(!e.assessments.length){this.currentAssessmentId=null,this.currentAnswers=[],this.currentQuestionIndex=0;return}e.assessments.some(a=>a.id===this.currentAssessmentId)||this.selectAssessment(e.assessments[0].id)},selectAssessment(t){let a=e.assessments.find(n=>n.id===t);this.currentAssessmentId=t,this.currentAnswers=Array(a?.questions.length||0).fill(null).map(()=>({text:"",audio:null,duration:0,timeLeft:a?.timeLimit||0})),this.currentQuestionIndex=0},saveAnswer(t,a=null,n=0){this.currentAnswers[this.currentQuestionIndex]||(this.currentAnswers[this.currentQuestionIndex]={text:"",audio:null,duration:0}),this.currentAnswers[this.currentQuestionIndex].text=(t||"").trim(),a&&(this.currentAnswers[this.currentQuestionIndex].audio=a),this.currentAnswers[this.currentQuestionIndex].duration=(this.currentAnswers[this.currentQuestionIndex].duration||0)+n},goPrevious(){this.currentQuestionIndex=Math.max(0,this.currentQuestionIndex-1)},goNext(){let t=this.getCurrentAssessment();t&&(this.currentQuestionIndex=Math.min(t.questions.length-1,this.currentQuestionIndex+1))}}}var kn=x(()=>{});function vn({recordButton:e,recordStatus:t,answerText:a,recordTimer:n,volumeIndicator:s}){let r=null,i=null,o=null,l=[],c=!1,d="",m=0,k=!0,h=null,w=0,f=null,g=null,b=null;e&&typeof e.addEventListener=="function"&&e.addEventListener("click",$=>{$.preventDefault(),L()});async function v(){if(!k||S())return;let $=m+1;m=$,te(!0);try{if(o=await T(),$!==m){bn();return}P("Merekam audio...",$);let A=window.SpeechRecognition||window.webkitSpeechRecognition;A&&q(A,$)}catch(A){throw t.textContent=A.message,Be(!1),A}finally{te(!1)}}async function L(){S()?y():await v()}function y(){m+=1,i&&c&&i.stop(),r?.state==="recording"&&r.stop(),c=!1,d="",Be(!1)}function S(){return c||r?.state==="recording"}async function T(){if(!window.isSecureContext)throw new Error("Mikrofon hanya bisa dipakai di HTTPS atau localhost.");if(!navigator.mediaDevices?.getUserMedia)throw new Error("Browser tidak mendukung akses mikrofon. Ketik jawaban manual.");t.textContent="Meminta izin mikrofon...";try{return await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}})}catch($){throw new Error(ut($))}}function M(){return(typeof a=="string"?document.querySelector(a):a&&a.isConnected?a:document.querySelector("#answerText"))||null}function q($,A){d=(M()?.value||"").trim(),i=new $,i.lang="id-ID",i.continuous=!0,i.interimResults=!0,i.onstart=()=>{A===m&&(c=!0,t.textContent="Merekam suara dan membuat transkripsi...")},i.onresult=E=>{if(A!==m)return;let{finalText:J,interimText:he}=z(E);J&&(d=[d,J].filter(Boolean).join(" "));let Ne=M();Ne&&(Ne.value=[d,he].filter(Boolean).join(" "))},i.onerror=E=>{A===m&&(console.warn("Speech recognition error:",E.error),c=!1,["no-speech","aborted","network","audio-capture"].includes(E.error)&&j(A))},i.onend=()=>{A===m&&(c=!1,O()&&j(A))};try{i.start()}catch(E){c=!1,console.warn("Transkripsi tidak bisa dimulai:",E.message),j(A)}}let _=null;function j($){$===m&&O()&&(_||(_=setTimeout(()=>{if(_=null,!($!==m||!O())&&!(!i||c))try{i.start()}catch(A){console.warn("Transkripsi restart gagal:",A.message)}},500)))}function O(){return r?.state==="recording"}function P($,A){l=[],r=new MediaRecorder(o),r.ondataavailable=E=>{A===m&&E.data.size&&l.push(E.data)},r.onstop=()=>{if(A!==m)return;bn(),le(),fn();let E=M();t.textContent=l.length?E?.readOnly?"Audio berhasil direkam. Jawaban hanya menggunakan transkripsi otomatis.":"Audio berhasil direkam. Ketik atau koreksi transkripsi agar bisa dinilai.":"Rekaman berhenti, tetapi tidak ada audio yang tersimpan."},r.start(),Be(!0),t.textContent=$,Re(),Vs()}function z($){let A="",E="";for(let J=$.resultIndex;J<$.results.length;J+=1){let he=$.results[J][0].transcript.trim();$.results[J].isFinal?A=[A,he].filter(Boolean).join(" "):E=[E,he].filter(Boolean).join(" ")}return{finalText:A,interimText:E}}function te($){e.disabled=$,e.setAttribute("aria-label",$?"Menyiapkan mikrofon...":"Mulai rekam")}function Be($){e.classList.toggle("recording",$),e.setAttribute("aria-label",$?"Berhenti rekam":"Mulai rekam");let A=e.querySelector(".record-label");A&&(A.textContent=$?"Berhenti":"Mulai rekam")}function $e(){S()||(t.textContent="Siap merekam",Fs(),gn())}function Re(){le(),w=Date.now(),pn(),h=setInterval(pn,1e3)}function le(){h&&(clearInterval(h),h=null)}function pn(){if(!n)return;let $=Math.floor((Date.now()-w)/1e3),A=Math.floor($/60).toString().padStart(2,"0"),E=($%60).toString().padStart(2,"0");n.textContent=`${A}:${E}`}function Fs(){le(),n&&(n.textContent="00:00")}function Vs(){if(fn(),!!s)try{let $=window.AudioContext||window.webkitAudioContext;if(!$)return;f=new $;let A=f.createMediaStreamSource(o);g=f.createAnalyser(),g.fftSize=256,A.connect(g);let E=new Uint8Array(g.frequencyBinCount),J=s.querySelectorAll(".volume-bar"),he=()=>{if(!g)return;g.getByteFrequencyData(E);let Ne=0;for(let je=0;je<E.length;je+=1)Ne+=E[je];let Qs=Ne/E.length,Ks=Math.min(1,Qs/128),zs=Math.round(Ks*J.length);J.forEach((je,Gs)=>{je.classList.toggle("active",Gs<zs)}),b=requestAnimationFrame(he)};he()}catch($){console.warn("Volume meter tidak tersedia:",$.message)}}function fn(){b&&(cancelAnimationFrame(b),b=null),f&&(f.close().catch(()=>{}),f=null,g=null),gn()}function gn(){s&&s.querySelectorAll(".volume-bar").forEach($=>$.classList.remove("active"))}function bn(){o&&(o.getTracks().forEach($=>$.stop()),o=null)}function Us(){return l.length===0?Promise.resolve(null):new Promise($=>{let A=new Blob(l,{type:"audio/webm"}),E=new FileReader;E.onloadend=()=>$(E.result),E.readAsDataURL(A)})}function hn(){l=[]}function Os($){k=$,k||(y(),hn())}async function _s(){if(S())return{ok:!1,message:"Rekaman sedang berjalan. Hentikan dulu sebelum tes mikrofon."};if(!window.isSecureContext)return{ok:!1,message:"Mikrofon hanya bisa dipakai di HTTPS atau localhost."};if(!navigator.mediaDevices?.getUserMedia)return{ok:!1,message:"Browser tidak mendukung akses mikrofon. Ketik jawaban manual."};let $=null;try{$=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}});let A=$.getAudioTracks();if(!A.length)return{ok:!1,message:"Mikrofon terdeteksi tetapi tidak ada track audio aktif."};let E=A[0].label||"Mikrofon bawaan",J=A[0].enabled;return{ok:!0,message:`Mikrofon siap: ${E}`,label:E,enabled:J}}catch(A){return{ok:!1,message:ut(A),name:A?.name||""}}finally{$&&$.getTracks().forEach(A=>A.stop())}}return{resetStatus:$e,stop:y,start:v,toggle:L,getAudioBase64:Us,clearAudio:hn,setEnabled:Os,testMicrophone:_s}}function ut(e){let t=e?.name||"";return t==="NotAllowedError"||t==="SecurityError"?"Izin mikrofon diblokir. Klik ikon izin di address bar, pilih Allow microphone, lalu reload halaman.":t==="NotFoundError"||t==="DevicesNotFoundError"?"Mikrofon tidak ditemukan. Sambungkan mikrofon atau pilih input audio di pengaturan browser.":t==="NotReadableError"||t==="TrackStartError"?"Mikrofon sedang dipakai aplikasi lain atau tidak bisa dibaca.":t==="OverconstrainedError"?"Konfigurasi mikrofon tidak cocok.":e?.message||"Mikrofon belum bisa digunakan."}var na=x(()=>{});var sa,Sn,wn,$n,ra,Ue=x(()=>{sa={assessments:[],submissions:[],classes:[],memberships:[]},Sn=5,wn=["konsep","alasan","contoh","hubungan"],$n=new Set(["yang","dan","atau","untuk","dengan","dalam","pada","dari","ke","di","sebagai","adalah","serta","siswa","mampu","dapat","secara","contoh","rubrik","penilaian","materi","topik","kompetensi","jawaban"]),ra={Dasar:["Jelaskan pengertian utama dari {topic} dengan bahasa sendiri.","Sebutkan dua konsep penting dalam {topic} dan jelaskan hubungannya.","Berikan contoh sederhana yang menunjukkan pemahamanmu tentang {keyword}.","Apa bagian dari {topic} yang paling mudah keliru dipahami? Jelaskan."],Menengah:["Jelaskan {topic} dengan mengaitkan konsep {keyword} dan alasan pendukungnya.","Bandingkan dua ide penting dalam {topic}, lalu jelaskan mana yang paling menentukan.","Gunakan contoh konkret untuk membuktikan bahwa kamu memahami {keyword}.","Jika ada teman yang salah memahami {topic}, bagaimana kamu memperbaiki penjelasannya?","Apa konsekuensi dari konsep {keyword} terhadap penerapan {topic}?"],Lanjutan:["Analisis keterkaitan {topic}, {keyword}, dan indikator kompetensi yang diuji.","Evaluasi sebuah situasi nyata yang berkaitan dengan {topic}, lalu berikan argumenmu.","Bangun penjelasan bertahap tentang {keyword} beserta keterbatasan contohnya.","Ajukan kesimpulan tentang {topic} dan pertahankan dengan bukti konseptual.","Sintesis beberapa konsep dalam {topic} menjadi penjelasan yang utuh dan kritis."]}});var dt={};Q(dt,{loadState:()=>ia});async function ia(){try{let e=await Ot();return!e.assessments.length&&!e.submissions.length?await er(e):e}catch(e){return alert(`Database belum bisa dimuat. Aplikasi memakai state kosong. Detail: ${e.message}`),structuredClone(sa)}}async function er(e){let t=tr();return!t.assessments.length&&!t.submissions.length?e:(await Promise.all(t.assessments.map(Fe)),await Promise.all(t.submissions.map(X)),localStorage.removeItem(Ln),t)}function tr(){try{let e=JSON.parse(localStorage.getItem(Ln));return{assessments:Array.isArray(e?.assessments)?e.assessments:[],submissions:Array.isArray(e?.submissions)?e.submissions:[]}}catch{return structuredClone(sa)}}var Ln,Oe=x(()=>{Ue();B();Ln="lisanai-assessment-state"});function _e(e){return`${e}-${Date.now()}-${Math.random().toString(16).slice(2)}`}function ke(e,t=130){let a=String(e||"").trim().replace(/\s+/g," ");return a.length>t?`${a.slice(0,t-1)}...`:a}function u(e){return String(e??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function oa(...e){let t=e.join(" ").toLowerCase().replace(/[^a-z0-9\u00c0-\u024f\s]/gi," ").split(/\s+/).filter(a=>a.length>4&&!$n.has(a));return[...new Set(t)].slice(0,12)}function An(e,t){return e.length?Math.round(e.reduce((a,n)=>a+t(n),0)/e.length):0}function Ee(e){return{admin:"Admin",teacher:"Guru",student:"Siswa"}[e]||e}function Qe(e){let t=Math.floor(e/60).toString().padStart(2,"0"),a=(e%60).toString().padStart(2,"0");return`${t}:${a}`}function K(e){return String(e||"").replace(/[_-]+/g," ").replace(/\b\d{2,3}\b/g,"").replace(/\s+/g," ").trim().replace(/\b\w/g,t=>t.toUpperCase())}var H=x(()=>{Ue()});function la(e){return String(e??"").trim().toLowerCase()}function ct(e,t){let a=e||"Kriteria",n=[`${a} sangat baik, lengkap, dan tepat`,`${a} baik dan memadai`,`${a} cukup, namun masih perlu pengembangan`,`${a} kurang, perlu perbaikan signifikan`];return t.map((s,r)=>({score:s.score,label:s.label||"",descriptor:s.descriptor||n[r]||""}))}function ar(){return[{id:"c1",name:"",weight:0,levels:ct("",JSON.parse(JSON.stringify(Ke)))}]}function ve(e){if(!e||!e.trim())return ar();let t=e.trim();if(t.startsWith("{"))try{let o=JSON.parse(t);if(o.version==="2"&&Array.isArray(o.criteria)&&o.criteria.length)return o.criteria.map((l,c)=>({id:l.id||`c${c+1}`,name:l.name||"",weight:Number(l.weight)||0,levels:Array.isArray(l.levels)&&l.levels.length===4?ct(l.name||"",l.levels.map(d=>({score:d.score,label:d.label,descriptor:d.descriptor}))):ct(l.name||"",JSON.parse(JSON.stringify(Ke)))}))}catch{}let a=t,n=[],s=0,r=0;for(let o=0;o<a.length;o++)if(a[o]==="("||a[o]==="["||a[o]==="{")s++;else if(a[o]===")"||a[o]==="]"||a[o]==="}")s--;else if(s===0&&(a[o]===","||a[o]===";"||a[o]===`
-`)){let l=a.slice(r,o).trim();l&&n.push(l),r=o+1}let i=a.slice(r).trim();return i&&n.push(i),n.length||n.push(""),n.map((o,l)=>{let c=o.trim().replace(/^[•\-*]\s*/,"").replace(/[.!]+$/,"").trim(),d=0,m=c.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);return m?(c=m[1].trim(),d=Number(m[2])):(m=c.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/),m&&(d=Number(m[1]),c=m[2].trim())),{id:`c${l+1}`,name:c,weight:d,levels:ct(c,JSON.parse(JSON.stringify(Ke)))}})}function nr(e,t){let a=new Map,n=new Map,s=i=>{(i||[]).forEach(o=>{!o||!o.name||(a.has(String(o.id))||a.set(String(o.id),o),n.has(la(o.name))||n.set(la(o.name),o))})},r=(e||[]).find(i=>i&&(i.id===t||i.assessment_id===t));return r&&(r.rubric&&s(ve(r.rubric)),(r.questions||[]).forEach(i=>{i&&i.rubric&&s(ve(i.rubric))})),{byId:a,byName:n}}function sr(e,t){let a=Array.isArray(t)&&t.length?t:Ke,n=Math.max(...a.map(o=>Number(o.score))),s=Number(e)/100*n,r=a[0],i=1/0;for(let o of a){let l=Math.abs(Number(o.score)-s);l<i&&(i=l,r=o)}return r}function rr(e,t){let a=Math.max(...t.map(s=>Number(s.score)));return Math.max(1,Math.min(a,Math.round(Number(e)/100*a)))}function ua(e,t){let a=new Map;(t||[]).forEach(s=>{let{byId:r,byName:i}=nr(e,s.assessmentId);(Array.isArray(s.criteria)?s.criteria:[]).forEach(o=>{if(!Number.isFinite(Number(o.score)))return;let l=r.get(String(o.criterionId))||i.get(la(o.name)),c=l&&l.name||o.name||K(o.criterionId)||"Kriteria",d=a.get(c);d||(d={name:c,weight:l?Number(l.weight)||0:Number.isFinite(Number(o.weight))?Number(o.weight)*100:0,levels:l&&Array.isArray(l.levels)&&l.levels.length?l.levels:JSON.parse(JSON.stringify(Ke)),records:[]},a.set(c,d)),d.records.push({studentName:s.studentName,score:Number(o.score)})})});let n=[];for(let s of a.values()){let r=s.levels,o=s.records.reduce((d,m)=>d+m.score,0)/s.records.length,l=r.map(d=>({level:d,count:s.records.filter(m=>rr(m.score,r)===Number(d.score)).length})).sort((d,m)=>m.level.score-d.level.score),c=Math.max(0,...l.map(d=>d.count));l.forEach(d=>{d.pct=s.records.length?Math.round(d.count/s.records.length*100):0,d.dominant=s.records.length>0&&d.count===c&&d.count>0}),n.push({name:s.name,weight:s.weight,levels:r,records:s.records,avg:o,achieved:sr(o,r),distribution:l})}return n.sort((s,r)=>r.avg-s.avg)}function En(e){return!e||!e.length?'<p class="empty-state">Belum ada data kriteria rubrik untuk ditampilkan.</p>':`
+  `;
+}
+var init_dom = __esm({
+  "src/js/dom.js"() {
+  }
+});
+
+// src/js/session.js
+function createSession(state) {
+  return {
+    currentAssessmentId: null,
+    currentQuestionIndex: 0,
+    currentAnswers: [],
+    getCurrentAssessment() {
+      return state.assessments.find((assessment) => assessment.id === this.currentAssessmentId);
+    },
+    ensureAssessmentSelected() {
+      if (!state.assessments.length) {
+        this.currentAssessmentId = null;
+        this.currentAnswers = [];
+        this.currentQuestionIndex = 0;
+        return;
+      }
+      const existing = state.assessments.some((assessment) => assessment.id === this.currentAssessmentId);
+      if (!existing) this.selectAssessment(state.assessments[0].id);
+    },
+    selectAssessment(assessmentId) {
+      const assessment = state.assessments.find((item) => item.id === assessmentId);
+      this.currentAssessmentId = assessmentId;
+      this.currentAnswers = Array(assessment?.questions.length || 0).fill(null).map(() => ({
+        text: "",
+        audio: null,
+        duration: 0,
+        timeLeft: assessment?.timeLimit || 0
+      }));
+      this.currentQuestionIndex = 0;
+    },
+    saveAnswer(answer, audioBase64 = null, elapsedSeconds = 0) {
+      if (!this.currentAnswers[this.currentQuestionIndex]) {
+        this.currentAnswers[this.currentQuestionIndex] = { text: "", audio: null, duration: 0 };
+      }
+      this.currentAnswers[this.currentQuestionIndex].text = (answer || "").trim();
+      if (audioBase64) {
+        this.currentAnswers[this.currentQuestionIndex].audio = audioBase64;
+      }
+      this.currentAnswers[this.currentQuestionIndex].duration = (this.currentAnswers[this.currentQuestionIndex].duration || 0) + elapsedSeconds;
+    },
+    goPrevious() {
+      this.currentQuestionIndex = Math.max(0, this.currentQuestionIndex - 1);
+    },
+    goNext() {
+      const assessment = this.getCurrentAssessment();
+      if (!assessment) return;
+      this.currentQuestionIndex = Math.min(assessment.questions.length - 1, this.currentQuestionIndex + 1);
+    }
+  };
+}
+var init_session = __esm({
+  "src/js/session.js"() {
+  }
+});
+
+// src/js/recorder.js
+function createRecorder({ recordButton, recordStatus, answerText, recordTimer, volumeIndicator }) {
+  let mediaRecorder = null;
+  let recognition = null;
+  let mediaStream = null;
+  let audioChunks = [];
+  let recognizing = false;
+  let transcriptDraft = "";
+  let runId = 0;
+  let enabled = true;
+  let timerInterval = null;
+  let recordingStartedAt = 0;
+  let audioContext = null;
+  let analyser = null;
+  let volumeRaf = null;
+  if (recordButton && typeof recordButton.addEventListener === "function") {
+    recordButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      toggle();
+    });
+  }
+  async function start() {
+    if (!enabled) return;
+    if (isRecording()) return;
+    const activeRunId = runId + 1;
+    runId = activeRunId;
+    setPreparing(true);
+    try {
+      mediaStream = await requestMicrophone();
+      if (activeRunId !== runId) {
+        stopStream();
+        return;
+      }
+      startMediaRecorder("Merekam audio...", activeRunId);
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        startSpeechRecognition(SpeechRecognition, activeRunId);
+      }
+    } catch (err) {
+      recordStatus.textContent = err.message;
+      setRecording(false);
+      throw err;
+    } finally {
+      setPreparing(false);
+    }
+  }
+  async function toggle() {
+    if (isRecording()) {
+      stop();
+    } else {
+      await start();
+    }
+  }
+  function stop() {
+    runId += 1;
+    if (recognition && recognizing) recognition.stop();
+    if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+    recognizing = false;
+    transcriptDraft = "";
+    setRecording(false);
+  }
+  function isRecording() {
+    return recognizing || mediaRecorder?.state === "recording";
+  }
+  async function requestMicrophone() {
+    if (!window.isSecureContext) {
+      throw new Error("Mikrofon hanya bisa dipakai di HTTPS atau localhost.");
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Browser tidak mendukung akses mikrofon. Ketik jawaban manual.");
+    }
+    recordStatus.textContent = "Meminta izin mikrofon...";
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+    } catch (error) {
+      throw new Error(getMicrophoneErrorMessage(error));
+    }
+  }
+  function currentAnswerText() {
+    return (typeof answerText === "string" ? document.querySelector(answerText) : answerText && answerText.isConnected ? answerText : document.querySelector("#answerText")) || null;
+  }
+  function startSpeechRecognition(SpeechRecognition, activeRunId) {
+    transcriptDraft = (currentAnswerText()?.value || "").trim();
+    recognition = new SpeechRecognition();
+    recognition.lang = "id-ID";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onstart = () => {
+      if (activeRunId !== runId) return;
+      recognizing = true;
+      recordStatus.textContent = "Merekam suara dan membuat transkripsi...";
+    };
+    recognition.onresult = (event) => {
+      if (activeRunId !== runId) return;
+      const { finalText, interimText } = collectSpeechText(event);
+      if (finalText) transcriptDraft = [transcriptDraft, finalText].filter(Boolean).join(" ");
+      const target = currentAnswerText();
+      if (target) target.value = [transcriptDraft, interimText].filter(Boolean).join(" ");
+    };
+    recognition.onerror = (event) => {
+      if (activeRunId !== runId) return;
+      console.warn("Speech recognition error:", event.error);
+      recognizing = false;
+      if (["no-speech", "aborted", "network", "audio-capture"].includes(event.error)) {
+        restartRecognition(activeRunId);
+      }
+    };
+    recognition.onend = () => {
+      if (activeRunId !== runId) return;
+      recognizing = false;
+      if (stillRecording()) restartRecognition(activeRunId);
+    };
+    try {
+      recognition.start();
+    } catch (error) {
+      recognizing = false;
+      console.warn("Transkripsi tidak bisa dimulai:", error.message);
+      restartRecognition(activeRunId);
+    }
+  }
+  let restartTimer = null;
+  function restartRecognition(activeRunId) {
+    if (activeRunId !== runId) return;
+    if (!stillRecording()) return;
+    if (restartTimer) return;
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      if (activeRunId !== runId || !stillRecording()) return;
+      if (!recognition || recognizing) return;
+      try {
+        recognition.start();
+      } catch (error) {
+        console.warn("Transkripsi restart gagal:", error.message);
+      }
+    }, 500);
+  }
+  function stillRecording() {
+    return mediaRecorder?.state === "recording";
+  }
+  function startMediaRecorder(status, activeRunId) {
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(mediaStream);
+    mediaRecorder.ondataavailable = (event) => {
+      if (activeRunId !== runId) return;
+      if (event.data.size) audioChunks.push(event.data);
+    };
+    mediaRecorder.onstop = () => {
+      if (activeRunId !== runId) return;
+      stopStream();
+      stopTimer();
+      stopVolumeMeter();
+      const target = currentAnswerText();
+      recordStatus.textContent = audioChunks.length ? target?.readOnly ? "Audio berhasil direkam. Jawaban hanya menggunakan transkripsi otomatis." : "Audio berhasil direkam. Ketik atau koreksi transkripsi agar bisa dinilai." : "Rekaman berhenti, tetapi tidak ada audio yang tersimpan.";
+    };
+    mediaRecorder.start();
+    setRecording(true);
+    recordStatus.textContent = status;
+    startTimer();
+    startVolumeMeter();
+  }
+  function collectSpeechText(event) {
+    let finalText = "";
+    let interimText = "";
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const transcript = event.results[index][0].transcript.trim();
+      if (event.results[index].isFinal) {
+        finalText = [finalText, transcript].filter(Boolean).join(" ");
+      } else {
+        interimText = [interimText, transcript].filter(Boolean).join(" ");
+      }
+    }
+    return { finalText, interimText };
+  }
+  function setPreparing(preparing) {
+    recordButton.disabled = preparing;
+    recordButton.setAttribute("aria-label", preparing ? "Menyiapkan mikrofon..." : "Mulai rekam");
+  }
+  function setRecording(recording) {
+    recordButton.classList.toggle("recording", recording);
+    recordButton.setAttribute("aria-label", recording ? "Berhenti rekam" : "Mulai rekam");
+    const label = recordButton.querySelector(".record-label");
+    if (label) label.textContent = recording ? "Berhenti" : "Mulai rekam";
+  }
+  function resetStatus() {
+    if (isRecording()) return;
+    recordStatus.textContent = "Siap merekam";
+    resetTimer();
+    resetVolumeMeter();
+  }
+  function startTimer() {
+    stopTimer();
+    recordingStartedAt = Date.now();
+    updateTimerDisplay();
+    timerInterval = setInterval(updateTimerDisplay, 1e3);
+  }
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+  function updateTimerDisplay() {
+    if (!recordTimer) return;
+    const elapsed = Math.floor((Date.now() - recordingStartedAt) / 1e3);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, "0");
+    const s = (elapsed % 60).toString().padStart(2, "0");
+    recordTimer.textContent = `${m}:${s}`;
+  }
+  function resetTimer() {
+    stopTimer();
+    if (recordTimer) recordTimer.textContent = "00:00";
+  }
+  function startVolumeMeter() {
+    stopVolumeMeter();
+    if (!volumeIndicator) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(mediaStream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const bars = volumeIndicator.querySelectorAll(".volume-bar");
+      const tick = () => {
+        if (!analyser) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i += 1) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        const level = Math.min(1, avg / 128);
+        const activeBars = Math.round(level * bars.length);
+        bars.forEach((bar, index) => {
+          bar.classList.toggle("active", index < activeBars);
+        });
+        volumeRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (error) {
+      console.warn("Volume meter tidak tersedia:", error.message);
+    }
+  }
+  function stopVolumeMeter() {
+    if (volumeRaf) {
+      cancelAnimationFrame(volumeRaf);
+      volumeRaf = null;
+    }
+    if (audioContext) {
+      audioContext.close().catch(() => {
+      });
+      audioContext = null;
+      analyser = null;
+    }
+    resetVolumeMeter();
+  }
+  function resetVolumeMeter() {
+    if (!volumeIndicator) return;
+    volumeIndicator.querySelectorAll(".volume-bar").forEach((bar) => bar.classList.remove("active"));
+  }
+  function stopStream() {
+    if (!mediaStream) return;
+    mediaStream.getTracks().forEach((track) => track.stop());
+    mediaStream = null;
+  }
+  function getAudioBase64() {
+    if (audioChunks.length === 0) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }
+  function clearAudio() {
+    audioChunks = [];
+  }
+  function setEnabled(nextEnabled) {
+    enabled = nextEnabled;
+    if (!enabled) {
+      stop();
+      clearAudio();
+    }
+  }
+  async function testMicrophone() {
+    if (isRecording()) {
+      return { ok: false, message: "Rekaman sedang berjalan. Hentikan dulu sebelum tes mikrofon." };
+    }
+    if (!window.isSecureContext) {
+      return { ok: false, message: "Mikrofon hanya bisa dipakai di HTTPS atau localhost." };
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return { ok: false, message: "Browser tidak mendukung akses mikrofon. Ketik jawaban manual." };
+    }
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+      const tracks = stream.getAudioTracks();
+      if (!tracks.length) {
+        return { ok: false, message: "Mikrofon terdeteksi tetapi tidak ada track audio aktif." };
+      }
+      const label = tracks[0].label || "Mikrofon bawaan";
+      const enabled2 = tracks[0].enabled;
+      return { ok: true, message: `Mikrofon siap: ${label}`, label, enabled: enabled2 };
+    } catch (error) {
+      return { ok: false, message: getMicrophoneErrorMessage(error), name: error?.name || "" };
+    } finally {
+      if (stream) stream.getTracks().forEach((track) => track.stop());
+    }
+  }
+  return { resetStatus, stop, start, toggle, getAudioBase64, clearAudio, setEnabled, testMicrophone };
+}
+function getMicrophoneErrorMessage(error) {
+  const name = error?.name || "";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Izin mikrofon diblokir. Klik ikon izin di address bar, pilih Allow microphone, lalu reload halaman.";
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "Mikrofon tidak ditemukan. Sambungkan mikrofon atau pilih input audio di pengaturan browser.";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "Mikrofon sedang dipakai aplikasi lain atau tidak bisa dibaca.";
+  }
+  if (name === "OverconstrainedError") {
+    return "Konfigurasi mikrofon tidak cocok.";
+  }
+  return error?.message || "Mikrofon belum bisa digunakan.";
+}
+var init_recorder = __esm({
+  "src/js/recorder.js"() {
+  }
+});
+
+// src/js/config.js
+var DEFAULT_STATE, DEFAULT_QUESTION_COUNT, FALLBACK_KEYWORDS, STOPWORDS, FALLBACK_QUESTION_STEMS;
+var init_config = __esm({
+  "src/js/config.js"() {
+    DEFAULT_STATE = {
+      assessments: [],
+      submissions: [],
+      classes: [],
+      memberships: []
+    };
+    DEFAULT_QUESTION_COUNT = 5;
+    FALLBACK_KEYWORDS = ["konsep", "alasan", "contoh", "hubungan"];
+    STOPWORDS = /* @__PURE__ */ new Set([
+      "yang",
+      "dan",
+      "atau",
+      "untuk",
+      "dengan",
+      "dalam",
+      "pada",
+      "dari",
+      "ke",
+      "di",
+      "sebagai",
+      "adalah",
+      "serta",
+      "siswa",
+      "mampu",
+      "dapat",
+      "secara",
+      "contoh",
+      "rubrik",
+      "penilaian",
+      "materi",
+      "topik",
+      "kompetensi",
+      "jawaban"
+    ]);
+    FALLBACK_QUESTION_STEMS = {
+      Dasar: [
+        "Jelaskan pengertian utama dari {topic} dengan bahasa sendiri.",
+        "Sebutkan dua konsep penting dalam {topic} dan jelaskan hubungannya.",
+        "Berikan contoh sederhana yang menunjukkan pemahamanmu tentang {keyword}.",
+        "Apa bagian dari {topic} yang paling mudah keliru dipahami? Jelaskan."
+      ],
+      Menengah: [
+        "Jelaskan {topic} dengan mengaitkan konsep {keyword} dan alasan pendukungnya.",
+        "Bandingkan dua ide penting dalam {topic}, lalu jelaskan mana yang paling menentukan.",
+        "Gunakan contoh konkret untuk membuktikan bahwa kamu memahami {keyword}.",
+        "Jika ada teman yang salah memahami {topic}, bagaimana kamu memperbaiki penjelasannya?",
+        "Apa konsekuensi dari konsep {keyword} terhadap penerapan {topic}?"
+      ],
+      Lanjutan: [
+        "Analisis keterkaitan {topic}, {keyword}, dan indikator kompetensi yang diuji.",
+        "Evaluasi sebuah situasi nyata yang berkaitan dengan {topic}, lalu berikan argumenmu.",
+        "Bangun penjelasan bertahap tentang {keyword} beserta keterbatasan contohnya.",
+        "Ajukan kesimpulan tentang {topic} dan pertahankan dengan bukti konseptual.",
+        "Sintesis beberapa konsep dalam {topic} menjadi penjelasan yang utuh dan kritis."
+      ]
+    };
+  }
+});
+
+// src/js/storage.js
+var storage_exports = {};
+__export(storage_exports, {
+  loadState: () => loadState
+});
+async function loadState() {
+  try {
+    const state = await loadStateFromDatabase();
+    if (!state.assessments.length && !state.submissions.length) {
+      return await migrateLegacyLocalStorage(state);
+    }
+    return state;
+  } catch (error) {
+    alert(`Database belum bisa dimuat. Aplikasi memakai state kosong. Detail: ${error.message}`);
+    return structuredClone(DEFAULT_STATE);
+  }
+}
+async function migrateLegacyLocalStorage(currentState) {
+  const legacy = readLegacyState();
+  if (!legacy.assessments.length && !legacy.submissions.length) return currentState;
+  await Promise.all(legacy.assessments.map(saveAssessmentToDatabase));
+  await Promise.all(legacy.submissions.map(saveSubmissionToDatabase));
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
+  return legacy;
+}
+function readLegacyState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
+    return {
+      assessments: Array.isArray(parsed?.assessments) ? parsed.assessments : [],
+      submissions: Array.isArray(parsed?.submissions) ? parsed.submissions : []
+    };
+  } catch {
+    return structuredClone(DEFAULT_STATE);
+  }
+}
+var LEGACY_STORAGE_KEY;
+var init_storage = __esm({
+  "src/js/storage.js"() {
+    init_config();
+    init_api();
+    LEGACY_STORAGE_KEY = "lisanai-assessment-state";
+  }
+});
+
+// src/js/utils.js
+function uid(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+function compactText(value, max = 130) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function getKeywords(...values) {
+  const words = values.join(" ").toLowerCase().replace(/[^a-z0-9\u00c0-\u024f\s]/gi, " ").split(/\s+/).filter((word) => word.length > 4 && !STOPWORDS.has(word));
+  return [...new Set(words)].slice(0, 12);
+}
+function average(items, picker) {
+  if (!items.length) return 0;
+  return Math.round(items.reduce((sum, item) => sum + picker(item), 0) / items.length);
+}
+function roleLabel(role) {
+  return {
+    admin: "Admin",
+    teacher: "Guru",
+    student: "Siswa"
+  }[role] || role;
+}
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+function prettifyId(id) {
+  return String(id || "").replace(/[_-]+/g, " ").replace(/\b\d{2,3}\b/g, "").replace(/\s+/g, " ").trim().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+var init_utils = __esm({
+  "src/js/utils.js"() {
+    init_config();
+  }
+});
+
+// src/js/competency-profile.js
+function normalize(v) {
+  return String(v == null ? "" : v).trim().toLowerCase();
+}
+function normalizeOutcome(v) {
+  return normalize(v).replace(/[^a-z0-9\u00C0-\u024F]+/gi, " ").replace(/\s+/g, " ").trim();
+}
+function fillDescriptors(name, levels) {
+  const base = name || "Kriteria";
+  const templates = [
+    `${base} sangat baik, lengkap, dan tepat`,
+    `${base} baik dan memadai`,
+    `${base} cukup, namun masih perlu pengembangan`,
+    `${base} kurang, perlu perbaikan signifikan`
+  ];
+  return levels.map((l, i) => ({
+    score: l.score,
+    label: l.label || "",
+    descriptor: l.descriptor || templates[i] || ""
+  }));
+}
+function defaultCriteria() {
+  return [{ id: "c1", name: "", weight: 0, levels: fillDescriptors("", JSON.parse(JSON.stringify(DEFAULT_LEVELS))) }];
+}
+function parseRubricToCriteria(text) {
+  if (!text || !String(text).trim()) return defaultCriteria();
+  const t = String(text).trim();
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria) && p.criteria.length) {
+        return p.criteria.map((c, i) => ({
+          id: c.id || `c${i + 1}`,
+          name: c.name || "",
+          weight: Number(c.weight) || 0,
+          levels: Array.isArray(c.levels) && c.levels.length === 4 ? fillDescriptors(c.name || "", c.levels.map((l) => ({ score: l.score, label: l.label, descriptor: l.descriptor }))) : fillDescriptors(c.name || "", JSON.parse(JSON.stringify(DEFAULT_LEVELS)))
+        }));
+      }
+    } catch {
+    }
+  }
+  const raw = t;
+  const lines = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] === "(" || raw[i] === "[" || raw[i] === "{") depth++;
+    else if (raw[i] === ")" || raw[i] === "]" || raw[i] === "}") depth--;
+    else if (depth === 0 && (raw[i] === "," || raw[i] === ";" || raw[i] === "\n")) {
+      const seg = raw.slice(start, i).trim();
+      if (seg) lines.push(seg);
+      start = i + 1;
+    }
+  }
+  const last = raw.slice(start).trim();
+  if (last) lines.push(last);
+  if (!lines.length) lines.push("");
+  return lines.map((line, i) => {
+    let name = line.trim().replace(/^[•\-*]\s*/, "").replace(/[.!]+$/, "").trim();
+    let weight = 0;
+    let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
+    if (m) {
+      name = m[1].trim();
+      weight = Number(m[2]);
+    } else {
+      m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
+      if (m) {
+        weight = Number(m[1]);
+        name = m[2].trim();
+      }
+    }
+    return { id: `c${i + 1}`, name, weight, levels: fillDescriptors(name, JSON.parse(JSON.stringify(DEFAULT_LEVELS))) };
+  });
+}
+function parseLearningOutcomes(value) {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => {
+      if (typeof item === "string") return { id: `LO${index + 1}`, text: item.trim() };
+      return {
+        id: String(item?.id || item?.learningOutcomeId || `LO${index + 1}`).trim(),
+        text: String(item?.text || item?.name || item?.title || item?.outcome || "").trim()
+      };
+    }).filter((x) => x.text);
+  }
+  const text = String(value || "").trim();
+  if (!text) return [];
+  return text.split(/\r?\n|\s*;\s*/).map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const named = line.match(/^(?:[-*•]\s*)?(?:LO|CPL|CPMK|Learning Outcome)\s*[-#:.)]?\s*(\d+)\s*[-:.):]?\s*(.+)$/i);
+    if (named) return { id: `LO${named[1]}`, text: named[2].trim() };
+    const numbered = line.match(/^(?:[-*•]\s*)?(\d+)[.)]\s*(.+)$/);
+    if (numbered) return { id: `LO${numbered[1]}`, text: numbered[2].trim() };
+    return { id: `LO${index + 1}`, text: line };
+  });
+}
+function resolveQuestionOutcome(question, outcomes) {
+  const explicitId = String(question?.learningOutcomeId || question?.outcomeId || "").trim();
+  if (explicitId) {
+    const byId = outcomes.find((lo) => normalize(lo.id) === normalize(explicitId));
+    if (byId) return byId;
+  }
+  const text = normalizeOutcome(question?.outcome || "");
+  if (text) {
+    const exact = outcomes.find((lo) => normalizeOutcome(lo.text) === text);
+    if (exact) return exact;
+    const contains = outcomes.find((lo) => {
+      const a = normalizeOutcome(lo.text);
+      return a && (a.includes(text) || text.includes(a));
+    });
+    if (contains) return contains;
+  }
+  return null;
+}
+function collectRubric(assessments, assessmentId) {
+  const byId = /* @__PURE__ */ new Map();
+  const byName = /* @__PURE__ */ new Map();
+  const push = (defs) => (defs || []).forEach((d) => {
+    if (!d || !d.name) return;
+    if (!byId.has(String(d.id))) byId.set(String(d.id), d);
+    if (!byName.has(normalize(d.name))) byName.set(normalize(d.name), d);
+  });
+  const assessment = (assessments || []).find((a) => a && (a.id === assessmentId || a.assessment_id === assessmentId));
+  if (assessment) {
+    if (assessment.rubric) push(parseRubricToCriteria(assessment.rubric));
+    (assessment.questions || []).forEach((q) => {
+      if (q?.rubric) push(parseRubricToCriteria(q.rubric));
+    });
+  }
+  return { byId, byName, assessment };
+}
+function levelForScore(score, levels) {
+  const list = Array.isArray(levels) && levels.length ? levels : DEFAULT_LEVELS;
+  const max = Math.max(...list.map((l) => Number(l.score)));
+  const target = Number(score) / 100 * max;
+  let best = list[0];
+  let bestDiff = Infinity;
+  for (const l of list) {
+    const diff = Math.abs(Number(l.score) - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = l;
+    }
+  }
+  return best;
+}
+function levelScore(score, levels) {
+  const max = Math.max(...levels.map((l) => Number(l.score)));
+  return Math.max(1, Math.min(max, Math.round(Number(score) / 100 * max)));
+}
+function buildCompetencyProfile(assessments, submissions) {
+  const loMap = /* @__PURE__ */ new Map();
+  const ensureLO = (lo, assessment) => {
+    const key = lo.id;
+    if (!loMap.has(key)) {
+      loMap.set(key, {
+        id: lo.id,
+        name: lo.text,
+        weight: 0,
+        levels: JSON.parse(JSON.stringify(DEFAULT_LEVELS)),
+        records: [],
+        criteriaMap: /* @__PURE__ */ new Map(),
+        assessmentIds: /* @__PURE__ */ new Set()
+      });
+    }
+    const entry = loMap.get(key);
+    if (assessment?.id) entry.assessmentIds.add(assessment.id);
+    return entry;
+  };
+  (submissions || []).forEach((sub) => {
+    const { byId, byName, assessment } = collectRubric(assessments, sub.assessmentId);
+    const outcomes = parseLearningOutcomes(assessment?.outcomes);
+    if (!assessment || !outcomes.length) return;
+    const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
+    const questionLO = /* @__PURE__ */ new Map();
+    questions.forEach((q, index) => {
+      const lo = resolveQuestionOutcome(q, outcomes);
+      if (lo) questionLO.set(index, lo);
+    });
+    const studentBuckets = /* @__PURE__ */ new Map();
+    (Array.isArray(sub.criteria) ? sub.criteria : []).forEach((c) => {
+      if (!Number.isFinite(Number(c.score))) return;
+      const def = byId.get(String(c.criterionId)) || byName.get(normalize(c.name));
+      const criterionId = String(c.criterionId || def?.id || c.name || "").trim();
+      let lo = Number.isInteger(c.answerIndex) ? questionLO.get(c.answerIndex) : null;
+      if (!lo && criterionId) {
+        const q = questions.find((item) => (item.criteria || []).some((x) => String(typeof x === "object" ? x.id || x.criterionId || x.name : x) === criterionId));
+        if (q) lo = resolveQuestionOutcome(q, outcomes);
+      }
+      if (!lo) return;
+      const entry = ensureLO(lo, assessment);
+      const weight = Number(c.weight ?? def?.weight ?? 1);
+      const safeWeight = Number.isFinite(weight) && weight > 0 ? weight : 1;
+      const score = Number(c.score);
+      const bucketKey = `${sub.studentName || "student"}::${lo.id}::${sub.assessmentId || assessment.id}`;
+      if (!studentBuckets.has(bucketKey)) studentBuckets.set(bucketKey, { lo, weighted: 0, weight: 0, studentName: sub.studentName });
+      const bucket = studentBuckets.get(bucketKey);
+      bucket.weighted += score * safeWeight;
+      bucket.weight += safeWeight;
+      const criterionName = def && def.name || c.name || prettifyId(c.criterionId) || "Kriteria";
+      if (!entry.criteriaMap.has(criterionName)) entry.criteriaMap.set(criterionName, []);
+      entry.criteriaMap.get(criterionName).push({ studentName: sub.studentName, score });
+    });
+    for (const bucket of studentBuckets.values()) {
+      const entry = ensureLO(bucket.lo, assessment);
+      entry.records.push({ studentName: bucket.studentName, score: bucket.weight ? bucket.weighted / bucket.weight : 0 });
+    }
+  });
+  const out = [];
+  for (const entry of loMap.values()) {
+    if (!entry.records.length) continue;
+    const avg = entry.records.reduce((sum, r) => sum + r.score, 0) / entry.records.length;
+    const criteria = [...entry.criteriaMap.entries()].map(([name, records]) => ({
+      name,
+      records,
+      avg: records.reduce((sum, r) => sum + r.score, 0) / records.length
+    })).sort((a, b) => b.avg - a.avg);
+    const levels = entry.levels;
+    const distribution = levels.map((l) => ({
+      level: l,
+      count: entry.records.filter((r) => levelScore(r.score, levels) === Number(l.score)).length
+    })).sort((a, b) => b.level.score - a.level.score);
+    const maxCount = Math.max(0, ...distribution.map((d) => d.count));
+    distribution.forEach((d) => {
+      d.pct = entry.records.length ? Math.round(d.count / entry.records.length * 100) : 0;
+      d.dominant = d.count === maxCount && d.count > 0;
+    });
+    out.push({
+      id: entry.id,
+      name: entry.name,
+      weight: entry.weight,
+      levels,
+      records: entry.records,
+      avg,
+      achieved: levelForScore(avg, levels),
+      distribution,
+      criteria,
+      assessmentIds: [...entry.assessmentIds]
+    });
+  }
+  return out.sort((a, b) => b.avg - a.avg);
+}
+function renderCompetencyStudent(comps) {
+  if (!comps || !comps.length) return `<p class="empty-state">Belum ada data Learning Outcome untuk ditampilkan.</p>`;
+  return `
     <div class="competency-simple">
-      ${e.map(t=>{let a=Number(t.achieved?t.achieved.score:0);return`
-          <div class="competency-row">
-            <div class="competency-info">
-              <strong>${u(t.name)}</strong>
-              <span class="rubrik-muted">${t.records.length} penilaian${t.weight?` \xB7 bobot ${t.weight}%`:""}</span>
-            </div>
-            <div class="rubrik-skor">
-              <span class="rubrik-score-badge ${Tn(a)}">${Math.round(t.avg)}</span>
-              <span class="rubrik-muted">/100</span>
-            </div>
-          </div>`}).join("")}
-    </div>
-  `}function Cn(e){return!e||!e.length?'<p class="empty-state">Belum ada data kompetensi. Evaluasi perlu memakai rubrik dengan kriteria (AI Harness).</p>':`
-    <div class="competency-simple">
-      ${e.map(t=>`
-        <div class="competency-row">
+      ${comps.map((c) => `
+        <div class="competency-row competency-lo-row">
           <div class="competency-info">
-            <strong>${u(t.name)}</strong>
-            <span class="rubrik-muted">${t.records.length} pengumpulan${t.weight?` \xB7 bobot ${t.weight}%`:""}</span>
+            <strong>${escapeHtml(c.id)} \u2014 ${escapeHtml(c.name)}</strong>
+            <span class="rubrik-muted">${c.records.length} evidence \xB7 kompetensi berbasis Learning Outcome</span>
+            ${c.criteria?.length ? `<span class="rubrik-muted">Evidence: ${c.criteria.slice(0, 3).map((x) => `${escapeHtml(x.name)} (${Math.round(x.avg)})`).join(" \xB7 ")}</span>` : ""}
           </div>
           <div class="rubrik-skor">
-            <span class="rubrik-score-badge ${Tn(t.achieved.score)}">${Math.round(t.avg)}</span>
+            <span class="rubrik-score-badge ${scoreClass(c.achieved?.score || 1)}">${Math.round(c.avg)}</span>
             <span class="rubrik-muted">/100</span>
           </div>
         </div>`).join("")}
-    </div>
-  `}var Ke,Tn,da=x(()=>{H();Ke=[{score:4,label:"Sangat Baik",descriptor:""},{score:3,label:"Baik",descriptor:""},{score:2,label:"Cukup",descriptor:""},{score:1,label:"Kurang",descriptor:""}];Tn=e=>`sb-${Math.max(1,Math.min(4,Number(e)))}`});function Se(e){return e?e.status?e.status:typeof e.finalScore=="number"&&Number.isFinite(e.finalScore)?mt.EVALUATED:mt.NOT_COMPLETED:mt.NOT_COMPLETED}function or(e){return Se(e)===mt.EVALUATED}function Z(e){return or(e)?typeof e.finalScore=="number"&&Number.isFinite(e.finalScore):!1}function Mn(e){return ir[e]||e||"-"}function lr(e){return{EVALUATED:{label:"\u2713 Evaluated",cls:"status-evaluated",title:"Hasil tervalidasi"},NEEDS_REVIEW:{label:"\u26A0 Needs Review",cls:"status-review",title:"Perlu tinjauan"},FAILED:{label:"\u2715 Evaluasi Gagal",cls:"status-failed",title:"Evaluasi tidak tersedia"},EVALUATING:{label:"Menilai\u2026",cls:"status-evaluating",title:"Sedang dievaluasi"},NOT_COMPLETED:{label:"\u2014 Belum Selesai",cls:"status-incomplete",title:"Belum dikumpulkan"},PUBLISHED:{label:"Published",cls:"status-published",title:"Diterbitkan"},DRAFT:{label:"Draft",cls:"status-draft",title:"Draf"},STARTED:{label:"Dimulai",cls:"status-started",title:"Dikerjakan"},SUBMITTED:{label:"Terkumpul",cls:"status-submitted",title:"Menunggu evaluasi"}}[e]||{label:Mn(e),cls:"status-muted",title:Mn(e)}}function Ce(e){let t=lr(e);return`<span class="status-badge ${t.cls}" title="${u(t.title||t.label)}">${t.label}</span>`}var mt,ir,ca=x(()=>{H();mt={DRAFT:"DRAFT",PUBLISHED:"PUBLISHED",STARTED:"STARTED",SUBMITTED:"SUBMITTED",EVALUATING:"EVALUATING",EVALUATED:"EVALUATED",NEEDS_REVIEW:"NEEDS_REVIEW",FAILED:"FAILED",NOT_COMPLETED:"NOT_COMPLETED"},ir={DRAFT:"Draft",PUBLISHED:"Published",STARTED:"Dimulai",SUBMITTED:"Terkumpul",EVALUATING:"Menilai\u2026",EVALUATED:"Evaluated",NEEDS_REVIEW:"Needs Review",FAILED:"Gagal",NOT_COMPLETED:"Belum Selesai"}});var In={};Q(In,{formatDuration:()=>ue,renderApp:()=>ma,renderAssessmentItem:()=>gt,renderAssessments:()=>Pn,renderEvaluationPreview:()=>pa,renderMonitoring:()=>de,renderObservability:()=>fa,renderQuestion:()=>Je,renderRubricTable:()=>re,renderStudentArea:()=>Dn,renderStudentHistory:()=>se,showResult:()=>ne,updateEvaluationProgress:()=>ft});function ma(e,t,a){Pn(e,t),Dn(e,t,a),de(e,t)}function Pn(e,t){let a=document.querySelector("#assessmentTabFilter .tab-filter-btn.active")?.dataset.tab||"all",n=t.assessments;if(a==="draft"&&(n=n.filter(s=>s.status==="draft")),a==="published"&&(n=n.filter(s=>s.status!=="draft")),e.assessmentCount.textContent=n.length,!n.length){let s=a==="draft"?"Penilaian yang belum dipublish akan muncul di sini.":"Buat penilaian pertama agar dapat ditinjau dan dibagikan ke kelas.";Te(e.assessmentList,"list-stack empty-state",s);return}e.assessmentList.className="list-stack",e.assessmentList.innerHTML=n.map(gt).join("")}function Dn(e,t,a){let n=e.studentClassFilter?.value,s=document.querySelector("[data-student-filter].active")?.dataset?.studentFilter||"all",r=t.assessments.filter(i=>i.status!=="closed");n&&(r=r.filter(i=>i.classId===n)),s==="tryout"?r=r.filter(i=>i.isTryout):s==="assessment"&&(r=r.filter(i=>!i.isTryout)),r.length?(e.studentEmpty?.classList.add("hidden"),e.studentAssessmentGrid&&(e.studentAssessmentGrid.innerHTML=r.map(i=>{let o=t.submissions.filter(y=>y.assessmentId===i.id),l=o.length>0,c="Mulai Kerjakan",d="primary-button start-assessment-btn",m=l&&!i.allowRetakes,k=l?o.slice().sort((y,S)=>new Date(S.submittedAt)-new Date(y.submittedAt))[0]:null,h=i.allowRetakes?1/0:Number(i.maxAttempts)||1,w=o.length,f=`${Math.max(0,h-w)} percobaan tersisa`;Number.isFinite(h)&&w>=h?f="Percobaan habis":Number.isFinite(h)||(f="Percobaan tak terbatas");let g=Number(i.timeLimit)||0,b=g>0?`\u23F1 ${ue(g)} / soal`:"\u23F1 Tanpa batas waktu",v="";l?v=`<span class="tag ${m?"badge-closed":"badge-published"}" style="width: fit-content;">${m?"Selesai":"Dikerjakan"}</span>`:v='<span class="tag badge-published" style="width: fit-content;">Belum dikerjakan</span>';let L=k?`<p style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai terakhir: ${k.finalScore}</p>`:"";return l&&i.allowRetakes?(c="Kerjakan Ulang",d="secondary-button start-assessment-btn"):l&&!i.allowRetakes&&(c="Sudah Dikumpulkan",d="secondary-button"),`
-          <div class="assessment-card" data-id="${i.id}" tabindex="0" role="button" aria-label="${u(i.topic)} - ${i.difficulty} - ${i.questions.length} soal">
+    </div>`;
+}
+function renderCompetencyClass(comps) {
+  if (!comps || !comps.length) {
+    return `<p class="empty-state">Belum ada data Learning Outcome. Pastikan setiap Learning Outcome terpetakan ke minimal satu soal dan soal memiliki evidence tervalidasi.</p>`;
+  }
+  return `
+    <div class="competency-simple">
+      ${comps.map((c) => `
+        <div class="competency-row competency-lo-row">
+          <div class="competency-info">
+            <strong>${escapeHtml(c.id)} \u2014 ${escapeHtml(c.name)}</strong>
+            <span class="rubrik-muted">${c.records.length} evidence \xB7 ${c.assessmentIds.length} assessment</span>
+            ${c.criteria?.length ? `<span class="rubrik-muted">Kriteria pendukung: ${c.criteria.slice(0, 3).map((x) => `${escapeHtml(x.name)} (${Math.round(x.avg)})`).join(" \xB7 ")}</span>` : ""}
+          </div>
+          <div class="rubrik-skor">
+            <span class="rubrik-score-badge ${scoreClass(c.achieved?.score || 1)}">${Math.round(c.avg)}</span>
+            <span class="rubrik-muted">/100</span>
+          </div>
+        </div>`).join("")}
+    </div>`;
+}
+var DEFAULT_LEVELS, scoreClass;
+var init_competency_profile = __esm({
+  "src/js/competency-profile.js"() {
+    init_utils();
+    DEFAULT_LEVELS = [
+      { score: 4, label: "Sangat Baik", descriptor: "" },
+      { score: 3, label: "Baik", descriptor: "" },
+      { score: 2, label: "Cukup", descriptor: "" },
+      { score: 1, label: "Kurang", descriptor: "" }
+    ];
+    scoreClass = (n) => `sb-${Math.max(1, Math.min(4, Number(n)))}`;
+  }
+});
+
+// src/js/status.js
+function getSubmissionStatus(submission) {
+  if (!submission) return ASSESSMENT_STATUS.NOT_COMPLETED;
+  if (submission.status) return submission.status;
+  if (typeof submission.finalScore === "number" && Number.isFinite(submission.finalScore)) {
+    return ASSESSMENT_STATUS.EVALUATED;
+  }
+  return ASSESSMENT_STATUS.NOT_COMPLETED;
+}
+function isEvaluatedEffective(submission) {
+  return getSubmissionStatus(submission) === ASSESSMENT_STATUS.EVALUATED;
+}
+function hasValidScore(submission) {
+  if (!isEvaluatedEffective(submission)) return false;
+  return typeof submission.finalScore === "number" && Number.isFinite(submission.finalScore);
+}
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status || "-";
+}
+function statusBadgeInfo(status) {
+  const map = {
+    EVALUATED: { label: "\u2713 Evaluated", cls: "status-evaluated", title: "Hasil tervalidasi" },
+    NEEDS_REVIEW: { label: "\u26A0 Needs Review", cls: "status-review", title: "Perlu tinjauan" },
+    FAILED: { label: "\u2715 Evaluasi Gagal", cls: "status-failed", title: "Evaluasi tidak tersedia" },
+    EVALUATING: { label: "Menilai\u2026", cls: "status-evaluating", title: "Sedang dievaluasi" },
+    NOT_COMPLETED: { label: "\u2014 Belum Selesai", cls: "status-incomplete", title: "Belum dikumpulkan" },
+    PUBLISHED: { label: "Published", cls: "status-published", title: "Diterbitkan" },
+    DRAFT: { label: "Draft", cls: "status-draft", title: "Draf" },
+    STARTED: { label: "Dimulai", cls: "status-started", title: "Dikerjakan" },
+    SUBMITTED: { label: "Terkumpul", cls: "status-submitted", title: "Menunggu evaluasi" }
+  };
+  return map[status] || { label: statusLabel(status), cls: "status-muted", title: statusLabel(status) };
+}
+function renderStatusBadge(status) {
+  const info = statusBadgeInfo(status);
+  return `<span class="status-badge ${info.cls}" title="${escapeHtml(info.title || info.label)}">${info.label}</span>`;
+}
+var ASSESSMENT_STATUS, STATUS_LABELS;
+var init_status = __esm({
+  "src/js/status.js"() {
+    init_utils();
+    ASSESSMENT_STATUS = {
+      DRAFT: "DRAFT",
+      PUBLISHED: "PUBLISHED",
+      STARTED: "STARTED",
+      SUBMITTED: "SUBMITTED",
+      EVALUATING: "EVALUATING",
+      EVALUATED: "EVALUATED",
+      NEEDS_REVIEW: "NEEDS_REVIEW",
+      FAILED: "FAILED",
+      NOT_COMPLETED: "NOT_COMPLETED"
+    };
+    STATUS_LABELS = {
+      DRAFT: "Draft",
+      PUBLISHED: "Published",
+      STARTED: "Dimulai",
+      SUBMITTED: "Terkumpul",
+      EVALUATING: "Menilai\u2026",
+      EVALUATED: "Evaluated",
+      NEEDS_REVIEW: "Needs Review",
+      FAILED: "Gagal",
+      NOT_COMPLETED: "Belum Selesai"
+    };
+  }
+});
+
+// src/js/render.js
+var render_exports = {};
+__export(render_exports, {
+  formatDuration: () => formatDuration,
+  renderApp: () => renderApp,
+  renderAssessmentItem: () => renderAssessmentItem,
+  renderAssessments: () => renderAssessments,
+  renderEvaluationPreview: () => renderEvaluationPreview,
+  renderMonitoring: () => renderMonitoring,
+  renderObservability: () => renderObservability,
+  renderQuestion: () => renderQuestion,
+  renderRubricTable: () => renderRubricTable,
+  renderStudentArea: () => renderStudentArea,
+  renderStudentHistory: () => renderStudentHistory,
+  showResult: () => showResult,
+  updateEvaluationProgress: () => updateEvaluationProgress
+});
+function renderApp(els, state, session) {
+  renderAssessments(els, state);
+  renderStudentArea(els, state, session);
+  renderMonitoring(els, state);
+}
+function renderAssessments(els, state) {
+  const activeTab = document.querySelector("#assessmentTabFilter .tab-filter-btn.active")?.dataset.tab || "all";
+  let list = state.assessments;
+  if (activeTab === "draft") list = list.filter((a) => a.status === "draft");
+  if (activeTab === "published") list = list.filter((a) => a.status !== "draft");
+  els.assessmentCount.textContent = list.length;
+  if (!list.length) {
+    const message = activeTab === "draft" ? "Penilaian yang belum dipublish akan muncul di sini." : "Buat penilaian pertama agar dapat ditinjau dan dibagikan ke kelas.";
+    showEmpty(els.assessmentList, "list-stack empty-state", message);
+    return;
+  }
+  els.assessmentList.className = "list-stack";
+  els.assessmentList.innerHTML = list.map(renderAssessmentItem).join("");
+}
+function renderStudentArea(els, state, session) {
+  const selectedClassId = els.studentClassFilter?.value;
+  const studentFilter = document.querySelector("[data-student-filter].active")?.dataset?.studentFilter || "all";
+  let visibleAssessments = state.assessments.filter((a) => a.status !== "closed");
+  if (selectedClassId) {
+    visibleAssessments = visibleAssessments.filter((a) => a.classId === selectedClassId);
+  }
+  if (studentFilter === "tryout") {
+    visibleAssessments = visibleAssessments.filter((a) => a.isTryout);
+  } else if (studentFilter === "assessment") {
+    visibleAssessments = visibleAssessments.filter((a) => !a.isTryout);
+  }
+  if (!visibleAssessments.length) {
+    els.studentEmpty?.classList.remove("hidden");
+    if (els.studentAssessmentGrid) els.studentAssessmentGrid.innerHTML = "";
+  } else {
+    els.studentEmpty?.classList.add("hidden");
+    if (els.studentAssessmentGrid) {
+      els.studentAssessmentGrid.innerHTML = visibleAssessments.map((assessment) => {
+        const studentSubmissions = state.submissions.filter((s) => s.assessmentId === assessment.id);
+        const hasSubmitted = studentSubmissions.length > 0;
+        let buttonText = "Mulai Kerjakan";
+        let buttonClass = "primary-button start-assessment-btn";
+        const isLocked = hasSubmitted && !assessment.allowRetakes;
+        const latestSubmission = hasSubmitted ? studentSubmissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0] : null;
+        const maxAttempts = assessment.allowRetakes ? Infinity : Number(assessment.maxAttempts) || 1;
+        const used = studentSubmissions.length;
+        let attemptsText = `${Math.max(0, maxAttempts - used)} percobaan tersisa`;
+        if (Number.isFinite(maxAttempts) && used >= maxAttempts) {
+          attemptsText = "Percobaan habis";
+        } else if (!Number.isFinite(maxAttempts)) {
+          attemptsText = "Percobaan tak terbatas";
+        }
+        const timeLimit = Number(assessment.timeLimit) || 0;
+        const timeText = timeLimit > 0 ? `\u23F1 ${formatDuration(timeLimit)} / soal` : "\u23F1 Tanpa batas waktu";
+        let statusHtml = "";
+        if (hasSubmitted) {
+          const statusClass = isLocked ? "badge-closed" : "badge-published";
+          const statusLabel2 = isLocked ? "Selesai" : "Dikerjakan";
+          statusHtml = `<span class="tag ${statusClass}" style="width: fit-content;">${statusLabel2}</span>`;
+        } else {
+          statusHtml = `<span class="tag badge-published" style="width: fit-content;">Belum dikerjakan</span>`;
+        }
+        const scoreHtml = latestSubmission ? `<p style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai terakhir: ${latestSubmission.finalScore}</p>` : "";
+        if (hasSubmitted && assessment.allowRetakes) {
+          buttonText = "Kerjakan Ulang";
+          buttonClass = "secondary-button start-assessment-btn";
+        } else if (hasSubmitted && !assessment.allowRetakes) {
+          buttonText = "Sudah Dikumpulkan";
+          buttonClass = "secondary-button";
+        }
+        return `
+          <div class="assessment-card" data-id="${assessment.id}" tabindex="0" role="button" aria-label="${escapeHtml(assessment.topic)} - ${assessment.difficulty} - ${assessment.questions.length} soal">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-              <h4>${u(i.topic)}</h4>
+              <h4>${escapeHtml(assessment.topic)}</h4>
               <div style="display:flex; gap:4px; align-items:center;">
-                ${i.isTryout?'<span class="tag tag-tryout">Tryout</span>':""}
-                ${v}
+                ${assessment.isTryout ? '<span class="tag tag-tryout">Tryout</span>' : ""}
+                ${statusHtml}
               </div>
             </div>
-            <span class="tag badge-published" style="width: fit-content;">${u(i.difficulty)}</span>
+            <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
             <div class="assessment-meta">
-              <span>\u{1F4DD} ${i.questions.length} soal</span>
-              <span>${b}</span>
-              <span>\u{1F504} ${f}</span>
+              <span>\u{1F4DD} ${assessment.questions.length} soal</span>
+              <span>${timeText}</span>
+              <span>\u{1F504} ${attemptsText}</span>
             </div>
-            ${L}
-            <button type="button" class="${d}" data-id="${i.id}" style="margin-top: auto;" ${m?"disabled":""}>${c}</button>
+            ${scoreHtml}
+            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
           </div>
-        `}).join(""))):(e.studentEmpty?.classList.remove("hidden"),e.studentAssessmentGrid&&(e.studentAssessmentGrid.innerHTML="")),a.currentAssessmentId?(e.studentDashboard?.classList.add("hidden"),e.studentWorkspace?.classList.remove("hidden"),Je(e,a.getCurrentAssessment(),a)):(e.studentDashboard?.classList.remove("hidden"),e.studentWorkspace?.classList.add("hidden"))}function Je(e,t,a){if(!t)return;let n=t.questions[a.currentQuestionIndex];if(e.questionProgress.textContent=`Soal ${a.currentQuestionIndex+1} dari ${t.questions.length}`,e.activeDifficulty.textContent=t.difficulty,e.activeQuestion.textContent=n.prompt,e.activeHint.textContent="",e.activeHint.classList.add("hidden"),e.activeOutcome&&(e.activeOutcome.textContent=n.outcome||t.outcomes||"",e.activeOutcome.classList.toggle("hidden",!e.activeOutcome.textContent)),e.activeRubric){let r=n.rubric||"";e.activeRubric.innerHTML=r?re(r):"",e.activeRubric.classList.toggle("hidden",!r)}t.oralExamEnabled!==!1?t.disableManualTyping?(e.answerText.placeholder="Jawaban manual dimatikan untuk penilaian ini. Silakan menjawab menggunakan rekaman suara.",e.answerText.readOnly=!0,e.recordButton.disabled=!1,e.recorderPanel?.classList.remove("hidden"),e.recordInstructions&&(e.recordInstructions.textContent="Gunakan Chrome/Edge di "+window.location.origin+" dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).")):(e.answerText.placeholder="Transkripsi otomatis atau jawaban manual siswa akan muncul di sini",e.answerText.readOnly=!1,e.recordButton.disabled=!1,e.recorderPanel?.classList.remove("hidden"),e.recordInstructions&&(e.recordInstructions.textContent="Gunakan Chrome/Edge di "+window.location.origin+" dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.")):(e.answerText.placeholder="Tulis jawaban Anda di sini.",e.answerText.readOnly=!1,e.recordButton.disabled=!0,e.recorderPanel?.classList.add("hidden"),e.recordInstructions&&(e.recordInstructions.textContent="Mode tulisan aktif. Jawab setiap soal dengan mengetik jawaban Anda.")),e.answerText.value=a.currentAnswers[a.currentQuestionIndex]?.text||"",e.prevQuestion.disabled=a.currentQuestionIndex===0,cr(e,t,a.currentAnswers)}function de(e,t){let a=e.monitorClassFilter?.value,n=Number(e.monitorRangeFilter?.value)||0,s=t.submissions;if(a&&(s=t.submissions.filter(l=>l.classId===a)),n>0){let l=Date.now()-n*24*60*60*1e3;s=s.filter(c=>new Date(c.submittedAt).getTime()>=l)}if(e.submissionCount.textContent=s.length,e.downloadClassCsvBtn&&(e.downloadClassCsvBtn.style.display=a?"inline-flex":"none"),!s.length){e.classAverage.textContent="\u2014",e.classAverage.style.setProperty("--score","0"),e.trendAssessmentCount&&(e.trendAssessmentCount.textContent="0 penilaian"),Te(e.trendList,"trend-list empty-state",qn),e.submissionList.className="",e.submissionList.innerHTML=`<tr><td colspan="6" class="empty-state">${ur}</td></tr>`;return}let r=s.filter(Z),i=An(r,l=>l.finalScore),o=r.length?String(i):"\u2014";e.classAverage.textContent=o,e.classAverage.style.setProperty("--score",i||0),mr(e,r),pr(e,s)}function pa(e,t,a){if(!e.evaluationPreviewList)return;let s=(Array.isArray(t.questions)?t.questions:[]).map((r,i)=>{let o=a&&a[i],l=String(o?.text||"").trim(),c=!!o?.audio,d=l?`<p class="ev-preview-answer"><b>Jawaban:</b> <i>"${u(l)}"</i></p>`:c?'<p class="ev-preview-answer"><b>Jawaban:</b> <i>Rekaman suara</i></p>':'<p class="ev-preview-answer ev-preview-empty"><b>Jawaban:</b> <i>Belum dijawab</i></p>';return`
+        `;
+      }).join("");
+    }
+  }
+  if (session.currentAssessmentId) {
+    els.studentDashboard?.classList.add("hidden");
+    els.studentWorkspace?.classList.remove("hidden");
+    renderQuestion(els, session.getCurrentAssessment(), session);
+  } else {
+    els.studentDashboard?.classList.remove("hidden");
+    els.studentWorkspace?.classList.add("hidden");
+  }
+}
+function renderQuestion(els, assessment, session) {
+  if (!assessment) return;
+  const question = assessment.questions[session.currentQuestionIndex];
+  els.questionProgress.textContent = `Soal ${session.currentQuestionIndex + 1} dari ${assessment.questions.length}`;
+  els.activeDifficulty.textContent = assessment.difficulty;
+  els.activeQuestion.textContent = question.prompt;
+  els.activeHint.textContent = "";
+  els.activeHint.classList.add("hidden");
+  if (els.activeOutcome) {
+    els.activeOutcome.textContent = question.outcome || assessment.outcomes || "";
+    els.activeOutcome.classList.toggle("hidden", !els.activeOutcome.textContent);
+  }
+  if (els.activeRubric) {
+    const rubricText = question.rubric || "";
+    els.activeRubric.innerHTML = rubricText ? renderRubricTable(rubricText) : "";
+    els.activeRubric.classList.toggle("hidden", !rubricText);
+  }
+  const isOralExam = assessment.oralExamEnabled !== false;
+  if (!isOralExam) {
+    els.answerText.placeholder = "Tulis jawaban Anda di sini.";
+    els.answerText.readOnly = false;
+    els.recordButton.disabled = true;
+    els.recorderPanel?.classList.add("hidden");
+    if (els.recordInstructions) {
+      els.recordInstructions.textContent = "Mode tulisan aktif. Jawab setiap soal dengan mengetik jawaban Anda.";
+    }
+  } else if (assessment.disableManualTyping) {
+    els.answerText.placeholder = "Jawaban manual dimatikan untuk penilaian ini. Silakan menjawab menggunakan rekaman suara.";
+    els.answerText.readOnly = true;
+    els.recordButton.disabled = false;
+    els.recorderPanel?.classList.remove("hidden");
+    if (els.recordInstructions) {
+      els.recordInstructions.textContent = "Gunakan Chrome/Edge di " + window.location.origin + " dan izinkan mikrofon. Siswa wajib menjawab secara lisan (pengetikan manual dinonaktifkan).";
+    }
+  } else {
+    els.answerText.placeholder = "Transkripsi otomatis atau jawaban manual siswa akan muncul di sini";
+    els.answerText.readOnly = false;
+    els.recordButton.disabled = false;
+    els.recorderPanel?.classList.remove("hidden");
+    if (els.recordInstructions) {
+      els.recordInstructions.textContent = "Gunakan Chrome/Edge di " + window.location.origin + " dan izinkan mikrofon. Jika transkripsi otomatis tidak tersedia, ketik hasil rekaman manual.";
+    }
+  }
+  els.answerText.value = session.currentAnswers[session.currentQuestionIndex]?.text || "";
+  els.prevQuestion.disabled = session.currentQuestionIndex === 0;
+  renderAnswerMap(els, assessment, session.currentAnswers);
+}
+function renderMonitoring(els, state) {
+  const selectedClassId = els.monitorClassFilter?.value;
+  const rangeDays = Number(els.monitorRangeFilter?.value) || 0;
+  let visibleSubmissions = state.submissions;
+  if (selectedClassId) {
+    visibleSubmissions = state.submissions.filter((s) => s.classId === selectedClassId);
+  }
+  if (rangeDays > 0) {
+    const cutoff = Date.now() - rangeDays * 24 * 60 * 60 * 1e3;
+    visibleSubmissions = visibleSubmissions.filter((s) => new Date(s.submittedAt).getTime() >= cutoff);
+  }
+  els.submissionCount.textContent = visibleSubmissions.length;
+  if (els.downloadClassCsvBtn) {
+    els.downloadClassCsvBtn.style.display = selectedClassId ? "inline-flex" : "none";
+  }
+  if (!visibleSubmissions.length) {
+    els.classAverage.textContent = "\u2014";
+    els.classAverage.style.setProperty("--score", "0");
+    if (els.trendAssessmentCount) els.trendAssessmentCount.textContent = "0 penilaian";
+    showEmpty(els.trendList, "trend-list empty-state", EMPTY_TRENDS);
+    els.submissionList.className = "";
+    els.submissionList.innerHTML = `<tr><td colspan="6" class="empty-state">${EMPTY_SUBMISSIONS}</td></tr>`;
+    return;
+  }
+  const evaluated = visibleSubmissions.filter(hasValidScore);
+  const avg = average(evaluated, (submission) => submission.finalScore);
+  const avgText = evaluated.length ? String(avg) : "\u2014";
+  els.classAverage.textContent = avgText;
+  els.classAverage.style.setProperty("--score", avg || 0);
+  renderTrend(els, evaluated);
+  renderSubmissions(els, visibleSubmissions);
+}
+function renderEvaluationPreview(els, assessment, answers) {
+  if (!els.evaluationPreviewList) return;
+  const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
+  const list = questions.map((q, idx) => {
+    const answer = answers && answers[idx];
+    const answerText = String(answer?.text || "").trim();
+    const hasAudio = Boolean(answer?.audio);
+    const answerHtml = answerText ? `<p class="ev-preview-answer"><b>Jawaban:</b> <i>"${escapeHtml(answerText)}"</i></p>` : hasAudio ? `<p class="ev-preview-answer"><b>Jawaban:</b> <i>Rekaman suara</i></p>` : `<p class="ev-preview-answer ev-preview-empty"><b>Jawaban:</b> <i>Belum dijawab</i></p>`;
+    return `
       <details class="ev-preview-card" open>
         <summary>
-          <span class="ev-preview-title"><strong>Soal ${i+1}</strong></span>
+          <span class="ev-preview-title"><strong>Soal ${idx + 1}</strong></span>
           <span class="ev-preview-score" aria-label="Nilai sedang diproses">
             <span class="ev-score-skeleton"></span>
           </span>
         </summary>
         <div class="ev-preview-body">
-          <div class="rich-text">${Ge(r.prompt||`Soal ${i+1}`)}</div>
-          ${d}
-          ${c?'<div style="margin-top:8px;"><span class="tag">\u{1F3A4} Audio tersimpan</span></div>':""}
+          <div class="rich-text">${formatRichText(q.prompt || `Soal ${idx + 1}`)}</div>
+          ${answerHtml}
+          ${hasAudio ? `<div style="margin-top:8px;"><span class="tag">\u{1F3A4} Audio tersimpan</span></div>` : ""}
         </div>
       </details>
-    `}).join("");e.evaluationPreviewList.innerHTML=`
+    `;
+  }).join("");
+  els.evaluationPreviewList.innerHTML = `
     <div class="ev-preview-note">Menampilkan soal &amp; jawaban Anda sementara AI menilai...</div>
-    ${s}
-  `}function ft(e,t){e.evaluationProgressText&&t&&(e.evaluationProgressText.textContent=t)}function ne(e,t,a=null){e.resultPanel._returnFocus=document.activeElement,e.resultPanel.classList.remove("hidden"),e.resultPanel.dataset.submissionId=t.id;let n=dr(t);e.resultPanel.innerHTML=`
+    ${list}
+  `;
+}
+function updateEvaluationProgress(els, text) {
+  if (els.evaluationProgressText && text) {
+    els.evaluationProgressText.textContent = text;
+  }
+}
+function showResult(els, submission, auth = null) {
+  els.resultPanel._returnFocus = document.activeElement;
+  els.resultPanel.classList.remove("hidden");
+  els.resultPanel.dataset.submissionId = submission.id;
+  const summary = buildResultSummary(submission);
+  els.resultPanel.innerHTML = `
     <div class="result-modal-content">
       <button class="result-close-btn close-result-btn" type="button" aria-label="Tutup hasil penilaian">&times;</button>
       <div class="result-header">
         <div style="flex: 1; min-width: 0;">
-          <h3 style="margin-right: 40px;">Hasil penilaian: ${u(t.assessmentTitle)}</h3>
-          <div class="rich-text">${Ge(t.feedback)}</div>
+          <h3 style="margin-right: 40px;">Hasil penilaian: ${escapeHtml(submission.assessmentTitle)}</h3>
+          <div class="rich-text">${formatRichText(submission.feedback)}</div>
         </div>
-        <div class="score-badge">${t.finalScore}</div>
+        <div class="score-badge">${submission.finalScore}</div>
       </div>
 
       <div class="result-summary">
         <div class="summary-score">
           <span class="summary-score-label">Skor akhir</span>
-          <strong>${t.finalScore}</strong>
+          <strong>${submission.finalScore}</strong>
           <span class="summary-score-sub">dari 100</span>
         </div>
         <div class="summary-columns">
           <div class="summary-col summary-strengths">
             <h4>\u{1F4AA} Kekuatan</h4>
-            ${n.strengths.length?`<ul>${n.strengths.map(r=>`<li>${u(r)}</li>`).join("")}</ul>`:'<p class="summary-empty">Belum ada catatan kekuatan.</p>'}
+            ${summary.strengths.length ? `<ul>${summary.strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>` : `<p class="summary-empty">Belum ada catatan kekuatan.</p>`}
           </div>
           <div class="summary-col summary-gaps">
             <h4>\u{1F3AF} Fokus perbaikan</h4>
-            ${n.gaps.length?`<ul>${n.gaps.map(r=>`<li>${u(r)}</li>`).join("")}</ul>`:'<p class="summary-empty">Tidak ada catatan perbaikan.</p>'}
+            ${summary.gaps.length ? `<ul>${summary.gaps.map((g) => `<li>${escapeHtml(g)}</li>`).join("")}</ul>` : `<p class="summary-empty">Tidak ada catatan perbaikan.</p>`}
           </div>
         </div>
       </div>
@@ -107,7 +1793,7 @@ var Js=Object.defineProperty;var x=(e,t,a)=>()=>{if(a)throw a[0];try{return e&&(
         </button>
         <div class="result-details-body hidden">
           <div class="feedback-grid">
-            ${t.questionScores.map((r,i)=>br(r,i,a)).join("")}
+            ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth)).join("")}
           </div>
         </div>
       </div>
@@ -117,18 +1803,46 @@ var Js=Object.defineProperty;var x=(e,t,a)=>()=>{if(a)throw a[0];try{return e&&(
         <button class="primary-button close-result-btn" type="button">Tutup hasil</button>
       </div>
     </div>
-  `;let s=e.resultPanel.querySelector(".result-details-toggle");s&&s.addEventListener("click",()=>{let i=e.resultPanel.querySelector(".result-details-body").classList.toggle("hidden");s.setAttribute("aria-expanded",String(!i)),s.querySelector(".result-details-caret").textContent=i?"\u25B8":"\u25BE"}),requestAnimationFrame(()=>e.resultPanel.querySelector(".result-close-btn")?.focus())}function dr(e){let t=[],a=[];return(e.questionScores||[]).forEach(n=>{(n.strengths||[]).forEach(s=>t.push(s)),(n.gaps||[]).forEach(s=>a.push(s))}),{strengths:[...new Set(t)].slice(0,2),gaps:[...new Set(a)].slice(0,2)}}function gt(e){let t=e.oralExamEnabled!==!1,a=e.status==="closed",n=a?'<span class="tag badge-closed" style="padding: 2px 6px; font-size: 0.65rem;">Akses ditutup</span>':`<span class="tag badge-published" style="padding: 2px 6px; font-size: 0.65rem;">${t?"Lisan":"Tulisan"}</span>`;return`
-    <article class="assessment-item" data-id="${e.id}">
+  `;
+  const toggle = els.resultPanel.querySelector(".result-details-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      const body = els.resultPanel.querySelector(".result-details-body");
+      const expanded = body.classList.toggle("hidden");
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      toggle.querySelector(".result-details-caret").textContent = expanded ? "\u25B8" : "\u25BE";
+    });
+  }
+  requestAnimationFrame(() => els.resultPanel.querySelector(".result-close-btn")?.focus());
+}
+function buildResultSummary(submission) {
+  const strengths = [];
+  const gaps = [];
+  (submission.questionScores || []).forEach((item) => {
+    (item.strengths || []).forEach((s) => strengths.push(s));
+    (item.gaps || []).forEach((g) => gaps.push(g));
+  });
+  return {
+    strengths: [...new Set(strengths)].slice(0, 2),
+    gaps: [...new Set(gaps)].slice(0, 2)
+  };
+}
+function renderAssessmentItem(assessment) {
+  const isOralExam = assessment.oralExamEnabled !== false;
+  const isClosed = assessment.status === "closed";
+  const statusBadge = isClosed ? `<span class="tag badge-closed" style="padding: 2px 6px; font-size: 0.65rem;">Akses ditutup</span>` : `<span class="tag badge-published" style="padding: 2px 6px; font-size: 0.65rem;">${isOralExam ? "Lisan" : "Tulisan"}</span>`;
+  return `
+    <article class="assessment-item" data-id="${assessment.id}">
       <div style="flex: 1; min-width: 0;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-          <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${u(e.topic)}</strong>
-          ${n}
+          <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(assessment.topic)}</strong>
+          ${statusBadge}
         </div>
-        <p>${u(ke(e.outcomes))}</p>
+        <p>${escapeHtml(compactText(assessment.outcomes))}</p>
         <div class="item-actions">
           <button type="button" class="action-button edit-assessment">Edit Soal</button>
           <button type="button" class="action-button download-grades-assessment">Download Nilai</button>
-          <button type="button" class="action-button ${a?"reopen-assessment":"close-assessment"}">${a?"Buka akses siswa":"Tutup akses siswa"}</button>
+          <button type="button" class="action-button ${isClosed ? "reopen-assessment" : "close-assessment"}">${isClosed ? "Buka akses siswa" : "Tutup akses siswa"}</button>
           <div class="more-menu">
             <button type="button" class="action-button more-menu-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Menu lainnya">\u22EF</button>
             <div class="more-menu-dropdown hidden">
@@ -137,174 +1851,578 @@ var Js=Object.defineProperty;var x=(e,t,a)=>()=>{if(a)throw a[0];try{return e&&(
           </div>
         </div>
       </div>
-      <span>${e.questions.length} soal</span>
+      <span>${assessment.questions.length} soal</span>
     </article>
-  `}function cr(e,t,a){e.answerMap.innerHTML=t.questions.map((n,s)=>{let r=a[s],i=(r?.text||"").trim().length>0,o=!!r?.audio,l=i||o,c=l?"done":"unanswered",d=l?`Soal ${s+1} sudah dijawab`:`Soal ${s+1} belum dijawab`;return`<div class="answer-dot ${c}" title="${d}" aria-label="${d}">${s+1}</div>`}).join("")}function mr(e,t){let a=hr(t),n=new Set(t.map(s=>s.assessmentId)).size;e.trendAssessmentCount&&(e.trendAssessmentCount.textContent=`${n} penilaian`),e.trendList.className=a.length?"trend-list":"trend-list empty-state",e.trendList.innerHTML=a.length?a.map(gr).join(""):qn}function pr(e,t){e.submissionList.className="",e.submissionList.innerHTML=t.slice().reverse().map(fr).join("")}function fr(e){let t=e.submittedAt?new Date(e.submittedAt).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-",a=Se(e),n=Z(e)?`<span class="metric-pill" style="padding: 4px 12px;">${e.finalScore}</span>`:'<span class="score-muted-text" title="Tidak diterbitkan \u2014 evaluasi belum valid">\u2014</span>';return`
-    <tr class="submission-row" data-id="${e.id}">
-      <td data-label="Siswa"><strong>${u(e.studentName)}</strong></td>
-      <td data-label="Topik">${u(e.assessmentTitle)}</td>
-      <td data-label="Tanggal">${t}</td>
-      <td data-label="Skor AI">${n}</td>
-      <td data-label="Status">${Ce(a)}</td>
+  `;
+}
+function renderAnswerMap(els, assessment, answers) {
+  els.answerMap.innerHTML = assessment.questions.map((_, index) => {
+    const answer = answers[index];
+    const hasText = (answer?.text || "").trim().length > 0;
+    const hasAudio = Boolean(answer?.audio);
+    const done = hasText || hasAudio;
+    const cls = done ? "done" : "unanswered";
+    const title = done ? `Soal ${index + 1} sudah dijawab` : `Soal ${index + 1} belum dijawab`;
+    return `<div class="answer-dot ${cls}" title="${title}" aria-label="${title}">${index + 1}</div>`;
+  }).join("");
+}
+function renderTrend(els, submissions) {
+  const trends = buildTrends(submissions);
+  const assessmentCount = new Set(submissions.map((s) => s.assessmentId)).size;
+  if (els.trendAssessmentCount) {
+    els.trendAssessmentCount.textContent = `${assessmentCount} penilaian`;
+  }
+  els.trendList.className = trends.length ? "trend-list" : "trend-list empty-state";
+  els.trendList.innerHTML = trends.length ? trends.map(renderTrendItem).join("") : EMPTY_TRENDS;
+}
+function renderSubmissions(els, submissions) {
+  els.submissionList.className = "";
+  els.submissionList.innerHTML = submissions.slice().reverse().map(renderSubmissionItem).join("");
+}
+function renderSubmissionItem(submission) {
+  const date = submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+  const status = getSubmissionStatus(submission);
+  const scoreHtml = hasValidScore(submission) ? `<span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span>` : `<span class="score-muted-text" title="Tidak diterbitkan \u2014 evaluasi belum valid">\u2014</span>`;
+  return `
+    <tr class="submission-row" data-id="${submission.id}">
+      <td data-label="Siswa"><strong>${escapeHtml(submission.studentName)}</strong></td>
+      <td data-label="Topik">${escapeHtml(submission.assessmentTitle)}</td>
+      <td data-label="Tanggal">${date}</td>
+      <td data-label="Skor AI">${scoreHtml}</td>
+      <td data-label="Status">${renderStatusBadge(status)}</td>
       <td data-label="Aksi">
         <button type="button" class="secondary-button view-submission-btn" style="min-height: 36px; font-size: 0.9rem;">Lihat Detail</button>
       </td>
     </tr>
-  `}function gr(e){let t=`${e.delta>=0?"+":""}${e.delta}`,a=e.delta>0?"trend-up":e.delta<0?"trend-down":"trend-flat",n=e.history.slice(-5).map(s=>`
-    <span class="trend-point" title="${u(s.date)}: ${s.score}">
-      <span class="trend-point-bar" style="height: ${Math.max(4,s.score)}%"></span>
-      <span class="trend-point-score">${s.score}</span>
+  `;
+}
+function renderTrendItem(trend) {
+  const deltaLabel = `${trend.delta >= 0 ? "+" : ""}${trend.delta}`;
+  const deltaClass = trend.delta > 0 ? "trend-up" : trend.delta < 0 ? "trend-down" : "trend-flat";
+  const history2 = trend.history.slice(-5).map((h) => `
+    <span class="trend-point" title="${escapeHtml(h.date)}: ${h.score}">
+      <span class="trend-point-bar" style="height: ${Math.max(4, h.score)}%"></span>
+      <span class="trend-point-score">${h.score}</span>
     </span>
-  `).join("");return`
+  `).join("");
+  return `
     <div class="trend-item">
       <header>
-        <strong>${u(e.studentName)}</strong>
-        <span class="trend-delta ${a}">${e.latest} (${t})</span>
+        <strong>${escapeHtml(trend.studentName)}</strong>
+        <span class="trend-delta ${deltaClass}">${trend.latest} (${deltaLabel})</span>
       </header>
-      <div class="trend-track"><div class="trend-fill" style="width: ${e.latest}%"></div></div>
-      ${e.history.length>1?`<div class="trend-history">${n}</div>`:""}
+      <div class="trend-track"><div class="trend-fill" style="width: ${trend.latest}%"></div></div>
+      ${trend.history.length > 1 ? `<div class="trend-history">${history2}</div>` : ""}
     </div>
-  `}function ue(e){if(!e)return"0 detik";let t=Math.floor(e/60),a=e%60;return t>0?`${t}m ${a}s`:`${a} detik`}function br(e,t,a){let n=e.audio?`<div style="margin-top: 12px; margin-bottom: 12px;"><audio controls src="${u(e.audio)}" style="width: 100%; height: 36px;"></audio></div>`:"",s=a&&a.user&&a.user.role==="teacher",r=a&&a.user&&a.user.role==="student",i=e.duration!==void 0?` | \u23F1\uFE0F ${ue(e.duration)}`:"",o=e.complaint,l="";if(o){let k=o.status==="resolved"?"Selesai":o.status==="rejected"?"Ditolak":"Menunggu";l=`
-      <div class="complaint-box ${o.status==="resolved"?"complaint-resolved":o.status==="rejected"?"complaint-rejected":"complaint-pending"}">
+  `;
+}
+function formatDuration(seconds) {
+  if (!seconds) return "0 detik";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m > 0) {
+    return `${m}m ${s}s`;
+  }
+  return `${s} detik`;
+}
+function renderFeedbackCard(item, index, auth) {
+  const audioHtml = item.audio ? `<div style="margin-top: 12px; margin-bottom: 12px;"><audio controls src="${escapeHtml(item.audio)}" style="width: 100%; height: 36px;"></audio></div>` : "";
+  const isTeacher = auth && auth.user && auth.user.role === "teacher";
+  const isStudent = auth && auth.user && auth.user.role === "student";
+  const durationText = item.duration !== void 0 ? ` | \u23F1\uFE0F ${formatDuration(item.duration)}` : "";
+  const complaint = item.complaint;
+  let complaintHtml = "";
+  if (complaint) {
+    const statusLabel2 = complaint.status === "resolved" ? "Selesai" : complaint.status === "rejected" ? "Ditolak" : "Menunggu";
+    const statusClass = complaint.status === "resolved" ? "complaint-resolved" : complaint.status === "rejected" ? "complaint-rejected" : "complaint-pending";
+    complaintHtml = `
+      <div class="complaint-box ${statusClass}">
         <strong>\u{1F4E9} Komplain siswa:</strong>
-        <p>${u(o.reason)}</p>
-        ${o.status==="rejected"?`<p class="complaint-response"><b>Keputusan guru:</b> Komplain ditolak. Skor dikurangi 20 poin.${o.response?` \u2014 ${u(o.response)}`:""}</p>`:""}
-        ${o.status==="resolved"&&o.response?`<p class="complaint-response"><b>Respon guru:</b> ${u(o.response)}</p>`:""}
-        <span class="tag">Status: ${k}</span>
+        <p>${escapeHtml(complaint.reason)}</p>
+        ${complaint.status === "rejected" ? `<p class="complaint-response"><b>Keputusan guru:</b> Komplain ditolak. Skor dikurangi 20 poin.${complaint.response ? ` \u2014 ${escapeHtml(complaint.response)}` : ""}</p>` : ""}
+        ${complaint.status === "resolved" && complaint.response ? `<p class="complaint-response"><b>Respon guru:</b> ${escapeHtml(complaint.response)}</p>` : ""}
+        <span class="tag">Status: ${statusLabel2}</span>
       </div>
-    `}let c=r&&!o?`<button type="button" class="action-button complaint-btn" data-index="${t}">Komplain</button>`:"",d=s&&o&&o.status==="pending"?`<button type="button" class="action-button respond-complaint-btn" data-index="${t}">Respon Komplain</button>`:"",m=s&&o&&o.status==="pending"?`<button type="button" class="action-button danger-button reject-complaint-btn" data-index="${t}">Tolak Komplain</button>`:"";return`
-    <article class="feedback-card" data-index="${t}">
+    `;
+  }
+  const complaintBtn = isStudent && !complaint ? `<button type="button" class="action-button complaint-btn" data-index="${index}">Komplain</button>` : "";
+  const respondBtn = isTeacher && complaint && complaint.status === "pending" ? `<button type="button" class="action-button respond-complaint-btn" data-index="${index}">Respon Komplain</button>` : "";
+  const rejectBtn = isTeacher && complaint && complaint.status === "pending" ? `<button type="button" class="action-button danger-button reject-complaint-btn" data-index="${index}">Tolak Komplain</button>` : "";
+  return `
+    <article class="feedback-card" data-index="${index}">
       <div style="display: flex; justify-content: space-between; align-items: start;">
-        <strong>Soal ${t+1} - Skor <span class="qs-score">${e.score}</span>${i}</strong>
+        <strong>Soal ${index + 1} - Skor <span class="qs-score">${item.score}</span>${durationText}</strong>
         <div style="display: flex; gap: 8px;">
-          ${c}
-          ${d}
-          ${m}
-          <button type="button" class="action-button edit-override-btn ${s?"":"hidden"}" data-index="${t}">Koreksi</button>
+          ${complaintBtn}
+          ${respondBtn}
+          ${rejectBtn}
+          <button type="button" class="action-button edit-override-btn ${isTeacher ? "" : "hidden"}" data-index="${index}">Koreksi</button>
         </div>
       </div>
-      <div class="rich-text">${Ge(e.question)}</div>
-      ${n}
-      <p><b>Jawaban:</b> <i>"${u(e.answer||(e.audio?"Hanya audio":"Tidak ada jawaban"))}"</i></p>
-      <p><b>Kelebihan:</b> <span class="qs-strengths rich-text">${Ge(e.strengths?.join(" ")||"")}</span></p>
-      <p><b>Masih kurang:</b> <span class="qs-gaps rich-text">${Ge(e.gaps?.join(" ")||"")}</span></p>
-      ${l}
+      <div class="rich-text">${formatRichText(item.question)}</div>
+      ${audioHtml}
+      <p><b>Jawaban:</b> <i>"${escapeHtml(item.answer || (item.audio ? "Hanya audio" : "Tidak ada jawaban"))}"</i></p>
+      <p><b>Kelebihan:</b> <span class="qs-strengths rich-text">${formatRichText(item.strengths?.join(" ") || "")}</span></p>
+      <p><b>Masih kurang:</b> <span class="qs-gaps rich-text">${formatRichText(item.gaps?.join(" ") || "")}</span></p>
+      ${complaintHtml}
       <div class="tag-row">
-        ${(e.matched||[]).slice(0,5).map(k=>`<span class="tag">${u(k)}</span>`).join("")}
+        ${(item.matched || []).slice(0, 5).map((keyword) => `<span class="tag">${escapeHtml(keyword)}</span>`).join("")}
       </div>
     </article>
-  `}function Ge(e){if(!e)return"";let a=u(e).split(/\r?\n/),n=[],s=null,r=()=>{s&&(n.push(`</${s}>`),s=null)};for(let i of a){let o=i.trim();if(!o){r();continue}let l=o.match(/^(#{1,6})\s+(.*)$/);if(l){r();let k=Math.min(l[1].length,6);n.push(`<h${k}>${ze(l[2])}</h${k}>`);continue}let c=o.match(/^[-*•]\s+(.*)$/);if(c){s!=="ul"&&(r(),n.push("<ul>"),s="ul"),n.push(`<li>${ze(c[1])}</li>`);continue}let d=o.match(/^\d+[.)]\s+(.*)$/);if(d){s!=="ol"&&(r(),n.push("<ol>"),s="ol"),n.push(`<li>${ze(d[1])}</li>`);continue}let m=o.match(/^>\s?(.*)$/);if(m){r(),n.push(`<blockquote>${ze(m[1])}</blockquote>`);continue}if(/^(-{3,}|\*{3,}|_{3,})$/.test(o)){r(),n.push("<hr>");continue}r(),n.push(`<p>${ze(o)}</p>`)}return r(),n.join("")}function ze(e){return e.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*(?!\*)/g,"$1<em>$2</em>").replace(/`([^`]+)`/g,"<code>$1</code>")}function hr(e){let t=new Map;return e.forEach(a=>{let n=t.get(a.studentName)||[];n.push(a),t.set(a.studentName,n)}),[...t.entries()].map(([a,n])=>{let s=n.slice().sort((l,c)=>new Date(l.submittedAt)-new Date(c.submittedAt)),r=s.at(-1).finalScore,i=s.length>1?s.at(-2).finalScore:r,o=s.map(l=>({score:l.finalScore,date:new Date(l.submittedAt).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}));return{studentName:a,latest:r,delta:r-i,history:o}}).sort((a,n)=>n.latest-a.latest)}function se(e,t,a){let n=t.filter(s=>s.studentName===a);if(!n.length){e.studentHistoryList.innerHTML='<tr><td colspan="4" class="empty-state">Belum ada riwayat penilaian.</td></tr>';return}e.studentHistoryList.innerHTML=n.slice().reverse().map(s=>{let r=s.submittedAt?new Date(s.submittedAt).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-";return`
-      <tr class="submission-row" data-id="${s.id}">
-        <td data-label="Topik"><strong>${u(s.assessmentTitle)}</strong></td>
-        <td data-label="Tanggal">${r}</td>
-        <td data-label="Skor"><span class="metric-pill" style="padding: 4px 12px;">${s.finalScore}</span></td>
+  `;
+}
+function formatRichText(text) {
+  if (!text) return "";
+  const escaped = escapeHtml(text);
+  const lines = escaped.split(/\r?\n/);
+  const html = [];
+  let inList = null;
+  const closeList = () => {
+    if (inList) {
+      html.push(`</${inList}>`);
+      inList = null;
+    }
+  };
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      closeList();
+      continue;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length, 6);
+      html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+    const ulItem = line.match(/^[-*•]\s+(.*)$/);
+    if (ulItem) {
+      if (inList !== "ul") {
+        closeList();
+        html.push("<ul>");
+        inList = "ul";
+      }
+      html.push(`<li>${inlineMarkdown(ulItem[1])}</li>`);
+      continue;
+    }
+    const olItem = line.match(/^\d+[.)]\s+(.*)$/);
+    if (olItem) {
+      if (inList !== "ol") {
+        closeList();
+        html.push("<ol>");
+        inList = "ol";
+      }
+      html.push(`<li>${inlineMarkdown(olItem[1])}</li>`);
+      continue;
+    }
+    const quote = line.match(/^>\s?(.*)$/);
+    if (quote) {
+      closeList();
+      html.push(`<blockquote>${inlineMarkdown(quote[1])}</blockquote>`);
+      continue;
+    }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
+      closeList();
+      html.push("<hr>");
+      continue;
+    }
+    closeList();
+    html.push(`<p>${inlineMarkdown(line)}</p>`);
+  }
+  closeList();
+  return html.join("");
+}
+function inlineMarkdown(text) {
+  return text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function buildTrends(submissions) {
+  const latestByStudent = /* @__PURE__ */ new Map();
+  submissions.forEach((submission) => {
+    const list = latestByStudent.get(submission.studentName) || [];
+    list.push(submission);
+    latestByStudent.set(submission.studentName, list);
+  });
+  return [...latestByStudent.entries()].map(([studentName, studentSubmissions]) => {
+    const sorted = studentSubmissions.slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+    const latest = sorted.at(-1).finalScore;
+    const previous = sorted.length > 1 ? sorted.at(-2).finalScore : latest;
+    const history2 = sorted.map((s) => ({
+      score: s.finalScore,
+      date: new Date(s.submittedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
+    }));
+    return { studentName, latest, delta: latest - previous, history: history2 };
+  }).sort((a, b) => b.latest - a.latest);
+}
+function renderStudentHistory(els, submissions, currentStudentName) {
+  const studentSubmissions = submissions.filter((s) => s.studentName === currentStudentName);
+  if (!studentSubmissions.length) {
+    els.studentHistoryList.innerHTML = '<tr><td colspan="4" class="empty-state">Belum ada riwayat penilaian.</td></tr>';
+    return;
+  }
+  els.studentHistoryList.innerHTML = studentSubmissions.slice().reverse().map((sub) => {
+    const date = sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+    return `
+      <tr class="submission-row" data-id="${sub.id}">
+        <td data-label="Topik"><strong>${escapeHtml(sub.assessmentTitle)}</strong></td>
+        <td data-label="Tanggal">${date}</td>
+        <td data-label="Skor"><span class="metric-pill" style="padding: 4px 12px;">${sub.finalScore}</span></td>
         <td data-label="Aksi">
           <button type="button" class="secondary-button view-submission-btn" style="min-height: 36px; font-size: 0.9rem;">Lihat Hasil</button>
         </td>
       </tr>
-    `}).join("")}function fa(e,t){let a=t?.metrics||{},n=t?.system||{},s=t?.tailLatency||{},r=t?.prefixOptimization||{},i=Array.isArray(t?.logs)?t.logs:[],o=t?.pagination||{};if(e.telemetryLastUpdated&&(e.telemetryLastUpdated.textContent=t?.lastUpdated?`Last updated ${new Date(t.lastUpdated).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}`:"\u2014"),e.telemetryTotalCalls&&(e.telemetryTotalCalls.textContent=a.totalCalls!=null?a.totalCalls.toLocaleString("id-ID"):"\u2014"),e.telemetryCallsDelta&&(e.telemetryCallsDelta.textContent=a.callsToday!=null?`+${a.callsToday.toLocaleString("id-ID")} today`:"\u2014"),e.telemetryErrorRate&&(e.telemetryErrorRate.textContent=a.errorRate!=null?`${a.errorRate}%`:"\u2014"),e.telemetryErrorHealth)if(a.errorRate==null)e.telemetryErrorHealth.textContent="Telemetry unavailable";else{let l=a.errorRate===0;e.telemetryErrorHealth.textContent=l?"\u2713 Healthy":`\u26A0 ${a.errorRate}% errors`,e.telemetryErrorHealth.className=l?"ob-kpi-delta ob-good":"ob-kpi-delta ob-warn"}if(e.telemetryP50&&(e.telemetryP50.textContent=G(a.p50LatencyMs)),e.telemetryP95&&(e.telemetryP95.textContent=G(a.p95LatencyMs)),e.telemetryP95Health&&(e.telemetryP95Health.textContent=s.flagged?"\u26A0 High tail latency":vr(a.avgLatencyMs),e.telemetryP95Health.className=s.flagged?"ob-kpi-delta ob-warn":"ob-kpi-delta"),e.telemetryTailAlert&&(s.flagged?(e.telemetryTailAlert.className="ob-alert ob-alert-warn",e.telemetryTailAlert.innerHTML=`
+    `;
+  }).join("");
+}
+function renderObservability(els, data) {
+  const metrics = data?.metrics || {};
+  const system = data?.system || {};
+  const tail = data?.tailLatency || {};
+  const prefix = data?.prefixOptimization || {};
+  const logs = Array.isArray(data?.logs) ? data.logs : [];
+  const pagination = data?.pagination || {};
+  if (els.telemetryLastUpdated) {
+    els.telemetryLastUpdated.textContent = data?.lastUpdated ? `Last updated ${new Date(data.lastUpdated).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    })}` : "\u2014";
+  }
+  if (els.telemetryTotalCalls) {
+    els.telemetryTotalCalls.textContent = metrics.totalCalls != null ? metrics.totalCalls.toLocaleString("id-ID") : "\u2014";
+  }
+  if (els.telemetryCallsDelta) {
+    els.telemetryCallsDelta.textContent = metrics.callsToday != null ? `+${metrics.callsToday.toLocaleString("id-ID")} today` : "\u2014";
+  }
+  if (els.telemetryErrorRate) {
+    els.telemetryErrorRate.textContent = metrics.errorRate != null ? `${metrics.errorRate}%` : "\u2014";
+  }
+  if (els.telemetryErrorHealth) {
+    if (metrics.errorRate == null) {
+      els.telemetryErrorHealth.textContent = "Telemetry unavailable";
+    } else {
+      const ok = metrics.errorRate === 0;
+      els.telemetryErrorHealth.textContent = ok ? "\u2713 Healthy" : `\u26A0 ${metrics.errorRate}% errors`;
+      els.telemetryErrorHealth.className = ok ? "ob-kpi-delta ob-good" : "ob-kpi-delta ob-warn";
+    }
+  }
+  if (els.telemetryP50) els.telemetryP50.textContent = formatLatency(metrics.p50LatencyMs);
+  if (els.telemetryP95) {
+    els.telemetryP95.textContent = formatLatency(metrics.p95LatencyMs);
+  }
+  if (els.telemetryP95Health) {
+    els.telemetryP95Health.textContent = tail.flagged ? "\u26A0 High tail latency" : formatAvgLabel(metrics.avgLatencyMs);
+    els.telemetryP95Health.className = tail.flagged ? "ob-kpi-delta ob-warn" : "ob-kpi-delta";
+  }
+  if (els.telemetryTailAlert) {
+    if (tail.flagged) {
+      els.telemetryTailAlert.className = "ob-alert ob-alert-warn";
+      els.telemetryTailAlert.innerHTML = `
         <strong>\u26A0 High Tail Latency</strong>
         <p>p95 latency is significantly higher than typical request latency.</p>
-        <p>p50: ${G(s.p50)} &nbsp;\xB7&nbsp; p95: ${G(s.p95)}
-        ${s.ratio!=null?` &nbsp;\xB7&nbsp; p95/p50 = ${s.ratio}\xD7`:""}</p>
-        <span class="sem-badge sem-derived">\u0192 Derived</span>`):(e.telemetryTailAlert.className="ob-alert hidden",e.telemetryTailAlert.innerHTML="")),e.telemetryLatencyDist){let l=Array.isArray(t?.latencyDistribution)?t.latencyDistribution:[];if(!l.length)e.telemetryLatencyDist.innerHTML='<p class="empty-state">Belum ada data latency.</p>';else{let c=Math.max(1,...l.map(d=>d.count));e.telemetryLatencyDist.innerHTML=l.map(d=>`
+        <p>p50: ${formatLatency(tail.p50)} &nbsp;\xB7&nbsp; p95: ${formatLatency(tail.p95)}
+        ${tail.ratio != null ? ` &nbsp;\xB7&nbsp; p95/p50 = ${tail.ratio}\xD7` : ""}</p>
+        <span class="sem-badge sem-derived">\u0192 Derived</span>`;
+    } else {
+      els.telemetryTailAlert.className = "ob-alert hidden";
+      els.telemetryTailAlert.innerHTML = "";
+    }
+  }
+  if (els.telemetryLatencyDist) {
+    const dist = Array.isArray(data?.latencyDistribution) ? data.latencyDistribution : [];
+    if (!dist.length) {
+      els.telemetryLatencyDist.innerHTML = '<p class="empty-state">Belum ada data latency.</p>';
+    } else {
+      const max = Math.max(1, ...dist.map((b) => b.count));
+      els.telemetryLatencyDist.innerHTML = dist.map(
+        (b) => `
           <div class="ob-hist-row">
-            <span class="ob-hist-label">${u(d.label)}</span>
-            <div class="ob-hist-track" role="img" aria-label="${u(d.label)}: ${d.count} calls">
-              <div class="ob-hist-bar" style="width: ${Math.max(2,Math.round(d.count/c*100))}%"></div>
+            <span class="ob-hist-label">${escapeHtml(b.label)}</span>
+            <div class="ob-hist-track" role="img" aria-label="${escapeHtml(b.label)}: ${b.count} calls">
+              <div class="ob-hist-bar" style="width: ${Math.max(2, Math.round(b.count / max * 100))}%"></div>
             </div>
-            <span class="ob-hist-count">${d.count}</span>
-          </div>`).join("")}}if(e.telemetryPercentileTable){let l=[["p50",a.p50LatencyMs],["p75",a.p75LatencyMs],["p90",a.p90LatencyMs],["p95",a.p95LatencyMs],["p99",a.p99LatencyMs]];e.telemetryPercentileTable.innerHTML=l.map(([c,d])=>`
+            <span class="ob-hist-count">${b.count}</span>
+          </div>`
+      ).join("");
+    }
+  }
+  if (els.telemetryPercentileTable) {
+    const pRows = [
+      ["p50", metrics.p50LatencyMs],
+      ["p75", metrics.p75LatencyMs],
+      ["p90", metrics.p90LatencyMs],
+      ["p95", metrics.p95LatencyMs],
+      ["p99", metrics.p99LatencyMs]
+    ];
+    els.telemetryPercentileTable.innerHTML = pRows.map(
+      ([label, value]) => `
         <tr>
-          <td><code>${c}</code></td>
-          <td><strong>${G(d)}</strong></td>
-        </tr>`).join("")}if(e.telemetryTailRatio&&(e.telemetryTailRatio.innerHTML=s.ratio!=null?`<span class="ob-tail-ratio-text">p95 / p50 = ${s.ratio}\xD7 (threshold ${s.threshold}\xD7)</span>`:""),pt(e.telemetryLatencyByOp,t?.latencyByOperation,l=>`
+          <td><code>${label}</code></td>
+          <td><strong>${formatLatency(value)}</strong></td>
+        </tr>`
+    ).join("");
+  }
+  if (els.telemetryTailRatio) {
+    els.telemetryTailRatio.innerHTML = tail.ratio != null ? `<span class="ob-tail-ratio-text">p95 / p50 = ${tail.ratio}\xD7 (threshold ${tail.threshold}\xD7)</span>` : "";
+  }
+  renderTableRows(els.telemetryLatencyByOp, data?.latencyByOperation, (row) => `
     <tr>
-      <td><code>${u(l.operation)}</code></td>
-      <td>${l.calls.toLocaleString("id-ID")}</td>
-      <td>${G(l.p50)}</td>
-      <td>${G(l.p95)}</td>
-      <td>${G(l.avg)}</td>
-      <td>${l.errorRate!=null?`${l.errorRate}%`:"\u2014"}</td>
-    </tr>`,7,"Belum ada data per operation."),e.telemetryTokens&&(e.telemetryTokens.textContent=(a.totalTokens??0).toLocaleString("id-ID")),e.telemetryTokenSplit){let l=a.totalTokens||0,c=l>0?a.promptTokenPct??0:0,d=l>0?a.completionTokenPct??0:0;e.telemetryTokenSplit.innerHTML=`
-      <div class="ob-split-bar" role="img" aria-label="Prompt ${c}%, completion ${d}%">
-        <div class="ob-split-prompt" style="width: ${c}%"></div>
-        <div class="ob-split-completion" style="width: ${d}%"></div>
+      <td><code>${escapeHtml(row.operation)}</code></td>
+      <td>${row.calls.toLocaleString("id-ID")}</td>
+      <td>${formatLatency(row.p50)}</td>
+      <td>${formatLatency(row.p95)}</td>
+      <td>${formatLatency(row.avg)}</td>
+      <td>${row.errorRate != null ? `${row.errorRate}%` : "\u2014"}</td>
+    </tr>`, 7, "Belum ada data per operation.");
+  if (els.telemetryTokens) {
+    els.telemetryTokens.textContent = (metrics.totalTokens ?? 0).toLocaleString("id-ID");
+  }
+  if (els.telemetryTokenSplit) {
+    const total = metrics.totalTokens || 0;
+    const promptPct = total > 0 ? metrics.promptTokenPct ?? 0 : 0;
+    const completionPct = total > 0 ? metrics.completionTokenPct ?? 0 : 0;
+    els.telemetryTokenSplit.innerHTML = `
+      <div class="ob-split-bar" role="img" aria-label="Prompt ${promptPct}%, completion ${completionPct}%">
+        <div class="ob-split-prompt" style="width: ${promptPct}%"></div>
+        <div class="ob-split-completion" style="width: ${completionPct}%"></div>
       </div>
       <div class="ob-split-legend">
-        <span><i class="ob-dot ob-dot-prompt"></i>Prompt ${(a.promptTokens??0).toLocaleString("id-ID")} (${c}%)</span>
-        <span><i class="ob-dot ob-dot-completion"></i>Completion ${(a.completionTokens??0).toLocaleString("id-ID")} (${d}%)</span>
-      </div>`}if(e.telemetryAvgTokens&&(e.telemetryAvgTokens.textContent=(a.avgTokensPerRequest??0).toLocaleString("id-ID")),e.telemetryAvgPrompt&&(e.telemetryAvgPrompt.textContent=(a.avgPromptPerRequest??0).toLocaleString("id-ID")),e.telemetryAvgCompletion&&(e.telemetryAvgCompletion.textContent=(a.avgCompletionPerRequest??0).toLocaleString("id-ID")),e.telemetryTokensPerCall&&(e.telemetryTokensPerCall.textContent=(a.tokensPerApiCall??0).toLocaleString("id-ID")),e.telemetryTokensPerEval&&(e.telemetryTokensPerEval.textContent=a.tokensPerEvaluation!=null?a.tokensPerEvaluation.toLocaleString("id-ID"):"\u2014"),e.telemetryCost&&(e.telemetryCost.textContent=a.estimatedCostUSD!=null?`$${a.estimatedCostUSD.toFixed(5)}`:"\u2014"),e.telemetryCostPerEval&&(e.telemetryCostPerEval.textContent=a.costPerEvaluation!=null?`$${a.costPerEvaluation.toFixed(5)}`:"\u2014"),e.telemetryCostPer1K&&(e.telemetryCostPer1K.textContent=a.costPer1KTokens!=null?`$${a.costPer1KTokens.toFixed(5)}`:"\u2014"),pt(e.telemetryCostByOp,t?.costByOperation,l=>`
+        <span><i class="ob-dot ob-dot-prompt"></i>Prompt ${(metrics.promptTokens ?? 0).toLocaleString("id-ID")} (${promptPct}%)</span>
+        <span><i class="ob-dot ob-dot-completion"></i>Completion ${(metrics.completionTokens ?? 0).toLocaleString("id-ID")} (${completionPct}%)</span>
+      </div>`;
+  }
+  if (els.telemetryAvgTokens) els.telemetryAvgTokens.textContent = (metrics.avgTokensPerRequest ?? 0).toLocaleString("id-ID");
+  if (els.telemetryAvgPrompt) els.telemetryAvgPrompt.textContent = (metrics.avgPromptPerRequest ?? 0).toLocaleString("id-ID");
+  if (els.telemetryAvgCompletion) els.telemetryAvgCompletion.textContent = (metrics.avgCompletionPerRequest ?? 0).toLocaleString("id-ID");
+  if (els.telemetryTokensPerCall) els.telemetryTokensPerCall.textContent = (metrics.tokensPerApiCall ?? 0).toLocaleString("id-ID");
+  if (els.telemetryTokensPerEval) {
+    els.telemetryTokensPerEval.textContent = metrics.tokensPerEvaluation != null ? metrics.tokensPerEvaluation.toLocaleString("id-ID") : "\u2014";
+  }
+  if (els.telemetryCost) {
+    els.telemetryCost.textContent = metrics.estimatedCostUSD != null ? `$${metrics.estimatedCostUSD.toFixed(5)}` : "\u2014";
+  }
+  if (els.telemetryCostPerEval) {
+    els.telemetryCostPerEval.textContent = metrics.costPerEvaluation != null ? `$${metrics.costPerEvaluation.toFixed(5)}` : "\u2014";
+  }
+  if (els.telemetryCostPer1K) {
+    els.telemetryCostPer1K.textContent = metrics.costPer1KTokens != null ? `$${metrics.costPer1KTokens.toFixed(5)}` : "\u2014";
+  }
+  renderTableRows(els.telemetryCostByOp, data?.costByOperation, (row) => `
     <tr>
-      <td><code>${u(l.operation)}</code></td>
-      <td>${l.calls.toLocaleString("id-ID")}</td>
-      <td>${l.tokens.toLocaleString("id-ID")}</td>
-      <td>$${(l.estimatedCostUSD??0).toFixed(5)}</td>
-    </tr>`,4,"Belum ada data biaya per operation."),e.telemetryPrefixTokens&&(e.telemetryPrefixTokens.textContent=`${(r.estimatedSavedTokens??0).toLocaleString("id-ID")} tokens`),e.telemetryPrefixPct&&(e.telemetryPrefixPct.textContent=`${r.estimatedPrefixReusePct??0}%`),e.telemetryPrefixCost&&(e.telemetryPrefixCost.textContent=r.estimatedSavedCostUSD!=null?`$${r.estimatedSavedCostUSD.toFixed(5)}`:"\u2014"),e.telemetryCacheHits&&(e.telemetryCacheHits.textContent=r.actualCacheHits!=null?r.actualCacheHits.toLocaleString("id-ID"):"Not available"),e.telemetryCacheMisses&&(e.telemetryCacheMisses.textContent=r.actualCacheMisses!=null?r.actualCacheMisses.toLocaleString("id-ID"):"Not available"),e.telemetryKvStatus&&(e.telemetryKvStatus.innerHTML=r.kvCacheAvailable?`<span class="ob-kv-status-ok">\u2713 ${u(r.statusNote||"Actual provider KV-cache telemetry available.")}</span>`:`<span class="ob-kv-status-muted">\u2139 ${u(r.statusNote||"Actual provider KV-cache telemetry unavailable.")}</span>`),pt(e.telemetryProviderTable,t?.providerPerformance,l=>`
+      <td><code>${escapeHtml(row.operation)}</code></td>
+      <td>${row.calls.toLocaleString("id-ID")}</td>
+      <td>${row.tokens.toLocaleString("id-ID")}</td>
+      <td>$${(row.estimatedCostUSD ?? 0).toFixed(5)}</td>
+    </tr>`, 4, "Belum ada data biaya per operation.");
+  if (els.telemetryPrefixTokens) {
+    els.telemetryPrefixTokens.textContent = `${(prefix.estimatedSavedTokens ?? 0).toLocaleString("id-ID")} tokens`;
+  }
+  if (els.telemetryPrefixPct) {
+    els.telemetryPrefixPct.textContent = `${prefix.estimatedPrefixReusePct ?? 0}%`;
+  }
+  if (els.telemetryPrefixCost) {
+    els.telemetryPrefixCost.textContent = prefix.estimatedSavedCostUSD != null ? `$${prefix.estimatedSavedCostUSD.toFixed(5)}` : "\u2014";
+  }
+  if (els.telemetryCacheHits) {
+    els.telemetryCacheHits.textContent = prefix.actualCacheHits != null ? prefix.actualCacheHits.toLocaleString("id-ID") : "Not available";
+  }
+  if (els.telemetryCacheMisses) {
+    els.telemetryCacheMisses.textContent = prefix.actualCacheMisses != null ? prefix.actualCacheMisses.toLocaleString("id-ID") : "Not available";
+  }
+  if (els.telemetryKvStatus) {
+    els.telemetryKvStatus.innerHTML = prefix.kvCacheAvailable ? `<span class="ob-kv-status-ok">\u2713 ${escapeHtml(prefix.statusNote || "Actual provider KV-cache telemetry available.")}</span>` : `<span class="ob-kv-status-muted">\u2139 ${escapeHtml(prefix.statusNote || "Actual provider KV-cache telemetry unavailable.")}</span>`;
+  }
+  renderTableRows(els.telemetryProviderTable, data?.providerPerformance, (row) => `
     <tr>
-      <td><code>${u(l.model)}</code></td>
-      <td>${l.calls.toLocaleString("id-ID")}</td>
-      <td>${G(l.p50)}</td>
-      <td>${G(l.p95)}</td>
-      <td>${l.totalTokens.toLocaleString("id-ID")}</td>
-      <td>$${(l.estimatedCostUSD??0).toFixed(5)}</td>
-      <td>${l.errorRate!=null?`${l.errorRate}%`:"\u2014"}</td>
-    </tr>`,7,"Belum ada data provider."),pt(e.telemetrySlowestCalls,t?.slowestCalls,(l,c)=>`
+      <td><code>${escapeHtml(row.model)}</code></td>
+      <td>${row.calls.toLocaleString("id-ID")}</td>
+      <td>${formatLatency(row.p50)}</td>
+      <td>${formatLatency(row.p95)}</td>
+      <td>${row.totalTokens.toLocaleString("id-ID")}</td>
+      <td>$${(row.estimatedCostUSD ?? 0).toFixed(5)}</td>
+      <td>${row.errorRate != null ? `${row.errorRate}%` : "\u2014"}</td>
+    </tr>`, 7, "Belum ada data provider.");
+  renderTableRows(els.telemetrySlowestCalls, data?.slowestCalls, (row, i) => `
     <tr>
-      <td>${c+1}</td>
-      <td><code>${u(l.action)}</code></td>
-      <td><strong>${G(l.latency_ms)}</strong></td>
-      <td>${(l.total_tokens??0).toLocaleString("id-ID")}</td>
-      <td style="font-size: 0.8rem; color: var(--muted);">${u(l.model)}</td>
-      <td><span class="status-badge ${l.status==="success"?"success":"error"}">${u((l.status||"\u2014").toUpperCase())}</span></td>
-      <td style="font-size: 0.85rem; color: var(--muted);">${xn(l.created_at)}</td>
-    </tr>`,7,"Belum ada panggilan lambat."),kr(e,n),e.telemetryFilterOp){let l=t?.logFilters?.operations||[],c=e.telemetryFilterOp.value;e.telemetryFilterOp.innerHTML='<option value="">Semua operation</option>'+l.map(d=>`<option value="${u(d)}" ${d===c?"selected":""}>${u(d)}</option>`).join("")}if(e.telemetryFilterModel){let l=t?.logFilters?.models||[],c=e.telemetryFilterModel.value;e.telemetryFilterModel.innerHTML='<option value="">Semua model</option>'+l.map(d=>`<option value="${u(d)}" ${d===c?"selected":""}>${u(d)}</option>`).join("")}if(e.telemetryLogCount&&(e.telemetryLogCount.textContent=o.total!=null?`${o.total.toLocaleString("id-ID")} calls${o.offset>0?` (offset ${o.offset})`:""}`:""),e.telemetryLogPagination){let l=o.total!=null?o.total:0,c=o.limit||10,d=o.offset||0,m=l>0,k=m?Math.floor(d/c)+1:0,h=m?Math.max(1,Math.ceil(l/c)):0;e.telemetryLogPagination.style.display=m?"":"none",e.telemetryLogPageInfo&&(e.telemetryLogPageInfo.textContent=m?`Page ${k} of ${h}`:"\u2014"),e.telemetryLogPrev&&(e.telemetryLogPrev.disabled=k<=1),e.telemetryLogNext&&(e.telemetryLogNext.disabled=k>=h)}e.telemetryLogList&&(i.length?e.telemetryLogList.innerHTML=i.map(yr).join(""):e.telemetryLogList.innerHTML='<tr><td colspan="6" class="empty-state">Baru ada log panggilan AI. Data akan muncul setelah AI dipakai pertama kali.</td></tr>')}function yr(e){let t=e.status==="success"?"success":"error",a=e.status==="success"?"SUCCESS":"ERROR",n=e.estimated_prefix_cache_savings>0,s=e.cache_read_input_tokens>0?` \xB7 cache-hit ${e.cache_read_input_tokens}`:"",r=e.retry_count>0?` \xB7 retries ${e.retry_count}`:"";return`
+      <td>${i + 1}</td>
+      <td><code>${escapeHtml(row.action)}</code></td>
+      <td><strong>${formatLatency(row.latency_ms)}</strong></td>
+      <td>${(row.total_tokens ?? 0).toLocaleString("id-ID")}</td>
+      <td style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(row.model)}</td>
+      <td><span class="status-badge ${row.status === "success" ? "success" : "error"}">${escapeHtml((row.status || "\u2014").toUpperCase())}</span></td>
+      <td style="font-size: 0.85rem; color: var(--muted);">${formatDateTime(row.created_at)}</td>
+    </tr>`, 7, "Belum ada panggilan lambat.");
+  renderSystemHealth(els, system);
+  if (els.telemetryFilterOp) {
+    const ops = data?.logFilters?.operations || [];
+    const current = els.telemetryFilterOp.value;
+    els.telemetryFilterOp.innerHTML = '<option value="">Semua operation</option>' + ops.map((op) => `<option value="${escapeHtml(op)}" ${op === current ? "selected" : ""}>${escapeHtml(op)}</option>`).join("");
+  }
+  if (els.telemetryFilterModel) {
+    const models = data?.logFilters?.models || [];
+    const current = els.telemetryFilterModel.value;
+    els.telemetryFilterModel.innerHTML = '<option value="">Semua model</option>' + models.map((m) => `<option value="${escapeHtml(m)}" ${m === current ? "selected" : ""}>${escapeHtml(m)}</option>`).join("");
+  }
+  if (els.telemetryLogCount) {
+    els.telemetryLogCount.textContent = pagination.total != null ? `${pagination.total.toLocaleString("id-ID")} calls${pagination.offset > 0 ? ` (offset ${pagination.offset})` : ""}` : "";
+  }
+  if (els.telemetryLogPagination) {
+    const total = pagination.total != null ? pagination.total : 0;
+    const pageSize = pagination.limit || 10;
+    const offset = pagination.offset || 0;
+    const hasLogs = total > 0;
+    const currentPage = hasLogs ? Math.floor(offset / pageSize) + 1 : 0;
+    const totalPages = hasLogs ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+    els.telemetryLogPagination.style.display = hasLogs ? "" : "none";
+    if (els.telemetryLogPageInfo) {
+      els.telemetryLogPageInfo.textContent = hasLogs ? `Page ${currentPage} of ${totalPages}` : "\u2014";
+    }
+    if (els.telemetryLogPrev) {
+      els.telemetryLogPrev.disabled = currentPage <= 1;
+    }
+    if (els.telemetryLogNext) {
+      els.telemetryLogNext.disabled = currentPage >= totalPages;
+    }
+  }
+  if (els.telemetryLogList) {
+    if (!logs.length) {
+      els.telemetryLogList.innerHTML = `<tr><td colspan="6" class="empty-state">Baru ada log panggilan AI. Data akan muncul setelah AI dipakai pertama kali.</td></tr>`;
+    } else {
+      els.telemetryLogList.innerHTML = logs.map(renderLogRow).join("");
+    }
+  }
+}
+function renderLogRow(log) {
+  const statusClass = log.status === "success" ? "success" : "error";
+  const statusLabel2 = log.status === "success" ? "SUCCESS" : "ERROR";
+  const hasSaved = log.estimated_prefix_cache_savings > 0;
+  const cacheHitText = log.cache_read_input_tokens > 0 ? ` \xB7 cache-hit ${log.cache_read_input_tokens}` : "";
+  const retryText = log.retry_count > 0 ? ` \xB7 retries ${log.retry_count}` : "";
+  return `
     <tr>
       <td>
-        <strong>${u(e.action)}</strong>
-        ${e.error_message?`<div style="font-size: 0.75rem; color: var(--rose); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${u(e.error_message)}">${u(e.error_message)}</div>`:""}
+        <strong>${escapeHtml(log.action)}</strong>
+        ${log.error_message ? `<div style="font-size: 0.75rem; color: var(--rose); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.error_message)}">${escapeHtml(log.error_message)}</div>` : ""}
       </td>
-      <td><span style="font-size: 0.8rem; color: var(--muted);">${u(e.model)}</span></td>
-      <td>${G(e.latency_ms)}</td>
+      <td><span style="font-size: 0.8rem; color: var(--muted);">${escapeHtml(log.model)}</span></td>
+      <td>${formatLatency(log.latency_ms)}</td>
       <td>
-        <strong>${(e.total_tokens??0).toLocaleString("id-ID")}</strong>
+        <strong>${(log.total_tokens ?? 0).toLocaleString("id-ID")}</strong>
         <div style="font-size: 0.75rem; color: var(--muted);">
-          Prompt: ${(e.prompt_tokens??0).toLocaleString("id-ID")}
-          \xB7 Completion: ${(e.completion_tokens??0).toLocaleString("id-ID")}
-          ${n?`<div style="color: var(--emerald);">Estimated reusable prefix: ${e.estimated_prefix_cache_savings.toLocaleString("id-ID")}</div>`:""}
-          ${s?`<span style="color: var(--sky);">${s}</span>`:""}
-          ${r?`<span style="color: var(--amber);">${r}</span>`:""}
+          Prompt: ${(log.prompt_tokens ?? 0).toLocaleString("id-ID")}
+          \xB7 Completion: ${(log.completion_tokens ?? 0).toLocaleString("id-ID")}
+          ${hasSaved ? `<div style="color: var(--emerald);">Estimated reusable prefix: ${log.estimated_prefix_cache_savings.toLocaleString("id-ID")}</div>` : ""}
+          ${cacheHitText ? `<span style="color: var(--sky);">${cacheHitText}</span>` : ""}
+          ${retryText ? `<span style="color: var(--amber);">${retryText}</span>` : ""}
         </div>
       </td>
-      <td><span class="status-badge ${t}">${a}</span></td>
-      <td><span style="font-size: 0.85rem; color: var(--muted);">${xn(e.created_at)}</span></td>
-    </tr>`}function kr(e,t){if(e.telemetryRestartAlert&&t.restart){let a=t.restart;a.recentlyRestarted?(e.telemetryRestartAlert.className="ob-alert ob-alert-warn",e.telemetryRestartAlert.innerHTML=`
+      <td><span class="status-badge ${statusClass}">${statusLabel2}</span></td>
+      <td><span style="font-size: 0.85rem; color: var(--muted);">${formatDateTime(log.created_at)}</span></td>
+    </tr>`;
+}
+function renderSystemHealth(els, system) {
+  if (els.telemetryRestartAlert && system.restart) {
+    const r = system.restart;
+    if (r.recentlyRestarted) {
+      els.telemetryRestartAlert.className = "ob-alert ob-alert-warn";
+      els.telemetryRestartAlert.innerHTML = `
         <strong>\u26A0 Server recently restarted</strong>
-        <p>Current uptime: ${ue(a.uptimeSeconds??0)}${a.restartCount!=null?` \xB7 Restart count: ${a.restartCount}`:""}</p>
-        <span class="sem-badge sem-derived">\u0192 Derived</span>`):(e.telemetryRestartAlert.className="ob-alert hidden",e.telemetryRestartAlert.innerHTML="")}if(e.sysHealthList){let a=[{label:"API",status:t.apiHealthy?"\u2713 Healthy":"\u2717 Unhealthy",ok:t.apiHealthy!==!1},{label:"Database",status:t.databaseHealthy?"\u2713 Healthy":"\u2717 Unhealthy",ok:t.databaseHealthy!==!1},{label:"AI Provider",status:t.providerHealthy?"\u2713 Healthy":"\u26A0 Degraded",ok:t.providerHealthy!==!1},{label:"Memory",status:`${t.memoryHeapUsedMB??0} MB / ${t.memoryHeapTotalMB??0} MB`,ok:null},{label:"CPU Process",status:`${t.cpuUserMs??0} ms`,ok:null},{label:"Uptime",status:ue(t.uptimeSeconds??0),ok:null}];e.sysHealthList.innerHTML=a.map(n=>`
+        <p>Current uptime: ${formatDuration(r.uptimeSeconds ?? 0)}${r.restartCount != null ? ` \xB7 Restart count: ${r.restartCount}` : ""}</p>
+        <span class="sem-badge sem-derived">\u0192 Derived</span>`;
+    } else {
+      els.telemetryRestartAlert.className = "ob-alert hidden";
+      els.telemetryRestartAlert.innerHTML = "";
+    }
+  }
+  if (els.sysHealthList) {
+    const items = [
+      { label: "API", status: system.apiHealthy ? "\u2713 Healthy" : "\u2717 Unhealthy", ok: system.apiHealthy !== false },
+      { label: "Database", status: system.databaseHealthy ? "\u2713 Healthy" : "\u2717 Unhealthy", ok: system.databaseHealthy !== false },
+      { label: "AI Provider", status: system.providerHealthy ? "\u2713 Healthy" : "\u26A0 Degraded", ok: system.providerHealthy !== false },
+      { label: "Memory", status: `${system.memoryHeapUsedMB ?? 0} MB / ${system.memoryHeapTotalMB ?? 0} MB`, ok: null },
+      { label: "CPU Process", status: `${system.cpuUserMs ?? 0} ms`, ok: null },
+      { label: "Uptime", status: formatDuration(system.uptimeSeconds ?? 0), ok: null }
+    ];
+    els.sysHealthList.innerHTML = items.map(
+      (item) => `
         <div class="ob-block ob-sys-item">
-          <span class="ob-sys-label">${u(n.label)}</span>
-          <strong class="${n.ok===!0?"ob-good":n.ok===!1?"ob-warn":""}">${u(n.status)}</strong>
-        </div>`).join("")}e.sysMemoryHeap&&(e.sysMemoryHeap.textContent=`${t.memoryHeapUsedMB??0} MB`),e.sysMemoryTotal&&(e.sysMemoryTotal.textContent=`Allocated: ${t.memoryHeapTotalMB??0} MB`),e.sysCpuUsage&&(e.sysCpuUsage.textContent=`${t.cpuUserMs??0} ms`),e.sysCpuSystem&&(e.sysCpuSystem.textContent=`Kernel: ${t.cpuSystemMs??0} ms`),e.sysUptime&&(e.sysUptime.textContent=ue(t.uptimeSeconds??0)),e.sysNodeVersion&&(e.sysNodeVersion.textContent=t.nodeVersion||"-")}function pt(e,t,a,n,s){if(!e)return;let r=Array.isArray(t)?t:[];if(!r.length){e.innerHTML=`<tr><td colspan="${n}" class="empty-state">${s}</td></tr>`;return}e.innerHTML=r.map(a).join("")}function G(e){if(e==null||Number.isNaN(e))return"\u2014";if(e<1e3)return`${Math.round(e)} ms`;let t=e/1e3;return t<60?`${Math.round(t*10)/10} s`:`${Math.round(t/60*10)/10} min`}function vr(e){return e==null?"Avg n/a":`Avg ${G(e)}`}function xn(e){return e?new Date(e).toLocaleString("id-ID",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"-"}function re(e){if(!e)return"";let t=e.trim();if(t.startsWith("{"))try{let n=JSON.parse(t);if(n.version==="2"&&Array.isArray(n.criteria)&&n.criteria.length>0)return`
+          <span class="ob-sys-label">${escapeHtml(item.label)}</span>
+          <strong class="${item.ok === true ? "ob-good" : item.ok === false ? "ob-warn" : ""}">${escapeHtml(item.status)}</strong>
+        </div>`
+    ).join("");
+  }
+  if (els.sysMemoryHeap) els.sysMemoryHeap.textContent = `${system.memoryHeapUsedMB ?? 0} MB`;
+  if (els.sysMemoryTotal) els.sysMemoryTotal.textContent = `Allocated: ${system.memoryHeapTotalMB ?? 0} MB`;
+  if (els.sysCpuUsage) els.sysCpuUsage.textContent = `${system.cpuUserMs ?? 0} ms`;
+  if (els.sysCpuSystem) els.sysCpuSystem.textContent = `Kernel: ${system.cpuSystemMs ?? 0} ms`;
+  if (els.sysUptime) els.sysUptime.textContent = formatDuration(system.uptimeSeconds ?? 0);
+  if (els.sysNodeVersion) els.sysNodeVersion.textContent = system.nodeVersion || "-";
+}
+function renderTableRows(container, rows, rowRenderer, colspan, emptyText) {
+  if (!container) return;
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) {
+    container.innerHTML = `<tr><td colspan="${colspan}" class="empty-state">${emptyText}</td></tr>`;
+    return;
+  }
+  container.innerHTML = list.map(rowRenderer).join("");
+}
+function formatLatency(ms) {
+  if (ms == null || Number.isNaN(ms)) return "\u2014";
+  if (ms < 1e3) return `${Math.round(ms)} ms`;
+  const s = ms / 1e3;
+  if (s < 60) return `${Math.round(s * 10) / 10} s`;
+  return `${Math.round(s / 60 * 10) / 10} min`;
+}
+function formatAvgLabel(ms) {
+  if (ms == null) return "Avg n/a";
+  return `Avg ${formatLatency(ms)}`;
+}
+function formatDateTime(iso) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+function renderRubricTable(rubricText) {
+  if (!rubricText) return "";
+  const t = rubricText.trim();
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria) && p.criteria.length > 0) {
+        const levels = p.criteria[0].levels;
+        return `
           <table class="rubrik-display">
             <thead>
               <tr>
                 <th>Kriteria</th>
                 <th>Bobot</th>
-                ${n.criteria[0].levels.map(r=>`<th class="rubrik-lev-${r.score}">${u(r.label)}</th>`).join("")}
+                ${levels.map((l) => `<th class="rubrik-lev-${l.score}">${escapeHtml(l.label)}</th>`).join("")}
               </tr>
             </thead>
             <tbody>
-              ${n.criteria.map(r=>`
+              ${p.criteria.map((c) => `
                 <tr>
-                  <td><strong>${u(r.name)}</strong></td>
-                  <td>${r.weight}%</td>
-                  ${r.levels.map(i=>`<td class="rubrik-lev-${i.score}">${u(i.descriptor||"\u2014")}</td>`).join("")}
+                  <td><strong>${escapeHtml(c.name)}</strong></td>
+                  <td>${c.weight}%</td>
+                  ${c.levels.map((l) => `<td class="rubrik-lev-${l.score}">${escapeHtml(l.descriptor || "\u2014")}</td>`).join("")}
                 </tr>
               `).join("")}
             </tbody>
           </table>
-        `}catch{}let a=ve(t);return a&&a.length&&a.some(n=>n.name)?`
+        `;
+      }
+    } catch {
+    }
+  }
+  const criteria = parseRubricToCriteria(t);
+  if (criteria && criteria.length && criteria.some((c) => c.name)) {
+    return `
       <table class="rubrik-display">
         <thead>
           <tr>
@@ -313,258 +2431,1934 @@ var Js=Object.defineProperty;var x=(e,t,a)=>()=>{if(a)throw a[0];try{return e&&(
           </tr>
         </thead>
         <tbody>
-          ${a.map(n=>`
+          ${criteria.map(
+      (c) => `
             <tr>
-              <td><strong>${u(n.name)}</strong></td>
-              <td>${Number(n.weight)?`${Number(n.weight)}%`:"\u2014"}</td>
-            </tr>`).join("")}
+              <td><strong>${escapeHtml(c.name)}</strong></td>
+              <td>${Number(c.weight) ? `${Number(c.weight)}%` : "\u2014"}</td>
+            </tr>`
+    ).join("")}
         </tbody>
-      </table>`:`<pre style="white-space:pre-wrap;font-size:0.85rem;color:var(--muted);margin:0;">${u(t)}</pre>`}var ur,qn,ie=x(()=>{H();da();Y();ca();ur="Hasil akan muncul setelah siswa menyelesaikan penilaian.",qn="Belum ada tren skor."});function p(e,t="info"){let a=document.getElementById("toastContainer");for(a||(a=document.createElement("div"),a.id="toastContainer",document.body.appendChild(a));a.children.length>=5;){let o=a.firstElementChild;o&&o.remove()}let n=document.createElement("div");n.className=`toast toast-${t}`;let s=t==="error"?"\u26A0\uFE0F":t==="success"?"\u2705":"\u2139\uFE0F";n.setAttribute("role","status"),n.innerHTML=`
-    <span class="toast-icon">${s}</span>
-    <span class="toast-message" style="flex: 1;">${e}</span>
+      </table>`;
+  }
+  return `<pre style="white-space:pre-wrap;font-size:0.85rem;color:var(--muted);margin:0;">${escapeHtml(t)}</pre>`;
+}
+var EMPTY_SUBMISSIONS, EMPTY_TRENDS;
+var init_render = __esm({
+  "src/js/render.js"() {
+    init_utils();
+    init_competency_profile();
+    init_dom();
+    init_status();
+    EMPTY_SUBMISSIONS = "Hasil akan muncul setelah siswa menyelesaikan penilaian.";
+    EMPTY_TRENDS = "Belum ada tren skor.";
+  }
+});
+
+// src/js/toast.js
+function showToast(message, type = "info") {
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    document.body.appendChild(container);
+  }
+  while (container.children.length >= MAX_TOASTS) {
+    const oldest = container.firstElementChild;
+    if (oldest) oldest.remove();
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  const icon = type === "error" ? "\u26A0\uFE0F" : type === "success" ? "\u2705" : "\u2139\uFE0F";
+  toast.setAttribute("role", "status");
+  toast.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <span class="toast-message" style="flex: 1;">${message}</span>
     <button class="toast-close" aria-label="Tutup notifikasi" title="Tutup">&times;</button>
-  `,a.appendChild(n);let r=()=>{n.classList.contains("fade-out")||(n.classList.add("fade-out"),n.addEventListener("animationend",()=>n.remove()))};n.querySelector(".toast-close").addEventListener("click",r),setTimeout(r,5e3)}function R(e,t="Konfirmasi"){return new Promise(a=>{let n=document.getElementById("confirmModal");if(!n){a(window.confirm(e));return}let s=document.getElementById("confirmModalTitle"),r=document.getElementById("confirmModalMessage"),i=document.getElementById("confirmModalOk"),o=document.getElementById("confirmModalCancel");s.textContent=t,r.textContent=e,n.classList.remove("hidden");let l=()=>{n.classList.add("hidden"),i.removeEventListener("click",c),o.removeEventListener("click",d),document.removeEventListener("keydown",m)},c=()=>{l(),a(!0)},d=()=>{l(),a(!1)},m=k=>{k.key==="Escape"&&d(),k.key==="Enter"&&c()};i.addEventListener("click",c),o.addEventListener("click",d),document.addEventListener("keydown",m),o.focus()})}var F=x(()=>{window.appAlert=function(e){p(e,"error")};window.appSuccess=function(e){p(e,"success")}});var ba={};Q(ba,{bindUserManagementEvents:()=>ga,handleCreateUser:()=>Bn,handleCsvUpload:()=>Rn,renderUsers:()=>Me});function ga(e){let{els:t}=e;t.userForm.addEventListener("submit",a=>Bn(e,a)),t.csvForm.addEventListener("submit",a=>Rn(e,a)),t.selectAllUsers&&(t.selectAllUsers.checked=!1,t.selectAllUsers.addEventListener("change",()=>{let a=t.selectAllUsers.checked;[...t.userList.querySelectorAll(".select-user")].forEach(n=>n.checked=a)})),t.userList.addEventListener("click",async a=>{let n=a.target.closest("article");if(!n)return;let s=n.dataset.id;if(a.target.classList.contains("edit-user")){let r=e.users.find(o=>o.id===s);if(!r)return;let i=prompt(`Ubah role untuk ${r.name} (student/teacher/admin):`,r.role);i&&["student","teacher","admin"].includes(i)&&i!==r.role?(await Ut(s,{role:i}),e.users=await qe(e),Me(e)):i&&p("Role tidak valid. Harus student, teacher, atau admin.")}else if(a.target.classList.contains("delete-user")){if(!await R("Hapus user ini?","Hapus User"))return;await it(s),e.users=await qe(e),Me(e)}}),t.deleteSelectedUsers&&t.deleteSelectedUsers.addEventListener("click",async()=>{let a=[...t.userList.querySelectorAll(".select-user:checked")].map(n=>n.dataset.id);if(!a.length){p("Pilih akun terlebih dahulu","error");return}if(await R(`Hapus ${a.length} akun terpilih? Tindakan ini tidak bisa dibatalkan.`,"Hapus Akun")){t.deleteSelectedUsers.disabled=!0;try{let n={success:[],errors:[]};for(let s of a)try{await it(s),n.success.push(s)}catch(r){n.errors.push({id:s,message:r.message||String(r)})}n.success.length&&(e.users=await qe(e),Me(e),ee(e)),n.errors.length?p(`Selesai. Berhasil: ${n.success.length}. Gagal: ${n.errors.length}`,"error"):p(`Berhasil menghapus ${n.success.length} akun.`,"success")}finally{t.deleteSelectedUsers.disabled=!1}}})}async function Bn(e,t){t.preventDefault();let{els:a}=e;D(t.submitter,!0,"Membuat akun...","Buat akun");try{let n=await Ft({name:a.userName.value,email:a.userEmail.value,password:a.userPassword.value,role:a.userRole.value});e.users.unshift(n),a.userForm.reset(),Me(e),ee(e)}catch(n){p(n.message,"error")}finally{D(t.submitter,!1,"Membuat akun...","Buat akun")}}async function Rn(e,t){t.preventDefault();let{els:a}=e,n=a.csvFile.files[0];if(n){D(t.submitter,!0,"Memproses...","Upload & Proses CSV");try{let i=(await n.text()).split(/\r?\n/).filter(d=>d.trim().length>0).map(d=>{let[m,k,h,w]=d.split(",").map(f=>f.trim());return{name:m,email:k,role:h,password:w}});if(i.length===0)throw new Error("File CSV kosong atau format tidak valid");let o=await Vt(i);o.success&&o.success.length>0&&(e.users.unshift(...o.success),Me(e),ee(e));let l=o.success?o.success.length:0,c=o.errors?o.errors.length:0;if(c===0)p(`Berhasil membuat ${l} akun baru dari CSV.`,"success"),a.csvForm.reset();else{let d=o.errors[0]?.message||"Beberapa baris gagal";p(`Selesai. Sukses: ${l}. Gagal: ${c} (${d})`,"error"),a.csvForm.reset()}}catch(s){p(s.message||"Gagal memproses file CSV","error")}finally{D(t.submitter,!1,"Memproses...","Upload & Crop CSV")}}}function Me(e){let{els:t,auth:a}=e;if(a.user?.role!=="admin")return;let n=e.users.filter(s=>s.id!==a.user.id);if(!n.length){t.userList.className="list-stack empty-state",t.userList.textContent="Belum ada akun tambahan.";return}t.userList.className="list-stack",t.userList.innerHTML=n.map(s=>`
-    <article class="list-item" data-id="${s.id}">
+  `;
+  container.appendChild(toast);
+  const removeToast = () => {
+    if (toast.classList.contains("fade-out")) return;
+    toast.classList.add("fade-out");
+    toast.addEventListener("animationend", () => toast.remove());
+  };
+  const closeBtn = toast.querySelector(".toast-close");
+  closeBtn.addEventListener("click", removeToast);
+  setTimeout(removeToast, 5e3);
+}
+function showConfirmDialog(message, title = "Konfirmasi") {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("confirmModal");
+    if (!modal) {
+      resolve(window.confirm(message));
+      return;
+    }
+    const titleEl = document.getElementById("confirmModalTitle");
+    const msgEl = document.getElementById("confirmModalMessage");
+    const okBtn = document.getElementById("confirmModalOk");
+    const cancelBtn = document.getElementById("confirmModalCancel");
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    modal.classList.remove("hidden");
+    const cleanup = () => {
+      modal.classList.add("hidden");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKey);
+    };
+    const onOk = () => {
+      cleanup();
+      resolve(true);
+    };
+    const onCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") onCancel();
+      if (e.key === "Enter") onOk();
+    };
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKey);
+    cancelBtn.focus();
+  });
+}
+var MAX_TOASTS;
+var init_toast = __esm({
+  "src/js/toast.js"() {
+    MAX_TOASTS = 5;
+    window.appAlert = function(msg) {
+      showToast(msg, "error");
+    };
+    window.appSuccess = function(msg) {
+      showToast(msg, "success");
+    };
+  }
+});
+
+// src/js/user-management.js
+var user_management_exports = {};
+__export(user_management_exports, {
+  bindUserManagementEvents: () => bindUserManagementEvents,
+  handleCreateUser: () => handleCreateUser,
+  handleCsvUpload: () => handleCsvUpload,
+  renderUsers: () => renderUsers
+});
+function bindUserManagementEvents(ctx) {
+  const { els } = ctx;
+  els.userForm.addEventListener("submit", (event) => handleCreateUser(ctx, event));
+  els.csvForm.addEventListener("submit", (event) => handleCsvUpload(ctx, event));
+  if (els.selectAllUsers) {
+    els.selectAllUsers.checked = false;
+    els.selectAllUsers.addEventListener("change", () => {
+      const checked = els.selectAllUsers.checked;
+      [...els.userList.querySelectorAll(".select-user")].forEach((cb) => cb.checked = checked);
+    });
+  }
+  els.userList.addEventListener("click", async (event) => {
+    const article = event.target.closest("article");
+    if (!article) return;
+    const id = article.dataset.id;
+    if (event.target.classList.contains("edit-user")) {
+      const currentUser = ctx.users.find((u) => u.id === id);
+      if (!currentUser) return;
+      const newRole = prompt(`Ubah role untuk ${currentUser.name} (student/teacher/admin):`, currentUser.role);
+      if (newRole && ["student", "teacher", "admin"].includes(newRole) && newRole !== currentUser.role) {
+        await updateUser(id, { role: newRole });
+        ctx.users = await loadUsers(ctx);
+        renderUsers(ctx);
+      } else if (newRole) {
+        showToast("Role tidak valid. Harus student, teacher, atau admin.");
+      }
+    } else if (event.target.classList.contains("delete-user")) {
+      if (!await showConfirmDialog("Hapus user ini?", "Hapus User")) return;
+      await deleteUser(id);
+      ctx.users = await loadUsers(ctx);
+      renderUsers(ctx);
+    }
+  });
+  if (els.deleteSelectedUsers) {
+    els.deleteSelectedUsers.addEventListener("click", async () => {
+      const selected = [...els.userList.querySelectorAll(".select-user:checked")].map((cb) => cb.dataset.id);
+      if (!selected.length) {
+        showToast("Pilih akun terlebih dahulu", "error");
+        return;
+      }
+      if (!await showConfirmDialog(`Hapus ${selected.length} akun terpilih? Tindakan ini tidak bisa dibatalkan.`, "Hapus Akun")) return;
+      els.deleteSelectedUsers.disabled = true;
+      try {
+        const results = { success: [], errors: [] };
+        for (const id of selected) {
+          try {
+            await deleteUser(id);
+            results.success.push(id);
+          } catch (err) {
+            results.errors.push({ id, message: err.message || String(err) });
+          }
+        }
+        if (results.success.length) {
+          ctx.users = await loadUsers(ctx);
+          renderUsers(ctx);
+          refreshSimulatorIfEnabled(ctx);
+        }
+        if (results.errors.length) {
+          showToast(`Selesai. Berhasil: ${results.success.length}. Gagal: ${results.errors.length}`, "error");
+        } else {
+          showToast(`Berhasil menghapus ${results.success.length} akun.`, "success");
+        }
+      } finally {
+        els.deleteSelectedUsers.disabled = false;
+      }
+    });
+  }
+}
+async function handleCreateUser(ctx, event) {
+  event.preventDefault();
+  const { els } = ctx;
+  setButtonLoading(event.submitter, true, "Membuat akun...", "Buat akun");
+  try {
+    const user = await createUser({
+      name: els.userName.value,
+      email: els.userEmail.value,
+      password: els.userPassword.value,
+      role: els.userRole.value
+    });
+    ctx.users.unshift(user);
+    els.userForm.reset();
+    renderUsers(ctx);
+    refreshSimulatorIfEnabled(ctx);
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setButtonLoading(event.submitter, false, "Membuat akun...", "Buat akun");
+  }
+}
+async function handleCsvUpload(ctx, event) {
+  event.preventDefault();
+  const { els } = ctx;
+  const file = els.csvFile.files[0];
+  if (!file) return;
+  setButtonLoading(event.submitter, true, "Memproses...", "Upload & Proses CSV");
+  try {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    const payload = lines.map((line) => {
+      const [name, email, role, password] = line.split(",").map((item) => item.trim());
+      return { name, email, role, password };
+    });
+    if (payload.length === 0) {
+      throw new Error("File CSV kosong atau format tidak valid");
+    }
+    const response = await createUsersBatch(payload);
+    if (response.success && response.success.length > 0) {
+      ctx.users.unshift(...response.success);
+      renderUsers(ctx);
+      refreshSimulatorIfEnabled(ctx);
+    }
+    const successCount = response.success ? response.success.length : 0;
+    const errorCount = response.errors ? response.errors.length : 0;
+    if (errorCount === 0) {
+      showToast(`Berhasil membuat ${successCount} akun baru dari CSV.`, "success");
+      els.csvForm.reset();
+    } else {
+      const errMsg = response.errors[0]?.message || "Beberapa baris gagal";
+      showToast(`Selesai. Sukses: ${successCount}. Gagal: ${errorCount} (${errMsg})`, "error");
+      els.csvForm.reset();
+    }
+  } catch (error) {
+    showToast(error.message || "Gagal memproses file CSV", "error");
+  } finally {
+    setButtonLoading(event.submitter, false, "Memproses...", "Upload & Crop CSV");
+  }
+}
+function renderUsers(ctx) {
+  const { els, auth } = ctx;
+  if (auth.user?.role !== "admin") return;
+  const extraUsers = ctx.users.filter((user) => user.id !== auth.user.id);
+  if (!extraUsers.length) {
+    els.userList.className = "list-stack empty-state";
+    els.userList.textContent = "Belum ada akun tambahan.";
+    return;
+  }
+  els.userList.className = "list-stack";
+  els.userList.innerHTML = extraUsers.map((user) => `
+    <article class="list-item" data-id="${user.id}">
       <div style="flex: 1; min-width: 0; display:flex; gap:12px; align-items:center;">
-        <input type="checkbox" class="select-user" data-id="${s.id}" aria-label="Pilih user" />
+        <input type="checkbox" class="select-user" data-id="${user.id}" aria-label="Pilih user" />
         <div style="flex:1; min-width:0;">
-          <strong>${u(s.name)}</strong>
-          <p>${u(s.email)}</p>
+          <strong>${escapeHtml(user.name)}</strong>
+          <p>${escapeHtml(user.email)}</p>
         </div>
         <div class="item-actions">
           <button type="button" class="action-button edit-user">Ubah Role</button>
           <button type="button" class="action-button danger-button delete-user">Hapus</button>
         </div>
       </div>
-      <span class="user-role">${u(Ee(s.role))}</span>
+      <span class="user-role">${escapeHtml(roleLabel(user.role))}</span>
     </article>
-  `).join("")}var bt=x(()=>{B();Y();F();H();V()});var Nn={};Q(Nn,{bindClassManagementEvents:()=>ha,renderClasses:()=>ht});function ha(e){let{els:t}=e;t.classForm.addEventListener("submit",async a=>{a.preventDefault();let n=t.classNameInput.value.trim();if(!n)return;let s=await _t(n);e.state.classes.unshift({...s,status:"teacher"}),t.classForm.reset(),await I(e)}),t.joinClassForm.addEventListener("submit",async a=>{a.preventDefault();let n=t.joinCode.value.trim();n&&(await lt(n),await ce(e),t.joinClassForm.reset(),await I(e),p("Request join terkirim. Tunggu approval guru."))}),t.studentJoinClassForm.addEventListener("submit",async a=>{a.preventDefault();let n=t.studentJoinCode.value.trim();n&&(await lt(n),await ce(e),t.studentJoinClassForm.reset(),await I(e),p("Request join terkirim. Tunggu approval guru."))}),t.pendingJoinList.addEventListener("click",async a=>{let n=a.target.dataset.id;if(n){if(a.target.classList.contains("approve-join"))await zt(n);else if(a.target.classList.contains("reject-join"))await Gt(n,"rejected");else return;await ce(e),await I(e)}}),t.approvedMemberList&&t.approvedMemberList.addEventListener("click",async a=>{let n=a.target.dataset.id;!n||!a.target.classList.contains("remove-member")||await R("Keluarkan siswa dari kelas ini?","Hapus Anggota")&&(await Jt(n),await ce(e),await I(e))}),t.memberSearchInput&&t.memberSearchInput.addEventListener("input",a=>{e.memberSearchQuery=a.target.value,e.memberCurrentPage=1,ht(e)}),t.memberPrevBtn&&t.memberPrevBtn.addEventListener("click",()=>{e.memberCurrentPage>1&&(e.memberCurrentPage--,ht(e),t.approvedMemberList.scrollIntoView({behavior:"smooth",block:"start"}))}),t.memberNextBtn&&t.memberNextBtn.addEventListener("click",()=>{let a=e.state.memberships.filter(r=>r.status==="approved"),n=e.memberSearchQuery.trim()===""?a:a.filter(r=>{let i=e.memberSearchQuery.toLowerCase();return r.student_name.toLowerCase().includes(i)||r.student_email.toLowerCase().includes(i)}),s=Math.ceil(n.length/e.MEMBERS_PER_PAGE);e.memberCurrentPage<s&&(e.memberCurrentPage++,ht(e),t.approvedMemberList.scrollIntoView({behavior:"smooth",block:"start"}))}),t.classList.addEventListener("click",async a=>{let n=a.target.closest("article");if(!n)return;let s=n.dataset.id;if(a.target.classList.contains("edit-class")){let r=e.state.classes.find(o=>o.id===s)?.name||"",i=prompt("Nama kelas baru:",r);i&&i!==r&&(await Qt(s,{name:i}),await ce(e),await I(e))}else if(a.target.classList.contains("delete-class")){if(!await R("Hapus kelas beserta semua datanya?","Hapus Kelas"))return;await Kt(s),await ce(e),await I(e)}}),t.bulkAddButton&&(t.bulkAddButton.addEventListener("click",async()=>{let a=t.bulkAddClassSelect?.value,s=(t.bulkAddEmails?.value||"").split(/\r?\n/).map(i=>i.trim()).filter(Boolean);if(!a)return p("Pilih kelas tujuan terlebih dahulu","error");if(!s.length)return p("Masukkan minimal 1 email","error");let{setButtonLoading:r}=await Promise.resolve().then(()=>(Y(),aa));r(t.bulkAddButton,!0,"Menambahkan...","Tambahkan ke Kelas");try{let{addStudentsToClass:i}=await Promise.resolve().then(()=>(B(),ye)),o=await i({classId:a,emails:s}),l=o.added?o.added.length:0,c=o.errors?o.errors.length:0;l&&(p(`Berhasil menambahkan ${l} siswa.`,"success"),await ce(e),await I(e)),c&&(p(`Beberapa email gagal ditambahkan: ${c}`,"error"),console.warn("Bulk add errors",o.errors)),t.bulkAddEmails.value=""}catch(i){p(i.message||"Gagal menambahkan siswa","error")}finally{r(t.bulkAddButton,!1,"Menambahkan...","Tambahkan ke Kelas")}}),t.bulkAddClear&&t.bulkAddClear.addEventListener("click",()=>{t.bulkAddEmails&&(t.bulkAddEmails.value="")})),t.bulkAddCsvUpload&&t.bulkAddCsvUpload.addEventListener("click",async()=>{let a=t.bulkAddCsvFile.files[0];if(!a)return p("Pilih file CSV terlebih dahulu","error");let{setButtonLoading:n}=await Promise.resolve().then(()=>(Y(),aa));n(t.bulkAddCsvUpload,!0,"Mengunggah...","Upload CSV");try{let i=(await a.text()).split(/\r?\n/).filter(g=>g.trim().length>0).map((g,b)=>{let v=g.split(",").map(L=>L.trim());return{name:v[0]||"",email:v[1]||"",password:v[2]||"",row:b+1}}),o=/^[^\s@]+@[^\s@]+\.[^\s@]+$/,l=[],c=[];for(let g of i){let b=[];g.name||b.push("Nama kosong"),o.test(g.email)||b.push("Email tidak valid"),(!g.password||g.password.length<8)&&b.push("Password minimal 8 karakter"),b.length?c.push({row:g.row,email:g.email,errors:b}):l.push(g)}if(c.length){let g=c.slice(0,5).map(v=>`Baris ${v.row}: ${v.email} (${v.errors.join("; ")})`).join(`
-`);if(!await R(`Ditemukan ${c.length} baris bermasalah. Contoh:
-${g}
+  `).join("");
+}
+var init_user_management = __esm({
+  "src/js/user-management.js"() {
+    init_api();
+    init_dom();
+    init_toast();
+    init_utils();
+    init_app_context();
+  }
+});
 
-Lanjutkan dan lewati baris bermasalah?`,"Baris Bermasalah")){n(t.bulkAddCsvUpload,!1,"Mengunggah...","Upload CSV");return}}let d=l.map(({name:g,email:b,password:v})=>({name:g,email:b,password:v})),m=t.bulkAddClassSelect?.value;if(!m)return p("Pilih kelas terlebih dahulu","error");let{createStudentsBatch:k}=await Promise.resolve().then(()=>(B(),ye)),h=await k({classId:m,users:d}),w=h.added?h.added.length:0,f=h.errors?h.errors.length:0;w&&(p(`Berhasil menambahkan ${w} siswa.`,"success"),await ce(e),await I(e)),f&&p(`Selesai. Gagal: ${f}`,"error"),t.bulkAddCsvFile.value=null}catch(s){p(s.message||"Gagal mengunggah CSV","error")}finally{n(t.bulkAddCsvUpload,!1,"Mengunggah...","Upload CSV")}})}function ht(e){let{els:t}=e,a=e.auth.user?.role==="student";t.classForm.classList.toggle("hidden",a),t.joinClassForm.classList.toggle("hidden",!a),t.pendingJoinList.classList.toggle("hidden",a);let n=e.state.classes.filter(r=>!a||r.status==="approved");if(t.classSelect.innerHTML=n.length?n.map(r=>`<option value="${u(r.id)}">${u(r.name)}</option>`).join(""):'<option value="">Belum ada kelas</option>',t.monitorClassFilter&&!a){let r=t.monitorClassFilter.value;t.monitorClassFilter.innerHTML='<option value="">Semua Kelas</option>'+e.state.classes.map(i=>`<option value="${u(i.id)}">${u(i.name)}</option>`).join(""),r&&e.state.classes.some(i=>i.id===r)&&(t.monitorClassFilter.value=r)}if(e.state.classes.length?(t.classList.className="list-stack",t.classList.innerHTML=e.state.classes.map(r=>`
-      <article class="submission-item" data-id="${u(r.id)}">
+// src/js/class-management.js
+var class_management_exports = {};
+__export(class_management_exports, {
+  bindClassManagementEvents: () => bindClassManagementEvents,
+  renderClasses: () => renderClasses
+});
+function bindClassManagementEvents(ctx) {
+  const { els } = ctx;
+  els.classForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = els.classNameInput.value.trim();
+    if (!name) return;
+    const classroom = await createClassroom(name);
+    ctx.state.classes.unshift({ ...classroom, status: "teacher" });
+    els.classForm.reset();
+    await renderCurrentState2(ctx);
+  });
+  els.joinClassForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const code = els.joinCode.value.trim();
+    if (!code) return;
+    await joinClass(code);
+    await reloadState(ctx);
+    els.joinClassForm.reset();
+    await renderCurrentState2(ctx);
+    showToast("Request join terkirim. Tunggu approval guru.");
+  });
+  els.studentJoinClassForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const code = els.studentJoinCode.value.trim();
+    if (!code) return;
+    await joinClass(code);
+    await reloadState(ctx);
+    els.studentJoinClassForm.reset();
+    await renderCurrentState2(ctx);
+    showToast("Request join terkirim. Tunggu approval guru.");
+  });
+  els.pendingJoinList.addEventListener("click", async (event) => {
+    const id = event.target.dataset.id;
+    if (!id) return;
+    if (event.target.classList.contains("approve-join")) {
+      await approveJoinRequest(id);
+    } else if (event.target.classList.contains("reject-join")) {
+      await updateMembership(id, "rejected");
+    } else return;
+    await reloadState(ctx);
+    await renderCurrentState2(ctx);
+  });
+  if (els.approvedMemberList) {
+    els.approvedMemberList.addEventListener("click", async (event) => {
+      const id = event.target.dataset.id;
+      if (!id || !event.target.classList.contains("remove-member")) return;
+      if (!await showConfirmDialog("Keluarkan siswa dari kelas ini?", "Hapus Anggota")) return;
+      await deleteMembership(id);
+      await reloadState(ctx);
+      await renderCurrentState2(ctx);
+    });
+  }
+  if (els.memberSearchInput) {
+    els.memberSearchInput.addEventListener("input", (event) => {
+      ctx.memberSearchQuery = event.target.value;
+      ctx.memberCurrentPage = 1;
+      renderClasses(ctx);
+    });
+  }
+  if (els.memberPrevBtn) {
+    els.memberPrevBtn.addEventListener("click", () => {
+      if (ctx.memberCurrentPage > 1) {
+        ctx.memberCurrentPage--;
+        renderClasses(ctx);
+        els.approvedMemberList.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+  if (els.memberNextBtn) {
+    els.memberNextBtn.addEventListener("click", () => {
+      const approved = ctx.state.memberships.filter((item) => item.status === "approved");
+      const filtered = ctx.memberSearchQuery.trim() === "" ? approved : approved.filter((item) => {
+        const searchLower = ctx.memberSearchQuery.toLowerCase();
+        return item.student_name.toLowerCase().includes(searchLower) || item.student_email.toLowerCase().includes(searchLower);
+      });
+      const totalPages = Math.ceil(filtered.length / ctx.MEMBERS_PER_PAGE);
+      if (ctx.memberCurrentPage < totalPages) {
+        ctx.memberCurrentPage++;
+        renderClasses(ctx);
+        els.approvedMemberList.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+  els.classList.addEventListener("click", async (event) => {
+    const article = event.target.closest("article");
+    if (!article) return;
+    const id = article.dataset.id;
+    if (event.target.classList.contains("edit-class")) {
+      const currentName = ctx.state.classes.find((c) => c.id === id)?.name || "";
+      const newName = prompt("Nama kelas baru:", currentName);
+      if (newName && newName !== currentName) {
+        await updateClassroom(id, { name: newName });
+        await reloadState(ctx);
+        await renderCurrentState2(ctx);
+      }
+    } else if (event.target.classList.contains("delete-class")) {
+      if (!await showConfirmDialog("Hapus kelas beserta semua datanya?", "Hapus Kelas")) return;
+      await deleteClassroom(id);
+      await reloadState(ctx);
+      await renderCurrentState2(ctx);
+    }
+  });
+  if (els.bulkAddButton) {
+    els.bulkAddButton.addEventListener("click", async () => {
+      const classId = els.bulkAddClassSelect?.value;
+      const raw = els.bulkAddEmails?.value || "";
+      const emails = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      if (!classId) return showToast("Pilih kelas tujuan terlebih dahulu", "error");
+      if (!emails.length) return showToast("Masukkan minimal 1 email", "error");
+      const { setButtonLoading: setButtonLoading2 } = await Promise.resolve().then(() => (init_dom(), dom_exports));
+      setButtonLoading2(els.bulkAddButton, true, "Menambahkan...", "Tambahkan ke Kelas");
+      try {
+        const { addStudentsToClass: addStudentsToClass2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        const resp = await addStudentsToClass2({ classId, emails });
+        const addedCount = resp.added ? resp.added.length : 0;
+        const errorCount = resp.errors ? resp.errors.length : 0;
+        if (addedCount) {
+          showToast(`Berhasil menambahkan ${addedCount} siswa.`, "success");
+          await reloadState(ctx);
+          await renderCurrentState2(ctx);
+        }
+        if (errorCount) {
+          showToast(`Beberapa email gagal ditambahkan: ${errorCount}`, "error");
+          console.warn("Bulk add errors", resp.errors);
+        }
+        els.bulkAddEmails.value = "";
+      } catch (err) {
+        showToast(err.message || "Gagal menambahkan siswa", "error");
+      } finally {
+        setButtonLoading2(els.bulkAddButton, false, "Menambahkan...", "Tambahkan ke Kelas");
+      }
+    });
+    if (els.bulkAddClear) {
+      els.bulkAddClear.addEventListener("click", () => {
+        if (els.bulkAddEmails) els.bulkAddEmails.value = "";
+      });
+    }
+  }
+  if (els.bulkAddCsvUpload) {
+    els.bulkAddCsvUpload.addEventListener("click", async () => {
+      const file = els.bulkAddCsvFile.files[0];
+      if (!file) return showToast("Pilih file CSV terlebih dahulu", "error");
+      const { setButtonLoading: setButtonLoading2 } = await Promise.resolve().then(() => (init_dom(), dom_exports));
+      setButtonLoading2(els.bulkAddCsvUpload, true, "Mengunggah...", "Upload CSV");
+      try {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+        const parsed = lines.map((line, idx) => {
+          const parts = line.split(",").map((item) => item.trim());
+          return { name: parts[0] || "", email: parts[1] || "", password: parts[2] || "", row: idx + 1 };
+        });
+        const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const valid = [];
+        const invalid = [];
+        for (const p of parsed) {
+          const errs = [];
+          if (!p.name) errs.push("Nama kosong");
+          if (!emailRe.test(p.email)) errs.push("Email tidak valid");
+          if (!p.password || p.password.length < 8) errs.push("Password minimal 8 karakter");
+          if (errs.length) invalid.push({ row: p.row, email: p.email, errors: errs });
+          else valid.push(p);
+        }
+        if (invalid.length) {
+          const sample = invalid.slice(0, 5).map((i) => `Baris ${i.row}: ${i.email} (${i.errors.join("; ")})`).join("\n");
+          const proceed = await showConfirmDialog(`Ditemukan ${invalid.length} baris bermasalah. Contoh:
+${sample}
+
+Lanjutkan dan lewati baris bermasalah?`, "Baris Bermasalah");
+          if (!proceed) {
+            setButtonLoading2(els.bulkAddCsvUpload, false, "Mengunggah...", "Upload CSV");
+            return;
+          }
+        }
+        const payload = valid.map(({ name, email, password }) => ({ name, email, password }));
+        const classId = els.bulkAddClassSelect?.value;
+        if (!classId) return showToast("Pilih kelas terlebih dahulu", "error");
+        const { createStudentsBatch: createStudentsBatch2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        const resp = await createStudentsBatch2({ classId, users: payload });
+        const added = resp.added ? resp.added.length : 0;
+        const errors = resp.errors ? resp.errors.length : 0;
+        if (added) {
+          showToast(`Berhasil menambahkan ${added} siswa.`, "success");
+          await reloadState(ctx);
+          await renderCurrentState2(ctx);
+        }
+        if (errors) showToast(`Selesai. Gagal: ${errors}`, "error");
+        els.bulkAddCsvFile.value = null;
+      } catch (err) {
+        showToast(err.message || "Gagal mengunggah CSV", "error");
+      } finally {
+        setButtonLoading2(els.bulkAddCsvUpload, false, "Mengunggah...", "Upload CSV");
+      }
+    });
+  }
+}
+function renderClasses(ctx) {
+  const { els } = ctx;
+  const isStudent = ctx.auth.user?.role === "student";
+  els.classForm.classList.toggle("hidden", isStudent);
+  els.joinClassForm.classList.toggle("hidden", !isStudent);
+  els.pendingJoinList.classList.toggle("hidden", isStudent);
+  const usableClasses = ctx.state.classes.filter((item) => !isStudent || item.status === "approved");
+  els.classSelect.innerHTML = usableClasses.length ? usableClasses.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("") : `<option value="">Belum ada kelas</option>`;
+  if (els.monitorClassFilter && !isStudent) {
+    const currentVal = els.monitorClassFilter.value;
+    els.monitorClassFilter.innerHTML = `<option value="">Semua Kelas</option>` + ctx.state.classes.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
+    if (currentVal && ctx.state.classes.some((c) => c.id === currentVal)) {
+      els.monitorClassFilter.value = currentVal;
+    }
+  }
+  if (!ctx.state.classes.length) {
+    els.classList.className = "list-stack empty-state";
+    els.classList.textContent = isStudent ? "Belum join kelas." : "Belum ada kelas.";
+  } else {
+    els.classList.className = "list-stack";
+    els.classList.innerHTML = ctx.state.classes.map((item) => `
+      <article class="submission-item" data-id="${escapeHtml(item.id)}">
         <div style="flex: 1; min-width: 0;">
-          <strong>${u(r.name)}</strong>
-          <p>Kode: <b>${u(r.join_code||r.joinCode||"-")}</b></p>
-          ${a?"":`
+          <strong>${escapeHtml(item.name)}</strong>
+          <p>Kode: <b>${escapeHtml(item.join_code || item.joinCode || "-")}</b></p>
+          ${!isStudent ? `
             <div class="item-actions">
               <button type="button" class="action-button edit-class">Edit</button>
               <button type="button" class="action-button danger-button delete-class">Hapus</button>
             </div>
-          `}
+          ` : ""}
         </div>
       </article>
-    `).join("")):(t.classList.className="list-stack empty-state",t.classList.textContent=a?"Belum join kelas.":"Belum ada kelas."),a){let r=e.state.classes.filter(i=>i.status==="approved"||i.status==="pending");if(r.length?(t.studentClassList.className="list-stack",t.studentClassList.innerHTML=r.map(i=>`
+    `).join("");
+  }
+  if (isStudent) {
+    const activeClasses = ctx.state.classes.filter((c) => c.status === "approved" || c.status === "pending");
+    if (!activeClasses.length) {
+      els.studentClassList.className = "list-stack empty-state";
+      els.studentClassList.textContent = "Belum join kelas.";
+    } else {
+      els.studentClassList.className = "list-stack";
+      els.studentClassList.innerHTML = activeClasses.map((item) => `
         <article class="list-item">
           <div>
-            <strong>${u(i.name)}</strong>
-            <p>Status: ${i.status==="approved"?"Disetujui":"Menunggu"}</p>
+            <strong>${escapeHtml(item.name)}</strong>
+            <p>Status: ${item.status === "approved" ? "Disetujui" : "Menunggu"}</p>
           </div>
         </article>
-      `).join("")):(t.studentClassList.className="list-stack empty-state",t.studentClassList.textContent="Belum join kelas."),t.studentClassFilter){let i=r.filter(l=>l.status==="approved"),o=t.studentClassFilter.value;t.studentClassFilter.innerHTML='<option value="">Semua Kelas</option>'+i.map(l=>`<option value="${u(l.id)}">${u(l.name)}</option>`).join(""),o&&i.some(l=>l.id===o)&&(t.studentClassFilter.value=o)}}t.approvedMemberList&&t.approvedMemberList.classList.toggle("hidden",a);let s=e.state.memberships.filter(r=>r.status==="pending");if(s.length?(t.pendingJoinList.className="list-stack",t.pendingJoinList.innerHTML=s.map(r=>`
+      `).join("");
+    }
+    if (els.studentClassFilter) {
+      const approvedClasses = activeClasses.filter((c) => c.status === "approved");
+      const currentVal = els.studentClassFilter.value;
+      els.studentClassFilter.innerHTML = `<option value="">Semua Kelas</option>` + approvedClasses.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
+      if (currentVal && approvedClasses.some((c) => c.id === currentVal)) {
+        els.studentClassFilter.value = currentVal;
+      }
+    }
+  }
+  if (els.approvedMemberList) els.approvedMemberList.classList.toggle("hidden", isStudent);
+  const pending = ctx.state.memberships.filter((item) => item.status === "pending");
+  if (!pending.length) {
+    els.pendingJoinList.className = "list-stack empty-state";
+    els.pendingJoinList.textContent = "Belum ada request join.";
+  } else {
+    els.pendingJoinList.className = "list-stack";
+    els.pendingJoinList.innerHTML = pending.map((item) => `
       <article class="list-item">
         <div>
-          <strong>${u(r.student_name)}</strong>
-          <p>${u(r.student_email)} - ${u(r.class_name)}</p>
+          <strong>${escapeHtml(item.student_name)}</strong>
+          <p>${escapeHtml(item.student_email)} - ${escapeHtml(item.class_name)}</p>
         </div>
         <div class="item-actions">
-          <button class="secondary-button approve-join" data-id="${u(r.id)}" type="button">Approve</button>
-          <button class="action-button danger-button reject-join" data-id="${u(r.id)}" type="button">Tolak</button>
+          <button class="secondary-button approve-join" data-id="${escapeHtml(item.id)}" type="button">Approve</button>
+          <button class="action-button danger-button reject-join" data-id="${escapeHtml(item.id)}" type="button">Tolak</button>
         </div>
       </article>
-    `).join("")):(t.pendingJoinList.className="list-stack empty-state",t.pendingJoinList.textContent="Belum ada request join."),t.approvedMemberList){let r=e.state.memberships.filter(o=>o.status==="approved"),i=e.memberSearchQuery.trim()===""?r:r.filter(o=>{let l=e.memberSearchQuery.toLowerCase();return o.student_name.toLowerCase().includes(l)||o.student_email.toLowerCase().includes(l)});if(t.memberCountText&&(t.memberCountText.textContent=`${i.length} anggota`),!i.length)t.approvedMemberList.className="list-stack empty-state",t.approvedMemberList.textContent=e.memberSearchQuery.trim()===""?"Belum ada anggota.":"Tidak ada hasil pencarian.",t.memberPaginationContainer&&(t.memberPaginationContainer.style.display="none");else{let o=Math.ceil(i.length/e.MEMBERS_PER_PAGE);e.memberCurrentPage>o&&(e.memberCurrentPage=Math.max(1,o));let l=(e.memberCurrentPage-1)*e.MEMBERS_PER_PAGE,c=l+e.MEMBERS_PER_PAGE,d=i.slice(l,c);t.approvedMemberList.className="list-stack",t.approvedMemberList.innerHTML=d.map(m=>`
+    `).join("");
+  }
+  if (els.approvedMemberList) {
+    const approved = ctx.state.memberships.filter((item) => item.status === "approved");
+    const filtered = ctx.memberSearchQuery.trim() === "" ? approved : approved.filter((item) => {
+      const searchLower = ctx.memberSearchQuery.toLowerCase();
+      return item.student_name.toLowerCase().includes(searchLower) || item.student_email.toLowerCase().includes(searchLower);
+    });
+    if (els.memberCountText) {
+      els.memberCountText.textContent = `${filtered.length} anggota`;
+    }
+    if (!filtered.length) {
+      els.approvedMemberList.className = "list-stack empty-state";
+      els.approvedMemberList.textContent = ctx.memberSearchQuery.trim() === "" ? "Belum ada anggota." : "Tidak ada hasil pencarian.";
+      if (els.memberPaginationContainer) {
+        els.memberPaginationContainer.style.display = "none";
+      }
+    } else {
+      const totalPages = Math.ceil(filtered.length / ctx.MEMBERS_PER_PAGE);
+      if (ctx.memberCurrentPage > totalPages) {
+        ctx.memberCurrentPage = Math.max(1, totalPages);
+      }
+      const startIdx = (ctx.memberCurrentPage - 1) * ctx.MEMBERS_PER_PAGE;
+      const endIdx = startIdx + ctx.MEMBERS_PER_PAGE;
+      const pageItems = filtered.slice(startIdx, endIdx);
+      els.approvedMemberList.className = "list-stack";
+      els.approvedMemberList.innerHTML = pageItems.map((item) => `
         <article class="list-item">
           <div>
-            <strong>${u(m.student_name)}</strong>
-            <p>${u(m.student_email)}</p>
-            <p style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">${u(m.class_name)}</p>
+            <strong>${escapeHtml(item.student_name)}</strong>
+            <p>${escapeHtml(item.student_email)}</p>
+            <p style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">${escapeHtml(item.class_name)}</p>
             <div class="item-actions">
-              <button class="action-button danger-button remove-member" data-id="${u(m.id)}" type="button">Keluarkan</button>
+              <button class="action-button danger-button remove-member" data-id="${escapeHtml(item.id)}" type="button">Keluarkan</button>
             </div>
           </div>
         </article>
-      `).join(""),t.memberPaginationContainer&&(o<=1?t.memberPaginationContainer.style.display="none":(t.memberPaginationContainer.style.display="flex",t.memberPrevBtn.disabled=e.memberCurrentPage===1,t.memberNextBtn.disabled=e.memberCurrentPage===o,t.memberPageInfo.textContent=`Halaman ${e.memberCurrentPage} dari ${o}`))}}if(t.bulkAddClassSelect){let r=e.state.classes.map(i=>({id:i.id,name:i.name}));t.bulkAddClassSelect.innerHTML='<option value="">Pilih kelas</option>'+r.map(i=>`<option value="${u(i.id)}">${u(i.name)}</option>`).join("")}}async function ce(e){let{loadState:t}=await Promise.resolve().then(()=>(Oe(),dt)),a=await t();e.state.classes=a.classes,e.state.memberships=a.memberships,e.state.assessments=a.assessments}var ya=x(()=>{B();F();H();V()});function yt(e){return{id:_e("assess"),topic:e.topic.value.trim(),outcomes:e.outcomes.value.trim(),rubric:"",difficulty:e.difficulty.value,examples:e.examples.value.trim(),classId:e.classSelect.value,status:"published",count:Number(e.questionCount.value),timeLimit:Number(e.timeLimit.value||0),oralExamEnabled:e.oralExamEnabled.checked,disableManualTyping:e.disableManualTyping.checked,allowRetakes:e.allowRetakes.checked,maxAttempts:Number(e.maxAttempts?.value||0),isTryout:e.isTryout?e.isTryout.checked:!1,createdAt:new Date().toISOString()}}function jn(e,t=[]){let{count:a,rubric:n,...s}=e,r=(t||[]).map(i=>String(i.rubric||"").trim()).filter(i=>i.length>0);return{...s,rubric:String(n||"").trim()||r.join(`
-`),questions:t||[]}}function ka({assessment:e,studentName:t,finalScore:a,questionScores:n,feedback:s,status:r="EVALUATED",verification:i=null,criteria:o=[],evaluationRunId:l=null,evaluationId:c=null,evaluationSource:d="ai",insight:m=""}){return{id:_e("sub"),assessmentId:e.id,assessmentTitle:e.topic,classId:e.classId,studentName:t,submittedAt:new Date().toISOString(),finalScore:a,questionScores:n,feedback:s,status:r,verification:i,criteria:o,evaluationRunId:l,evaluationId:c,evaluationSource:d,insight:m}}var va=x(()=>{H()});function Hn({topic:e,outcomes:t,rubric:a,difficulty:n,examples:s,count:r}){let i=oa(e,t,a,s),o=i.length?i:wn,l=ra[n]||ra.Menengah;return Array.from({length:r},(c,d)=>{let m=o[d%o.length],k=l[d%l.length].replaceAll("{topic}",e).replaceAll("{keyword}",m);return{id:_e("q"),prompt:k,focus:m,outcome:`Siswa mampu menjelaskan konsep ${m} pada materi ${e} dengan bahasa sendiri.`,rubric:`Ketepatan konsep ${m}: 40%, penalaran sebab-akibat: 25%, contoh relevan: 20%, kejelasan komunikasi: 15%.`,ideal:`Jawaban kuat menyebut konsep ${m}, memberi alasan, memakai contoh relevan, dan mengaitkannya dengan ${e}.`}})}function Fn({prompt:e,answer:t,focus:a="",topic:n=""}){let s=String(t||"").trim(),r=String(a||n||"topik").trim();if(!s)return{prompt:`Karena jawaban kosong, jelaskan minimal satu ide utama yang kamu pahami tentang ${r}, lalu beri satu alasan mengapa itu penting.`,focus:r};let i=/\b(karena|sebab|akibat|mengapa|alasan|jadi)\b/i.test(s);return/\b(contoh|misal|seperti|misalnya|ilustrasi)\b/i.test(s)?i?{prompt:`Dari jawabanmu ("${Sa(s)}"), bandingkan dengan situasi atau sudut pandang lain, lalu simpulkan mana yang lebih tepat menurutmu dan mengapa.`,focus:r}:{prompt:`Kamu menyebutkan "${Sa(s)}". Jelaskan alasan atau sebab-akibat di balik itu menurut pemahamanmu.`,focus:r}:{prompt:`Kamu menyebutkan "${Sa(s)}". Berikan satu contoh nyata yang menggambarkan hal itu, lalu jelaskan kaitannya dengan ${r}.`,focus:r}}function Sa(e){let t=String(e||"").trim();return t.length>90?`${t.slice(0,90)}\u2026`:t}function Vn(e,t="Menengah"){return{outcomes:[`Siswa mampu menjelaskan konsep utama pada materi ${e} dengan bahasa sendiri.`,`Siswa mampu menghubungkan konsep ${e} dengan contoh atau situasi nyata yang relevan.`,`Siswa mampu menyampaikan alasan, bukti, atau proses berpikir secara runtut dalam jawaban lisan tingkat ${t.toLowerCase()}.`].join(`
-`)}}function Un(e,t,a,n){let s=e.questions.map((i,o)=>{let l=t[o],c=typeof l=="string"?l:l?.text||"",d=c.toLowerCase(),m=d.split(/\s+/).filter(Boolean),k=i.rubric||e.rubric,h=i.outcome||e.outcomes,w=oa(k,h,e.topic),f=w.filter(T=>d.includes(T.toLowerCase())),g=d.includes(i.focus.toLowerCase()),b=Math.min(m.length/55,1)*32,v=Math.min(f.length/Math.max(w.length,1),1)*38,L=/(karena|sebab|contoh|misalnya|akibat|sehingga|dibanding)/i.test(d)?20:8,y=g?10:2,S=Math.round(Math.min(100,b+v+L+y));return{question:i.prompt,focus:i.focus,answer:c,audio:typeof l=="string"?null:l?.audio||null,duration:typeof l=="string"?0:l?.duration||0,score:S,matched:f,strengths:Sr(S,f,g),gaps:wr(S,f,w,i.focus)}}),r=Math.round(s.reduce((i,o)=>i+o.score,0)/s.length);return n({assessment:e,studentName:a,finalScore:r,questionScores:s,feedback:$r(r)})}function Sr(e,t,a){let n=[];return e>=70&&n.push("Jawaban menunjukkan pemahaman konsep yang cukup kuat."),t.length&&n.push(`Istilah kunci yang muncul: ${t.slice(0,4).join(", ")}.`),a&&n.push("Fokus pertanyaan terjawab secara eksplisit."),n.length?n:["Jawaban sudah memberi dasar untuk dianalisis lebih lanjut."]}function wr(e,t,a,n){let s=a.filter(i=>!t.includes(i)).slice(0,3),r=[];return e<70&&r.push("Tambahkan alasan, hubungan konsep, dan contoh konkret agar jawaban lebih utuh."),s.length&&r.push(`Pertimbangkan memasukkan konsep: ${s.join(", ")}.`),t.includes(n)||r.push(`Perjelas bagian yang berkaitan langsung dengan ${n}.`),r}function $r(e){return e>=85?"Pemahaman sangat baik. Langkah berikutnya adalah membuat argumen lebih kritis dan mengantisipasi miskonsepsi.":e>=70?"Pemahaman sudah cukup solid. Perkuat jawaban dengan contoh yang lebih spesifik dan hubungan antar konsep.":e>=55?"Dasar pemahaman mulai terlihat. Fokus pada istilah kunci, urutan penjelasan, dan alasan sebab-akibat.":"Perlu penguatan konsep dasar. Coba ulangi materi inti, lalu jawab dengan pola definisi, alasan, dan contoh."}var wa=x(()=>{Ue();H()});var On={};Q(On,{bindQuestionBankEvents:()=>La,loadQuestionBank:()=>$a,saveCurrentQuestionsToBank:()=>Aa});function La(e){let{els:t}=e;t.questionBankFilter.addEventListener("input",()=>{$a(e)}),t.questionBankImportBtn.addEventListener("click",()=>{N(e,"teacherView")}),t.questionBankList.addEventListener("click",async a=>{let n=a.target.closest(".delete-question-btn");if(n){let r=n.dataset.id;if(!await R("Hapus soal dari bank soal?","Hapus Soal"))return;try{await ea(r),p("Soal dihapus dari bank","success"),await $a(e)}catch(o){p(o.message,"error")}return}let s=a.target.closest(".import-question-btn");if(s){let r=s.dataset.id,i=e._questionBankData?.find(l=>l.id===r);if(!i)return;e.pendingQuestions.push({id:`q-${Date.now()}-${e.pendingQuestions.length}`,prompt:i.prompt,focus:i.focus,outcome:i.outcome,rubric:i.rubric,ideal:i.ideal,criteria:i.criteria||[]});let{renderQuestionEditor:o}=await Promise.resolve().then(()=>(We(),vt));o(e),p("Soal ditambahkan ke wizard","success")}})}async function $a(e){let{els:t}=e,a=t.questionBankFilter?.value?.trim()||"";try{let n=await Zt(a?{topic:a}:{});if(e._questionBankData=n,t.questionBankCount.textContent=String(n.length),!n.length){Te(t.questionBankList,"list-stack empty-state","Belum ada soal tersimpan. Simpan soal dari wizard penilaian.");return}t.questionBankList.className="list-stack",t.questionBankList.innerHTML=n.map(s=>`
+      `).join("");
+      if (els.memberPaginationContainer) {
+        if (totalPages <= 1) {
+          els.memberPaginationContainer.style.display = "none";
+        } else {
+          els.memberPaginationContainer.style.display = "flex";
+          els.memberPrevBtn.disabled = ctx.memberCurrentPage === 1;
+          els.memberNextBtn.disabled = ctx.memberCurrentPage === totalPages;
+          els.memberPageInfo.textContent = `Halaman ${ctx.memberCurrentPage} dari ${totalPages}`;
+        }
+      }
+    }
+  }
+  if (els.bulkAddClassSelect) {
+    const classOptions = ctx.state.classes.map((c) => ({ id: c.id, name: c.name }));
+    els.bulkAddClassSelect.innerHTML = `<option value="">Pilih kelas</option>` + classOptions.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
+  }
+}
+async function reloadState(ctx) {
+  const { loadState: loadState2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const nextState = await loadState2();
+  ctx.state.classes = nextState.classes;
+  ctx.state.memberships = nextState.memberships;
+  ctx.state.assessments = nextState.assessments;
+}
+var init_class_management = __esm({
+  "src/js/class-management.js"() {
+    init_api();
+    init_toast();
+    init_utils();
+    init_app_context();
+  }
+});
+
+// src/js/assessment-factory.js
+function readAssessmentForm(els) {
+  return {
+    id: uid("assess"),
+    topic: els.topic.value.trim(),
+    outcomes: els.outcomes.value.trim(),
+    rubric: "",
+    difficulty: els.difficulty.value,
+    examples: els.examples.value.trim(),
+    classId: els.classSelect.value,
+    status: "published",
+    count: Number(els.questionCount.value),
+    timeLimit: Number(els.timeLimit.value || 0),
+    oralExamEnabled: els.oralExamEnabled.checked,
+    disableManualTyping: els.disableManualTyping.checked,
+    allowRetakes: els.allowRetakes.checked,
+    maxAttempts: Number(els.maxAttempts?.value || 0),
+    isTryout: els.isTryout ? els.isTryout.checked : false,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function createAssessment(config, questions = []) {
+  const { count, rubric, ...assessment } = config;
+  const derived = (questions || []).map((q) => String(q.rubric || "").trim()).filter((r) => r.length > 0);
+  return {
+    ...assessment,
+    rubric: String(rubric || "").trim() || derived.join("\n"),
+    questions: questions || []
+  };
+}
+function createSubmission({
+  assessment,
+  studentName,
+  finalScore,
+  questionScores,
+  feedback,
+  status = "EVALUATED",
+  verification = null,
+  criteria = [],
+  evaluationRunId = null,
+  evaluationId = null,
+  evaluationSource = "ai",
+  insight = ""
+}) {
+  return {
+    id: uid("sub"),
+    assessmentId: assessment.id,
+    assessmentTitle: assessment.topic,
+    classId: assessment.classId,
+    studentName,
+    submittedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    finalScore,
+    questionScores,
+    feedback,
+    // Trustworthy-assessment metadata (PRD: score-state semantics must be explicit).
+    status,
+    verification,
+    criteria,
+    evaluationRunId,
+    evaluationId,
+    evaluationSource,
+    insight
+  };
+}
+var init_assessment_factory = __esm({
+  "src/js/assessment-factory.js"() {
+    init_utils();
+  }
+});
+
+// src/js/fallback-assessment.js
+function inferFallbackCriteria(prompt2, keyword) {
+  const text = String(prompt2 || "");
+  const criteria = [];
+  const base = /\b(?:jelaskan|pengertian|konsep|pemahaman|uraikan|terangkan)\b/i.test(text) ? `Ketepatan menjelaskan konsep ${keyword}` : `Ketepatan memahami ${keyword}`;
+  criteria.push(base);
+  for (const demand of DEMANDS) {
+    if (!demand.pattern.test(text)) continue;
+    const name = demand.type === "reasoning" ? `Kualitas ${demand.label}` : `Kesesuaian ${demand.label}`;
+    if (!criteria.includes(name)) criteria.push(name);
+  }
+  return criteria.slice(0, 3);
+}
+function buildFallbackRubric(criteria) {
+  if (!criteria.length) return "";
+  const rawWeights = criteria.length === 1 ? [100] : criteria.map(() => 100 / criteria.length);
+  return criteria.map((name, index) => `${name}: ${Number(rawWeights[index].toFixed(2))}%`).join("\n");
+}
+function generateFallbackQuestions({ topic, outcomes, rubric, difficulty, examples, count }) {
+  const keywords = getKeywords(topic, outcomes, rubric, examples);
+  const core = keywords.length ? keywords : FALLBACK_KEYWORDS;
+  const stems = FALLBACK_QUESTION_STEMS[difficulty] || FALLBACK_QUESTION_STEMS.Menengah;
+  return Array.from({ length: count }, (_, index) => {
+    const keyword = core[index % core.length];
+    const prompt2 = stems[index % stems.length].replaceAll("{topic}", topic).replaceAll("{keyword}", keyword);
+    const criteria = inferFallbackCriteria(prompt2, keyword);
+    const questionRubric = buildFallbackRubric(criteria);
+    return {
+      id: uid("q"),
+      prompt: prompt2,
+      focus: keyword,
+      outcome: `Siswa mampu menjelaskan konsep ${keyword} pada materi ${topic} dengan bahasa sendiri.`,
+      criteria,
+      rubric: questionRubric,
+      ideal: `Jawaban kuat menunjukkan pemahaman ${keyword}${criteria.length > 1 ? ", disertai evidence sesuai tuntutan pertanyaan" : ""} dan mengaitkannya dengan ${topic}.`
+    };
+  });
+}
+function generateProbingFallback({ prompt: prompt2, answer, focus = "", topic = "" }) {
+  const text = String(answer || "").trim();
+  const focusName = String(focus || topic || "topik").trim();
+  if (!text) {
+    return {
+      prompt: `Karena jawaban kosong, jelaskan minimal satu ide utama yang kamu pahami tentang ${focusName}, lalu beri satu alasan mengapa itu penting.`,
+      focus: focusName
+    };
+  }
+  const mentionsReason = /\b(karena|sebab|akibat|mengapa|alasan|jadi)\b/i.test(text);
+  const hasExample = /\b(contoh|misal|seperti|misalnya|ilustrasi)\b/i.test(text);
+  if (!hasExample) {
+    return {
+      prompt: `Kamu menyebutkan "${truncateAnswer(text)}". Berikan satu contoh nyata yang menggambarkan hal itu, lalu jelaskan kaitannya dengan ${focusName}.`,
+      focus: focusName
+    };
+  }
+  if (!mentionsReason) {
+    return {
+      prompt: `Kamu menyebutkan "${truncateAnswer(text)}". Jelaskan alasan atau sebab-akibat di balik itu menurut pemahamanmu.`,
+      focus: focusName
+    };
+  }
+  return {
+    prompt: `Dari jawabanmu ("${truncateAnswer(text)}"), bandingkan dengan situasi atau sudut pandang lain, lalu simpulkan mana yang lebih tepat menurutmu dan mengapa.`,
+    focus: focusName
+  };
+}
+function truncateAnswer(text) {
+  const t = String(text || "").trim();
+  return t.length > 90 ? `${t.slice(0, 90)}\u2026` : t;
+}
+function recommendFallbackConfig(topic, difficulty = "Menengah") {
+  return {
+    outcomes: [
+      `Siswa mampu menjelaskan konsep utama pada materi ${topic} dengan bahasa sendiri.`,
+      `Siswa mampu menghubungkan konsep ${topic} dengan contoh atau situasi nyata yang relevan.`,
+      `Siswa mampu menyampaikan alasan, bukti, atau proses berpikir secara runtut dalam jawaban lisan tingkat ${difficulty.toLowerCase()}.`
+    ].join("\n")
+  };
+}
+function evaluateFallbackAssessment(assessment, answers, studentName, makeSubmission) {
+  const questionScores = assessment.questions.map((question, index) => {
+    const answerObj = answers[index];
+    const rawAnswer = typeof answerObj === "string" ? answerObj : answerObj?.text || "";
+    const answer = rawAnswer.toLowerCase();
+    const words = answer.split(/\s+/).filter(Boolean);
+    const questionRubric = question.rubric || assessment.rubric;
+    const questionOutcome = question.outcome || assessment.outcomes;
+    const rubricKeywords = getKeywords(questionRubric, questionOutcome, assessment.topic);
+    const matched = rubricKeywords.filter((keyword) => answer.includes(keyword.toLowerCase()));
+    const focusMatched = answer.includes(question.focus.toLowerCase());
+    const lengthScore = Math.min(words.length / 55, 1) * 32;
+    const keywordScore = Math.min(matched.length / Math.max(rubricKeywords.length, 1), 1) * 38;
+    const reasoningScore = /(karena|sebab|contoh|misalnya|akibat|sehingga|dibanding)/i.test(answer) ? 20 : 8;
+    const focusScore = focusMatched ? 10 : 2;
+    const score = Math.round(Math.min(100, lengthScore + keywordScore + reasoningScore + focusScore));
+    return {
+      question: question.prompt,
+      focus: question.focus,
+      answer: rawAnswer,
+      audio: typeof answerObj === "string" ? null : answerObj?.audio || null,
+      duration: typeof answerObj === "string" ? 0 : answerObj?.duration || 0,
+      score,
+      matched,
+      strengths: buildStrengths(score, matched, focusMatched),
+      gaps: buildGaps(score, matched, rubricKeywords, question.focus)
+    };
+  });
+  const finalScore = Math.round(questionScores.reduce((sum, item) => sum + item.score, 0) / questionScores.length);
+  return makeSubmission({
+    assessment,
+    studentName,
+    finalScore,
+    questionScores,
+    feedback: buildPersonalFeedback(finalScore)
+  });
+}
+function buildStrengths(score, matched, focusMatched) {
+  const strengths = [];
+  if (score >= 70) strengths.push("Jawaban menunjukkan pemahaman konsep yang cukup kuat.");
+  if (matched.length) strengths.push(`Istilah kunci yang muncul: ${matched.slice(0, 4).join(", ")}.`);
+  if (focusMatched) strengths.push("Fokus pertanyaan terjawab secara eksplisit.");
+  return strengths.length ? strengths : ["Jawaban sudah memberi dasar untuk dianalisis lebih lanjut."];
+}
+function buildGaps(score, matched, rubricKeywords, focus) {
+  const missing = rubricKeywords.filter((keyword) => !matched.includes(keyword)).slice(0, 3);
+  const gaps = [];
+  if (score < 70) gaps.push("Tambahkan alasan, hubungan konsep, dan contoh konkret agar jawaban lebih utuh.");
+  if (missing.length) gaps.push(`Pertimbangkan memasukkan konsep: ${missing.join(", ")}.`);
+  if (!matched.includes(focus)) gaps.push(`Perjelas bagian yang berkaitan langsung dengan ${focus}.`);
+  return gaps;
+}
+function buildPersonalFeedback(score) {
+  if (score >= 85) return "Pemahaman sangat baik. Langkah berikutnya adalah membuat argumen lebih kritis dan mengantisipasi miskonsepsi.";
+  if (score >= 70) return "Pemahaman sudah cukup solid. Perkuat jawaban dengan contoh yang lebih spesifik dan hubungan antar konsep.";
+  if (score >= 55) return "Dasar pemahaman mulai terlihat. Fokus pada istilah kunci, urutan penjelasan, dan alasan sebab-akibat.";
+  return "Perlu penguatan konsep dasar. Coba ulangi materi inti, lalu jawab dengan pola definisi, alasan, dan contoh.";
+}
+var DEMANDS;
+var init_fallback_assessment = __esm({
+  "src/js/fallback-assessment.js"() {
+    init_config();
+    init_utils();
+    DEMANDS = [
+      { type: "reasoning", pattern: /\b(?:mengapa|kenapa|alasan|jelaskan\s+(?:mengapa|alasan|hubungan|proses)|argumen|argumentasi|sebab|akibat|konsekuensi)\b/i, label: "penalaran sebab-akibat" },
+      { type: "application", pattern: /\b(?:contoh|misal|misalnya|penerapan|diterapkan|kasus|situasi|gunakan)\b/i, label: "penerapan/contoh" },
+      { type: "comparison", pattern: /\b(?:bandingkan|perbandingan|persamaan|perbedaan)\b/i, label: "perbandingan" },
+      { type: "analysis", pattern: /\b(?:analisis|analisa|hubungan|dampak|pengaruh|keterkaitan)\b/i, label: "analisis" },
+      { type: "evaluation", pattern: /\b(?:evaluasi|nilai|menilai|kritik|kelemahan|kelebihan|keterbatasan)\b/i, label: "evaluasi" },
+      { type: "identification", pattern: /\b(?:sebutkan|identifikasi|tentukan|nama(?:kan)?)\b/i, label: "identifikasi" }
+    ];
+  }
+});
+
+// src/js/question-bank.js
+var question_bank_exports = {};
+__export(question_bank_exports, {
+  bindQuestionBankEvents: () => bindQuestionBankEvents,
+  loadQuestionBank: () => loadQuestionBank,
+  saveCurrentQuestionsToBank: () => saveCurrentQuestionsToBank
+});
+function bindQuestionBankEvents(ctx) {
+  const { els } = ctx;
+  els.questionBankFilter.addEventListener("input", () => {
+    loadQuestionBank(ctx);
+  });
+  els.questionBankImportBtn.addEventListener("click", () => {
+    switchView(ctx, "teacherView");
+  });
+  els.questionBankList.addEventListener("click", async (event) => {
+    const deleteBtn = event.target.closest(".delete-question-btn");
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.id;
+      const proceed = await showConfirmDialog("Hapus soal dari bank soal?", "Hapus Soal");
+      if (!proceed) return;
+      try {
+        await deleteQuestionFromBank(id);
+        showToast("Soal dihapus dari bank", "success");
+        await loadQuestionBank(ctx);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+    const importBtn = event.target.closest(".import-question-btn");
+    if (importBtn) {
+      const id = importBtn.dataset.id;
+      const question = ctx._questionBankData?.find((q) => q.id === id);
+      if (!question) return;
+      ctx.pendingQuestions.push({
+        id: `q-${Date.now()}-${ctx.pendingQuestions.length}`,
+        prompt: question.prompt,
+        focus: question.focus,
+        outcome: question.outcome,
+        rubric: question.rubric,
+        ideal: question.ideal,
+        criteria: question.criteria || []
+      });
+      const { renderQuestionEditor: renderQuestionEditor2 } = await Promise.resolve().then(() => (init_assessment_wizard(), assessment_wizard_exports));
+      renderQuestionEditor2(ctx);
+      showToast("Soal ditambahkan ke wizard", "success");
+    }
+  });
+}
+async function loadQuestionBank(ctx) {
+  const { els } = ctx;
+  const filter = els.questionBankFilter?.value?.trim() || "";
+  try {
+    const questions = await listQuestionBank(filter ? { topic: filter } : {});
+    ctx._questionBankData = questions;
+    els.questionBankCount.textContent = String(questions.length);
+    if (!questions.length) {
+      showEmpty(els.questionBankList, "list-stack empty-state", "Belum ada soal tersimpan. Simpan soal dari wizard penilaian.");
+      return;
+    }
+    els.questionBankList.className = "list-stack";
+    els.questionBankList.innerHTML = questions.map((q) => `
       <article class="feedback-card" style="position: relative;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
           <div style="flex: 1;">
             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;">
-              <span class="tag badge-published">${u(s.difficulty||"Umum")}</span>
-              <span class="tag" style="background: var(--accent-light); color: var(--accent);">${u(s.topic||"Tanpa topik")}</span>
+              <span class="tag badge-published">${escapeHtml(q.difficulty || "Umum")}</span>
+              <span class="tag" style="background: var(--accent-light); color: var(--accent);">${escapeHtml(q.topic || "Tanpa topik")}</span>
             </div>
-            <strong>${u(s.prompt)}</strong>
+            <strong>${escapeHtml(q.prompt)}</strong>
             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 6px;">
-              Fokus: ${u(s.focus)}${s.outcome?` \xB7 ${u(s.outcome)}`:""}
+              Fokus: ${escapeHtml(q.focus)}${q.outcome ? ` \xB7 ${escapeHtml(q.outcome)}` : ""}
             </p>
-            ${s.rubric?`<div style="margin-top:8px;">${re(s.rubric)}</div>`:""}
+            ${q.rubric ? `<div style="margin-top:8px;">${renderRubricTable(q.rubric)}</div>` : ""}
           </div>
           <div style="display: flex; gap: 6px; flex-shrink: 0;">
-            <button type="button" class="secondary-button import-question-btn" data-id="${s.id}" title="Gunakan soal ini di wizard">Gunakan</button>
-            <button type="button" class="action-button danger-button delete-question-btn" data-id="${s.id}" aria-label="Hapus soal">&times;</button>
+            <button type="button" class="secondary-button import-question-btn" data-id="${q.id}" title="Gunakan soal ini di wizard">Gunakan</button>
+            <button type="button" class="action-button danger-button delete-question-btn" data-id="${q.id}" aria-label="Hapus soal">&times;</button>
           </div>
         </div>
         <small style="color: var(--muted); display: block; margin-top: 8px; font-size: 0.8rem;">
-          ${new Date(s.createdAt).toLocaleDateString("id-ID")}
+          ${new Date(q.createdAt).toLocaleDateString("id-ID")}
         </small>
       </article>
-    `).join("")}catch(n){p(n.message,"error")}}async function Aa(e){let t=e.pendingAssessmentConfig;if(!t||!e.pendingQuestions.length){p("Tidak ada soal untuk disimpan","error");return}let a=0;for(let n of e.pendingQuestions)try{await Yt({topic:t.topic||"",difficulty:t.difficulty||"",prompt:n.prompt,focus:n.focus,outcome:n.outcome,rubric:n.rubric,ideal:n.ideal,criteria:n.criteria}),a++}catch(s){p(`Gagal menyimpan soal: ${s.message}`,"error")}p(`${a} soal disimpan ke bank soal`,"success")}var kt=x(()=>{B();F();Y();H();V();ie()});var vt={};Q(vt,{alignRubricWithFallback:()=>Zn,bindAssessmentWizardEvents:()=>Ta,fillRecommendedFields:()=>Ca,generateQuestionsWithFallback:()=>Yn,goToWizardStep:()=>oe,handleAddManualQuestion:()=>Gn,handleAssessmentSubmit:()=>Kn,handleCreateManualAssessment:()=>zn,handleDeleteQuestion:()=>Jn,handleRecommendConfig:()=>Er,improvePendingQuestionSet:()=>Lr,improveQuestionsWithFallback:()=>Pr,parseRubricToCriteria:()=>Pa,recommendConfigWithFallback:()=>Xn,renderQuestionEditor:()=>De,renderReviewSummary:()=>Ea,renderRubrikBuilder:()=>ns,savePendingQuestionSet:()=>Wn,syncQuestionsFromEditor:()=>Xe});function Ta(e){$t=e;let{els:t}=e;t.form.addEventListener("submit",a=>Kn(e,a)),t.createManualAssessment&&t.createManualAssessment.addEventListener("click",a=>zn(e,a)),t.saveQuestionSet.addEventListener("click",()=>Wn(e)),t.addManualQuestion&&t.addManualQuestion.addEventListener("click",()=>Gn(e)),t.saveToBankBtn&&t.saveToBankBtn.addEventListener("click",()=>Aa(e)),t.editableQuestionList.addEventListener("click",a=>{let n=a.target.closest(".delete-question");n&&Jn(e,Number(n.dataset.index))}),t.editableQuestionList.addEventListener("click",a=>{let n=a.target.closest(".rubrik-builder-toggle");if(!n)return;let s=n.dataset.index,r=document.querySelector(`.rubrik-builder-${s}`);if(!r)return;let i=r.style.display==="none"||!r.style.display;if(r.style.display=i?"grid":"none",i)r.dataset.qIndex=s,ns(r,e.pendingQuestions[s]?.rubric||"");else{let o=n.closest("label")?.querySelector(".rubrik-preview");o&&e.pendingQuestions[s]?.rubric&&(o.innerHTML=re(e.pendingQuestions[s].rubric))}}),t.wizardToQuestions&&t.wizardToQuestions.addEventListener("click",()=>{let a=yt(t);if(!a.topic){p("Isi topik atau materi terlebih dahulu."),t.topic.focus();return}if(!a.outcomes){p("Isi kompetensi / capaian pembelajaran terlebih dahulu."),t.outcomes.focus();return}if(!a.classId){p("Pilih kelas tujuan terlebih dahulu."),t.classSelect.focus();return}e.pendingAssessmentConfig=a,oe(e,2)}),t.wizardBackToContext&&t.wizardBackToContext.addEventListener("click",()=>oe(e,1)),t.wizardToReview&&t.wizardToReview.addEventListener("click",()=>{if(!e.pendingAssessmentConfig){p("Buat atau buka penilaian dulu sebelum meninjau.");return}Xe(e),oe(e,3)}),t.wizardBackToQuestions&&t.wizardBackToQuestions.addEventListener("click",()=>oe(e,2)),t.wizardSteps.forEach(a=>{a.addEventListener("click",()=>{let n=Number(a.dataset.wizardStep);n<=e.currentWizardStep&&oe(e,n)})}),t.editDisableManualTyping&&t.editDisableManualTyping.addEventListener("change",a=>{e.pendingAssessmentConfig&&(e.pendingAssessmentConfig.disableManualTyping=a.target.checked)}),t.editOralExamEnabled&&t.editOralExamEnabled.addEventListener("change",a=>{e.pendingAssessmentConfig&&(e.pendingAssessmentConfig.oralExamEnabled=a.target.checked)}),t.editAllowRetakes&&t.editAllowRetakes.addEventListener("change",a=>{e.pendingAssessmentConfig&&(e.pendingAssessmentConfig.allowRetakes=a.target.checked)}),t.recommendOutcomes.addEventListener("click",()=>Ca(e,"outcomes"))}async function Kn(e,t){t.preventDefault();let{els:a}=e,n=yt(a);if(!n.classId){p("Pilih kelas tujuan terlebih dahulu.");return}D(t.submitter,!0,"Menghubungi AI...","Buat soal dengan AI"),es(e);try{let s=await Yn(e,n);e.pendingAssessmentConfig=n,e.pendingQuestions=s.map(r=>({...r,rubric:r.rubric?xr(r.rubric):""})),ts(e),await new Promise(r=>setTimeout(r,600)),qa(e,a.aiStreamPanel),De(e),oe(e,2)}finally{D(t.submitter,!1,"Menghubungi AI...","Buat soal dengan AI")}}function zn(e,t){let{els:a}=e,n=yt(a);if(!n.classId){p("Pilih kelas tujuan terlebih dahulu.");return}e.pendingAssessmentConfig=n;let s=Math.max(1,Number(n.count)||1);e.pendingQuestions=Array.from({length:s}).map((r,i)=>({id:`q-${i}`,prompt:"",focus:"",outcome:"",rubric:"",ideal:""})),De(e),oe(e,2)}function Gn(e){if(!e.pendingAssessmentConfig){p("Buat atau buka penilaian dulu sebelum menambah soal.");return}let t=e.pendingQuestions.length;e.pendingQuestions.push({id:`q-${t}`,prompt:"",focus:"",outcome:"",rubric:"",ideal:""}),De(e)}function Jn(e,t){if(!e.pendingAssessmentConfig){p("Buat atau buka penilaian dulu sebelum menghapus soal.");return}if(e.pendingQuestions.length<=1){p("Minimal harus ada satu soal.");return}t<0||t>=e.pendingQuestions.length||(Xe(e),e.pendingQuestions.splice(t,1),De(e),p("Soal dihapus."))}async function Wn(e){let{els:t}=e;if(!e.pendingAssessmentConfig)return;Xe(e),t.editIsTryout&&(e.pendingAssessmentConfig.isTryout=t.editIsTryout.checked);let a=jn(e.pendingAssessmentConfig,e.pendingQuestions),n=e.state.assessments.findIndex(s=>s.id===a.id);n>=0?(await Ae(a.id,a),e.state.assessments[n]=a):(await Fe(a),e.state.assessments.unshift(a)),e.session.selectAssessment(a.id),e.pendingAssessmentConfig=null,e.pendingQuestions=[],t.form.reset(),t.questionCount.value=Sn,oe(e,1),await I(e)}async function Lr(e){let{els:t}=e;if(!e.pendingAssessmentConfig)return;Xe(e);let a="AI Rubric Alignment";D(t.improveQuestionSet,!0,"Menyelaraskan rubrik & soal...",a),es(e);try{e.pendingQuestions=await Zn(e,e.pendingAssessmentConfig,e.pendingQuestions),ts(e),await new Promise(n=>setTimeout(n,500)),qa(e,t.aiStreamPanel),De(e)}catch(n){p(n.message)}finally{D(t.improveQuestionSet,!1,"Menyelaraskan rubrik & soal...",a)}}function Xe(e){let{els:t}=e;e.pendingQuestions=[...t.editableQuestionList.querySelectorAll(".editable-question")].map((a,n)=>({id:e.pendingQuestions[n]?.id||`q-${n}`,prompt:a.querySelector("[data-field='prompt']").value.trim(),focus:a.querySelector("[data-field='focus']").value.trim(),outcome:a.querySelector("[data-field='outcome']").value.trim(),rubric:e.pendingQuestions[n]?.rubric||"",ideal:a.querySelector("[data-field='ideal']").value.trim(),criteria:e.pendingQuestions[n]?.criteria||[],probing:a.querySelector("[data-field='probing']")?.checked??!!e.pendingQuestions[n]?.probing}))}function De(e){let{els:t}=e;if(!e.pendingAssessmentConfig){t.questionEditor.classList.add("hidden"),t.editableQuestionList.innerHTML="";return}t.questionEditor.classList.remove("hidden"),t.editDisableManualTyping&&(t.editDisableManualTyping.checked=!!e.pendingAssessmentConfig.disableManualTyping),t.editOralExamEnabled&&(t.editOralExamEnabled.checked=e.pendingAssessmentConfig.oralExamEnabled!==!1),t.editAllowRetakes&&(t.editAllowRetakes.checked=!!e.pendingAssessmentConfig.allowRetakes),t.editIsTryout&&(t.editIsTryout.checked=!!e.pendingAssessmentConfig.isTryout),t.editableQuestionList.innerHTML=e.pendingQuestions.map((a,n)=>`
-    <article class="feedback-card editable-question">
-      <div class="question-card-header">
-        <strong>Soal ${n+1}</strong>
-        <button type="button" class="action-button danger-button delete-question" data-index="${n}" aria-label="Hapus soal ${n+1}">Hapus</button>
-      </div>
-      <label>Pertanyaan<textarea data-field="prompt" rows="3">${u(a.prompt)}</textarea></label>
-      <label>Fokus<input data-field="focus" value="${u(a.focus||"")}" /></label>
-      ${Array.isArray(a.criteria)&&a.criteria.length?`<div class="q-criteria-chip">Rubrik yang diukur soal ini: ${a.criteria.map(s=>typeof s=="string"?s:s.name||K(s.id)).map(u).join(" \xB7 ")}</div>`:""}
-      <label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${u(a.outcome||"")}</textarea></label>
-<label>Rubrik penilaian soal ini
-  <div class="rubrik-preview" style="margin-top:6px;">${a.rubric?re(a.rubric):""}</div>
-  <button type="button" class="secondary-button rubrik-builder-toggle" data-index="${n}" style="margin-top: 6px; font-size: 0.85rem;">\u270F\uFE0F Edit Rubrik</button>
-</label>
-<div class="rubrik-builder rubrik-builder-${n}" style="display: none;"></div>
-<label>Jawaban ideal<textarea data-field="ideal" rows="3">${u(a.ideal||"")}</textarea></label>
-      <label class="probing-toggle check-row">
-        <input type="checkbox" data-field="probing" ${a.probing?"checked":""} />
-        <span>\u26A1 <strong>Aktifkan probing</strong> \u2014 siswa mendapat 1 pertanyaan lanjutan berbasis jawabannya setelah menjawab soal ini.</span>
-      </label>
-    </article>
-  `).join(""),Ea(e)}function Ea(e){let{els:t}=e;if(!t.reviewSummary||!e.pendingAssessmentConfig)return;let a=e.pendingAssessmentConfig,n=a.classId,s=e.state.classes.find(l=>l.id===n)?.name||"Kelas tidak dipilih",r=e.pendingQuestions.filter(l=>(l.prompt||"").trim().length>0).length,i=e.pendingQuestions.length,o=Number(a.timeLimit)||0;t.reviewSummary.innerHTML=`
-    <div class="review-block">
-      <h4>Konteks</h4>
-      <dl class="review-list">
-        <div><dt>Topik</dt><dd>${u(a.topic||"-")}</dd></div>
-        <div><dt>Kelas</dt><dd>${u(s)}</dd></div>
-        <div><dt>Tingkat kesulitan</dt><dd>${u(a.difficulty||"-")}</dd></div>
-        <div><dt>Batas waktu per soal</dt><dd>${o>0?Qe(o):"Tanpa batas"}</dd></div>
-        <div><dt>Mode</dt><dd>${a.oralExamEnabled!==!1?"Ujian lisan":"Tulisan"}${a.disableManualTyping?" (typing dimatikan)":""}</dd></div>
-        <div><dt>Retake</dt><dd>${a.allowRetakes?"Diizinkan (tanpa batas)":"Tidak diizinkan"}</dd></div>
-        ${a.maxAttempts>0&&!a.allowRetakes?`<div><dt>Jumlah percobaan</dt><dd>${a.maxAttempts} kali</dd></div>`:""}
-      </dl>
-    </div>
-    <div class="review-block">
-      <h4>Soal</h4>
-      <p class="review-count">${r} dari ${i} soal sudah diisi.</p>
-      ${Tr(e)}
-      <ol class="review-questions">
-        ${e.pendingQuestions.map((l,c)=>`
-          <li class="${(l.prompt||"").trim()?"":"review-empty"}">
-            <strong>Soal ${c+1}</strong>
-            <span>${u(ke(l.prompt||"Belum diisi",120))}</span>
-            ${l.probing?'<span class="review-probing-badge">\u26A1 probing aktif</span>':""}
-          </li>
-        `).join("")}
-      </ol>
-    </div>
-  `}function Ar(e){if(!e)return[];let t=String(e).trim();if(t.startsWith("{"))try{let a=JSON.parse(t);if(a.version==="2"&&Array.isArray(a.criteria))return a.criteria.map(n=>n.name||"").filter(Boolean)}catch{}return t.split(/[;\n,]+/).map(a=>a.replace(/^\d+(\.\d+)?\s*%?\s*/,"").replace(/\s*[-:–]\s*(\d+(\.\d+)?\s*%?)?$/,"").replace(/\s*\(?\d+(\.\d+)?\s*%?\s*\)?$/,"").trim()).filter(a=>a.length>2)}function _n(e){return String(e||"").trim().toLowerCase().replace(/\s+/g," ")}function Tr(e){let{pendingQuestions:t}=e,a=t.filter(i=>Array.isArray(i.criteria)&&i.criteria.length>0);if(a.length===0)return"";let n=new Set;a.forEach(i=>i.criteria.forEach(o=>n.add(_n(typeof o=="string"?o:o.name||o.id))));let s=[...new Set(t.flatMap(i=>Ar(i.rubric)))];if(s.length===0)return"";let r=s.filter(i=>!n.has(_n(i)));return r.length===0?"":`
-    <p class="review-align-warning">\u26A0 Kriteria rubrik berikut belum diukur oleh soal manapun:
-      <strong>${r.map(i=>u(i)).join("; ")}</strong>.
-      Soal baru sebaiknya menanyakannya agar penilaian mencakup seluruh rubrik.</p>
-  `}function oe(e,t){let{els:a}=e;e.currentWizardStep=t,a.wizardPanels.forEach(n=>{n.classList.toggle("hidden",Number(n.dataset.wizardPanel)!==t)}),a.wizardSteps.forEach(n=>{let s=Number(n.dataset.wizardStep),r=s===t;n.classList.toggle("active",r),n.setAttribute("aria-selected",String(r)),n.disabled=s>t}),t===3&&Ea(e)}async function Er(e){await Ca(e,"both")}async function Ca(e,t){let{els:a}=e,n=a.topic.value.trim();if(!n){p("Isi topik atau materi terlebih dahulu."),a.topic.focus();return}let s=a.recommendOutcomes,r="Rekomendasikan kompetensi";D(s,!0,"Membuat rekomendasi...",r),Cr(e);try{let i=await Xn(e,n,a.difficulty.value);(t==="outcomes"||t==="both")&&(a.outcomes.value=i.outcomes),qa(e,a.recommendStreamPanel)}finally{D(s,!1,"Membuat rekomendasi...",r)}}async function Xn(e,t,a){let n="",s=null;try{return await ae({action:"recommend-assessment-config",payload:{topic:t,difficulty:a},onChunk:r=>{n+=r,Mr(e,n)},onResult:r=>{s=r?.recommendation||null}}),s}catch(r){return p(`AI belum tersedia, memakai rekomendasi lokal. Detail: ${r.message}`),Vn(t,a)}}function Cr(e){let{els:t}=e;t.recommendStreamPlaceholder&&t.recommendStreamPlaceholder.classList.remove("hidden"),t.recommendStreamContent&&(t.recommendStreamContent.textContent=""),t.recommendStreamPanel&&t.recommendStreamPanel.classList.remove("hidden"),e&&(e.recommendStreamShown={})}function Mr(e,t){let{els:a}=e;if(!a.recommendStreamContent)return;a.recommendStreamPlaceholder&&!a.recommendStreamPlaceholder.classList.contains("hidden")&&a.recommendStreamPlaceholder.classList.add("hidden");let n=qr(t,"outcomes");e.recommendStreamShown=e.recommendStreamShown||{};let s=e.recommendStreamShown;n!==null&&(s.outcomes=n),s.outcomes!==void 0&&(a.recommendStreamContent.textContent=`\u{1F4CB} Kompetensi:
-${s.outcomes}`,a.recommendStreamContent.scrollTop=a.recommendStreamContent.scrollHeight)}function qr(e,t){let a=`"${t}"`,n=e.indexOf(a);if(n===-1)return null;let s=n+a.length;for(;s<e.length&&(e[s]===" "||e[s]===":");)s+=1;if(e[s]!=='"')return null;s+=1;let r="";for(;s<e.length;){let i=e[s];if(i==="\\"){let o=e[s+1];if(o===void 0)break;if(o==="n"){r+=`
-`,s+=2;continue}if(o==='"'){r+='"',s+=2;continue}if(o==="\\"){r+="\\",s+=2;continue}r+=i,s+=1;continue}if(i==='"')break;r+=i,s+=1}return r}async function Yn(e,t){let a="",n=null;try{return await ae({action:"generate-questions",payload:t,onChunk:s=>{a+=s,Ma(e,a)},onResult:s=>{n=Array.isArray(s?.questions)?s.questions:null}}),n}catch(s){return p(`AI belum tersedia, memakai generator lokal. Detail: ${s.message}`),Hn(t)}}function Ma(e,t){let{els:a}=e;if(!a.aiStreamQuestions)return;a.aiStreamPlaceholder&&!a.aiStreamPlaceholder.classList.contains("hidden")&&a.aiStreamPlaceholder.classList.add("hidden");let s=t.trim().replace(/^```json\s*/i,"").replace(/```$/i,"").trim().match(/\{[\s\S]*\}/);if(!s)return;let r;try{r=JSON.parse(s[0])}catch{return}(Array.isArray(r.questions)?r.questions:[]).forEach((o,l)=>Dr(e,l,o))}async function Pr(e,t,a){let n="",s=null;try{return await ae({action:"improve-questions",payload:{config:t,questions:a},onChunk:r=>{n+=r,Ma(e,n)},onResult:r=>{s=Array.isArray(r?.questions)?r.questions:null}}),s}catch(r){return p(`AI belum tersedia, memakai question set sebelumnya. Detail: ${r.message}`),a}}async function Zn(e,t,a){let n="",s=null;try{return await ae({action:"align-rubric",payload:{config:t,questions:a},onChunk:r=>{n+=r,Ma(e,n)},onResult:r=>{s=Array.isArray(r?.questions)?r.questions:null}}),s}catch(r){return p(`AI belum tersedia, memakai alignment deterministik. Detail: ${r.message}`),a}}function qa(e,t){t&&t.classList.add("hidden")}function es(e){let{els:t}=e;t.aiStreamPlaceholder&&t.aiStreamPlaceholder.classList.remove("hidden"),t.aiStreamQuestions&&(t.aiStreamQuestions.innerHTML=""),t.aiStreamPanel&&(t.aiStreamPanel.classList.remove("hidden"),t.aiStreamPanel.classList.remove("ai-stream-done"))}function Dr(e,t,a){let{els:n}=e;if(!n.aiStreamQuestions)return;let s=(a?.prompt||"").trim();if(!s)return;let r=n.aiStreamQuestions.querySelector(`[data-q-index="${t}"]`),i=r||document.createElement("div");i.className="ai-stream-question",i.dataset.qIndex=t,i.innerHTML=`
-    <span class="ai-q-num">${t+1}</span>
-    <span class="ai-q-text">${u(s)}</span>
-  `,r||n.aiStreamQuestions.appendChild(i)}function ts(e){let{els:t}=e;t.aiStreamPanel&&t.aiStreamPanel.classList.add("ai-stream-done");let a=t.aiStreamQuestions?.querySelector(".ai-stream-question");a&&(a.scrollIntoView({behavior:"smooth",block:"center"}),a.classList.add("ai-stream-focus"))}function St(e,t){let a=e||"Kriteria",n=a.toLowerCase(),s=[`${a} sangat baik, lengkap, dan tepat`,`${a} baik dan memadai`,`${a} cukup, namun masih perlu pengembangan`,`${a} kurang, perlu perbaikan signifikan`];return t.map((r,i)=>({...r,descriptor:r.descriptor||s[i]||""}))}function Pa(e){if(!e||!e.trim())return[{id:"c1",name:"",weight:0,levels:St("",JSON.parse(JSON.stringify(Pe)))}];let t=e.trim();if(t.startsWith("{"))try{let o=JSON.parse(t);if(o.version==="2"&&Array.isArray(o.criteria))return o.criteria.map((l,c)=>({id:l.id||`c${c+1}`,name:l.name||"",weight:l.weight||0,levels:Array.isArray(l.levels)&&l.levels.length===4?St(l.name||"",l.levels.map(d=>({score:d.score,label:d.label||"",descriptor:d.descriptor||""}))):St(l.name||"",JSON.parse(JSON.stringify(Pe)))}))}catch{}let a=[],n=t,s=0,r=0;for(let o=0;o<n.length;o++)if(n[o]==="("||n[o]==="["||n[o]==="{")s++;else if(n[o]===")"||n[o]==="]"||n[o]==="}")s--;else if(s===0&&(n[o]===","||n[o]===";"||n[o]===`
-`)){let l=n.slice(r,o).trim();l&&a.push(l),r=o+1}let i=n.slice(r).trim();return i&&a.push(i),a.length||a.push(""),a.map((o,l)=>{let c=o.trim();c=c.replace(/^[•\-*]\s*/,"").replace(/[.!]+$/,"").trim(),c=c.replace(/,\s*(?=\d+\s*%?$)/," ").trim();let d=0,m=c.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);return m?(c=m[1].trim(),d=Number(m[2])):(m=c.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/),m&&(d=Number(m[1]),c=m[2].trim())),{id:`c${l+1}`,name:c,weight:d,levels:St(c,JSON.parse(JSON.stringify(Pe)))}})}function as(e){return JSON.stringify({version:"2",criteria:e})}function ns(e,t){let a=Pa(t),n=a[0]?.levels||Pe;e.dataset.ready="1",e.innerHTML=`
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-      <strong style="font-size:0.9rem;">Rubrik dengan Gradasi</strong>
-      <button type="button" class="secondary-button rubrik-add" style="padding:4px 12px; font-size:0.85rem;">+ Tambah Kriteria</button>
-    </div>
-    <div class="rubrik-gradation-wrap">
-      <table class="rubrik-gradation">
-        <thead>
-          <tr>
-            <th style="min-width:140px;">Kriteria</th>
-            <th style="min-width:40px;">Bobot</th>
-            ${n.map(s=>`<th class="rubrik-level-${s.score}">${u(s.label)} (${s.score})</th>`).join("")}
-            <th style="width:32px;"></th>
-          </tr>
-        </thead>
-        <tbody class="rubrik-rows">
-          ${a.map((s,r)=>Qn(s,r,n)).join("")}
-        </tbody>
-      </table>
-    </div>
-    <div class="rubrik-weight-sum" data-sum></div>
-  `,e.querySelector(".rubrik-add").addEventListener("click",()=>{let s=e.querySelector(".rubrik-rows"),r=s.children.length,i=document.createElement("tr");i.innerHTML=Qn({id:`c${r+1}`,name:"",weight:0,levels:JSON.parse(JSON.stringify(Pe))},r,n),s.appendChild(i),wt(e)}),e.querySelector(".rubrik-rows").addEventListener("input",()=>wt(e)),e.querySelector(".rubrik-rows").addEventListener("click",s=>{s.target.closest(".rubrik-delete")&&(s.target.closest("tr").remove(),wt(e))}),wt(e)}function Qn(e,t,a){return`
-    <tr class="rubrik-row">
-      <td><input type="text" class="rubrik-name" placeholder="Nama kriteria" value="${u(e.name||"")}" style="width:100%;" /></td>
-      <td><input type="number" class="rubrik-weight" min="0" max="100" step="1" value="${e.weight}" aria-label="Bobot %" style="width:50px;" />%</td>
-      ${a.map((n,s)=>`
-        <td class="rubrik-level-cell rubrik-level-${n.score}">
-          <textarea class="rubrik-desc" rows="2" placeholder="Deskripsi ${n.label.toLowerCase()}..." aria-label="${u(n.label)}">${u(e.levels&&e.levels[s]?.descriptor||"")}</textarea>
-        </td>
-      `).join("")}
-      <td><button type="button" class="action-button danger-button rubrik-delete" aria-label="Hapus">&times;</button></td>
-    </tr>
-  `}function wt(e){let t=[...e.querySelectorAll(".rubrik-rows tr")],a=Pe,n=t.map((o,l)=>({id:`c${l+1}`,name:o.querySelector(".rubrik-name").value.trim(),weight:Number(o.querySelector(".rubrik-weight").value||0),levels:a.map((c,d)=>({score:c.score,label:c.label,descriptor:o.querySelectorAll(".rubrik-desc")[d]?.value?.trim()||""}))})),s=n.reduce((o,l)=>o+(isFinite(l.weight)?l.weight:0),0),r=e.querySelector("[data-sum]");r.textContent=`Total bobot: ${s}% ${s===100?"\u2713":s>100?"(kelebihan)":"(kurang)"}`,r.className=`rubrik-weight-sum ${s===100?"valid":"invalid"}`;let i=e.dataset.qIndex;$t&&i!==void 0&&$t.pendingQuestions[i]&&($t.pendingQuestions[i].rubric=as(n))}function xr(e){if(!e||!e.trim())return"";let t=e.trim();if(t.startsWith("{"))return t;try{let a=Pa(t);return as(a)}catch{return t}}var $t,Pe,We=x(()=>{Ue();B();va();Y();wa();F();H();V();kt();ie();$t=null;Pe=[{score:4,label:"Sangat Baik",descriptor:""},{score:3,label:"Baik",descriptor:""},{score:2,label:"Cukup",descriptor:""},{score:1,label:"Kurang",descriptor:""}]});var is={};Q(is,{bindComplaintEvents:()=>xa,collectComplaints:()=>Ia,notifyStudentComplaintStatus:()=>Br,renderComplaints:()=>ss,updateComplaintBadge:()=>rs});function xa(e){let{els:t}=e;t.complaintList&&t.complaintList.addEventListener("click",async a=>{let n=a.target.closest(".complaint-respond-btn"),s=a.target.closest(".complaint-reject-btn");if(!n&&!s)return;let r=n?.dataset.submissionId||s?.dataset.submissionId,i=Number(n?.dataset.questionIndex??s?.dataset.questionIndex),o=e.state.submissions.find(c=>c.id===r);if(!o)return;let l=o.questionScores[i];if(l?.complaint){if(s){let c=Math.max(0,l.score-20),d=prompt(`Tolak komplain untuk Soal ${i+1}?
+    `).join("");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+async function saveCurrentQuestionsToBank(ctx) {
+  window.__lisanAssessmentWizardBridge?.sync?.();
+  const config = ctx.pendingAssessmentConfig;
+  if (!config || !ctx.pendingQuestions.length) {
+    showToast("Tidak ada soal untuk disimpan", "error");
+    return;
+  }
+  let saved = 0;
+  for (const q of ctx.pendingQuestions) {
+    try {
+      await saveQuestionToBank({
+        topic: config.topic || "",
+        difficulty: config.difficulty || "",
+        prompt: q.prompt,
+        focus: q.focus,
+        outcome: q.outcome,
+        rubric: q.rubric,
+        ideal: q.ideal,
+        criteria: q.criteria
+      });
+      saved++;
+    } catch (err) {
+      showToast(`Gagal menyimpan soal: ${err.message}`, "error");
+    }
+  }
+  showToast(`${saved} soal disimpan ke bank soal`, "success");
+}
+var init_question_bank = __esm({
+  "src/js/question-bank.js"() {
+    init_api();
+    init_toast();
+    init_dom();
+    init_utils();
+    init_app_context();
+    init_render();
+  }
+});
 
-Skor akan dikurangi 20 poin: ${l.score} \u2192 ${c}
+// src/js/assessment-wizard-tail.js
+function renderReviewSummary(ctx) {
+  const { els } = ctx;
+  if (!els.reviewSummary || !ctx.pendingAssessmentConfig) return;
+  const config = ctx.pendingAssessmentConfig;
+  const className = ctx.state.classes.find((c) => c.id === config.classId)?.name || "Kelas tidak dipilih";
+  const answered = ctx.pendingQuestions.filter((q) => (q.prompt || "").trim()).length;
+  const total = ctx.pendingQuestions.length;
+  const timeLimit = Number(config.timeLimit) || 0;
+  els.reviewSummary.innerHTML = `
+    <div class="review-block"><h4>Konteks</h4><dl class="review-list">
+      <div><dt>Topik</dt><dd>${escapeHtml(config.topic || "-")}</dd></div>
+      <div><dt>Kelas</dt><dd>${escapeHtml(className)}</dd></div>
+      <div><dt>Tingkat kesulitan</dt><dd>${escapeHtml(config.difficulty || "-")}</dd></div>
+      <div><dt>Batas waktu per soal</dt><dd>${timeLimit > 0 ? formatTime(timeLimit) : "Tanpa batas"}</dd></div>
+      <div><dt>Mode</dt><dd>${config.oralExamEnabled !== false ? "Ujian lisan" : "Tulisan"}${config.disableManualTyping ? " (typing dimatikan)" : ""}</dd></div>
+      <div><dt>Retake</dt><dd>${config.allowRetakes ? "Diizinkan (tanpa batas)" : "Tidak diizinkan"}</dd></div>
+      ${config.maxAttempts > 0 && !config.allowRetakes ? `<div><dt>Jumlah percobaan</dt><dd>${config.maxAttempts} kali</dd></div>` : ""}
+    </dl></div>
+    <div class="review-block"><h4>Soal</h4>
+      <p class="review-count">${answered} dari ${total} soal sudah diisi.</p>
+      ${renderAlignmentCoverage(ctx)}
+      <ol class="review-questions">${ctx.pendingQuestions.map((q, i) => `<li class="${(q.prompt || "").trim() ? "" : "review-empty"}"><strong>Soal ${i + 1}</strong><span>${escapeHtml(compactText(q.prompt || "Belum diisi", 120))}</span>${q.probing ? `<span class="review-probing-badge">\u26A1 probing aktif</span>` : ""}</li>`).join("")}</ol>
+    </div>`;
+}
+function parseRubricNames(text) {
+  if (!text) return [];
+  const t = String(text).trim();
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria)) return p.criteria.map((c) => c.name || "").filter(Boolean);
+    } catch {
+    }
+  }
+  return t.split(/[;\n,]+/).map((s) => s.replace(/^\d+(\.\d+)?\s*%?\s*/, "").replace(/\s*[-:–]\s*(\d+(\.\d+)?\s*%?)?$/, "").replace(/\s*\(?\d+(\.\d+)?\s*%?\s*\)?$/, "").trim()).filter((s) => s.length > 2);
+}
+function normalizeCoverageKey(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+function renderAlignmentCoverage(ctx) {
+  const questions = ctx.pendingQuestions || [];
+  const covered = new Set(questions.flatMap((q) => Array.isArray(q.criteria) ? q.criteria.map((c) => normalizeCoverageKey(typeof c === "string" ? c : c.name || c.id)) : []));
+  const expected = [...new Set(questions.flatMap((q) => parseRubricNames(q.rubric)))];
+  const uncovered = expected.filter((name) => !covered.has(normalizeCoverageKey(name)));
+  if (!uncovered.length) return "";
+  return `<p class="review-align-warning">\u26A0 Kriteria rubrik berikut belum diukur oleh soal manapun: <strong>${uncovered.map(escapeHtml).join("; ")}</strong>.</p>`;
+}
+function goToWizardStep(ctx, step) {
+  const { els } = ctx;
+  ctx.currentWizardStep = step;
+  els.wizardPanels.forEach((panel) => panel.classList.toggle("hidden", Number(panel.dataset.wizardPanel) !== step));
+  els.wizardSteps.forEach((btn) => {
+    const active = Number(btn.dataset.wizardStep) === step;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    btn.disabled = Number(btn.dataset.wizardStep) > step;
+  });
+  if (step === 3) renderReviewSummary(ctx);
+}
+async function fillRecommendedFields(ctx, target) {
+  const { els } = ctx;
+  const topic = els.topic.value.trim();
+  if (!topic) {
+    showToast("Isi topik atau materi terlebih dahulu.");
+    els.topic.focus();
+    return;
+  }
+  const button = els.recommendOutcomes;
+  const defaultText = "Rekomendasikan kompetensi";
+  try {
+    button && (button.disabled = true);
+    showRecommendStreamPlaceholder(ctx);
+    const recommendation = await recommendConfigWithFallback(ctx, topic, els.difficulty.value);
+    if (recommendation && (target === "outcomes" || target === "both")) els.outcomes.value = recommendation.outcomes || "";
+    hideStreamPanel(ctx, els.recommendStreamPanel);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+async function recommendConfigWithFallback(ctx, topic, difficulty) {
+  let raw = "";
+  let recommendation = null;
+  try {
+    await streamAssessmentAction({ action: "recommend-assessment-config", payload: { topic, difficulty }, onChunk: (text) => {
+      raw += text;
+      renderRecommendStream(ctx, raw);
+    }, onResult: (data) => {
+      recommendation = data?.recommendation || null;
+    } });
+    return recommendation || recommendFallbackConfig(topic, difficulty);
+  } catch (error) {
+    showToast(`AI belum tersedia, memakai rekomendasi lokal. Detail: ${error.message}`);
+    return recommendFallbackConfig(topic, difficulty);
+  }
+}
+function showRecommendStreamPlaceholder(ctx) {
+  const { els } = ctx;
+  els.recommendStreamPlaceholder?.classList.remove("hidden");
+  if (els.recommendStreamContent) els.recommendStreamContent.textContent = "";
+  els.recommendStreamPanel?.classList.remove("hidden");
+  ctx.recommendStreamShown = {};
+}
+function renderRecommendStream(ctx, raw) {
+  const { els } = ctx;
+  if (!els.recommendStreamContent) return;
+  els.recommendStreamPlaceholder?.classList.add("hidden");
+  const value = extractStreamedField(raw, "outcomes");
+  ctx.recommendStreamShown = ctx.recommendStreamShown || {};
+  if (value !== null) ctx.recommendStreamShown.outcomes = value;
+  if (ctx.recommendStreamShown.outcomes !== void 0) {
+    els.recommendStreamContent.textContent = `\u{1F4CB} Kompetensi:
+${ctx.recommendStreamShown.outcomes}`;
+    els.recommendStreamContent.scrollTop = els.recommendStreamContent.scrollHeight;
+  }
+}
+function extractStreamedField(raw, field) {
+  const keyIdx = String(raw || "").indexOf(`"${field}"`);
+  if (keyIdx < 0) return null;
+  let i = keyIdx + field.length + 2;
+  while (i < raw.length && (raw[i] === " " || raw[i] === ":")) i++;
+  if (raw[i] !== '"') return null;
+  i++;
+  let out = "";
+  for (; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === "\\") {
+      const n = raw[++i];
+      if (n === "n") out += "\n";
+      else if (n === '"') out += '"';
+      else if (n === "\\") out += "\\";
+      else out += n || "";
+    } else if (ch === '"') break;
+    else out += ch;
+  }
+  return out;
+}
+async function generateQuestionsWithFallback(ctx, config) {
+  let raw = "";
+  let questions = null;
+  try {
+    await streamAssessmentAction({ action: "generate-questions", payload: config, onChunk: (text) => {
+      raw += text;
+      renderStreamedQuestionsFromRaw(ctx, raw);
+    }, onResult: (data) => {
+      questions = Array.isArray(data?.questions) ? data.questions : null;
+    } });
+    return questions;
+  } catch (error) {
+    showToast(`AI belum tersedia, memakai generator lokal. Detail: ${error.message}`);
+    return generateFallbackQuestions(config);
+  }
+}
+function renderStreamedQuestionsFromRaw(ctx, raw) {
+  const { els } = ctx;
+  if (!els.aiStreamQuestions) return;
+  els.aiStreamPlaceholder?.classList.add("hidden");
+  const trimmed = String(raw || "").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  const match = trimmed.match(/\{[\s\S]*\}/);
+  if (!match) return;
+  try {
+    const parsed = JSON.parse(match[0]);
+    (Array.isArray(parsed.questions) ? parsed.questions : []).forEach((q, i) => renderStreamedQuestion(ctx, i, q));
+  } catch {
+  }
+}
+async function alignRubricWithFallback(ctx, config, questions) {
+  let raw = "";
+  let aligned = null;
+  try {
+    await streamAssessmentAction({ action: "align-rubric", payload: { config, questions }, onChunk: (text) => {
+      raw += text;
+      renderStreamedQuestionsFromRaw(ctx, raw);
+    }, onResult: (data) => {
+      aligned = Array.isArray(data?.questions) ? data.questions : null;
+    } });
+    return aligned || questions;
+  } catch (error) {
+    showToast(`AI belum tersedia, memakai alignment deterministik. Detail: ${error.message}`);
+    return questions;
+  }
+}
+function hideStreamPanel(ctx, panel) {
+  panel?.classList.add("hidden");
+}
+function showQuestionStreamPlaceholder(ctx) {
+  const { els } = ctx;
+  els.aiStreamPlaceholder?.classList.remove("hidden");
+  if (els.aiStreamQuestions) els.aiStreamQuestions.innerHTML = "";
+  els.aiStreamPanel?.classList.remove("hidden");
+  els.aiStreamPanel?.classList.remove("ai-stream-done");
+}
+function renderStreamedQuestion(ctx, index, question) {
+  const { els } = ctx;
+  const prompt2 = String(question?.prompt || "").trim();
+  if (!els.aiStreamQuestions || !prompt2) return;
+  let card = els.aiStreamQuestions.querySelector(`[data-q-index="${index}"]`);
+  if (!card) {
+    card = document.createElement("div");
+    card.dataset.qIndex = index;
+    els.aiStreamQuestions.appendChild(card);
+  }
+  card.className = "ai-stream-question";
+  card.innerHTML = `<span class="ai-q-num">${index + 1}</span><span class="ai-q-text">${escapeHtml(prompt2)}</span>`;
+}
+function finishQuestionStream(ctx) {
+  const { els } = ctx;
+  els.aiStreamPanel?.classList.add("ai-stream-done");
+  const first = els.aiStreamQuestions?.querySelector(".ai-stream-question");
+  if (first) {
+    first.scrollIntoView({ behavior: "smooth", block: "center" });
+    first.classList.add("ai-stream-focus");
+  }
+}
+function fillLevelDescriptors(name, levels) {
+  const templates = [`${name || "Kriteria"} sangat baik, lengkap, dan tepat`, `${name || "Kriteria"} baik dan memadai`, `${name || "Kriteria"} cukup, namun masih perlu pengembangan`, `${name || "Kriteria"} kurang, perlu perbaikan signifikan`];
+  return levels.map((l, i) => ({ ...l, descriptor: l.descriptor || templates[i] || "" }));
+}
+function parseRubricToCriteria2(text) {
+  if (!text || !String(text).trim()) return [{ id: "c1", name: "", weight: 0, levels: fillLevelDescriptors("", structuredClone(DEFAULT_LEVELS2)) }];
+  const t = String(text).trim();
+  if (t.startsWith("{")) {
+    try {
+      const p = JSON.parse(t);
+      if (p.version === "2" && Array.isArray(p.criteria)) return p.criteria.map((c, i) => ({ id: c.id || `c${i + 1}`, name: c.name || "", weight: c.weight || 0, levels: fillLevelDescriptors(c.name || "", Array.isArray(c.levels) && c.levels.length === 4 ? c.levels : structuredClone(DEFAULT_LEVELS2)) }));
+    } catch {
+    }
+  }
+  const lines = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < t.length; i++) {
+    if (["(", "[", "{"].includes(t[i])) depth++;
+    else if ([")", "]", "}"].includes(t[i])) depth--;
+    else if (depth === 0 && [",", ";", "\n"].includes(t[i])) {
+      const seg = t.slice(start, i).trim();
+      if (seg) lines.push(seg);
+      start = i + 1;
+    }
+  }
+  const last = t.slice(start).trim();
+  if (last) lines.push(last);
+  if (!lines.length) lines.push("");
+  return lines.map((line, i) => {
+    let name = line.replace(/^[•\-*]\s*/, "").replace(/[.!]+$/, "").trim();
+    name = name.replace(/,\s*(?=\d+\s*%?$)/, " ").trim();
+    let weight = 0;
+    let m = name.match(/^(.+?)\s*[-:–]?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?\s*\)?$/);
+    if (m) {
+      name = m[1].trim();
+      weight = Number(m[2]);
+    } else {
+      m = name.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
+      if (m) {
+        weight = Number(m[1]);
+        name = m[2].trim();
+      }
+    }
+    return { id: `c${i + 1}`, name, weight, levels: fillLevelDescriptors(name, structuredClone(DEFAULT_LEVELS2)) };
+  });
+}
+function formatCriteriaToJson(criteria) {
+  return JSON.stringify({ version: "2", criteria });
+}
+function renderRubrikBuilder(el, rubricText) {
+  const criteria = parseRubricToCriteria2(rubricText);
+  const levels = criteria[0]?.levels || DEFAULT_LEVELS2;
+  el.dataset.ready = "1";
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.9rem;">Rubrik dengan Gradasi</strong><button type="button" class="secondary-button rubrik-add" style="padding:4px 12px;font-size:0.85rem;">+ Tambah Kriteria</button></div><div class="rubrik-gradation-wrap"><table class="rubrik-gradation"><thead><tr><th style="min-width:140px;">Kriteria</th><th style="min-width:40px;">Bobot</th>${levels.map((l) => `<th class="rubrik-level-${l.score}">${escapeHtml(l.label)} (${l.score})</th>`).join("")}<th style="width:32px;"></th></tr></thead><tbody class="rubrik-rows">${criteria.map((c, i) => rubrikGradationRow(c, i, levels)).join("")}</tbody></table></div><div class="rubrik-weight-sum" data-sum></div>`;
+  el.querySelector(".rubrik-add")?.addEventListener("click", () => {
+    const tbody = el.querySelector(".rubrik-rows");
+    const idx = tbody.children.length;
+    const row = document.createElement("tr");
+    row.innerHTML = rubrikGradationRow({ id: `c${idx + 1}`, name: "", weight: 0, levels: structuredClone(DEFAULT_LEVELS2) }, idx, levels);
+    tbody.appendChild(row);
+    updateRubrik(el);
+  });
+  el.querySelector(".rubrik-rows")?.addEventListener("input", () => updateRubrik(el));
+  el.querySelector(".rubrik-rows")?.addEventListener("click", (e) => {
+    if (e.target.closest(".rubrik-delete")) {
+      e.target.closest("tr").remove();
+      updateRubrik(el);
+    }
+  });
+  updateRubrik(el);
+}
+function rubrikGradationRow(c, idx, levels) {
+  return `<tr class="rubrik-row"><td><input type="text" class="rubrik-name" placeholder="Nama kriteria" value="${escapeHtml(c.name || "")}" style="width:100%;" /></td><td><input type="number" class="rubrik-weight" min="0" max="100" step="1" value="${c.weight}" aria-label="Bobot %" style="width:50px;" />%</td>${levels.map((l, li) => `<td class="rubrik-level-cell rubrik-level-${l.score}"><textarea class="rubrik-desc" rows="2" placeholder="Deskripsi ${l.label.toLowerCase()}..." aria-label="${escapeHtml(l.label)}">${escapeHtml(c.levels?.[li]?.descriptor || "")}</textarea></td>`).join("")}<td><button type="button" class="action-button danger-button rubrik-delete" aria-label="Hapus">&times;</button></td></tr>`;
+}
+function updateRubrik(el) {
+  const rows = [...el.querySelectorAll(".rubrik-rows tr")];
+  const criteria = rows.map((r, i) => ({ id: `c${i + 1}`, name: r.querySelector(".rubrik-name")?.value.trim() || "", weight: Number(r.querySelector(".rubrik-weight")?.value || 0), levels: DEFAULT_LEVELS2.map((l, li) => ({ score: l.score, label: l.label, descriptor: r.querySelectorAll(".rubrik-desc")[li]?.value?.trim() || "" })) }));
+  const sum = criteria.reduce((a, c) => a + (Number.isFinite(c.weight) ? c.weight : 0), 0);
+  const sumEl = el.querySelector("[data-sum]");
+  if (sumEl) {
+    sumEl.textContent = `Total bobot: ${sum}% ${sum === 100 ? "\u2713" : sum > 100 ? "(kelebihan)" : "(kurang)"}`;
+    sumEl.className = `rubrik-weight-sum ${sum === 100 ? "valid" : "invalid"}`;
+  }
+  const bridge = window.__lisanAssessmentWizardBridge;
+  const qIndex = el.dataset.qIndex;
+  if (bridge?.ctx && qIndex !== void 0 && bridge.ctx.pendingQuestions[qIndex]) bridge.ctx.pendingQuestions[qIndex].rubric = formatCriteriaToJson(criteria);
+}
+function convertLegacyRubricToJson(text) {
+  if (!text || !String(text).trim()) return "";
+  const t = String(text).trim();
+  if (t.startsWith("{")) return t;
+  try {
+    return formatCriteriaToJson(parseRubricToCriteria2(t));
+  } catch {
+    return t;
+  }
+}
+var DEFAULT_LEVELS2;
+var init_assessment_wizard_tail = __esm({
+  "src/js/assessment-wizard-tail.js"() {
+    init_api();
+    init_fallback_assessment();
+    init_toast();
+    init_utils();
+    init_render();
+    DEFAULT_LEVELS2 = [
+      { score: 4, label: "Sangat Baik", descriptor: "" },
+      { score: 3, label: "Baik", descriptor: "" },
+      { score: 2, label: "Cukup", descriptor: "" },
+      { score: 1, label: "Kurang", descriptor: "" }
+    ];
+  }
+});
 
-Tuliskan penjelasan untuk siswa (opsional):`,"");if(d===null)return;l.score=c,l.complaint={...l.complaint,status:"rejected",response:String(d||"").trim(),resolvedAt:new Date().toISOString()}}else{let c=prompt(`Re-evaluasi Soal ${i+1} (skor saat ini: ${l.score}):
-Masukkan skor baru (0-100):`,l.score);if(c===null)return;let d=parseInt(c,10);if(isNaN(d)||d<0||d>100){p("Skor tidak valid. Harus angka 0-100","error");return}let m=prompt("Respon untuk siswa (penjelasan keputusan):","");if(m===null)return;l.score=d,l.complaint={...l.complaint,status:"resolved",response:String(m||"").trim(),resolvedAt:new Date().toISOString()}}o.finalScore=Math.round(o.questionScores.reduce((c,d)=>c+d.score,0)/o.questionScores.length);try{await X(o),p("Komplain berhasil diproses","success"),ss(e),rs(e),I(e)}catch(c){p(c.message,"error")}}})}function Ia(e){let t=[];for(let a of e.state.submissions)(a.questionScores||[]).forEach((n,s)=>{n.complaint&&t.push({submissionId:a.id,studentName:a.studentName,assessmentTitle:a.assessmentTitle,questionIndex:s,question:n.question,answer:n.answer,score:n.score,complaint:n.complaint})});return{pending:t.filter(a=>a.complaint.status==="pending"),resolved:t.filter(a=>a.complaint.status==="resolved"),rejected:t.filter(a=>a.complaint.status==="rejected")}}function ss(e){let{els:t}=e;if(!t.complaintList)return;let{pending:a,resolved:n,rejected:s}=Ia(e);if(t.complaintCount.textContent=String(a.length),!a.length&&!n.length&&!s.length){t.complaintList.className="complaint-list empty-state",t.complaintList.innerHTML="Belum ada komplain.";return}t.complaintList.className="complaint-list",t.complaintList.innerHTML=`
-    ${Da("Menunggu",a,"complaint-pending")}
-    ${Da("Selesai",n,"complaint-resolved")}
-    ${Da("Ditolak",s,"complaint-rejected")}
-  `}function Da(e,t,a){return t.length?`
+// src/js/assessment-wizard.js
+var assessment_wizard_exports = {};
+__export(assessment_wizard_exports, {
+  bindAssessmentWizardEvents: () => bindAssessmentWizardEvents,
+  handleAddManualQuestion: () => handleAddManualQuestion,
+  handleAssessmentSubmit: () => handleAssessmentSubmit,
+  handleCreateManualAssessment: () => handleCreateManualAssessment,
+  handleDeleteQuestion: () => handleDeleteQuestion,
+  improvePendingQuestionSet: () => improvePendingQuestionSet,
+  renderQuestionEditor: () => renderQuestionEditor,
+  savePendingQuestionSet: () => savePendingQuestionSet,
+  syncQuestionsFromEditor: () => syncQuestionsFromEditor
+});
+function bindAssessmentWizardEvents(ctx) {
+  _wizardCtx = ctx;
+  window.__lisanAssessmentWizardBridge = {
+    get ctx() {
+      return _wizardCtx;
+    },
+    sync() {
+      if (_wizardCtx) syncQuestionsFromEditor(_wizardCtx);
+    },
+    render() {
+      if (_wizardCtx) renderQuestionEditor(_wizardCtx);
+    }
+  };
+  const { els } = ctx;
+  els.form.addEventListener("submit", (event) => handleAssessmentSubmit(ctx, event));
+  if (els.createManualAssessment) els.createManualAssessment.addEventListener("click", (event) => handleCreateManualAssessment(ctx, event));
+  els.saveQuestionSet.addEventListener("click", () => savePendingQuestionSet(ctx));
+  if (els.addManualQuestion) els.addManualQuestion.addEventListener("click", () => handleAddManualQuestion(ctx));
+  if (els.saveToBankBtn) els.saveToBankBtn.addEventListener("click", () => saveCurrentQuestionsToBank(ctx));
+  els.editableQuestionList.addEventListener("click", (event) => {
+    const deleteBtn = event.target.closest(".delete-question");
+    if (deleteBtn) handleDeleteQuestion(ctx, Number(deleteBtn.dataset.index));
+  });
+  els.editableQuestionList.addEventListener("click", (event) => {
+    const toggle = event.target.closest(".rubrik-builder-toggle");
+    if (!toggle) return;
+    const index = toggle.dataset.index;
+    const builder = document.querySelector(`.rubrik-builder-${index}`);
+    if (!builder) return;
+    const isHidden = builder.style.display === "none" || !builder.style.display;
+    builder.style.display = isHidden ? "grid" : "none";
+    if (isHidden) {
+      builder.dataset.qIndex = index;
+      renderRubrikBuilder(builder, ctx.pendingQuestions[index]?.rubric || "");
+    } else {
+      const preview = toggle.closest("label")?.querySelector(".rubrik-preview");
+      if (preview && ctx.pendingQuestions[index]?.rubric) preview.innerHTML = renderRubricTable(ctx.pendingQuestions[index].rubric);
+    }
+  });
+  if (els.wizardToQuestions) els.wizardToQuestions.addEventListener("click", () => {
+    const config = readAssessmentForm(els);
+    if (!config.topic) {
+      showToast("Isi topik atau materi terlebih dahulu.");
+      els.topic.focus();
+      return;
+    }
+    if (!config.outcomes) {
+      showToast("Isi kompetensi / capaian pembelajaran terlebih dahulu.");
+      els.outcomes.focus();
+      return;
+    }
+    if (!config.classId) {
+      showToast("Pilih kelas tujuan terlebih dahulu.");
+      els.classSelect.focus();
+      return;
+    }
+    ctx.pendingAssessmentConfig = config;
+    goToWizardStep(ctx, 2);
+  });
+  if (els.wizardBackToContext) els.wizardBackToContext.addEventListener("click", () => goToWizardStep(ctx, 1));
+  if (els.wizardToReview) els.wizardToReview.addEventListener("click", () => {
+    if (!ctx.pendingAssessmentConfig) {
+      showToast("Buat atau buka penilaian dulu sebelum meninjau.");
+      return;
+    }
+    syncQuestionsFromEditor(ctx);
+    goToWizardStep(ctx, 3);
+  });
+  if (els.wizardBackToQuestions) els.wizardBackToQuestions.addEventListener("click", () => goToWizardStep(ctx, 2));
+  els.wizardSteps.forEach((btn) => btn.addEventListener("click", () => {
+    const step = Number(btn.dataset.wizardStep);
+    if (step <= ctx.currentWizardStep) goToWizardStep(ctx, step);
+  }));
+  if (els.editDisableManualTyping) els.editDisableManualTyping.addEventListener("change", (e) => {
+    if (ctx.pendingAssessmentConfig) ctx.pendingAssessmentConfig.disableManualTyping = e.target.checked;
+  });
+  if (els.editOralExamEnabled) els.editOralExamEnabled.addEventListener("change", (e) => {
+    if (ctx.pendingAssessmentConfig) ctx.pendingAssessmentConfig.oralExamEnabled = e.target.checked;
+  });
+  if (els.editAllowRetakes) els.editAllowRetakes.addEventListener("change", (e) => {
+    if (ctx.pendingAssessmentConfig) ctx.pendingAssessmentConfig.allowRetakes = e.target.checked;
+  });
+  els.recommendOutcomes.addEventListener("click", () => fillRecommendedFields(ctx, "outcomes"));
+}
+async function handleAssessmentSubmit(ctx, event) {
+  event.preventDefault();
+  const { els } = ctx;
+  const config = readAssessmentForm(els);
+  if (!config.classId) {
+    showToast("Pilih kelas tujuan terlebih dahulu.");
+    return;
+  }
+  setButtonLoading(event.submitter, true, "Menghubungi AI...", "Buat soal dengan AI");
+  showQuestionStreamPlaceholder(ctx);
+  try {
+    const questions = await generateQuestionsWithFallback(ctx, config);
+    ctx.pendingAssessmentConfig = config;
+    ctx.pendingQuestions = questions.map((q) => ({ ...q, rubric: q.rubric ? convertLegacyRubricToJson(q.rubric) : "" }));
+    finishQuestionStream(ctx);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    hideStreamPanel(ctx, els.aiStreamPanel);
+    renderQuestionEditor(ctx);
+    goToWizardStep(ctx, 2);
+  } finally {
+    setButtonLoading(event.submitter, false, "Menghubungi AI...", "Buat soal dengan AI");
+  }
+}
+function handleCreateManualAssessment(ctx) {
+  const { els } = ctx;
+  const config = readAssessmentForm(els);
+  if (!config.classId) {
+    showToast("Pilih kelas tujuan terlebih dahulu.");
+    return;
+  }
+  ctx.pendingAssessmentConfig = config;
+  const count = Math.max(1, Number(config.count) || 1);
+  ctx.pendingQuestions = Array.from({ length: count }).map((_, i) => ({ id: `q-${i}`, prompt: "", focus: "", outcome: "", rubric: "", ideal: "" }));
+  renderQuestionEditor(ctx);
+  goToWizardStep(ctx, 2);
+}
+function handleAddManualQuestion(ctx) {
+  if (!ctx.pendingAssessmentConfig) {
+    showToast("Buat atau buka penilaian dulu sebelum menambah soal.");
+    return;
+  }
+  syncQuestionsFromEditor(ctx);
+  const idx = ctx.pendingQuestions.length;
+  ctx.pendingQuestions.push({ id: `q-${idx}`, prompt: "", focus: "", outcome: "", rubric: "", ideal: "" });
+  renderQuestionEditor(ctx);
+}
+function handleDeleteQuestion(ctx, index) {
+  if (!ctx.pendingAssessmentConfig) {
+    showToast("Buat atau buka penilaian dulu sebelum menghapus soal.");
+    return;
+  }
+  if (ctx.pendingQuestions.length <= 1) {
+    showToast("Minimal harus ada satu soal.");
+    return;
+  }
+  if (index < 0 || index >= ctx.pendingQuestions.length) return;
+  syncQuestionsFromEditor(ctx);
+  ctx.pendingQuestions.splice(index, 1);
+  renderQuestionEditor(ctx);
+  showToast("Soal dihapus.");
+}
+async function savePendingQuestionSet(ctx) {
+  const { els } = ctx;
+  if (!ctx.pendingAssessmentConfig) return;
+  syncQuestionsFromEditor(ctx);
+  if (els.editIsTryout) ctx.pendingAssessmentConfig.isTryout = els.editIsTryout.checked;
+  const assessment = createAssessment(ctx.pendingAssessmentConfig, ctx.pendingQuestions);
+  const existingIndex = ctx.state.assessments.findIndex((a) => a.id === assessment.id);
+  if (existingIndex >= 0) {
+    await updateAssessment(assessment.id, assessment);
+    ctx.state.assessments[existingIndex] = assessment;
+  } else {
+    await saveAssessmentToDatabase(assessment);
+    ctx.state.assessments.unshift(assessment);
+  }
+  ctx.session.selectAssessment(assessment.id);
+  ctx.pendingAssessmentConfig = null;
+  ctx.pendingQuestions = [];
+  els.form.reset();
+  els.questionCount.value = DEFAULT_QUESTION_COUNT;
+  goToWizardStep(ctx, 1);
+  await renderCurrentState2(ctx);
+}
+async function improvePendingQuestionSet(ctx) {
+  const { els } = ctx;
+  if (!ctx.pendingAssessmentConfig) return;
+  syncQuestionsFromEditor(ctx);
+  const defaultText = "AI Rubric Alignment";
+  setButtonLoading(els.improveQuestionSet, true, "Menyelaraskan rubrik & soal...", defaultText);
+  showQuestionStreamPlaceholder(ctx);
+  try {
+    ctx.pendingQuestions = await alignRubricWithFallback(ctx, ctx.pendingAssessmentConfig, ctx.pendingQuestions);
+    finishQuestionStream(ctx);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    hideStreamPanel(ctx, els.aiStreamPanel);
+    renderQuestionEditor(ctx);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setButtonLoading(els.improveQuestionSet, false, "Menyelaraskan rubrik & soal...", defaultText);
+  }
+}
+function syncQuestionsFromEditor(ctx) {
+  const { els } = ctx;
+  ctx.pendingQuestions = [...els.editableQuestionList.querySelectorAll(".editable-question")].map((item, index) => ({ id: ctx.pendingQuestions[index]?.id || `q-${index}`, prompt: item.querySelector("[data-field='prompt']").value.trim(), focus: item.querySelector("[data-field='focus']").value.trim(), outcome: item.querySelector("[data-field='outcome']").value.trim(), rubric: ctx.pendingQuestions[index]?.rubric || "", ideal: item.querySelector("[data-field='ideal']").value.trim(), criteria: ctx.pendingQuestions[index]?.criteria || [], probing: item.querySelector("[data-field='probing']")?.checked ?? !!ctx.pendingQuestions[index]?.probing }));
+}
+function renderQuestionEditor(ctx) {
+  const { els } = ctx;
+  if (!ctx.pendingAssessmentConfig) {
+    els.questionEditor.classList.add("hidden");
+    els.editableQuestionList.innerHTML = "";
+    return;
+  }
+  els.questionEditor.classList.remove("hidden");
+  if (els.editDisableManualTyping) els.editDisableManualTyping.checked = !!ctx.pendingAssessmentConfig.disableManualTyping;
+  if (els.editOralExamEnabled) els.editOralExamEnabled.checked = ctx.pendingAssessmentConfig.oralExamEnabled !== false;
+  if (els.editAllowRetakes) els.editAllowRetakes.checked = !!ctx.pendingAssessmentConfig.allowRetakes;
+  if (els.editIsTryout) els.editIsTryout.checked = !!ctx.pendingAssessmentConfig.isTryout;
+  els.editableQuestionList.innerHTML = ctx.pendingQuestions.map((question, index) => `<article class="feedback-card editable-question"><div class="question-card-header"><strong>Soal ${index + 1}</strong><button type="button" class="action-button danger-button delete-question" data-index="${index}" aria-label="Hapus soal ${index + 1}">Hapus</button></div><label>Pertanyaan<textarea data-field="prompt" rows="3">${escapeHtml(question.prompt)}</textarea></label><label>Fokus<input data-field="focus" value="${escapeHtml(question.focus || "")}" /></label>${Array.isArray(question.criteria) && question.criteria.length ? `<div class="q-criteria-chip">Rubrik yang diukur soal ini: ${question.criteria.map((c) => typeof c === "string" ? c : c.name || prettifyId(c.id)).map(escapeHtml).join(" \xB7 ")}</div>` : ""}<label>Learning outcome (kompetensi yang diukur)<textarea data-field="outcome" rows="2">${escapeHtml(question.outcome || "")}</textarea></label><label>Rubrik penilaian soal ini<div class="rubrik-preview" style="margin-top:6px;">${question.rubric ? renderRubricTable(question.rubric) : ""}</div><button type="button" class="secondary-button rubrik-builder-toggle" data-index="${index}" style="margin-top: 6px; font-size: 0.85rem;">\u270F\uFE0F Edit Rubrik</button></label><div class="rubrik-builder rubrik-builder-${index}" style="display: none;"></div><label>Jawaban ideal<textarea data-field="ideal" rows="3">${escapeHtml(question.ideal || "")}</textarea></label><label class="probing-toggle check-row"><input type="checkbox" data-field="probing" ${question.probing ? "checked" : ""} /><span>\u26A1 <strong>Aktifkan probing</strong> \u2014 siswa mendapat 1 pertanyaan lanjutan berbasis jawabannya setelah menjawab soal ini.</span></label></article>`).join("");
+  renderReviewSummary(ctx);
+}
+var _wizardCtx;
+var init_assessment_wizard = __esm({
+  "src/js/assessment-wizard.js"() {
+    init_config();
+    init_api();
+    init_assessment_factory();
+    init_dom();
+    init_fallback_assessment();
+    init_toast();
+    init_utils();
+    init_app_context();
+    init_question_bank();
+    init_render();
+    init_assessment_wizard_tail();
+    _wizardCtx = null;
+  }
+});
+
+// src/js/complaints.js
+var complaints_exports = {};
+__export(complaints_exports, {
+  bindComplaintEvents: () => bindComplaintEvents,
+  collectComplaints: () => collectComplaints,
+  notifyStudentComplaintStatus: () => notifyStudentComplaintStatus,
+  renderComplaints: () => renderComplaints,
+  updateComplaintBadge: () => updateComplaintBadge
+});
+function bindComplaintEvents(ctx) {
+  const { els } = ctx;
+  if (els.complaintList) {
+    els.complaintList.addEventListener("click", async (e) => {
+      const respondBtn = e.target.closest(".complaint-respond-btn");
+      const rejectBtn = e.target.closest(".complaint-reject-btn");
+      if (!respondBtn && !rejectBtn) return;
+      const submissionId = respondBtn?.dataset.submissionId || rejectBtn?.dataset.submissionId;
+      const questionIndex = Number(respondBtn?.dataset.questionIndex ?? rejectBtn?.dataset.questionIndex);
+      const submission = ctx.state.submissions.find((s) => s.id === submissionId);
+      if (!submission) return;
+      const qs = submission.questionScores[questionIndex];
+      if (!qs?.complaint) return;
+      if (rejectBtn) {
+        const newScore = Math.max(0, qs.score - 20);
+        const response = prompt(
+          `Tolak komplain untuk Soal ${questionIndex + 1}?
+
+Skor akan dikurangi 20 poin: ${qs.score} \u2192 ${newScore}
+
+Tuliskan penjelasan untuk siswa (opsional):`,
+          ""
+        );
+        if (response === null) return;
+        qs.score = newScore;
+        qs.complaint = {
+          ...qs.complaint,
+          status: "rejected",
+          response: String(response || "").trim(),
+          resolvedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      } else {
+        const newScoreStr = prompt(
+          `Re-evaluasi Soal ${questionIndex + 1} (skor saat ini: ${qs.score}):
+Masukkan skor baru (0-100):`,
+          qs.score
+        );
+        if (newScoreStr === null) return;
+        const scoreVal = parseInt(newScoreStr, 10);
+        if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
+          showToast("Skor tidak valid. Harus angka 0-100", "error");
+          return;
+        }
+        const response = prompt("Respon untuk siswa (penjelasan keputusan):", "");
+        if (response === null) return;
+        qs.score = scoreVal;
+        qs.complaint = {
+          ...qs.complaint,
+          status: "resolved",
+          response: String(response || "").trim(),
+          resolvedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+      submission.finalScore = Math.round(
+        submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
+      );
+      try {
+        await saveSubmissionToDatabase(submission);
+        showToast("Komplain berhasil diproses", "success");
+        renderComplaints(ctx);
+        updateComplaintBadge(ctx);
+        renderCurrentState2(ctx);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+  }
+}
+function collectComplaints(ctx) {
+  const entries = [];
+  for (const submission of ctx.state.submissions) {
+    (submission.questionScores || []).forEach((qs, questionIndex) => {
+      if (!qs.complaint) return;
+      entries.push({
+        submissionId: submission.id,
+        studentName: submission.studentName,
+        assessmentTitle: submission.assessmentTitle,
+        questionIndex,
+        question: qs.question,
+        answer: qs.answer,
+        score: qs.score,
+        complaint: qs.complaint
+      });
+    });
+  }
+  return {
+    pending: entries.filter((e) => e.complaint.status === "pending"),
+    resolved: entries.filter((e) => e.complaint.status === "resolved"),
+    rejected: entries.filter((e) => e.complaint.status === "rejected")
+  };
+}
+function renderComplaints(ctx) {
+  const { els } = ctx;
+  if (!els.complaintList) return;
+  const { pending, resolved, rejected } = collectComplaints(ctx);
+  els.complaintCount.textContent = String(pending.length);
+  if (!pending.length && !resolved.length && !rejected.length) {
+    els.complaintList.className = "complaint-list empty-state";
+    els.complaintList.innerHTML = "Belum ada komplain.";
+    return;
+  }
+  els.complaintList.className = "complaint-list";
+  els.complaintList.innerHTML = `
+    ${renderComplaintGroup("Menunggu", pending, "complaint-pending")}
+    ${renderComplaintGroup("Selesai", resolved, "complaint-resolved")}
+    ${renderComplaintGroup("Ditolak", rejected, "complaint-rejected")}
+  `;
+}
+function renderComplaintGroup(title, items, statusClass) {
+  if (!items.length) return "";
+  return `
     <div class="complaint-group">
-      <h4>${u(e)} (${t.length})</h4>
-      ${t.map(n=>Ir(n,a)).join("")}
+      <h4>${escapeHtml(title)} (${items.length})</h4>
+      ${items.map((entry) => renderComplaintItem(entry, statusClass)).join("")}
     </div>
-  `:""}function Ir(e,t){let{complaint:a}=e,s=a.status==="pending"?`
+  `;
+}
+function renderComplaintItem(entry, statusClass) {
+  const { complaint } = entry;
+  const isPending = complaint.status === "pending";
+  const actionButtons = isPending ? `
       <div class="item-actions">
-        <button type="button" class="action-button complaint-respond-btn" data-submission-id="${u(e.submissionId)}" data-question-index="${e.questionIndex}">Respon</button>
-        <button type="button" class="action-button danger-button complaint-reject-btn" data-submission-id="${u(e.submissionId)}" data-question-index="${e.questionIndex}">Tolak (-20)</button>
+        <button type="button" class="action-button complaint-respond-btn" data-submission-id="${escapeHtml(entry.submissionId)}" data-question-index="${entry.questionIndex}">Respon</button>
+        <button type="button" class="action-button danger-button complaint-reject-btn" data-submission-id="${escapeHtml(entry.submissionId)}" data-question-index="${entry.questionIndex}">Tolak (-20)</button>
       </div>
-    `:"";return`
-    <article class="complaint-item ${t}">
+    ` : "";
+  return `
+    <article class="complaint-item ${statusClass}">
       <div style="flex: 1; min-width: 0;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <strong>${u(e.studentName)}</strong>
-          <span class="tag">${u(e.assessmentTitle)}</span>
-          <span class="tag">Soal ${e.questionIndex+1} \xB7 Skor ${e.score}</span>
+          <strong>${escapeHtml(entry.studentName)}</strong>
+          <span class="tag">${escapeHtml(entry.assessmentTitle)}</span>
+          <span class="tag">Soal ${entry.questionIndex + 1} \xB7 Skor ${entry.score}</span>
         </div>
-        <p style="margin-top: 6px;"><b>Soal:</b> ${u(e.question)}</p>
-        <p><b>Jawaban:</b> <i>"${u(e.answer||"Tidak ada jawaban")}"</i></p>
-        <div class="complaint-box ${t}" style="margin: 8px 0 0;">
+        <p style="margin-top: 6px;"><b>Soal:</b> ${escapeHtml(entry.question)}</p>
+        <p><b>Jawaban:</b> <i>"${escapeHtml(entry.answer || "Tidak ada jawaban")}"</i></p>
+        <div class="complaint-box ${statusClass}" style="margin: 8px 0 0;">
           <strong>\u{1F4E9} Komplain:</strong>
-          <p>${u(a.reason)}</p>
-          ${a.response?`<p class="complaint-response"><b>Respon:</b> ${u(a.response)}</p>`:""}
-          <span class="tag">${u(a.submittedAt?new Date(a.submittedAt).toLocaleString("id-ID"):"")}</span>
+          <p>${escapeHtml(complaint.reason)}</p>
+          ${complaint.response ? `<p class="complaint-response"><b>Respon:</b> ${escapeHtml(complaint.response)}</p>` : ""}
+          <span class="tag">${escapeHtml(complaint.submittedAt ? new Date(complaint.submittedAt).toLocaleString("id-ID") : "")}</span>
         </div>
       </div>
-      ${s}
+      ${actionButtons}
     </article>
-  `}function rs(e){let{els:t}=e;if(!t.complaintNavBadge)return;let{pending:a}=Ia(e);t.complaintNavBadge.textContent=String(a.length),t.complaintNavBadge.classList.toggle("hidden",a.length===0)}function Br(e){let{els:t,auth:a}=e;if(!a?.user||a.user.role!=="student"||(t.complaintNotification&&(t.complaintNotification.classList.add("hidden"),t.complaintNotification.innerHTML=""),!t.studentNotifList))return;let n=[];for(let s of e.state.submissions)(s.questionScores||[]).forEach((r,i)=>{if(!r.complaint)return;let{status:o,response:l,reason:c,submittedAt:d}=r.complaint;o==="resolved"?n.push({icon:"\u2705",statusClass:"complaint-resolved",title:`Komplain untuk "${s.assessmentTitle}" (Soal ${i+1}) diterima`,detail:`Skor baru: ${r.score}.${l?` Guru: "${l}"`:""}`,reason:c,submittedAt:d}):o==="rejected"&&n.push({icon:"\u274C",statusClass:"complaint-rejected",title:`Komplain untuk "${s.assessmentTitle}" (Soal ${i+1}) ditolak`,detail:`Skor dikurangi 20 poin menjadi ${r.score}.${l?` Guru: "${l}"`:""}`,reason:c,submittedAt:d})});if(!n.length){t.studentNotifList.className="complaint-list empty-state",t.studentNotifList.innerHTML="Belum ada notifikasi komplain.";return}t.studentNotifList.className="complaint-list",t.studentNotifList.innerHTML=n.map(s=>`
-        <article class="notif-card ${s.statusClass}">
+  `;
+}
+function updateComplaintBadge(ctx) {
+  const { els } = ctx;
+  if (!els.complaintNavBadge) return;
+  const { pending } = collectComplaints(ctx);
+  els.complaintNavBadge.textContent = String(pending.length);
+  els.complaintNavBadge.classList.toggle("hidden", pending.length === 0);
+}
+function notifyStudentComplaintStatus(ctx) {
+  const { els, auth } = ctx;
+  if (!auth?.user || auth.user.role !== "student") return;
+  if (els.complaintNotification) {
+    els.complaintNotification.classList.add("hidden");
+    els.complaintNotification.innerHTML = "";
+  }
+  if (!els.studentNotifList) return;
+  const notifications = [];
+  for (const submission of ctx.state.submissions) {
+    (submission.questionScores || []).forEach((qs, questionIndex) => {
+      if (!qs.complaint) return;
+      const { status, response, reason, submittedAt } = qs.complaint;
+      if (status === "resolved") {
+        notifications.push({
+          icon: "\u2705",
+          statusClass: "complaint-resolved",
+          title: `Komplain untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) diterima`,
+          detail: `Skor baru: ${qs.score}.${response ? ` Guru: "${response}"` : ""}`,
+          reason,
+          submittedAt
+        });
+      } else if (status === "rejected") {
+        notifications.push({
+          icon: "\u274C",
+          statusClass: "complaint-rejected",
+          title: `Komplain untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) ditolak`,
+          detail: `Skor dikurangi 20 poin menjadi ${qs.score}.${response ? ` Guru: "${response}"` : ""}`,
+          reason,
+          submittedAt
+        });
+      }
+    });
+  }
+  if (!notifications.length) {
+    els.studentNotifList.className = "complaint-list empty-state";
+    els.studentNotifList.innerHTML = "Belum ada notifikasi komplain.";
+    return;
+  }
+  els.studentNotifList.className = "complaint-list";
+  els.studentNotifList.innerHTML = notifications.map(
+    (n) => `
+        <article class="notif-card ${n.statusClass}">
           <div class="notif-header">
-            <span class="notif-icon" aria-hidden="true">${s.icon}</span>
+            <span class="notif-icon" aria-hidden="true">${n.icon}</span>
             <div class="notif-title">
-              <strong>${u(s.title)}</strong>
-              ${s.submittedAt?`<span class="notif-date">${u(new Date(s.submittedAt).toLocaleString("id-ID"))}</span>`:""}
+              <strong>${escapeHtml(n.title)}</strong>
+              ${n.submittedAt ? `<span class="notif-date">${escapeHtml(new Date(n.submittedAt).toLocaleString("id-ID"))}</span>` : ""}
             </div>
           </div>
           <div class="notif-body">
-            ${s.reason?`<div class="notif-row"><span class="notif-label">Isi komplain</span><span>${u(s.reason)}</span></div>`:""}
-            <div class="notif-row"><span class="notif-label">Keputusan</span><span>${u(s.detail)}</span></div>
+            ${n.reason ? `<div class="notif-row"><span class="notif-label">Isi komplain</span><span>${escapeHtml(n.reason)}</span></div>` : ""}
+            <div class="notif-row"><span class="notif-label">Keputusan</span><span>${escapeHtml(n.detail)}</span></div>
           </div>
         </article>
-      `).join("")}var Ba=x(()=>{B();F();H();V()});var Tt={};Q(Tt,{bindDashboardEvents:()=>Ua,openAssessmentDetail:()=>Va,openStudentProfile:()=>Fa,renderAssessmentsWithTab:()=>us,renderDashboard:()=>Ha,renderStudentProfile:()=>Oa});function U(e){return getComputedStyle(document.documentElement).getPropertyValue(e).trim()}function Ua(e){let{els:t}=e;t.dashboardClassFilter?.addEventListener("change",()=>Ha(e)),t.dashboardRangeFilter?.addEventListener("change",()=>Ha(e)),t.profileStudentSelect?.addEventListener("change",a=>{a.target.value&&(e.profileSelectedStudent=a.target.value,Oa(e,a.target.value,e.currentDetailReturnView))}),t.detailBackBtn?.addEventListener("click",()=>{let a=e.currentDetailReturnView||"dashboardView";N(e,a)}),t.assessmentTabFilter?.addEventListener("click",a=>{let n=a.target.closest(".tab-filter-btn");n&&(t.assessmentTabFilter.querySelectorAll(".tab-filter-btn").forEach(s=>{let r=s===n;s.classList.toggle("active",r),s.setAttribute("aria-selected",String(r))}),us(e))}),t.assessmentListView?.addEventListener("click",a=>{let n=a.target.closest("[data-nav-view]");n&&N(e,n.dataset.navView)}),t.recentAssessmentsList?.addEventListener("click",async a=>{let n=a.target.closest("[data-open-detail]");n&&await Va(e,n.dataset.openDetail)}),t.atRiskList?.addEventListener("click",a=>{let n=a.target.closest("[data-open-profile]");n&&Fa(e,n.dataset.openProfile)}),t.assessmentDetailContent?.addEventListener("click",async a=>{if(a.target.closest("#loadTraceBtn")){await Fr(e);return}let s=a.target.closest("[data-open-profile]");s&&Fa(e,s.dataset.openProfile)}),t.studentProfileContent?.addEventListener("click",async a=>{let n=a.target.closest("[data-open-detail]");n&&await Va(e,n.dataset.openDetail,"studentProfileView")})}async function Ha(e){let{els:t,state:a}=e,n=t.dashboardClassFilter.value||"",s=t.dashboardRangeFilter.value||"30",r=s==="all"?null:Number(s);ni(e,t.dashboardClassFilter,n);let i=n?a.classes.find(f=>f.id===n):null;t.dashboardSubtitle.textContent=i?i.name:"Semua Kelas";let o=Gr(e,n,r),l=Jr(e,a.memberships,n,o);Ye(t.dashboardKpis,4),Ye(t.performanceChart,1,220),Ye(t.scoreDistribution,1,180),Ye(t.competencyOverview,1,160),Ye(t.atRiskList,1,120),t.recentAssessmentsList.innerHTML='<tr><td colspan="6" class="empty-state">Memuat\u2026</td></tr>',await new Promise(f=>setTimeout(f,60));let c=o.filter(Z),d=c.length?Math.round(c.reduce((f,g)=>f+g.finalScore,0)/c.length):null,m=os(a.assessments),h=Xr(o,m).filter(f=>f.atRisk),w=l?Math.min(100,Math.round(c.length/Math.max(l,c.length)*100)):0;t.dashboardKpis.innerHTML=[me("Pengumpulan",o.length,"submission","Total submission dalam rentang terpilih"),me("Rata-rata Skor",d===null?"\u2014":String(d),"Evaluated","Hanya penilaian tervalidasi (EVALUATED) yang dihitung"),me("Tingkat Penyelesaian",`${w}%`,"completed / assigned","Submission tervalidasi dibagi siswa yang ditugaskan"),me("Perlu Perhatian",String(h.length),"siswa","Skor rendah, tren menurun, atau kelemahan kompetensi berulang")].join(""),t.atRiskCount.textContent=`${h.length} siswa`,Or(t.performanceChart,c),_r(t.scoreDistribution,c),Qr(t.competencyOverview,a.assessments,c),Kr(t.atRiskList,h),ui(e,c,os(a.assessments)),zr(t.recentAssessmentsList,Wr(o,8))}function Fa(e,t){t&&(e.profileSelectedStudent=t,e.currentDetailReturnView="dashboardView",Oa(e,t),N(e,"studentProfileView"))}async function Oa(e,t,a="dashboardView"){let{els:n,state:s}=e,r=s.submissions.filter(m=>m.studentName===t),i=r.filter(Z).slice().sort((m,k)=>new Date(m.submittedAt)-new Date(k.submittedAt)),o=i.length?Math.round(i.reduce((m,k)=>m+k.finalScore,0)/i.length):null,l=i.at(-1),c=i[0],d=i.length>1&&l&&c?l.finalScore-c.finalScore:null;n.studentProfileContent.innerHTML=`
+      `
+  ).join("");
+}
+var init_complaints = __esm({
+  "src/js/complaints.js"() {
+    init_api();
+    init_toast();
+    init_utils();
+    init_app_context();
+  }
+});
+
+// src/js/dashboard.js
+var dashboard_exports = {};
+__export(dashboard_exports, {
+  bindDashboardEvents: () => bindDashboardEvents,
+  openAssessmentDetail: () => openAssessmentDetail,
+  openStudentProfile: () => openStudentProfile,
+  renderAssessmentsWithTab: () => renderAssessmentsWithTab,
+  renderDashboard: () => renderDashboard,
+  renderStudentProfile: () => renderStudentProfile
+});
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function bindDashboardEvents(ctx) {
+  const { els } = ctx;
+  els.dashboardClassFilter?.addEventListener("change", () => renderDashboard(ctx));
+  els.dashboardRangeFilter?.addEventListener("change", () => renderDashboard(ctx));
+  els.profileStudentSelect?.addEventListener("change", (e) => {
+    if (e.target.value) {
+      ctx.profileSelectedStudent = e.target.value;
+      renderStudentProfile(ctx, e.target.value, ctx.currentDetailReturnView);
+    }
+  });
+  els.detailBackBtn?.addEventListener("click", () => {
+    const target = ctx.currentDetailReturnView || "dashboardView";
+    switchView(ctx, target);
+  });
+  els.assessmentTabFilter?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tab-filter-btn");
+    if (!btn) return;
+    els.assessmentTabFilter.querySelectorAll(".tab-filter-btn").forEach((b) => {
+      const active = b === btn;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", String(active));
+    });
+    renderAssessmentsWithTab(ctx);
+  });
+  els.assessmentListView?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-nav-view]");
+    if (btn) switchView(ctx, btn.dataset.navView);
+  });
+  els.recentAssessmentsList?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-open-detail]");
+    if (!btn) return;
+    await openAssessmentDetail(ctx, btn.dataset.openDetail);
+  });
+  els.atRiskList?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-open-profile]");
+    if (!btn) return;
+    openStudentProfile(ctx, btn.dataset.openProfile);
+  });
+  els.assessmentDetailContent?.addEventListener("click", async (e) => {
+    const traceBtn = e.target.closest("#loadTraceBtn");
+    if (traceBtn) {
+      await loadAssessmentTrace(ctx);
+      return;
+    }
+    const profileBtn = e.target.closest("[data-open-profile]");
+    if (profileBtn) {
+      openStudentProfile(ctx, profileBtn.dataset.openProfile);
+    }
+  });
+  els.studentProfileContent?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-open-detail]");
+    if (!btn) return;
+    await openAssessmentDetail(ctx, btn.dataset.openDetail, "studentProfileView");
+  });
+}
+async function renderDashboard(ctx) {
+  const { els, state } = ctx;
+  const classId = els.dashboardClassFilter.value || "";
+  const range = els.dashboardRangeFilter.value || "30";
+  const rangeDays = range === "all" ? null : Number(range);
+  populateClassFilter(ctx, els.dashboardClassFilter, classId);
+  const klass = classId ? state.classes.find((c) => c.id === classId) : null;
+  els.dashboardSubtitle.textContent = klass ? klass.name : "Semua Kelas";
+  const scope = filterScope(ctx, classId, rangeDays);
+  const assigned = assignedStudentCount(ctx, state.memberships, classId, scope);
+  renderSkeleton(els.dashboardKpis, 4);
+  renderSkeleton(els.performanceChart, 1, 220);
+  renderSkeleton(els.scoreDistribution, 1, 180);
+  renderSkeleton(els.competencyOverview, 1, 160);
+  renderSkeleton(els.atRiskList, 1, 120);
+  els.recentAssessmentsList.innerHTML = '<tr><td colspan="6" class="empty-state">Memuat\u2026</td></tr>';
+  await new Promise((r) => setTimeout(r, 60));
+  const evaluated = scope.filter(hasValidScore);
+  const avg = evaluated.length ? Math.round(evaluated.reduce((a, s) => a + s.finalScore, 0) / evaluated.length) : null;
+  const nameMap = assessmentsRubricNameMap(state.assessments);
+  const profiles = buildStudentProfiles(scope, nameMap);
+  const atRisk = profiles.filter((p) => p.atRisk);
+  const completionRate = assigned ? Math.min(100, Math.round(evaluated.length / Math.max(assigned, evaluated.length) * 100)) : 0;
+  els.dashboardKpis.innerHTML = [
+    kpiCard(
+      "Pengumpulan",
+      scope.length,
+      "submission",
+      "Total submission dalam rentang terpilih"
+    ),
+    kpiCard(
+      "Rata-rata Skor",
+      avg === null ? "\u2014" : String(avg),
+      "Evaluated",
+      "Hanya penilaian tervalidasi (EVALUATED) yang dihitung"
+    ),
+    kpiCard(
+      "Tingkat Penyelesaian",
+      `${completionRate}%`,
+      "completed / assigned",
+      "Submission tervalidasi dibagi siswa yang ditugaskan"
+    ),
+    kpiCard(
+      "Perlu Perhatian",
+      String(atRisk.length),
+      "siswa",
+      "Skor rendah, tren menurun, atau kelemahan kompetensi berulang"
+    )
+  ].join("");
+  els.atRiskCount.textContent = `${atRisk.length} siswa`;
+  renderTrendChart(els.performanceChart, evaluated);
+  renderDistribution(els.scoreDistribution, evaluated);
+  renderCompetencies(els.competencyOverview, state.assessments, evaluated);
+  renderAtRisk(els.atRiskList, atRisk);
+  renderCompTrend(ctx, evaluated, assessmentsRubricNameMap(state.assessments));
+  renderRecentAssessments(els.recentAssessmentsList, recentSubmissions(scope, 8));
+}
+function openStudentProfile(ctx, studentName) {
+  if (!studentName) return;
+  ctx.profileSelectedStudent = studentName;
+  ctx.currentDetailReturnView = "dashboardView";
+  renderStudentProfile(ctx, studentName);
+  switchView(ctx, "studentProfileView");
+}
+async function renderStudentProfile(ctx, studentName, returnView = "dashboardView") {
+  const { els, state } = ctx;
+  const allSubs = state.submissions.filter((s) => s.studentName === studentName);
+  const evaluated = allSubs.filter(hasValidScore).slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  const avg = evaluated.length ? Math.round(evaluated.reduce((a, s) => a + s.finalScore, 0) / evaluated.length) : null;
+  const last = evaluated.at(-1);
+  const first = evaluated[0];
+  const improvement = evaluated.length > 1 && last && first ? last.finalScore - first.finalScore : null;
+  els.studentProfileContent.innerHTML = `
     <div class="kpi-grid">
-      ${me("Rata-rata Skor",o===null?"\u2014":String(o),"evaluasi tervalidasi")}
-      ${me("Penilaian",String(i.length),"dari "+r.length+" pengumpulan")}
-      ${me("Perbaikan",d===null?"\u2014":`${d>=0?"+":""}${d}`,"skor awal \u2192 terakhir")}
-      ${me("Penilaian Terakhir",l?String(l.finalScore):"\u2014",l?ke(l.assessmentTitle,28):"belum ada")}
+      ${kpiCard("Rata-rata Skor", avg === null ? "\u2014" : String(avg), "evaluasi tervalidasi")}
+      ${kpiCard("Penilaian", String(evaluated.length), "dari " + allSubs.length + " pengumpulan")}
+      ${kpiCard("Perbaikan", improvement === null ? "\u2014" : `${improvement >= 0 ? "+" : ""}${improvement}`, "skor awal \u2192 terakhir")}
+      ${kpiCard("Penilaian Terakhir", last ? String(last.finalScore) : "\u2014", last ? compactText(last.assessmentTitle, 28) : "belum ada")}
     </div>
     <div class="analytics-panel wide">
       <h3>Tren Performa</h3>
-      ${i.length?ri(i):'<p class="empty-state">Belum ada evaluasi tervalidasi.</p>'}
+      ${evaluated.length ? buildProfileTrend(evaluated) : `<p class="empty-state">Belum ada evaluasi tervalidasi.</p>`}
     </div>
     <div class="analytics-panel wide">
       <h3>Profil Kompetensi</h3>
-      ${En(ua(e.state.assessments,i))}
+      ${renderCompetencyStudent(buildCompetencyProfile(ctx.state.assessments, evaluated))}
     </div>
     <div class="analytics-panel wide">
       <h3>Riwayat Penilaian</h3>
@@ -572,284 +4366,1131 @@ Masukkan skor baru (0-100):`,l.score);if(c===null)return;let d=parseInt(c,10);if
         <table class="data-table">
           <thead><tr><th>Penilaian</th><th>Tanggal</th><th>Skor</th><th>Status</th><th>Aksi</th></tr></thead>
           <tbody>
-            ${r.slice().reverse().map(m=>`
-              <tr class="submission-row" data-id="${m.id}">
-                <td data-label="Penilaian"><strong>${u(m.assessmentTitle)}</strong></td>
-                <td data-label="Tanggal">${Qa(m.submittedAt)}</td>
-                <td data-label="Skor">${Z(m)?m.finalScore:"\u2014"}</td>
-                <td data-label="Status">${Ce(Se(m))}</td>
+            ${allSubs.slice().reverse().map((s) => `
+              <tr class="submission-row" data-id="${s.id}">
+                <td data-label="Penilaian"><strong>${escapeHtml(s.assessmentTitle)}</strong></td>
+                <td data-label="Tanggal">${formatDate(s.submittedAt)}</td>
+                <td data-label="Skor">${hasValidScore(s) ? s.finalScore : "\u2014"}</td>
+                <td data-label="Status">${renderStatusBadge(getSubmissionStatus(s))}</td>
                 <td data-label="Aksi">
-                  <button type="button" class="secondary-button view-submission-btn" data-open-detail="${u(m.id)}">View</button>
+                  <button type="button" class="secondary-button view-submission-btn" data-open-detail="${escapeHtml(s.id)}">View</button>
                 </td>
-              </tr>`).join("")||'<tr><td colspan="5" class="empty-state">Belum ada penilaian untuk siswa ini.</td></tr>'}
+              </tr>`).join("") || `<tr><td colspan="5" class="empty-state">Belum ada penilaian untuk siswa ini.</td></tr>`}
           </tbody>
         </table>
       </div>
     </div>
-  `}async function Va(e,t,a="dashboardView"){let n=e.state?.submissions?.find(i=>i.id===t);if(!n){p("Penilaian tidak ditemukan.","error");return}let s=n;try{s=await He(t)}catch{}let{els:r}=e;e.currentDetailSubmissionId=s.id,e.currentDetailReturnView=a,r.assessmentDetailContent.innerHTML=ai(4),N(e,"assessmentDetailView"),Nr(e,s)}function Nr(e,t){let{els:a,state:n}=e,s=Se(t),r=Z(t),i=t.verification||null,o=Array.isArray(t.criteria)?t.criteria:[],l=ei(o),c=l===null?null:`${Math.round(l*100)}%`,d=i?.scoreConsistency?.coverage??ti(o),m=d===null?null:`${Math.round(d*100)}%`,k=o.filter(y=>Number.isFinite(Number(y.score))).length,h=o.length?Math.round(k/o.length*100):null,w=i?.status||(i?.valid===!1?"FAIL":i?"PASS":null),f=n.assessments.find(y=>y.id===t.assessmentId),g=f&&Array.isArray(f.questions)?f.questions.map((y,S)=>{let T=y.rubric||"";return T?`
+  `;
+}
+async function openAssessmentDetail(ctx, submissionId, fromView = "dashboardView") {
+  const summary = ctx.state?.submissions?.find((s) => s.id === submissionId);
+  if (!summary) {
+    showToast("Penilaian tidak ditemukan.", "error");
+    return;
+  }
+  let submission = summary;
+  try {
+    submission = await getSubmissionDetail(submissionId);
+  } catch {
+  }
+  const { els } = ctx;
+  ctx.currentDetailSubmissionId = submission.id;
+  ctx.currentDetailReturnView = fromView;
+  els.assessmentDetailContent.innerHTML = renderSkeletonLines(4);
+  switchView(ctx, "assessmentDetailView");
+  renderAssessmentDetail(ctx, submission);
+}
+function renderAssessmentDetail(ctx, submission) {
+  const { els, state } = ctx;
+  const status = getSubmissionStatus(submission);
+  const evaluated = hasValidScore(submission);
+  const verification = submission.verification || null;
+  const criteria = Array.isArray(submission.criteria) ? submission.criteria : [];
+  const confidence = criteriaAvgConfidence(criteria);
+  const confidencePct = confidence === null ? null : `${Math.round(confidence * 100)}%`;
+  const coverage = verification?.scoreConsistency?.coverage ?? criteriaCoverage(criteria);
+  const coveragePct = coverage === null ? null : `${Math.round(coverage * 100)}%`;
+  const scoredCriteria = criteria.filter((c) => Number.isFinite(Number(c.score))).length;
+  const rubricPct = criteria.length ? Math.round(scoredCriteria / criteria.length * 100) : null;
+  const verStatus = verification?.status || (verification?.valid === false ? "FAIL" : verification ? "PASS" : null);
+  const assessment = state.assessments.find((a) => a.id === submission.assessmentId);
+  const rubricHtml = assessment && Array.isArray(assessment.questions) ? assessment.questions.map((q, i) => {
+    const rubricText = q.rubric || "";
+    if (!rubricText) return "";
+    return `
           <div class="analytics-panel" style="margin-top:16px;">
-            <h4>Soal ${S+1}: ${u(y.prompt||"")}</h4>
-            ${re(T)}
-          </div>`:""}).filter(Boolean).join(""):"",b=`
+            <h4>Soal ${i + 1}: ${escapeHtml(q.prompt || "")}</h4>
+            ${renderRubricTable(rubricText)}
+          </div>`;
+  }).filter(Boolean).join("") : "";
+  const detailMeta = `
     <div class="detail-hero">
       <div class="detail-hero-main">
         <p class="eyebrow">Assessment Detail</p>
-        <h3>${u(t.assessmentTitle)}</h3>
+        <h3>${escapeHtml(submission.assessmentTitle)}</h3>
         <div class="detail-meta">
           <span><strong>Siswa:</strong>
-            <button type="button" class="link-button" data-open-profile="${u(t.studentName)}">${u(t.studentName)}</button>
+            <button type="button" class="link-button" data-open-profile="${escapeHtml(submission.studentName)}">${escapeHtml(submission.studentName)}</button>
           </span>
-          <span><strong>Tanggal:</strong> ${ds(t.submittedAt)}</span>
-          <span><strong>Status:</strong> ${Ce(s)}</span>
-          <span><strong>Sumber:</strong> ${t.evaluationSource==="fallback"?"Evaluasi lokal (deterministik)":"AI Harness"}</span>
+          <span><strong>Tanggal:</strong> ${formatDateTime2(submission.submittedAt)}</span>
+          <span><strong>Status:</strong> ${renderStatusBadge(status)}</span>
+          <span><strong>Sumber:</strong> ${submission.evaluationSource === "fallback" ? "Evaluasi lokal (deterministik)" : "AI Harness"}</span>
         </div>
       </div>
       <div class="detail-score-block">
-        ${r?`<div class="score-badge">${t.finalScore}<span class="score-max">/100</span></div>`:'<div class="score-badge score-muted">\u2014</div>'}
+        ${evaluated ? `<div class="score-badge">${submission.finalScore}<span class="score-max">/100</span></div>` : `<div class="score-badge score-muted">\u2014</div>`}
         <div class="detail-trust-row">
-          ${c?`<span class="trust-chip">Confidence ${c}</span>`:""}
-          ${m?`<span class="trust-chip">Bukti grounded ${m}</span>`:""}
-          ${h!==null?`<span class="trust-chip">Cakupan rubrik ${h}%</span>`:""}
+          ${confidencePct ? `<span class="trust-chip">Confidence ${confidencePct}</span>` : ""}
+          ${coveragePct ? `<span class="trust-chip">Bukti grounded ${coveragePct}</span>` : ""}
+          ${rubricPct !== null ? `<span class="trust-chip">Cakupan rubrik ${rubricPct}%</span>` : ""}
         </div>
-        ${i?`<div class="verification-mini">${si(w)}</div>`:""}
+        ${verification ? `<div class="verification-mini">${verificationBadge(verStatus)}</div>` : ""}
       </div>
     </div>
-  `,v=o.length?`<div class="analytics-panel">
+  `;
+  const criteriaHtml = criteria.length ? `<div class="analytics-panel">
         <div class="panel-head-row">
           <h3 style="margin:0;">Criterion</h3>
-          <span class="metric-pill">${o.length} kriteria</span>
+          <span class="metric-pill">${criteria.length} kriteria</span>
         </div>
         <p class="panel-hint">Skor per kriteria rubrik, dengan bukti yang dapat ditelusuri ke jawaban siswa.</p>
-        <div class="criterion-stack">${o.map((y,S)=>jr(y,S,ls(f))).join("")}</div>
-      </div>`:'<div class="analytics-panel"><h3>Criterion</h3><div class="empty-state">Belum ada data kriteria \u2014 gunakan evaluasi berbasis rubrik (AI Harness).</div></div>',L=`
+        <div class="criterion-stack">${criteria.map((c, i) => renderCriterion(c, i, rubricNameMap(assessment))).join("")}</div>
+      </div>` : `<div class="analytics-panel"><h3>Criterion</h3><div class="empty-state">Belum ada data kriteria \u2014 gunakan evaluasi berbasis rubrik (AI Harness).</div></div>`;
+  const traceHtml = `
     <div class="analytics-panel">
       <div class="panel-head-row">
         <h3 style="margin:0;">Jejak Penilaian (Trace)</h3>
-        ${t.evaluationRunId?'<button class="secondary-button" id="loadTraceBtn" type="button" style="min-height:36px;font-size:0.9rem;">Lihat Trace</button>':'<span class="metric-pill">lokal</span>'}
+        ${submission.evaluationRunId ? `<button class="secondary-button" id="loadTraceBtn" type="button" style="min-height:36px;font-size:0.9rem;">Lihat Trace</button>` : `<span class="metric-pill">lokal</span>`}
       </div>
       <p class="panel-hint">Alur teknis evaluasi: model \u2192 rubrik \u2192 evidence \u2192 verifikasi \u2192 skor deterministik.</p>
       <div id="traceContent"></div>
     </div>
-  `;a.assessmentDetailContent.innerHTML=`
-    ${b}
-    ${v}
-    ${g}
-    ${L}
-  `}function jr(e,t,a=new Map){let n=Number(e.score),s=_a(e,t,a),r=Array.isArray(e.evidence)?e.evidence:[],i=r.some(m=>m&&m.grounded===!0),o=r.some(m=>m&&m.grounded===!1),l=r.length?`<div class="criterion-evidence">
-        <span class="evidence-status ${i?"evidence-grounded":"evidence-review"}">
-          ${i?"\u2713 Grounded":o?`\u26A0 ${r.filter(m=>m&&m.grounded===!1).length} perlu tinjauan`:"\u2713 Grounded"}
+  `;
+  els.assessmentDetailContent.innerHTML = `
+    ${detailMeta}
+    ${criteriaHtml}
+    ${rubricHtml}
+    ${traceHtml}
+  `;
+}
+function renderCriterion(c, index, nameMap = /* @__PURE__ */ new Map()) {
+  const score = Number(c.score);
+  const name = resolveCriterionName(c, index, nameMap);
+  const evidence = Array.isArray(c.evidence) ? c.evidence : [];
+  const grounded = evidence.some((ev) => ev && ev.grounded === true);
+  const hasUngrounded = evidence.some((ev) => ev && ev.grounded === false);
+  const evidenceHtml = evidence.length ? `<div class="criterion-evidence">
+        <span class="evidence-status ${grounded ? "evidence-grounded" : "evidence-review"}">
+          ${grounded ? "\u2713 Grounded" : hasUngrounded ? `\u26A0 ${evidence.filter((ev) => ev && ev.grounded === false).length} perlu tinjauan` : "\u2713 Grounded"}
         </span>
         <ul>
-          ${r.map(m=>`
+          ${evidence.map((ev) => `
             <li>
-              <span class="evidence-quote">\u201C${Lt(u(ke(String(m.text||""),140)))}\u201D</span>
-              ${m.grounded!==void 0&&m.grounded===!1?'<span class="evidence-tag tag-warn">tidak grounded</span>':""}
+              <span class="evidence-quote">\u201C${escapeHtmlSup(escapeHtml(compactText(String(ev.text || ""), 140)))}\u201D</span>
+              ${ev.grounded !== void 0 && ev.grounded === false ? `<span class="evidence-tag tag-warn">tidak grounded</span>` : ""}
             </li>`).join("")}
         </ul>
-      </div>`:'<p class="panel-hint">Tanpa evidence pada evaluasi ini.</p>',c=e.answerIndex!==void 0&&Number.isInteger(Number(e.answerIndex))?`<span class="tag">Soal ${Number(e.answerIndex)+1}</span>`:"",d=e.weight?`<span class="tag">bobot ${Math.round(Number(e.weight)*100)}%</span>`:"";return`
+      </div>` : `<p class="panel-hint">Tanpa evidence pada evaluasi ini.</p>`;
+  const answerIndexText = c.answerIndex !== void 0 && Number.isInteger(Number(c.answerIndex)) ? `<span class="tag">Soal ${Number(c.answerIndex) + 1}</span>` : "";
+  const weightText = c.weight ? `<span class="tag">bobot ${Math.round(Number(c.weight) * 100)}%</span>` : "";
+  return `
     <article class="criterion-card">
       <div class="criterion-head">
         <div class="criterion-title">
-          <strong>${u(s)}</strong>
-          <span>${c}${d}</span>
+          <strong>${escapeHtml(name)}</strong>
+          <span>${answerIndexText}${weightText}</span>
         </div>
-        <span class="criterion-score${Number.isFinite(n)&&n<70?" low":""}">
-          ${Number.isFinite(n)?n:"\u2014"}<span class="font-max">/100</span>
+        <span class="criterion-score${Number.isFinite(score) && score < 70 ? " low" : ""}">
+          ${Number.isFinite(score) ? score : "\u2014"}<span class="font-max">/100</span>
         </span>
       </div>
-      ${Number.isFinite(n)?`<div class="meter"><span class="meter-fill" style="width:${Math.max(2,Math.min(100,n))}%"></span></div>`:""}
-      ${l}
-      ${e.rationale?`<p class="criterion-rationale"><span class="panel-hint">Alasan: </span>${li(e.rationale)}</p>`:""}
+      ${Number.isFinite(score) ? `<div class="meter"><span class="meter-fill" style="width:${Math.max(2, Math.min(100, score))}%"></span></div>` : ""}
+      ${evidenceHtml}
+      ${c.rationale ? `<p class="criterion-rationale"><span class="panel-hint">Alasan: </span>${formatRichText2(c.rationale)}</p>` : ""}
     </article>
-  `}function ls(e){let t=new Map;if(!e)return t;let a=n=>{(Array.isArray(n)?n:[]).forEach(s=>{!s||!s.name||(s.id&&t.set(`id:${At(s.id)}`,s.name),t.set(`name:${At(s.name)}`,s.name))})};return e.rubric&&a(ve(e.rubric)),(Array.isArray(e.questions)?e.questions:[]).forEach(n=>{n&&n.rubric&&a(ve(n.rubric))}),t}function os(e){let t=new Map;return(Array.isArray(e)?e:[]).forEach(a=>{ls(a).forEach((n,s)=>{t.has(s)||t.set(s,n)})}),t}function At(e){return String(e??"").toLowerCase().trim()}function _a(e,t,a){let n=a.get(`id:${At(e.criterionId)}`);if(n)return n;let s=e.name?a.get(`name:${At(e.name)}`):void 0;return s||(e.name&&Hr(e.name)?K(e.criterionId)||`Kriteria ${t+1}`:e.name||K(e.criterionId)||`Kriteria ${t+1}`)}function Hr(e){let t=String(e||"");return t.length<80?!1:/\b(config|criteria\s+id|levels|descriptor)\b/i.test(t)&&/\b(weight|score)\b/i.test(t)}async function Fr(e){let{els:t}=e,n=e.state?.submissions?.find(r=>r.id===e.currentDetailSubmissionId)?.evaluationRunId,s=t.assessmentDetailContent?.querySelector("#traceContent");if(!(!n||!s||s.dataset.loaded)){s.innerHTML='<p class="empty-state">Memuat jejak penilaian\u2026</p>';try{let r=await fetch(`/api/research?action=trace&runId=${encodeURIComponent(n)}`,{credentials:"include"}),i=await r.json();if(!r.ok)throw new Error(i.error||"Gagal memuat trace");s.innerHTML=Vr(i),s.dataset.loaded="1"}catch(r){s.innerHTML=`<p class="empty-state">Trace tidak tersedia: ${u(r.message)}</p>`}}}function Vr(e){let t=e.run,a=e.versions||{},n=Array.isArray(e.events)?e.events:[],s=e.result||{},r=[["Model",s.versioning?.modelVersion||t?.model||a.model_version||"-"],["Provider",t?.model||"-"],["Model Version",a.model_version||s.versioning?.modelVersion||"-"],["Rubric Version",a.rubric_version||s.versioning?.rubricVersion||"-"],["Harness Version",a.harness_version||s.versioning?.harnessVersion||"-"],["Prompt Version",a.prompt_version||s.versioning?.promptVersion||"-"],["Waktu Evaluasi",t?.created_at?ds(t.created_at):"-"]],i=[t?.prompt_hash&&["Prompt Hash",t.prompt_hash],t?.rubric_hash&&["Rubric Hash",t.rubric_hash],t?.input_hash&&["Input Hash",t.input_hash],t?.config_hash&&["Config Hash",t.config_hash]].filter(Boolean),o=Ur(n);return`
+  `;
+}
+function rubricNameMap(assessment) {
+  const map = /* @__PURE__ */ new Map();
+  if (!assessment) return map;
+  const push = (defs) => {
+    (Array.isArray(defs) ? defs : []).forEach((c) => {
+      if (!c || !c.name) return;
+      if (c.id) map.set(`id:${normalizeKey(c.id)}`, c.name);
+      map.set(`name:${normalizeKey(c.name)}`, c.name);
+    });
+  };
+  if (assessment.rubric) push(parseRubricToCriteria(assessment.rubric));
+  (Array.isArray(assessment.questions) ? assessment.questions : []).forEach((q) => {
+    if (q && q.rubric) push(parseRubricToCriteria(q.rubric));
+  });
+  return map;
+}
+function assessmentsRubricNameMap(assessments) {
+  const map = /* @__PURE__ */ new Map();
+  (Array.isArray(assessments) ? assessments : []).forEach((a) => {
+    rubricNameMap(a).forEach((value, key) => {
+      if (!map.has(key)) map.set(key, value);
+    });
+  });
+  return map;
+}
+function normalizeKey(value) {
+  return String(value == null ? "" : value).toLowerCase().trim();
+}
+function resolveCriterionName(c, index, nameMap) {
+  const id = nameMap.get(`id:${normalizeKey(c.criterionId)}`);
+  if (id) return id;
+  const byName = c.name ? nameMap.get(`name:${normalizeKey(c.name)}`) : void 0;
+  if (byName) return byName;
+  if (c.name && looksLikeRubricDump(c.name)) {
+    return prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
+  }
+  return c.name || prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
+}
+function looksLikeRubricDump(value) {
+  const s = String(value || "");
+  if (s.length < 80) return false;
+  return /\b(config|criteria\s+id|levels|descriptor)\b/i.test(s) && /\b(weight|score)\b/i.test(s);
+}
+async function loadAssessmentTrace(ctx) {
+  const { els } = ctx;
+  const submission = ctx.state?.submissions?.find((s) => s.id === ctx.currentDetailSubmissionId);
+  const runId = submission?.evaluationRunId;
+  const content = els.assessmentDetailContent?.querySelector("#traceContent");
+  if (!runId || !content || content.dataset.loaded) return;
+  content.innerHTML = `<p class="empty-state">Memuat jejak penilaian\u2026</p>`;
+  try {
+    const res = await fetch(`/api/research?action=trace&runId=${encodeURIComponent(runId)}`, {
+      credentials: "include"
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Gagal memuat trace");
+    content.innerHTML = renderTrace(data);
+    content.dataset.loaded = "1";
+  } catch (err) {
+    content.innerHTML = `<p class="empty-state">Trace tidak tersedia: ${escapeHtml(err.message)}</p>`;
+  }
+}
+function renderTrace(data) {
+  const run = data.run;
+  const versions = data.versions || {};
+  const events = Array.isArray(data.events) ? data.events : [];
+  const result = data.result || {};
+  const metadata = [
+    ["Model", result.versioning?.modelVersion || run?.model || versions.model_version || "-"],
+    ["Provider", run?.model || "-"],
+    ["Model Version", versions.model_version || result.versioning?.modelVersion || "-"],
+    ["Rubric Version", versions.rubric_version || result.versioning?.rubricVersion || "-"],
+    ["Harness Version", versions.harness_version || result.versioning?.harnessVersion || "-"],
+    ["Prompt Version", versions.prompt_version || result.versioning?.promptVersion || "-"],
+    ["Waktu Evaluasi", run?.created_at ? formatDateTime2(run.created_at) : "-"]
+  ];
+  const hashes = [
+    run?.prompt_hash && ["Prompt Hash", run.prompt_hash],
+    run?.rubric_hash && ["Rubric Hash", run.rubric_hash],
+    run?.input_hash && ["Input Hash", run.input_hash],
+    run?.config_hash && ["Config Hash", run.config_hash]
+  ].filter(Boolean);
+  const steps = traceSteps(events);
+  return `
     <div class="trace-steps">
-      ${o.length?o.map(l=>`<div class="trace-step"><span class="trace-step-arrow" aria-hidden="true">\u2193</span><span>${u(l)}</span></div>`).join(""):'<p class="panel-hint">Belum ada event lengkap untuk run ini.</p>'}
+      ${steps.length ? steps.map((s) => `<div class="trace-step"><span class="trace-step-arrow" aria-hidden="true">\u2193</span><span>${escapeHtml(s)}</span></div>`).join("") : `<p class="panel-hint">Belum ada event lengkap untuk run ini.</p>`}
     </div>
     <details class="trace-details">
       <summary>Metadata teknis &amp; versi</summary>
       <dl class="trace-meta">
-        ${r.map(([l,c])=>`<div><dt>${u(l)}</dt><dd>${u(c)}</dd></div>`).join("")}
+        ${metadata.map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join("")}
       </dl>
-      ${i.length?`<h4>Hash Reproduksibilitas</h4><dl class="trace-meta">${i.map(([l,c])=>`<div><dt>${u(l)}</dt><dd><code>${u(c)}</code></dd></div>`).join("")}</dl>`:""}
+      ${hashes.length ? `<h4>Hash Reproduksibilitas</h4><dl class="trace-meta">${hashes.map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd><code>${escapeHtml(v)}</code></dd></div>`).join("")}</dl>` : ""}
     </details>
-  `}function Ur(e){if(!e.length)return[];let t=new Map(e.map(n=>[n.type,!0])),a=[];for(let n of["ASSESSMENT_LOADED","RUBRIC_LOADED","CONTEXT_BUILT","EVIDENCE_EXTRACTED","VERIFICATION","VERIFICATION_RUN","FINAL_SCORE"])t.has(n)&&Na[n]&&!a.includes(Na[n])&&a.push(Na[n]);return a.length?a:e.map(n=>n.type)}function Or(e,t){if(!t.length){e.innerHTML='<p class="empty-state">Belum ada penilaian tervalidasi di rentang ini.</p>';return}let a=t.slice().sort((P,z)=>new Date(P.submittedAt)-new Date(z.submittedAt)),n=new Date(a[0].submittedAt),s=new Date(a[a.length-1].submittedAt),r=Math.max(2,Math.min(12,Math.ceil((s-n)/Ra)+1)),i=Array.from({length:r},(P,z)=>{let te=new Date(n.getTime()+z*Ra),Be=new Date(te.getTime()+Ra),$e=a.filter(Re=>{let le=new Date(Re.submittedAt).getTime();return le>=te.getTime()&&le<Be.getTime()});return{label:te.toLocaleDateString("id-ID",{day:"numeric",month:"short"}),avg:$e.length?Math.round($e.reduce((Re,le)=>Re+le.finalScore,0)/$e.length):null,count:$e.length}}),o=640,l=200,c=34,d=10,m=14,k=26,h=o-c-d,w=l-m-k,f=i.length,g=h/f,b=Math.max(1,...i.map(P=>P.count)),v=P=>c+g*P+g/2,L=P=>m+w-P/100*w,y=Math.min(26,g*.4),S=i.map((P,z)=>{let te=Math.max(2,P.count/b*w);return`<rect x="${(v(z)-y/2).toFixed(1)}" y="${(m+w-te).toFixed(1)}" width="${y}" height="${te.toFixed(1)}" rx="3" fill="${U("--brand-soft")}" />`}).join(""),T=i.map((P,z)=>P.avg===null?null:`${v(z).toFixed(1)},${L(P.avg).toFixed(1)}`).filter(Boolean),M=T.length>1?`<polyline points="${T.join(" ")}" fill="none" stroke="${U("--brand")}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`:"",q=i.map((P,z)=>P.avg===null?"":`<circle cx="${v(z).toFixed(1)}" cy="${L(P.avg).toFixed(1)}" r="3.5" fill="${U("--brand")}"/>`).join(""),_=[0,25,50,75,100].map(P=>`<line x1="${c}" y1="${L(P)}" x2="${o-d}" y2="${L(P)}" stroke="${U("--border")}" stroke-width="1"/>`).join(""),j=[0,25,50,75,100].map(P=>`<text x="${c-6}" y="${L(P)+4}" text-anchor="end" fill="${U("--text-muted")}" font-size="10">${P}</text>`).join(""),O=i.map((P,z)=>`<text x="${v(z)}" y="${l-8}" text-anchor="middle" fill="${U("--text-muted")}" font-size="9">${cs(P.label)}</text>`).join("");e.innerHTML=`
+  `;
+}
+function traceSteps(events) {
+  if (!events.length) return [];
+  const map = new Map(events.map((ev) => [ev.type, true]));
+  const steps = [];
+  for (const type of ["ASSESSMENT_LOADED", "RUBRIC_LOADED", "CONTEXT_BUILT", "EVIDENCE_EXTRACTED", "VERIFICATION", "VERIFICATION_RUN", "FINAL_SCORE"]) {
+    if (map.has(type) && labels1[type] && !steps.includes(labels1[type])) steps.push(labels1[type]);
+  }
+  if (!steps.length) return events.map((ev) => ev.type);
+  return steps;
+}
+function renderTrendChart(el, submissions) {
+  if (!submissions.length) {
+    el.innerHTML = `<p class="empty-state">Belum ada penilaian tervalidasi di rentang ini.</p>`;
+    return;
+  }
+  const sorted = submissions.slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  const first = new Date(sorted[0].submittedAt);
+  const lastDate = new Date(sorted[sorted.length - 1].submittedAt);
+  const bucketCount = Math.max(2, Math.min(12, Math.ceil((lastDate - first) / WEEK_MS) + 1));
+  const buckets = Array.from({ length: bucketCount }, (_, i) => {
+    const start = new Date(first.getTime() + i * WEEK_MS);
+    const end = new Date(start.getTime() + WEEK_MS);
+    const items = sorted.filter((s) => {
+      const t = new Date(s.submittedAt).getTime();
+      return t >= start.getTime() && t < end.getTime();
+    });
+    return {
+      label: start.toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+      avg: items.length ? Math.round(items.reduce((a, s) => a + s.finalScore, 0) / items.length) : null,
+      count: items.length
+    };
+  });
+  const W = 640;
+  const H = 200;
+  const padL = 34;
+  const padR = 10;
+  const padT = 14;
+  const padB = 26;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const n = buckets.length;
+  const slot = innerW / n;
+  const maxCount = Math.max(1, ...buckets.map((b) => b.count));
+  const band = (i) => padL + slot * i + slot / 2;
+  const yFor = (v) => padT + innerH - v / 100 * innerH;
+  const barW = Math.min(26, slot * 0.4);
+  const bars = buckets.map((b, i) => {
+    const h = Math.max(2, b.count / maxCount * innerH);
+    return `<rect x="${(band(i) - barW / 2).toFixed(1)}" y="${(padT + innerH - h).toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" rx="3" fill="${cssVar("--brand-soft")}" />`;
+  }).join("");
+  const linePoints = buckets.map((b, i) => b.avg === null ? null : `${band(i).toFixed(1)},${yFor(b.avg).toFixed(1)}`).filter(Boolean);
+  const line = linePoints.length > 1 ? `<polyline points="${linePoints.join(" ")}" fill="none" stroke="${cssVar("--brand")}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>` : "";
+  const circles = buckets.map((b, i) => b.avg === null ? "" : `<circle cx="${band(i).toFixed(1)}" cy="${yFor(b.avg).toFixed(1)}" r="3.5" fill="${cssVar("--brand")}"/>`).join("");
+  const gridLines = [0, 25, 50, 75, 100].map((v) => `<line x1="${padL}" y1="${yFor(v)}" x2="${W - padR}" y2="${yFor(v)}" stroke="${cssVar("--border")}" stroke-width="1"/>`).join("");
+  const gridLabels = [0, 25, 50, 75, 100].map((v) => `<text x="${padL - 6}" y="${yFor(v) + 4}" text-anchor="end" fill="${cssVar("--text-muted")}" font-size="10">${v}</text>`).join("");
+  const xLabels = buckets.map((b, i) => `<text x="${band(i)}" y="${H - 8}" text-anchor="middle" fill="${cssVar("--text-muted")}" font-size="9">${escapeXml(b.label)}</text>`).join("");
+  el.innerHTML = `
     <div class="chart-legend" aria-hidden="true">
       <span class="legend-item"><span class="legend-line"></span>Rata-rata skor</span>
       <span class="legend-item"><span class="legend-bar"></span>Jumlah submission</span>
     </div>
-    <svg class="chart-svg" viewBox="0 0 ${o} ${l}" role="img" aria-label="Tren rata-rata skor per minggu">
-      ${_}
-      ${j}
-      ${S}
-      ${M}
-      ${q}
-      ${O}
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tren rata-rata skor per minggu">
+      ${gridLines}
+      ${gridLabels}
+      ${bars}
+      ${line}
+      ${circles}
+      ${xLabels}
     </svg>
-  `}function _r(e,t){if(!t.length){e.innerHTML='<p class="empty-state">Belum ada penilaian tervalidasi untuk ditampilkan.</p>';return}let a=[{label:"0\u201320",min:0,max:20},{label:"21\u201340",min:21,max:40},{label:"41\u201360",min:41,max:60},{label:"61\u201380",min:61,max:80},{label:"81\u2013100",min:81,max:100}],n=t.length;e.innerHTML=`
+  `;
+}
+function renderDistribution(el, submissions) {
+  if (!submissions.length) {
+    el.innerHTML = `<p class="empty-state">Belum ada penilaian tervalidasi untuk ditampilkan.</p>`;
+    return;
+  }
+  const buckets = [
+    { label: "0\u201320", min: 0, max: 20 },
+    { label: "21\u201340", min: 21, max: 40 },
+    { label: "41\u201360", min: 41, max: 60 },
+    { label: "61\u201380", min: 61, max: 80 },
+    { label: "81\u2013100", min: 81, max: 100 }
+  ];
+  const total = submissions.length;
+  el.innerHTML = `
     <div class="dist-bars">
-      ${a.map(s=>{let r=t.filter(o=>o.finalScore>=s.min&&o.finalScore<=s.max).length,i=Math.round(r/n*100);return`
+      ${buckets.map((b) => {
+    const count = submissions.filter((s) => s.finalScore >= b.min && s.finalScore <= b.max).length;
+    const pct = Math.round(count / total * 100);
+    return `
           <div class="dist-row">
-            <span class="dist-label">${s.label}</span>
-            <div class="dist-track"><span class="dist-fill" style="width:${i}%"></span></div>
-            <span class="dist-count">${r}</span>
-          </div>`}).join("")}
+            <span class="dist-label">${b.label}</span>
+            <div class="dist-track"><span class="dist-fill" style="width:${pct}%"></span></div>
+            <span class="dist-count">${count}</span>
+          </div>`;
+  }).join("")}
     </div>
-  `}function Qr(e,t,a){let n=ua(t,a);e.innerHTML=Cn(n)}function Kr(e,t){if(!t.length){e.innerHTML=`
+  `;
+}
+function renderCompetencies(el, assessments, submissions) {
+  const comps = buildCompetencyProfile(assessments, submissions);
+  el.innerHTML = renderCompetencyClass(comps);
+}
+function renderAtRisk(el, atRisk) {
+  if (!atRisk.length) {
+    el.innerHTML = `
       <div class="empty-state ok-state">
         <span class="empty-state-icon" aria-hidden="true">\u2713</span>
-        <div><strong>Tidak ada siswa yang perlu perhatian</strong><p>Semua siswa berada di atas ambang intervensi (${ja}).</p></div>
-      </div>`;return}e.innerHTML=`
+        <div><strong>Tidak ada siswa yang perlu perhatian</strong><p>Semua siswa berada di atas ambang intervensi (${ATTENTION_SCORE_THRESHOLD}).</p></div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = `
     <div class="table-container" style="overflow-x:auto;">
       <table class="data-table">
         <thead><tr><th>Siswa</th><th>Skor</th><th>Tren</th><th>Isu Utama</th><th>Status</th><th>Aksi</th></tr></thead>
         <tbody>
-          ${t.slice(0,8).map(a=>`
-            <tr class="submission-row" data-id="${a.studentName}">
-              <td data-label="Siswa"><strong>${u(a.studentName)}</strong></td>
-              <td data-label="Skor">${a.latest!==null?a.latest:"\u2014"}</td>
-              <td data-label="Tren" class="${oi(a.trend)}">${ii(a.trend)}</td>
-              <td data-label="Isu Utama">${u(a.mainIssue)}</td>
+          ${atRisk.slice(0, 8).map((p) => `
+            <tr class="submission-row" data-id="${p.studentName}">
+              <td data-label="Siswa"><strong>${escapeHtml(p.studentName)}</strong></td>
+              <td data-label="Skor">${p.latest !== null ? p.latest : "\u2014"}</td>
+              <td data-label="Tren" class="${trendClass(p.trend)}">${trendArrow(p.trend)}</td>
+              <td data-label="Isu Utama">${escapeHtml(p.mainIssue)}</td>
               <td data-label="Status"><span class="status-badge status-review">At Risk</span></td>
               <td data-label="Aksi">
-                <button type="button" class="secondary-button view-submission-btn" data-open-profile="${u(a.studentName)}">View</button>
+                <button type="button" class="secondary-button view-submission-btn" data-open-profile="${escapeHtml(p.studentName)}">View</button>
               </td>
             </tr>`).join("")}
         </tbody>
       </table>
     </div>
-  `}function zr(e,t){if(!t.length){e.innerHTML='<tr><td colspan="6" class="empty-state">Belum ada penilaian yang dikumpulkan siswa.</td></tr>';return}e.innerHTML=t.map(a=>{let n=Se(a),s=n==="NEEDS_REVIEW"?"Review":n==="EVALUATING"?"Lihat Progres":n==="FAILED"?"Retry / Review":"View";return`
-      <tr class="submission-row" data-id="${a.id}">
-        <td data-label="Siswa"><strong>${u(a.studentName)}</strong></td>
-        <td data-label="Penilaian">${u(a.assessmentTitle)}</td>
-        <td data-label="Tanggal">${Qa(a.submittedAt)}</td>
-        <td data-label="Skor">${Z(a)?a.finalScore:"\u2014"}</td>
-        <td data-label="Status">${Ce(n)}</td>
+  `;
+}
+function renderRecentAssessments(el, subs) {
+  if (!subs.length) {
+    el.innerHTML = `<tr><td colspan="6" class="empty-state">Belum ada penilaian yang dikumpulkan siswa.</td></tr>`;
+    return;
+  }
+  el.innerHTML = subs.map((s) => {
+    const status = getSubmissionStatus(s);
+    const actionLabel = status === "NEEDS_REVIEW" ? "Review" : status === "EVALUATING" ? "Lihat Progres" : status === "FAILED" ? "Retry / Review" : "View";
+    return `
+      <tr class="submission-row" data-id="${s.id}">
+        <td data-label="Siswa"><strong>${escapeHtml(s.studentName)}</strong></td>
+        <td data-label="Penilaian">${escapeHtml(s.assessmentTitle)}</td>
+        <td data-label="Tanggal">${formatDate(s.submittedAt)}</td>
+        <td data-label="Skor">${hasValidScore(s) ? s.finalScore : "\u2014"}</td>
+        <td data-label="Status">${renderStatusBadge(status)}</td>
         <td data-label="Aksi">
-          <button type="button" class="secondary-button view-submission-btn" data-open-detail="${u(a.id)}">${s}</button>
+          <button type="button" class="secondary-button view-submission-btn" data-open-detail="${escapeHtml(s.id)}">${actionLabel}</button>
         </td>
-      </tr>`}).join("")}function Gr(e,t,a){let n=e.state.submissions;if(t&&(n=n.filter(s=>s.classId===t)),a){let s=Date.now()-a*864e5;n=n.filter(r=>new Date(r.submittedAt).getTime()>=s)}return n}function Jr(e,t,a,n){let s=new Set;return t.forEach(r=>{r.status==="approved"&&(!a||r.class_id===a||r.classId===a)&&s.add(r.student_name||r.student_id)}),n.forEach(r=>s.add(r.studentName)),s.size}function Wr(e,t){return e.slice().sort((a,n)=>new Date(n.submittedAt)-new Date(a.submittedAt)).slice(0,t)}function Xr(e,t){let a=new Map;e.forEach(s=>{a.has(s.studentName)||a.set(s.studentName,[]),a.get(s.studentName).push(s)});let n=[];for(let[s,r]of a){let i=r.filter(Z).slice().sort((g,b)=>new Date(g.submittedAt)-new Date(b.submittedAt));if(!i.length)continue;let o=i.map(g=>g.finalScore),l=Math.round(o.reduce((g,b)=>g+b,0)/o.length),c=o.at(-1),d=i.length>1?o.at(-2):c,m=c-d,k=Yr(i,t),h=Zr(k),w=h&&h.count>=2&&h.avg<ja,f=l<ja||m<=Rr||w;n.push({studentName:s,latest:c,avg:l,trend:m>0?1:m<0?-1:0,mainIssue:w&&h?`${h.name} (berulang)`:h?h.name:"\u2014",atRisk:f})}return n.sort((s,r)=>r.atRisk-s.atRisk||s.avg-r.avg)}function Yr(e,t){let a=new Map;return e.forEach(n=>{(n.criteria||[]).forEach((s,r)=>{if(!Number.isFinite(Number(s.score)))return;let i=_a(s,r,t),o=a.get(i)||{name:i,total:0,count:0};o.total+=Number(s.score),o.count+=1,a.set(i,o)})}),[...a.values()].map(n=>({name:n.name,avg:n.total/n.count,count:n.count})).sort((n,s)=>s.avg-n.avg)}function Zr(e){return e.length?e[e.length-1]:null}function ei(e){let t=(e||[]).map(a=>Number(a.confidence)).filter(a=>Number.isFinite(a)&&a>0);return t.length?t.reduce((a,n)=>a+n,0)/t.length:null}function ti(e){if(!e||!e.length)return null;let t=e.filter(a=>Array.isArray(a.evidence)&&a.evidence.some(n=>n&&n.grounded===!0)).length;return Math.round(t/e.length*100)}function us(e){let{els:t,state:a}=e,n=t.assessmentTabFilter.querySelector(".tab-filter-btn.active")?.dataset.tab||"all",s=a.assessments;if(n==="draft"&&(s=s.filter(r=>r.status==="draft")),n==="published"&&(s=s.filter(r=>r.status!=="draft")),t.assessmentCount.textContent=String(s.length),!s.length){t.assessmentList.className="list-stack empty-state",t.assessmentList.innerHTML=`<div class="empty-state"><span class="empty-state-icon" aria-hidden="true">\u25CB</span>
-      <div><strong>${n==="draft"?"Belum ada draft":"Belum ada penilaian"}</strong>
-      <p>${n==="draft"?"Penilaian yang belum dipublish akan muncul di sini.":"Buat penilaian pertama untuk mulai."}</p></div></div>`;return}t.assessmentList.className="list-stack",t.assessmentList.innerHTML=s.map(gt).join("")}function me(e,t,a,n){return`
+      </tr>`;
+  }).join("");
+}
+function filterScope(ctx, classId, rangeDays) {
+  let list = ctx.state.submissions;
+  if (classId) list = list.filter((s) => s.classId === classId);
+  if (rangeDays) {
+    const cutoff = Date.now() - rangeDays * 864e5;
+    list = list.filter((s) => new Date(s.submittedAt).getTime() >= cutoff);
+  }
+  return list;
+}
+function assignedStudentCount(ctx, memberships, classId, scope) {
+  const names = /* @__PURE__ */ new Set();
+  memberships.forEach((m) => {
+    if (m.status === "approved") {
+      if (!classId || m.class_id === classId || m.classId === classId) {
+        names.add(m.student_name || m.student_id);
+      }
+    }
+  });
+  scope.forEach((s) => names.add(s.studentName));
+  return names.size;
+}
+function recentSubmissions(submissions, limit) {
+  return submissions.slice().sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0, limit);
+}
+function buildStudentProfiles(submissions, nameMap) {
+  const byStudent = /* @__PURE__ */ new Map();
+  submissions.forEach((s) => {
+    if (!byStudent.has(s.studentName)) byStudent.set(s.studentName, []);
+    byStudent.get(s.studentName).push(s);
+  });
+  const profiles = [];
+  for (const [name, subs] of byStudent) {
+    const evaluated = subs.filter(hasValidScore).slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+    if (!evaluated.length) continue;
+    const scores = evaluated.map((s) => s.finalScore);
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const latest = scores.at(-1);
+    const prev = evaluated.length > 1 ? scores.at(-2) : latest;
+    const trend = latest - prev;
+    const comps = aggregateCompetencies(evaluated, nameMap);
+    const weak = weakestCompetency(comps);
+    const repeatedWeak = weak && weak.count >= 2 && weak.avg < ATTENTION_SCORE_THRESHOLD;
+    const atRisk = avg < ATTENTION_SCORE_THRESHOLD || trend <= ATTENTION_TREND_THRESHOLD || repeatedWeak;
+    profiles.push({
+      studentName: name,
+      latest,
+      avg,
+      trend: trend > 0 ? 1 : trend < 0 ? -1 : 0,
+      mainIssue: repeatedWeak && weak ? `${weak.name} (berulang)` : weak ? weak.name : "\u2014",
+      atRisk
+    });
+  }
+  return profiles.sort((a, b) => b.atRisk - a.atRisk || a.avg - b.avg);
+}
+function aggregateCompetencies(submissions, nameMap) {
+  const map = /* @__PURE__ */ new Map();
+  submissions.forEach((sub) => {
+    (sub.criteria || []).forEach((c, idx) => {
+      if (!Number.isFinite(Number(c.score))) return;
+      const name = resolveCriterionName(c, idx, nameMap);
+      const entry = map.get(name) || { name, total: 0, count: 0 };
+      entry.total += Number(c.score);
+      entry.count += 1;
+      map.set(name, entry);
+    });
+  });
+  return [...map.values()].map((e) => ({ name: e.name, avg: e.total / e.count, count: e.count })).sort((a, b) => b.avg - a.avg);
+}
+function weakestCompetency(comps) {
+  return comps.length ? comps[comps.length - 1] : null;
+}
+function criteriaAvgConfidence(criteria) {
+  const confs = (criteria || []).map((c) => Number(c.confidence)).filter((v) => Number.isFinite(v) && v > 0);
+  if (!confs.length) return null;
+  return confs.reduce((a, b) => a + b, 0) / confs.length;
+}
+function criteriaCoverage(criteria) {
+  if (!criteria || !criteria.length) return null;
+  const withEvidence = criteria.filter(
+    (c) => Array.isArray(c.evidence) && c.evidence.some((ev) => ev && ev.grounded === true)
+  ).length;
+  return Math.round(withEvidence / criteria.length * 100);
+}
+function renderAssessmentsWithTab(ctx) {
+  const { els, state } = ctx;
+  const activeTab = els.assessmentTabFilter.querySelector(".tab-filter-btn.active")?.dataset.tab || "all";
+  let list = state.assessments;
+  if (activeTab === "draft") list = list.filter((a) => a.status === "draft");
+  if (activeTab === "published") list = list.filter((a) => a.status !== "draft");
+  els.assessmentCount.textContent = String(list.length);
+  if (!list.length) {
+    els.assessmentList.className = "list-stack empty-state";
+    els.assessmentList.innerHTML = `<div class="empty-state"><span class="empty-state-icon" aria-hidden="true">\u25CB</span>
+      <div><strong>${activeTab === "draft" ? "Belum ada draft" : "Belum ada penilaian"}</strong>
+      <p>${activeTab === "draft" ? "Penilaian yang belum dipublish akan muncul di sini." : "Buat penilaian pertama untuk mulai."}</p></div></div>`;
+    return;
+  }
+  els.assessmentList.className = "list-stack";
+  els.assessmentList.innerHTML = list.map(renderAssessmentItem).join("");
+}
+function kpiCard(label, value, sub, hint) {
+  return `
     <div class="kpi-card">
-      <span class="kpi-label">${u(e)}</span>
-      <strong class="kpi-value">${u(t)}</strong>
-      <span class="kpi-sub">${u(a)}</span>
-      ${n?`<span class="kpi-hint" title="${u(n)}">\u24D8</span>`:""}
+      <span class="kpi-label">${escapeHtml(label)}</span>
+      <strong class="kpi-value">${escapeHtml(value)}</strong>
+      <span class="kpi-sub">${escapeHtml(sub)}</span>
+      ${hint ? `<span class="kpi-hint" title="${escapeHtml(hint)}">\u24D8</span>` : ""}
     </div>
-  `}function Ye(e,t,a=120){e&&(e.innerHTML=Array.from({length:t},()=>`<div class="skeleton" style="height:${a}px"></div>`).join(""))}function ai(e){return Array.from({length:e},()=>'<div class="skeleton skeleton-line"></div>').join("")}function ni(e,t,a){if(!t)return;let n=a||t.value,s=['<option value="">Semua Kelas</option>'].concat(e.state.classes.map(r=>`<option value="${u(r.id)}">${u(r.name)}</option>`)).join("");(t.innerHTML!==s||t.value!==n)&&(t.innerHTML=s,n&&e.state.classes.some(r=>r.id===n)&&(t.value=n))}function si(e){return`<span class="verification-mini ${e==="FAIL"?"verification-mini-badge-bad":e==="REVIEW"?"verification-mini-badge-warn":"verification-mini-badge-ok"}">${e==="FAIL"?"\u2715 Failed":e==="REVIEW"?"\u26A0 Perlu Review":"\u2713 Verified"}</span>`}function ri(e){let d=596/(Math.max(2,e.length)-1),m=b=>136-b/100*122,k=e.map((b,v)=>`${(34+d*v).toFixed(1)},${m(b.finalScore).toFixed(1)}`).join(" "),h=[0,25,50,75,100].map(b=>`<line x1="34" y1="${m(b)}" x2="630" y2="${m(b)}" stroke="${U("--border")}" stroke-width="1"/>`).join(""),w=[0,25,50,75,100].map(b=>`<text x="28" y="${m(b)+4}" text-anchor="end" fill="${U("--text-muted")}" font-size="10">${b}</text>`).join(""),f=e.map((b,v)=>`<circle cx="${(34+d*v).toFixed(1)}" cy="${m(b.finalScore).toFixed(1)}" r="4" fill="${U("--brand")}"/>`).join(""),g=e.map((b,v)=>`<text x="${(34+d*v).toFixed(1)}" y="152" text-anchor="middle" fill="${U("--text-muted")}" font-size="9">${cs(Qa(b.submittedAt))}</text>`).join("");return`
-    <svg class="chart-svg" viewBox="0 0 640 160" role="img" aria-label="Grafik skor siswa dari waktu ke waktu">
-      ${h}
-      ${w}
-      <polyline points="${k}" fill="none" stroke="${U("--success-strong")}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-      ${f}
-      ${g}
+  `;
+}
+function renderSkeleton(el, count, height = 120) {
+  if (!el) return;
+  el.innerHTML = Array.from(
+    { length: count },
+    () => `<div class="skeleton" style="height:${height}px"></div>`
+  ).join("");
+}
+function renderSkeletonLines(count) {
+  return Array.from({ length: count }, () => `<div class="skeleton skeleton-line"></div>`).join("");
+}
+function populateClassFilter(ctx, select, currentValue) {
+  if (!select) return;
+  const current = currentValue || select.value;
+  const options = ['<option value="">Semua Kelas</option>'].concat(ctx.state.classes.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`)).join("");
+  if (select.innerHTML !== options || select.value !== current) {
+    select.innerHTML = options;
+    if (current && ctx.state.classes.some((c) => c.id === current)) select.value = current;
+  }
+}
+function verificationBadge(status) {
+  const cls = status === "FAIL" ? "verification-mini-badge-bad" : status === "REVIEW" ? "verification-mini-badge-warn" : "verification-mini-badge-ok";
+  const label = status === "FAIL" ? "\u2715 Failed" : status === "REVIEW" ? "\u26A0 Perlu Review" : "\u2713 Verified";
+  return `<span class="verification-mini ${cls}">${label}</span>`;
+}
+function buildProfileTrend(evaluated) {
+  const W = 640;
+  const H = 160;
+  const padL = 34;
+  const padR = 10;
+  const padT = 14;
+  const padB = 24;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const n = Math.max(2, evaluated.length);
+  const slot = innerW / (n - 1);
+  const yFor = (v) => padT + innerH - v / 100 * innerH;
+  const pointsStr = evaluated.map((s, i) => `${(padL + slot * i).toFixed(1)},${yFor(s.finalScore).toFixed(1)}`).join(" ");
+  const gridLines = [0, 25, 50, 75, 100].map((v) => `<line x1="${padL}" y1="${yFor(v)}" x2="${W - padR}" y2="${yFor(v)}" stroke="${cssVar("--border")}" stroke-width="1"/>`).join("");
+  const gridLabels = [0, 25, 50, 75, 100].map((v) => `<text x="${padL - 6}" y="${yFor(v) + 4}" text-anchor="end" fill="${cssVar("--text-muted")}" font-size="10">${v}</text>`).join("");
+  const circles = evaluated.map((s, i) => `<circle cx="${(padL + slot * i).toFixed(1)}" cy="${yFor(s.finalScore).toFixed(1)}" r="4" fill="${cssVar("--brand")}"/>`).join("");
+  const xLabels = evaluated.map((s, i) => `<text x="${(padL + slot * i).toFixed(1)}" y="${H - 8}" text-anchor="middle" fill="${cssVar("--text-muted")}" font-size="9">${escapeXml(formatDate(s.submittedAt))}</text>`).join("");
+  return `
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafik skor siswa dari waktu ke waktu">
+      ${gridLines}
+      ${gridLabels}
+      <polyline points="${pointsStr}" fill="none" stroke="${cssVar("--success-strong")}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+      ${circles}
+      ${xLabels}
     </svg>
-  `}function ii(e){return e>0?"\u2191":e<0?"\u2193":"\u2192"}function oi(e){return e>0?"trend-up":e<0?"trend-down":"trend-flat"}function Qa(e){return e?new Date(e).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"}):"-"}function ds(e){return e?new Date(e).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-"}function li(e){return e?u(String(e)).split(/\r?\n/).map(a=>a.trim().startsWith("- ")?`<li>${Lt(a.trim().slice(2))}</li>`:a.trim().startsWith("* ")?`<li>${Lt(a.trim().slice(2))}</li>`:a?`<p>${Lt(a)}</p>`:"").join(""):""}function Lt(e){return String(e).replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/`([^`]+)`/g,"<code>$1</code>")}function cs(e){return String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;")}function ui(e,t,a){let{els:n}=e;if(!n.compTrendChart)return;let s=t.slice().sort((f,g)=>new Date(f.submittedAt)-new Date(g.submittedAt));if(s.length<2){n.compTrendChart.innerHTML='<p class="empty-state">Butuh minimal 2 submission untuk melihat tren kompetensi.</p>';return}let r=new Map;for(let f of s){let g=new Date(f.submittedAt).toLocaleDateString("id-ID",{month:"short",day:"numeric"});(f.criteria||[]).forEach((b,v)=>{if(!Number.isFinite(Number(b.score)))return;let L=_a(b,v,a);r.has(L)||r.set(L,[]),r.get(L).push({date:g,score:Number(b.score)})})}if(r.size===0){n.compTrendChart.innerHTML='<p class="empty-state">Belum ada data kriteria. Evaluasi perlu memakai rubrik.</p>';return}let i=["--brand","--success","--info","--danger","--warning","--ai","--voice","--success-strong"].map(f=>U(f)),o=[...r.entries()],l=600,c=180,d=30,m=[...new Set(s.map(f=>new Date(f.submittedAt).toLocaleDateString("id-ID",{month:"short",day:"numeric"})))];n.compTrendLegend.innerHTML=o.map(([f],g)=>`<span><span class="swatch" style="background:${i[g%i.length]}"></span>${u(f)}</span>`).join("");let k="";o.forEach(([f,g],b)=>{let v=i[b%i.length],L=q=>d+q/Math.max(1,m.length-1)*(l-2*d),y=q=>c-d-q/100*(c-2*d),S=new Map;g.forEach(q=>{S.has(q.date)||S.set(q.date,[]),S.get(q.date).push(q.score)});let T=[...S.entries()].map(([q,_])=>({date:q,score:_.reduce((j,O)=>j+O,0)/_.length})),M=T.map((q,_)=>{let j=L(m.indexOf(q.date)),O=y(q.score);return`${_===0?"M":"L"}${j.toFixed(1)},${O.toFixed(1)}`}).join(" ");k+=`<path d="${M}" fill="none" stroke="${v}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`,k+=T.map((q,_)=>{let j=L(m.indexOf(q.date)),O=y(q.score);return`<circle cx="${j.toFixed(1)}" cy="${O.toFixed(1)}" r="3" fill="${v}" stroke="white" stroke-width="1.5"/>`}).join("")});let h=m.map((f,g)=>`<text x="${(d+g/Math.max(1,m.length-1)*(l-2*d)).toFixed(1)}" y="${c-5}" text-anchor="middle" font-size="9" fill="${U("--text-muted")}">${f}</text>`).join(""),w=[0,25,50,75,100].map(f=>{let g=c-d-f/100*(c-2*d);return`<text x="${d-5}" y="${g.toFixed(1)+4}" text-anchor="end" font-size="9" fill="${U("--text-muted")}">${f}</text>`}).join("");n.compTrendChart.innerHTML=`
-    <svg viewBox="0 0 ${l} ${c}" style="width:100%;height:100%;" role="img" aria-label="Grafik tren kompetensi">
-      <line x1="${d}" y1="${c-d}" x2="${l-d}" y2="${c-d}" stroke="${U("--border")}" stroke-width="1"/>
-      <line x1="${d}" y1="${d}" x2="${d}" y2="${c-d}" stroke="${U("--border")}" stroke-width="1"/>
-      ${[25,50,75].map(f=>{let g=c-d-f/100*(c-2*d);return`<line x1="${d}" y1="${g}" x2="${l-d}" y2="${g}" stroke="${U("--border")}" stroke-width="1"/>`}).join("")}
-      ${k}
-      ${h}
-      ${w}
+  `;
+}
+function trendArrow(trend) {
+  return trend > 0 ? "\u2191" : trend < 0 ? "\u2193" : "\u2192";
+}
+function trendClass(trend) {
+  return trend > 0 ? "trend-up" : trend < 0 ? "trend-down" : "trend-flat";
+}
+function formatDate(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+}
+function formatDateTime2(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+function formatRichText2(text) {
+  if (!text) return "";
+  const escaped = escapeHtml(String(text));
+  return escaped.split(/\r?\n/).map((l) => {
+    if (l.trim().startsWith("- ")) return `<li>${escapeHtmlSup(l.trim().slice(2))}</li>`;
+    if (l.trim().startsWith("* ")) return `<li>${escapeHtmlSup(l.trim().slice(2))}</li>`;
+    return l ? `<p>${escapeHtmlSup(l)}</p>` : "";
+  }).join("");
+}
+function escapeHtmlSup(text) {
+  let t = String(text).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  return t;
+}
+function escapeXml(text) {
+  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function renderCompTrend(ctx, evaluated, nameMap) {
+  const { els } = ctx;
+  if (!els.compTrendChart) return;
+  const sorted = evaluated.slice().sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  if (sorted.length < 2) {
+    els.compTrendChart.innerHTML = '<p class="empty-state">Butuh minimal 2 submission untuk melihat tren kompetensi.</p>';
+    return;
+  }
+  const compMap = /* @__PURE__ */ new Map();
+  for (const sub of sorted) {
+    const date = new Date(sub.submittedAt).toLocaleDateString("id-ID", { month: "short", day: "numeric" });
+    (sub.criteria || []).forEach((c, idx) => {
+      if (!Number.isFinite(Number(c.score))) return;
+      const name = resolveCriterionName(c, idx, nameMap);
+      if (!compMap.has(name)) compMap.set(name, []);
+      compMap.get(name).push({ date, score: Number(c.score) });
+    });
+  }
+  if (compMap.size === 0) {
+    els.compTrendChart.innerHTML = '<p class="empty-state">Belum ada data kriteria. Evaluasi perlu memakai rubrik.</p>';
+    return;
+  }
+  const COLORS = ["--brand", "--success", "--info", "--danger", "--warning", "--ai", "--voice", "--success-strong"].map((t) => cssVar(t));
+  const entries = [...compMap.entries()];
+  const W = 600, H = 180, PAD = 30;
+  const allDates = [...new Set(sorted.map((s) => new Date(s.submittedAt).toLocaleDateString("id-ID", { month: "short", day: "numeric" })))];
+  els.compTrendLegend.innerHTML = entries.map(
+    ([name], i) => `<span><span class="swatch" style="background:${COLORS[i % COLORS.length]}"></span>${escapeHtml(name)}</span>`
+  ).join("");
+  let paths = "";
+  entries.forEach(([name, points], i) => {
+    const color = COLORS[i % COLORS.length];
+    const xScale = (idx) => PAD + idx / Math.max(1, allDates.length - 1) * (W - 2 * PAD);
+    const yScale = (score) => H - PAD - score / 100 * (H - 2 * PAD);
+    const byDate = /* @__PURE__ */ new Map();
+    points.forEach((p) => {
+      if (!byDate.has(p.date)) byDate.set(p.date, []);
+      byDate.get(p.date).push(p.score);
+    });
+    const avgPoints = [...byDate.entries()].map(([date, scores]) => ({
+      date,
+      score: scores.reduce((a, b) => a + b, 0) / scores.length
+    }));
+    const line = avgPoints.map((p, idx) => {
+      const x = xScale(allDates.indexOf(p.date));
+      const y = yScale(p.score);
+      return `${idx === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    paths += `<path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    paths += avgPoints.map((p, idx) => {
+      const x = xScale(allDates.indexOf(p.date));
+      const y = yScale(p.score);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+    }).join("");
+  });
+  const xLabels = allDates.map((d, idx) => {
+    const x = PAD + idx / Math.max(1, allDates.length - 1) * (W - 2 * PAD);
+    return `<text x="${x.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${cssVar("--text-muted")}">${d}</text>`;
+  }).join("");
+  const yLabels = [0, 25, 50, 75, 100].map((v) => {
+    const y = H - PAD - v / 100 * (H - 2 * PAD);
+    return `<text x="${PAD - 5}" y="${y.toFixed(1) + 4}" text-anchor="end" font-size="9" fill="${cssVar("--text-muted")}">${v}</text>`;
+  }).join("");
+  els.compTrendChart.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%;" role="img" aria-label="Grafik tren kompetensi">
+      <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="${cssVar("--border")}" stroke-width="1"/>
+      <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="${cssVar("--border")}" stroke-width="1"/>
+      ${[25, 50, 75].map((v) => {
+    const y = H - PAD - v / 100 * (H - 2 * PAD);
+    return `<line x1="${PAD}" y1="${y}" x2="${W - PAD}" y2="${y}" stroke="${cssVar("--border")}" stroke-width="1"/>`;
+  }).join("")}
+      ${paths}
+      ${xLabels}
+      ${yLabels}
     </svg>
-  `}var ja,Rr,Ra,Na,Ze=x(()=>{F();H();ca();ie();da();V();B();ja=70,Rr=-15,Ra=10080*60*1e3;Na={ASSESSMENT_LOADED:"Assessment Loaded",RUBRIC_LOADED:"Rubric Loaded",CONTEXT_BUILT:"Student Answer",EVIDENCE_EXTRACTED:"Evidence Extracted",VERIFICATION:"Verification",VERIFICATION_RUN:"Verification",FINAL_SCORE:"Deterministic Scoring \u2192 Final Score"}});var ms={};Q(ms,{bindObservabilityEvents:()=>Ja,loadTelemetry:()=>Ga});function Ja(e){let{els:t}=e;document.querySelectorAll(".ob-tab-btn").forEach(a=>{a.addEventListener("click",()=>{document.querySelectorAll(".ob-tab-btn").forEach(s=>{s.classList.remove("active"),s.setAttribute("aria-selected","false")}),a.classList.add("active"),a.setAttribute("aria-selected","true"),document.querySelectorAll(".ob-section").forEach(s=>s.classList.remove("active"));let n=document.getElementById("ob-section-"+a.dataset.obSection);n&&n.classList.add("active")})}),t.refreshTelemetryBtn?.addEventListener("click",()=>{we=0,Ga(e)}),t.telemetryRange?.addEventListener("change",()=>{we=0,Ga(e)}),["telemetryFilterOp","telemetryFilterModel","telemetryFilterStatus","telemetryFilterLatency","telemetryFilterDate"].forEach(a=>{t[a]?.addEventListener("change",()=>{we=0,pe(e,!0),Et(e,{logs:!0}).finally(()=>pe(e,!1))})}),t.telemetryLogPrev?.addEventListener("click",()=>{we=Math.max(0,we-za),pe(e,!0),Et(e,{logs:!0}).finally(()=>pe(e,!1))}),t.telemetryLogNext?.addEventListener("click",()=>{we+=za,pe(e,!0),Et(e,{logs:!0}).finally(()=>pe(e,!1))})}async function Ga(e){pe(e,!0);try{await Et(e)}finally{pe(e,!1)}}function pe(e,t){let{els:a}=e;a.refreshTelemetryBtn&&(D(a.refreshTelemetryBtn,t,"Memuat\u2026","\u{1F504} Refresh Telemetry"),a.refreshTelemetryBtn.setAttribute("aria-busy",String(t)))}async function Et(e,t={}){let{els:a}=e,n=++Ka,s=a.telemetryRange?.value||"24h",r=new URLSearchParams({range:s});if(r.set("limit",String(za)),r.set("offset",String(we)),t.logs){a.telemetryFilterOp?.value&&r.set("operation",a.telemetryFilterOp.value),a.telemetryFilterModel?.value&&r.set("model",a.telemetryFilterModel.value),a.telemetryFilterStatus?.value&&r.set("status",a.telemetryFilterStatus.value);let i=Number(a.telemetryFilterLatency?.value||0);i>0&&r.set("latency",String(i)),a.telemetryFilterDate?.value&&r.set("dateFrom",a.telemetryFilterDate.value)}try{let i=await fetch(`/api/observability?${r.toString()}`),o=await i.json().catch(()=>({}));if(!i.ok)throw new Error(o.error||"Gagal memuat data telemetry");if(n!==Ka)return;fa(a,o)}catch(i){if(n!==Ka)return;p(i.message||"Gagal memuat telemetry","error")}}var Ka,za,we,Wa=x(()=>{ie();F();Y();Ka=0,za=10,we=0});var gs={};Q(gs,{bindResearchEvents:()=>Ya,loadResearch:()=>bi});async function fe(e,t){let a=await fetch(e,t),n=await a.json().catch(()=>({}));if(!a.ok)throw new Error(n.error||"Permintaan gagal");return n}function di(e){let t=e?`?action=metrics&assessmentId=${encodeURIComponent(e)}`:"?action=metrics";return fe(`/api/research${t}`)}function ci(e){let t=e?`?action=runs&assessmentId=${encodeURIComponent(e)}`:"?action=runs";return fe(`/api/research${t}`)}function mi(e){let t=e?`?action=rubric&assessmentId=${encodeURIComponent(e)}`:"?action=rubric";return fe(`/api/research${t}`)}function pi(e){return fe(`/api/research?action=trace&runId=${encodeURIComponent(e)}`)}function fi(e,t,a){return fe("/api/research",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save-human-score",payload:{runId:e,humanScore:t,humanFeedback:a}})})}function gi(e,t,a){return fe("/api/research",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"approve",payload:{runId:e,humanScore:t,humanFeedback:a}})})}function Ya(e){let{els:t}=e;t.researchSelect?.addEventListener("change",a=>{Xa(e,a.target.value)}),t.researchExportBtn?.addEventListener("click",()=>Li(e)),t.refreshResearchBtn?.addEventListener("click",()=>{Xa(e,t.researchSelect.value).catch(a=>p(a.message,"error"))}),t.researchRunsList?.addEventListener("click",a=>{let n=a.target.closest("[data-trace]");if(n){wi(e,n.dataset.trace);return}let s=a.target.closest("[data-export-run]");s&&$i(e,s.dataset.exportRun)}),t.researchResultPanel?.addEventListener("click",async a=>{if(a.target.classList.contains("research-close-btn")){t.researchResultPanel.classList.add("hidden");return}if(a.target.id==="saveHumanScoreBtn"){let n=t.researchResultPanel.dataset.runId,s=Number(t.researchResultPanel.querySelector("#humanScoreInput")?.value),r=t.researchResultPanel.querySelector("#humanScoreFeedback")?.value||"";if(!n)return;try{if(!Number.isFinite(s)||s<0||s>100)throw new Error("Skor manusia harus angka 0-100");await fi(n,s,r),p("Skor manusia disimpan","success"),t.researchResultPanel.classList.add("hidden")}catch(i){p(i.message,"error")}return}if(a.target.id==="approveAiScoreBtn"){let n=t.researchResultPanel.dataset.runId,s=t.researchResultPanel.querySelector("#humanScoreInput")?.value,r=t.researchResultPanel.querySelector("#humanScoreFeedback")?.value||"";if(!n)return;try{let i;if(s!==void 0&&String(s).trim()!==""&&(i=Number(s),!Number.isFinite(i)||i<0||i>100))throw new Error("Skor koreksi harus angka 0-100, atau kosongkan untuk pakai skor AI");await gi(n,i,r),p(i===void 0?"Skor AI di-approve":"Skor disetujui dengan koreksi","success"),t.researchResultPanel.classList.add("hidden")}catch(i){p(i.message,"error")}}})}async function bi(e){await Xa(e,"")}async function Xa(e,t){let{els:a}=e;if(!a.researchSelect)return;if(a.researchSelect.options.length<=1){let i=e.state&&e.state.assessments||[];a.researchSelect.innerHTML='<option value="">Semua assessment</option>'+i.map(o=>`<option value="${u(o.id)}">${u(o.topic)}</option>`).join("")}a.researchSelect.value=t||"";let[n,s,r]=await Promise.all([di(t).catch(()=>null),ci(t),mi(t).catch(()=>null)]);hi(a,n),yi(a,s?s.runs||[]:[]),vi(a,r)}function W(e,t=3){return e==null||Number.isNaN(e)?"-":typeof e=="number"?e.toFixed(t):String(e)}function ps(e){let t=(Number(e)||0)*100;return Number.isInteger(t)?String(t):t.toFixed(1).replace(/\.0$/,"")}function hi(e,t){let a=t&&t.metrics,n=t&&t.n?t.n:0;if(!a){e.researchValidity.innerHTML='<p class="empty-state">Belum ada pasangan AI-vs-Human. Beri skor manusia pada sebuah trace untuk melihat metrik validitas.</p>',e.researchInterRater.innerHTML='<p class="empty-state">Belum ada pasangan skor untuk metrik reliabilitas.</p>';return}let s=(i,o,l,c)=>`
-    <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;" title="${u(c||"")}">
-      <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${i}</span>
-      <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${l?W(o*100,1)+"%":W(o)}</strong>
-      <span class="metric-hint" style="font-size:0.72rem;color:var(--muted);line-height:1.35;">${u(c||"")}</span>
-    </div>`;e.researchValidity.innerHTML=`<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${n} pasangan AI vs human</p>`+s("Pearson",a.validity.pearson,!1,"Koefisien korelasi linier antara skor AI dan skor manusia. Nilai mendekati 1 menandakan keselarasan yang kuat; mendekati 0 menandakan tidak ada korelasi.")+s("Spearman",a.validity.spearman,!1,"Korelasi berbasis peringkat yang lebih tahan terhadap nilai ekstrem dibandingkan Pearson, mengukur konsistensi urutan antar-penilai.")+s("MAE",a.validity.mae,!1,"Rata-rata absolut selisih antara skor AI dan skor manusia. Semakin rendah (idealnya di bawah 5) semakin akurat prediksi AI.")+s("RMSE",a.validity.rmse,!1,"Akar rata-rata kuadrat selisih skor. Memberi bobot lebih besar pada selisih yang besar sehingga sensitif terhadap anomali penilaian.")+s("Exact agreement",a.reliability.exactAgreement,!0,"Proporsi penilaian di mana skor AI dan skor manusia bernilai identik.")+s("Adjacent (+/-5)",a.reliability.adjacentAgreement,!0,"Proporsi penilaian dengan selisih skor maksimal 5 poin antara AI dan manusia.");let r=t.interRater;if(e.researchInterRater)if(!r||r.icc==null&&r.cohensKappa==null&&r.weightedKappa==null)e.researchInterRater.innerHTML='<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">'+n+' pasangan skor</p><p class="empty-state">Metrik reliabilitas belum tersedia (butuh variasi skor).</p>';else{let i=(o,l,c)=>`
-        <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;" title="${u(c||"")}">
-          <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${o}</span>
-          <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${W(l)}</strong>
-          <span class="metric-hint" style="font-size:0.72rem;color:var(--muted);line-height:1.35;">${u(c||"")}</span>
-        </div>`;e.researchInterRater.innerHTML=`<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${r.n??n} pasangan AI vs human</p>`+i("Cohen's Kappa",r.cohensKappa,"Indeks kesepakatan antara AI dan manusia setelah dikurangi peluang kebetulan. Nilai di atas 0,6 menandakan kesepakatan yang baik.")+i("Weighted Kappa",r.weightedKappa,"Varian Cohen's Kappa yang memperhitungkan besarnya selisih; selisih kecil dikenai penalti lebih ringan dibanding selisih besar.")+i("ICC (2-way)",r.icc,"Konsistensi antar-penilai. Nilai mendekati 1 menandakan konsistensi tinggi; di bawah 0,5 menandakan konsistensi rendah.")}}function yi(e,t){e.researchRunsList.innerHTML=t.length?t.map(a=>{let n=ki(a.approval_status,a.human_score),s=fs(a.verification_status,a.verification_valid),r=[a.harness_version?`harness ${a.harness_version}`:null,a.prompt_version?`prompt ${a.prompt_version}`:null].filter(Boolean).join(" \xB7 ");return`
+  `;
+}
+var ATTENTION_SCORE_THRESHOLD, ATTENTION_TREND_THRESHOLD, WEEK_MS, labels1;
+var init_dashboard = __esm({
+  "src/js/dashboard.js"() {
+    init_toast();
+    init_utils();
+    init_status();
+    init_render();
+    init_competency_profile();
+    init_app_context();
+    init_api();
+    ATTENTION_SCORE_THRESHOLD = 70;
+    ATTENTION_TREND_THRESHOLD = -15;
+    WEEK_MS = 7 * 24 * 60 * 60 * 1e3;
+    labels1 = {
+      ASSESSMENT_LOADED: "Assessment Loaded",
+      RUBRIC_LOADED: "Rubric Loaded",
+      CONTEXT_BUILT: "Student Answer",
+      EVIDENCE_EXTRACTED: "Evidence Extracted",
+      VERIFICATION: "Verification",
+      VERIFICATION_RUN: "Verification",
+      FINAL_SCORE: "Deterministic Scoring \u2192 Final Score"
+    };
+  }
+});
+
+// src/js/observability.js
+var observability_exports = {};
+__export(observability_exports, {
+  bindObservabilityEvents: () => bindObservabilityEvents,
+  loadTelemetry: () => loadTelemetry
+});
+function bindObservabilityEvents(ctx) {
+  const { els } = ctx;
+  document.querySelectorAll(".ob-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".ob-tab-btn").forEach((b) => {
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
+      document.querySelectorAll(".ob-section").forEach((s) => s.classList.remove("active"));
+      const section = document.getElementById("ob-section-" + btn.dataset.obSection);
+      if (section) section.classList.add("active");
+    });
+  });
+  els.refreshTelemetryBtn?.addEventListener("click", () => {
+    telemetryLogOffset = 0;
+    loadTelemetry(ctx);
+  });
+  els.telemetryRange?.addEventListener("change", () => {
+    telemetryLogOffset = 0;
+    loadTelemetry(ctx);
+  });
+  ["telemetryFilterOp", "telemetryFilterModel", "telemetryFilterStatus", "telemetryFilterLatency", "telemetryFilterDate"].forEach(
+    (id) => {
+      els[id]?.addEventListener("change", () => {
+        telemetryLogOffset = 0;
+        setTelemetryLoading(ctx, true);
+        fetchAndRenderTelemetry(ctx, { logs: true }).finally(() => setTelemetryLoading(ctx, false));
+      });
+    }
+  );
+  els.telemetryLogPrev?.addEventListener("click", () => {
+    telemetryLogOffset = Math.max(0, telemetryLogOffset - LOG_PAGE_SIZE);
+    setTelemetryLoading(ctx, true);
+    fetchAndRenderTelemetry(ctx, { logs: true }).finally(() => setTelemetryLoading(ctx, false));
+  });
+  els.telemetryLogNext?.addEventListener("click", () => {
+    telemetryLogOffset += LOG_PAGE_SIZE;
+    setTelemetryLoading(ctx, true);
+    fetchAndRenderTelemetry(ctx, { logs: true }).finally(() => setTelemetryLoading(ctx, false));
+  });
+}
+async function loadTelemetry(ctx) {
+  setTelemetryLoading(ctx, true);
+  try {
+    await fetchAndRenderTelemetry(ctx);
+  } finally {
+    setTelemetryLoading(ctx, false);
+  }
+}
+function setTelemetryLoading(ctx, active) {
+  const { els } = ctx;
+  if (!els.refreshTelemetryBtn) return;
+  setButtonLoading(els.refreshTelemetryBtn, active, "Memuat\u2026", "\u{1F504} Refresh Telemetry");
+  els.refreshTelemetryBtn.setAttribute("aria-busy", String(active));
+}
+async function fetchAndRenderTelemetry(ctx, opts = {}) {
+  const { els } = ctx;
+  const seq = ++telemetryRequestSeq;
+  const range = els.telemetryRange?.value || "24h";
+  const params = new URLSearchParams({ range });
+  params.set("limit", String(LOG_PAGE_SIZE));
+  params.set("offset", String(telemetryLogOffset));
+  if (opts.logs) {
+    if (els.telemetryFilterOp?.value) params.set("operation", els.telemetryFilterOp.value);
+    if (els.telemetryFilterModel?.value) params.set("model", els.telemetryFilterModel.value);
+    if (els.telemetryFilterStatus?.value) params.set("status", els.telemetryFilterStatus.value);
+    const latency = Number(els.telemetryFilterLatency?.value || 0);
+    if (latency > 0) params.set("latency", String(latency));
+    if (els.telemetryFilterDate?.value) params.set("dateFrom", els.telemetryFilterDate.value);
+  }
+  try {
+    const response = await fetch(`/api/observability?${params.toString()}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Gagal memuat data telemetry");
+    if (seq !== telemetryRequestSeq) return;
+    renderObservability(els, data);
+  } catch (err) {
+    if (seq !== telemetryRequestSeq) return;
+    showToast(err.message || "Gagal memuat telemetry", "error");
+  }
+}
+var telemetryRequestSeq, LOG_PAGE_SIZE, telemetryLogOffset;
+var init_observability = __esm({
+  "src/js/observability.js"() {
+    init_render();
+    init_toast();
+    init_dom();
+    telemetryRequestSeq = 0;
+    LOG_PAGE_SIZE = 10;
+    telemetryLogOffset = 0;
+  }
+});
+
+// src/js/research.js
+var research_exports = {};
+__export(research_exports, {
+  bindResearchEvents: () => bindResearchEvents,
+  loadResearch: () => loadResearch
+});
+async function fetchJson(url, options) {
+  const res = await fetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Permintaan gagal");
+  return data;
+}
+function fetchMetrics(assessmentId) {
+  const qs = assessmentId ? `?action=metrics&assessmentId=${encodeURIComponent(assessmentId)}` : "?action=metrics";
+  return fetchJson(`/api/research${qs}`);
+}
+function fetchRuns(assessmentId) {
+  const qs = assessmentId ? `?action=runs&assessmentId=${encodeURIComponent(assessmentId)}` : "?action=runs";
+  return fetchJson(`/api/research${qs}`);
+}
+function fetchRubric(assessmentId) {
+  const qs = assessmentId ? `?action=rubric&assessmentId=${encodeURIComponent(assessmentId)}` : "?action=rubric";
+  return fetchJson(`/api/research${qs}`);
+}
+function fetchTrace(runId) {
+  return fetchJson(`/api/research?action=trace&runId=${encodeURIComponent(runId)}`);
+}
+function saveHumanScore(runId, humanScore, humanFeedback) {
+  return fetchJson("/api/research", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "save-human-score", payload: { runId, humanScore, humanFeedback } })
+  });
+}
+function approveRun(runId, humanScore, humanFeedback) {
+  return fetchJson("/api/research", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "approve", payload: { runId, humanScore, humanFeedback } })
+  });
+}
+function bindResearchEvents(ctx) {
+  const { els } = ctx;
+  els.researchSelect?.addEventListener("change", (e) => {
+    renderResearch(ctx, e.target.value);
+  });
+  els.researchExportBtn?.addEventListener("click", () => exportBundle(ctx));
+  els.refreshResearchBtn?.addEventListener("click", () => {
+    renderResearch(ctx, els.researchSelect.value).catch((e) => showToast(e.message, "error"));
+  });
+  els.researchRunsList?.addEventListener("click", (e) => {
+    const traceBtn = e.target.closest("[data-trace]");
+    if (traceBtn) {
+      openTrace(ctx, traceBtn.dataset.trace);
+      return;
+    }
+    const exportBtn = e.target.closest("[data-export-run]");
+    if (exportBtn) {
+      exportSingleRun(ctx, exportBtn.dataset.exportRun);
+    }
+  });
+  els.researchResultPanel?.addEventListener("click", async (e) => {
+    if (e.target.classList.contains("research-close-btn")) {
+      els.researchResultPanel.classList.add("hidden");
+      return;
+    }
+    if (e.target.id === "saveHumanScoreBtn") {
+      const runId = els.researchResultPanel.dataset.runId;
+      const score = Number(els.researchResultPanel.querySelector("#humanScoreInput")?.value);
+      const feedback = els.researchResultPanel.querySelector("#humanScoreFeedback")?.value || "";
+      if (!runId) return;
+      try {
+        if (!Number.isFinite(score) || score < 0 || score > 100) {
+          throw new Error("Skor manusia harus angka 0-100");
+        }
+        await saveHumanScore(runId, score, feedback);
+        showToast("Skor manusia disimpan", "success");
+        els.researchResultPanel.classList.add("hidden");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+    if (e.target.id === "approveAiScoreBtn") {
+      const runId = els.researchResultPanel.dataset.runId;
+      const scoreInput = els.researchResultPanel.querySelector("#humanScoreInput")?.value;
+      const feedback = els.researchResultPanel.querySelector("#humanScoreFeedback")?.value || "";
+      if (!runId) return;
+      try {
+        let humanScore;
+        if (scoreInput !== void 0 && String(scoreInput).trim() !== "") {
+          humanScore = Number(scoreInput);
+          if (!Number.isFinite(humanScore) || humanScore < 0 || humanScore > 100) {
+            throw new Error("Skor koreksi harus angka 0-100, atau kosongkan untuk pakai skor AI");
+          }
+        }
+        await approveRun(runId, humanScore, feedback);
+        showToast(humanScore === void 0 ? "Skor AI di-approve" : "Skor disetujui dengan koreksi", "success");
+        els.researchResultPanel.classList.add("hidden");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    }
+  });
+}
+async function loadResearch(ctx) {
+  await renderResearch(ctx, "");
+}
+async function renderResearch(ctx, assessmentId) {
+  const { els } = ctx;
+  if (!els.researchSelect) return;
+  if (els.researchSelect.options.length <= 1) {
+    const assessments = ctx.state && ctx.state.assessments || [];
+    els.researchSelect.innerHTML = '<option value="">Semua assessment</option>' + assessments.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.topic)}</option>`).join("");
+  }
+  els.researchSelect.value = assessmentId || "";
+  const [metrics, runs, rubric] = await Promise.all([
+    fetchMetrics(assessmentId).catch(() => null),
+    fetchRuns(assessmentId),
+    fetchRubric(assessmentId).catch(() => null)
+  ]);
+  renderMetrics(els, metrics);
+  renderRuns(els, runs ? runs.runs || [] : []);
+  renderRubric(els, rubric);
+}
+function fmt(v, digits = 3) {
+  if (v === null || v === void 0 || Number.isNaN(v)) return "-";
+  return typeof v === "number" ? v.toFixed(digits) : String(v);
+}
+function fmtWeightPct(weight) {
+  const pct = (Number(weight) || 0) * 100;
+  if (Number.isInteger(pct)) return String(pct);
+  return pct.toFixed(1).replace(/\.0$/, "");
+}
+function renderMetrics(els, data) {
+  const m = data && data.metrics;
+  const total = data && data.n ? data.n : 0;
+  if (!m) {
+    els.researchValidity.innerHTML = '<p class="empty-state">Belum ada pasangan AI-vs-Human. Beri skor manusia pada sebuah trace untuk melihat metrik validitas.</p>';
+    els.researchInterRater.innerHTML = '<p class="empty-state">Belum ada pasangan skor untuk metrik reliabilitas.</p>';
+    return;
+  }
+  const card = (label, value, pct, hint) => `
+    <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;" title="${escapeHtml(hint || "")}">
+      <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${label}</span>
+      <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${pct ? fmt(value * 100, 1) + "%" : fmt(value)}</strong>
+      <span class="metric-hint" style="font-size:0.72rem;color:var(--muted);line-height:1.35;">${escapeHtml(hint || "")}</span>
+    </div>`;
+  els.researchValidity.innerHTML = `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${total} pasangan AI vs human</p>` + card("Pearson", m.validity.pearson, false, "Koefisien korelasi linier antara skor AI dan skor manusia. Nilai mendekati 1 menandakan keselarasan yang kuat; mendekati 0 menandakan tidak ada korelasi.") + card("Spearman", m.validity.spearman, false, "Korelasi berbasis peringkat yang lebih tahan terhadap nilai ekstrem dibandingkan Pearson, mengukur konsistensi urutan antar-penilai.") + card("MAE", m.validity.mae, false, "Rata-rata absolut selisih antara skor AI dan skor manusia. Semakin rendah (idealnya di bawah 5) semakin akurat prediksi AI.") + card("RMSE", m.validity.rmse, false, "Akar rata-rata kuadrat selisih skor. Memberi bobot lebih besar pada selisih yang besar sehingga sensitif terhadap anomali penilaian.") + card("Exact agreement", m.reliability.exactAgreement, true, "Proporsi penilaian di mana skor AI dan skor manusia bernilai identik.") + card("Adjacent (+/-5)", m.reliability.adjacentAgreement, true, "Proporsi penilaian dengan selisih skor maksimal 5 poin antara AI dan manusia.");
+  const ir = data.interRater;
+  if (els.researchInterRater) {
+    if (!ir || ir.icc == null && ir.cohensKappa == null && ir.weightedKappa == null) {
+      els.researchInterRater.innerHTML = '<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">' + total + ' pasangan skor</p><p class="empty-state">Metrik reliabilitas belum tersedia (butuh variasi skor).</p>';
+    } else {
+      const irCard = (label, value, hint) => `
+        <div class="metric-card" style="display:flex;flex-direction:column;justify-content:space-between;" title="${escapeHtml(hint || "")}">
+          <span style="font-size:0.85rem;color:var(--muted);font-weight:500;">${label}</span>
+          <strong style="font-size:1.4rem;font-weight:700;margin:8px 0;">${fmt(value)}</strong>
+          <span class="metric-hint" style="font-size:0.72rem;color:var(--muted);line-height:1.35;">${escapeHtml(hint || "")}</span>
+        </div>`;
+      els.researchInterRater.innerHTML = `<p style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">${ir.n ?? total} pasangan AI vs human</p>` + irCard("Cohen's Kappa", ir.cohensKappa, "Indeks kesepakatan antara AI dan manusia setelah dikurangi peluang kebetulan. Nilai di atas 0,6 menandakan kesepakatan yang baik.") + irCard("Weighted Kappa", ir.weightedKappa, "Varian Cohen's Kappa yang memperhitungkan besarnya selisih; selisih kecil dikenai penalti lebih ringan dibanding selisih besar.") + irCard("ICC (2-way)", ir.icc, "Konsistensi antar-penilai. Nilai mendekati 1 menandakan konsistensi tinggi; di bawah 0,5 menandakan konsistensi rendah.");
+    }
+  }
+}
+function renderRuns(els, runs) {
+  els.researchRunsList.innerHTML = runs.length ? runs.map((r) => {
+    const status = approvalBadge(r.approval_status, r.human_score);
+    const gate = gateBadge(r.verification_status, r.verification_valid);
+    const versions = [
+      r.harness_version ? `harness ${r.harness_version}` : null,
+      r.prompt_version ? `prompt ${r.prompt_version}` : null
+    ].filter(Boolean).join(" \xB7 ");
+    return `
       <tr>
-        <td>${u(a.run_id)}</td>
-        <td>${u((a.assessment_id||"").slice(0,20))}</td>
-        <td>${u(a.model||"-")}</td>
-        <td style="font-size:0.8rem;color:var(--muted);">${r?u(r):"\u2014"}</td>
-        <td>${a.final_score??"-"}</td>
-        <td>${s}</td>
-        <td>${n}</td>
+        <td>${escapeHtml(r.run_id)}</td>
+        <td>${escapeHtml((r.assessment_id || "").slice(0, 20))}</td>
+        <td>${escapeHtml(r.model || "-")}</td>
+        <td style="font-size:0.8rem;color:var(--muted);">${versions ? escapeHtml(versions) : "\u2014"}</td>
+        <td>${r.final_score ?? "-"}</td>
+        <td>${gate}</td>
+        <td>${status}</td>
         <td style="white-space:nowrap;">
-          <button type="button" class="secondary-button" data-trace="${u(a.run_id)}">Trace</button>
-          <button type="button" class="secondary-button" data-export-run="${u(a.run_id)}" title="Unduh detail lengkap">\u{1F4E5}</button>
+          <button type="button" class="secondary-button" data-trace="${escapeHtml(r.run_id)}">Trace</button>
+          <button type="button" class="secondary-button" data-export-run="${escapeHtml(r.run_id)}" title="Unduh detail lengkap">\u{1F4E5}</button>
         </td>
-      </tr>`}).join(""):'<tr><td colspan="8" class="empty-state">Belum ada run evaluasi.</td></tr>',e.researchRunsList.style.display=""}function fs(e,t){let a=e||(t?"PASS":"FAIL"),s={PASS:{label:"PASS",cls:"badge-ok",title:"Verification gate lolos \u2014 skor dapat diterbitkan"},REVIEW:{label:"REVIEW",cls:"badge-warn",title:"Perlu tinjauan manusia (kepercayaan rendah)"},FAIL:{label:"FAIL",cls:"badge-bad",title:"Evaluasi gagal verifikasi \u2014 tidak boleh diterbitkan"}}[a]||{label:a||"-",cls:"badge-muted"};return`<span class="badge ${s.cls}" title="${u(s.title||"")}">${u(s.label)}</span>`}function ki(e,t){let n={approved:{label:"Approved",cls:"badge-ok"},auto_approved:{label:"Auto \u2713",cls:"badge-warn",title:"Otomatis dikonfirmasi setelah 7 hari tanpa aksi"},approved_human_correction:{label:"Dikoreksi Manusia",cls:"badge-ok",title:"Skor diperbaiki oleh manusia \u2014 nilai manusia dipakai, bukan skor AI"},human_reviewed:{label:"Ditinjau Manusia",cls:"badge-ok",title:"Ditinjau/dikoreksi oleh manusia \u2014 tidak lagi memakai skor AI"},pending:{label:"Pending",cls:"badge-muted",title:"Menunggu tinjauan guru (jendela 7 hari)"},rejected:{label:"Rejected",cls:"badge-bad"}}[e]||{label:e||"-",cls:"badge-muted"},s=t!=null?` \xB7 skor ${t}`:"";return`<span class="badge ${n.cls}" ${n.title?`title="${u(n.title)}"`:""}>${u(n.label)}</span><span style="font-size:0.8rem;color:var(--muted);">${s}</span>`}function vi(e,t){if(!e.researchRubricPanel)return;let a=t&&t.n?t.n:0,n=t&&t.criterionCoverage?t.criterionCoverage:0;e.researchRubricPanel.innerHTML=a?`
-      <p>Rata-rata criterion per run: <strong>${n.toFixed(2)}</strong></p>
+      </tr>`;
+  }).join("") : '<tr><td colspan="8" class="empty-state">Belum ada run evaluasi.</td></tr>';
+  els.researchRunsList.style.display = "";
+}
+function gateBadge(status, verificationValid) {
+  const s = status || (verificationValid ? "PASS" : "FAIL");
+  const map = {
+    PASS: { label: "PASS", cls: "badge-ok", title: "Verification gate lolos \u2014 skor dapat diterbitkan" },
+    REVIEW: { label: "REVIEW", cls: "badge-warn", title: "Perlu tinjauan manusia (kepercayaan rendah)" },
+    FAIL: { label: "FAIL", cls: "badge-bad", title: "Evaluasi gagal verifikasi \u2014 tidak boleh diterbitkan" }
+  };
+  const info = map[s] || { label: s || "-", cls: "badge-muted" };
+  return `<span class="badge ${info.cls}" title="${escapeHtml(info.title || "")}">${escapeHtml(info.label)}</span>`;
+}
+function approvalBadge(status, humanScore) {
+  const map = {
+    approved: { label: "Approved", cls: "badge-ok" },
+    auto_approved: { label: "Auto \u2713", cls: "badge-warn", title: "Otomatis dikonfirmasi setelah 7 hari tanpa aksi" },
+    approved_human_correction: { label: "Dikoreksi Manusia", cls: "badge-ok", title: "Skor diperbaiki oleh manusia \u2014 nilai manusia dipakai, bukan skor AI" },
+    human_reviewed: { label: "Ditinjau Manusia", cls: "badge-ok", title: "Ditinjau/dikoreksi oleh manusia \u2014 tidak lagi memakai skor AI" },
+    pending: { label: "Pending", cls: "badge-muted", title: "Menunggu tinjauan guru (jendela 7 hari)" },
+    rejected: { label: "Rejected", cls: "badge-bad" }
+  };
+  const info = map[status] || { label: status || "-", cls: "badge-muted" };
+  const hs = humanScore != null ? ` \xB7 skor ${humanScore}` : "";
+  return `<span class="badge ${info.cls}" ${info.title ? `title="${escapeHtml(info.title)}"` : ""}>${escapeHtml(info.label)}</span><span style="font-size:0.8rem;color:var(--muted);">${hs}</span>`;
+}
+function renderRubric(els, data) {
+  if (!els.researchRubricPanel) return;
+  const n = data && data.n ? data.n : 0;
+  const coverage = data && data.criterionCoverage ? data.criterionCoverage : 0;
+  els.researchRubricPanel.innerHTML = n ? `
+      <p>Rata-rata criterion per run: <strong>${coverage.toFixed(2)}</strong></p>
       <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Rata-rata jumlah aspek rubrik yang dievaluasi pada tiap run evaluasi.</p>
-      <p>Total criterion rows: <strong>${t.totalCriterionRows||0}</strong></p>
+      <p>Total criterion rows: <strong>${data.totalCriterionRows || 0}</strong></p>
       <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Total seluruh penilaian aspek rubrik yang dicatat di semua run.</p>
-      <p>Jumlah run: <strong>${a}</strong></p>
-      <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Banyaknya evaluasi (run) yang pernah dijalankan oleh sistem.</p>`:'<p class="empty-state">Belum ada data rubric compliance.</p>'}async function wi(e,t){let{els:a}=e;try{let n=await pi(t),s=n.result||{},r=Array.isArray(s.criteria)?s.criteria:[],i=n.versions||{},o=s.weighted||{},l=Array.isArray(o.detail)?o.detail:[],c=n.events||[],d=new Map(l.map(y=>[String(y.criterionId),y.label])),m=l.length?`
+      <p>Jumlah run: <strong>${n}</strong></p>
+      <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Banyaknya evaluasi (run) yang pernah dijalankan oleh sistem.</p>` : '<p class="empty-state">Belum ada data rubric compliance.</p>';
+}
+async function openTrace(ctx, runId) {
+  const { els } = ctx;
+  try {
+    const trace = await fetchTrace(runId);
+    const result = trace.result || {};
+    const criteria = Array.isArray(result.criteria) ? result.criteria : [];
+    const versions = trace.versions || {};
+    const weighted = result.weighted || {};
+    const detailRows = Array.isArray(weighted.detail) ? weighted.detail : [];
+    const events = trace.events || [];
+    const labelById = new Map(detailRows.map((d) => [String(d.criterionId), d.label]));
+    const breakdownHtml = detailRows.length ? `
       <ul style="list-style:none;padding:0;margin:8px 0 0;display:flex;flex-direction:column;gap:6px;">
-        ${l.map(y=>`
+        ${detailRows.map(
+      (d) => `
           <li style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <span style="min-width:0;overflow-wrap:break-word;">${u(y.label||K(y.criterionId))}</span>
+            <span style="min-width:0;overflow-wrap:break-word;">${escapeHtml(d.label || prettifyId(d.criterionId))}</span>
             <span style="flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums;">
-              ${W(y.score,0)} \xD7 ${ps(y.weight)}%
-              <span style="color:var(--success-strong);font-weight:700;">= ${W(y.contribution,2)}</span>
+              ${fmt(d.score, 0)} \xD7 ${fmtWeightPct(d.weight)}%
+              <span style="color:var(--success-strong);font-weight:700;">= ${fmt(d.contribution, 2)}</span>
             </span>
-          </li>`).join("")}
-      </ul>`:`<strong>${W(s.finalScore,1)}</strong>`,k=l.length?`<div style="font-size:0.95rem;">${m}<div style="margin-top:10px;font-size:1.4rem;font-weight:700;">= ${W(s.finalScore,1)}</div></div>`:`<strong>${W(s.finalScore,1)}</strong>`,h=r.map(y=>`
+          </li>`
+    ).join("")}
+      </ul>` : `<strong>${fmt(result.finalScore, 1)}</strong>`;
+    const formulaHtml = detailRows.length ? `<div style="font-size:0.95rem;">${breakdownHtml}<div style="margin-top:10px;font-size:1.4rem;font-weight:700;">= ${fmt(result.finalScore, 1)}</div></div>` : `<strong>${fmt(result.finalScore, 1)}</strong>`;
+    const criteriaHtml = criteria.map(
+      (c) => `
         <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong>${u(d.get(String(y.criterionId))||K(y.criterionId))}</strong>
-            <span style="font-weight:700;font-size:1.1rem;">${W(y.score,0)}<span style="color:var(--muted);font-size:0.8rem;">/100</span></span>
+            <strong>${escapeHtml(labelById.get(String(c.criterionId)) || prettifyId(c.criterionId))}</strong>
+            <span style="font-weight:700;font-size:1.1rem;">${fmt(c.score, 0)}<span style="color:var(--muted);font-size:0.8rem;">/100</span></span>
           </div>
-          ${typeof y.confidence=="number"?`<div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Kepercayaan: ${W(y.confidence*100,0)}%</div>`:""}
-          ${y.noEvidence?'<div style="margin-top:8px;font-size:0.8rem;color:var(--warning-strong);"><strong>TANPA EVIDENCE</strong> \u2014 criterion tanpa bukti jawaban (FR-03)</div>':Array.isArray(y.evidence)&&y.evidence.length?`<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Evidence:</span><ul style="margin:4px 0 0 18px;">${y.evidence.map(S=>{let T=S.grounded?'<span style="color:var(--emerald);font-size:0.75rem;"> \u2713 grounded</span>':'<span style="color:var(--danger-strong);font-size:0.75rem;"> \u2717 tidak grounded</span>',M=S.groundingMethod?` <span style="color:var(--muted);font-size:0.7rem;">(${u(S.groundingMethod)})</span>`:"";return`<li>${u(S.text||"")}${T}${M}</li>`}).join("")}</ul></div>`:""}
-          ${y.rationale?`<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Alasan:</span> ${u(y.rationale)}</div>`:""}
-        </div>`).join("")||'<p class="empty-state">Tanpa criterion</p>',w=Array.isArray(s.questionRubric)?s.questionRubric:[],f=w.length?`
+          ${typeof c.confidence === "number" ? `<div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Kepercayaan: ${fmt(c.confidence * 100, 0)}%</div>` : ""}
+          ${c.noEvidence ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--warning-strong);"><strong>TANPA EVIDENCE</strong> \u2014 criterion tanpa bukti jawaban (FR-03)</div>` : Array.isArray(c.evidence) && c.evidence.length ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Evidence:</span><ul style="margin:4px 0 0 18px;">${c.evidence.map((ev) => {
+        const verdict = ev.grounded ? `<span style="color:var(--emerald);font-size:0.75rem;"> \u2713 grounded</span>` : `<span style="color:var(--danger-strong);font-size:0.75rem;"> \u2717 tidak grounded</span>`;
+        const method = ev.groundingMethod ? ` <span style="color:var(--muted);font-size:0.7rem;">(${escapeHtml(ev.groundingMethod)})</span>` : "";
+        return `<li>${escapeHtml(ev.text || "")}${verdict}${method}</li>`;
+      }).join("")}</ul></div>` : ""}
+          ${c.rationale ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Alasan:</span> ${escapeHtml(c.rationale)}</div>` : ""}
+        </div>`
+    ).join("") || '<p class="empty-state">Tanpa criterion</p>';
+    const questionRubric = Array.isArray(result.questionRubric) ? result.questionRubric : [];
+    const questionRubricHtml = questionRubric.length ? `
         <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
           <span style="color:var(--muted);font-size:0.85rem;">Pemetaan soal \u2192 rubrik</span>
           <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
-            ${w.map(y=>`
+            ${questionRubric.map(
+      (q) => `
               <div style="border:1px solid var(--line);border-radius:8px;padding:10px;">
-                <div style="font-size:0.9rem;font-weight:600;">Soal ${y.index+1}</div>
-                <div style="font-size:0.85rem;color:var(--muted);margin:2px 0 8px;">${u(y.prompt||"")}</div>
+                <div style="font-size:0.9rem;font-weight:600;">Soal ${q.index + 1}</div>
+                <div style="font-size:0.85rem;color:var(--muted);margin:2px 0 8px;">${escapeHtml(q.prompt || "")}</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                  ${(y.criteria||[]).map(S=>`
+                  ${(q.criteria || []).map(
+        (c) => `
                     <span style="font-size:0.75rem;padding:3px 8px;border-radius:999px;background:var(--brand-soft);color:var(--text);border:1px solid var(--line);">
-                      ${u(S.name||K(S.id))} \xB7 ${ps(S.weight)}%
-                    </span>`).join("")}
+                      ${escapeHtml(c.name || prettifyId(c.id))} \xB7 ${fmtWeightPct(c.weight)}%
+                    </span>`
+      ).join("")}
                 </div>
-              </div>`).join("")}
+              </div>`
+    ).join("")}
           </div>
-        </div>`:"",g=fs(s.verification?.status,s.verification?.valid),b=s.reliability,v=b&&b.dimensions?`
+        </div>` : "";
+    const gate = gateBadge(result.verification?.status, result.verification?.valid);
+    const reliability = result.reliability;
+    const reliabilityHtml = reliability && reliability.dimensions ? `
         <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <span style="color:var(--muted);font-size:0.85rem;">Reliability sistem</span>
-            <strong style="font-size:1.2rem;">${W(b.overallReliability*100,0)}%</strong>
+            <strong style="font-size:1.2rem;">${fmt(reliability.overallReliability * 100, 0)}%</strong>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
-            ${Object.entries(b.dimensions).map(([y,S])=>{let T=Si[y]||{label:K(y),desc:""};return`<div class="rt-dim" style="font-size:0.8rem;" data-tip="${u(T.desc)}" title="${u(T.label)}">
-                  <span class="rt-dim-label" style="color:var(--muted);display:block;">${u(T.label)}</span>
-                  <strong>${W(S*100,1)}%</strong>
-                </div>`}).join("")}
+            ${Object.entries(reliability.dimensions).map(([k, v]) => {
+      const def = reliabilityDimensionDefs[k] || { label: prettifyId(k), desc: "" };
+      return `<div class="rt-dim" style="font-size:0.8rem;" data-tip="${escapeHtml(def.desc)}" title="${escapeHtml(def.label)}">
+                  <span class="rt-dim-label" style="color:var(--muted);display:block;">${escapeHtml(def.label)}</span>
+                  <strong>${fmt(v * 100, 1)}%</strong>
+                </div>`;
+    }).join("")}
           </div>
           <p class="hint" style="font-size:0.7rem;color:var(--muted);margin-top:8px;">Pisah dari kepercayaan model: indicator keandalan keputusan (FR-10). Arahkan kursor ke tiap dimensi untuk penjelasan.</p>
-        </div>`:"";a.researchResultPanel.dataset.runId=t,a.researchResultPanel.innerHTML=`
+        </div>` : "";
+    els.researchResultPanel.dataset.runId = runId;
+    els.researchResultPanel.innerHTML = `
       <div class="result-modal-content">
         <button type="button" class="result-close-btn research-close-btn">&times;</button>
-        <p class="eyebrow">${u(t)}</p>
+        <p class="eyebrow">${escapeHtml(runId)}</p>
         <h3>Trace Evaluasi</h3>
-        <p>Assessment: <strong>${u(s.assessmentId||"-")}</strong> \xB7 Verification gate: ${g}</p>
+        <p>Assessment: <strong>${escapeHtml(result.assessmentId || "-")}</strong> \xB7 Verification gate: ${gate}</p>
 
         <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
           <span style="color:var(--muted);font-size:0.85rem;">Skor akhir (deterministik)</span>
-          <div style="font-size:1.6rem;font-weight:700;">${k}</div>
+          <div style="font-size:1.6rem;font-weight:700;">${formulaHtml}</div>
         </div>
 
-        ${f}
-        ${v}
+        ${questionRubricHtml}
+        ${reliabilityHtml}
         <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;">
           <label>Skor manusia
             <input id="humanScoreInput" type="number" min="0" max="100" placeholder="Tilai manual 0-100" />
           </label>
           <label>Penilai
-            <input id="humanReviewer" type="text" value="${u(e.auth&&e.auth.user&&e.auth.user.name||"")}" disabled />
+            <input id="humanReviewer" type="text" value="${escapeHtml(ctx.auth && ctx.auth.user && ctx.auth.user.name || "")}" disabled />
           </label>
           <label>Ulasan
             <textarea id="humanScoreFeedback" rows="2" placeholder="Catatan penilai manusia (opsional)"></textarea>
@@ -860,39 +5501,479 @@ Masukkan skor baru (0-100):`,l.score);if(c===null)return;let d=parseInt(c,10);if
           </div>
         </div>
         <p class="hint" style="font-size:0.8rem;color:var(--muted);margin-top:8px;">
-          Skor AI ${u(s.finalScore??"-")}. Approve menyimpan skor AI sebagai penilaian manusia. 
+          Skor AI ${escapeHtml(result.finalScore ?? "-")}. Approve menyimpan skor AI sebagai penilaian manusia. 
           Kosongkan skor manual lalu tekan "Approve skor AI" untuk konfirmasi tanpa koreksi.
         </p>
 
         <details style="margin-top:16px;">
           <summary style="cursor:pointer;font-weight:600;">Teknis, versi &amp; events (detail lengkap)</summary>
           <p style="font-size:0.85rem;color:var(--muted);margin-top:8px;">
-            Model: <strong>${u(i.model_version||s.versioning?.modelVersion||"-")}</strong> \xB7
-            Prompt <strong>${u(i.prompt_version||s.versioning?.promptVersion||"-")}</strong> \xB7
-            Rubric <strong>${u(i.rubric_version||s.versioning?.rubricVersion||"-")}</strong> \xB7
-            Harness <strong>${u(i.harness_version||s.versioning?.harnessVersion||"-")}</strong> \xB7
-            Engine <strong>${u(i.engine_version||s.versioning?.engineVersion||"-")}</strong>
+            Model: <strong>${escapeHtml(versions.model_version || result.versioning?.modelVersion || "-")}</strong> \xB7
+            Prompt <strong>${escapeHtml(versions.prompt_version || result.versioning?.promptVersion || "-")}</strong> \xB7
+            Rubric <strong>${escapeHtml(versions.rubric_version || result.versioning?.rubricVersion || "-")}</strong> \xB7
+            Harness <strong>${escapeHtml(versions.harness_version || result.versioning?.harnessVersion || "-")}</strong> \xB7
+            Engine <strong>${escapeHtml(versions.engine_version || result.versioning?.engineVersion || "-")}</strong>
           </p>
-          <pre class="ai-stream-content">${u(JSON.stringify(c,null,2))}</pre>
+          <pre class="ai-stream-content">${escapeHtml(JSON.stringify(events, null, 2))}</pre>
         </details>
-      </div>`;let L=a.researchResultPanel.querySelector("#humanScoreInput");L&&(L.value=""),a.researchResultPanel.classList.remove("hidden")}catch(n){p(n.message,"error")}}async function $i(e,t){try{let a=await fe(`/api/research?action=trace&runId=${encodeURIComponent(t)}`),n=new Blob([JSON.stringify(a,null,2)],{type:"application/json"}),s=URL.createObjectURL(n),r=document.createElement("a");r.href=s,r.download=`lisanai-trace-${t}.json`,document.body.appendChild(r),r.click(),r.remove(),URL.revokeObjectURL(s)}catch(a){p(a.message,"error")}}async function Li(e){let{els:t}=e,a=t.researchSelect?.value||"",n=a?`?action=export&assessmentId=${encodeURIComponent(a)}`:"?action=export";try{let s=await fe(`/api/research${n}`),r=new Blob([JSON.stringify(s,null,2)],{type:"application/json"}),i=URL.createObjectURL(r),o=document.createElement("a");o.href=i,o.download=`lisanai-research-${a||"all"}-${new Date().toISOString().slice(0,10)}.json`,document.body.appendChild(o),o.click(),o.remove(),URL.revokeObjectURL(i)}catch(s){p(s.message,"error")}}var Si,Za=x(()=>{H();F();Si={evidenceGrounding:{label:"Grounded Evidence",desc:"Proporsi kriteria yang skornya didukung bukti yang benar-benar ter-ground di jawaban siswa. Semakin tinggi, makin kuat dasar penilaiannya."},criterionCoverage:{label:"Cakupan Kriteria",desc:"Proporsi kriteria rubrik yang benar-benar dievaluasi pada run ini. Nilai 100% berarti seluruh aspek rubrik dinilai."},rubricAlignment:{label:"Kesesuaian Rubrik",desc:"Seberapa konsisten keyakinan model (confidence) dengan sistem skor rubrik. Nilai rendah menandakan skor & keyakinan kurang selaras."},scoreConsistency:{label:"Konsistensi Skor",desc:"Kekonsistenan skor: proporsi skor yang didukung bukti serta tidak ada anomali sel. Semakin tinggi semakin andal skornya."},outputValidity:{label:"Validitas Output",desc:"Kesesuaian output model dengan skema yang diharapkan (struktur JSON valid). Menjamin hasil dapat diparse dan dipakai dengan aman."}}});var bs={};Q(bs,{bindApiKeyEvents:()=>tn,loadApiKeys:()=>en});function tn(e){let{els:t}=e;t.createApiKeyBtn&&t.createApiKeyBtn.addEventListener("click",async()=>{let a=t.apiKeyName.value.trim();if(!a){p("Nama API key wajib diisi","error");return}t.createApiKeyBtn.disabled=!0;try{let{postJson:n}=await Promise.resolve().then(()=>(B(),ye)),s=await n("/api/apikeys",{action:"create",payload:{name:a}},"Gagal membuat API key");t.apiKeyValue.textContent=s.key,t.apiKeyResult.classList.remove("hidden"),t.apiKeyName.value="",p("API key berhasil dibuat","success"),await en(e)}catch(n){p(n.message,"error")}finally{t.createApiKeyBtn.disabled=!1}}),t.apiKeyList&&t.apiKeyList.addEventListener("click",async a=>{let n=a.target.closest(".revoke-api-key-btn");if(!n)return;let s=n.dataset.keyId;if(await R("Revoke API key ini? Sistem eksternal yang memakainya tidak akan bisa mengakses lagi.","Revoke API Key"))try{let{postJson:r}=await Promise.resolve().then(()=>(B(),ye));await r("/api/apikeys",{action:"revoke",payload:{keyId:s}},"Gagal revoke API key"),p("API key di-revoke","success"),await en(e)}catch(r){p(r.message,"error")}})}async function en(e){let{els:t}=e;if(t.apiKeyList)try{let a=await fetch("/api/apikeys",{credentials:"include"}),n=await a.json();if(!a.ok)throw new Error(n.error||"Gagal memuat API key");Ai(e,n.keys||[])}catch(a){p(a.message,"error")}}function Ai(e,t){let{els:a}=e;if(!t.length){a.apiKeyList.className="list-stack empty-state",a.apiKeyList.textContent="Belum ada API key.";return}a.apiKeyList.className="list-stack",a.apiKeyList.innerHTML=t.map(n=>`
+      </div>`;
+    const scoreInput = els.researchResultPanel.querySelector("#humanScoreInput");
+    if (scoreInput) scoreInput.value = "";
+    els.researchResultPanel.classList.remove("hidden");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+async function exportSingleRun(ctx, runId) {
+  try {
+    const data = await fetchJson(`/api/research?action=trace&runId=${encodeURIComponent(runId)}`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lisanai-trace-${runId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+async function exportBundle(ctx) {
+  const { els } = ctx;
+  const assessmentId = els.researchSelect?.value || "";
+  const qs = assessmentId ? `?action=export&assessmentId=${encodeURIComponent(assessmentId)}` : "?action=export";
+  try {
+    const data = await fetchJson(`/api/research${qs}`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lisanai-research-${assessmentId || "all"}-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+var reliabilityDimensionDefs;
+var init_research = __esm({
+  "src/js/research.js"() {
+    init_utils();
+    init_toast();
+    reliabilityDimensionDefs = {
+      evidenceGrounding: {
+        label: "Grounded Evidence",
+        desc: "Proporsi kriteria yang skornya didukung bukti yang benar-benar ter-ground di jawaban siswa. Semakin tinggi, makin kuat dasar penilaiannya."
+      },
+      criterionCoverage: {
+        label: "Cakupan Kriteria",
+        desc: "Proporsi kriteria rubrik yang benar-benar dievaluasi pada run ini. Nilai 100% berarti seluruh aspek rubrik dinilai."
+      },
+      rubricAlignment: {
+        label: "Kesesuaian Rubrik",
+        desc: "Seberapa konsisten keyakinan model (confidence) dengan sistem skor rubrik. Nilai rendah menandakan skor & keyakinan kurang selaras."
+      },
+      scoreConsistency: {
+        label: "Konsistensi Skor",
+        desc: "Kekonsistenan skor: proporsi skor yang didukung bukti serta tidak ada anomali sel. Semakin tinggi semakin andal skornya."
+      },
+      outputValidity: {
+        label: "Validitas Output",
+        desc: "Kesesuaian output model dengan skema yang diharapkan (struktur JSON valid). Menjamin hasil dapat diparse dan dipakai dengan aman."
+      }
+    };
+  }
+});
+
+// src/js/api-keys.js
+var api_keys_exports = {};
+__export(api_keys_exports, {
+  bindApiKeyEvents: () => bindApiKeyEvents,
+  loadApiKeys: () => loadApiKeys
+});
+function bindApiKeyEvents(ctx) {
+  const { els } = ctx;
+  if (els.createApiKeyBtn) {
+    els.createApiKeyBtn.addEventListener("click", async () => {
+      const name = els.apiKeyName.value.trim();
+      if (!name) {
+        showToast("Nama API key wajib diisi", "error");
+        return;
+      }
+      els.createApiKeyBtn.disabled = true;
+      try {
+        const { postJson: postJson2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        const data = await postJson2("/api/apikeys", { action: "create", payload: { name } }, "Gagal membuat API key");
+        els.apiKeyValue.textContent = data.key;
+        els.apiKeyResult.classList.remove("hidden");
+        els.apiKeyName.value = "";
+        showToast("API key berhasil dibuat", "success");
+        await loadApiKeys(ctx);
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        els.createApiKeyBtn.disabled = false;
+      }
+    });
+  }
+  if (els.apiKeyList) {
+    els.apiKeyList.addEventListener("click", async (e) => {
+      const revokeBtn = e.target.closest(".revoke-api-key-btn");
+      if (!revokeBtn) return;
+      const keyId = revokeBtn.dataset.keyId;
+      if (!await showConfirmDialog("Revoke API key ini? Sistem eksternal yang memakainya tidak akan bisa mengakses lagi.", "Revoke API Key")) return;
+      try {
+        const { postJson: postJson2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        await postJson2("/api/apikeys", { action: "revoke", payload: { keyId } }, "Gagal revoke API key");
+        showToast("API key di-revoke", "success");
+        await loadApiKeys(ctx);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+  }
+}
+async function loadApiKeys(ctx) {
+  const { els } = ctx;
+  if (!els.apiKeyList) return;
+  try {
+    const response = await fetch("/api/apikeys", { credentials: "include" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Gagal memuat API key");
+    renderApiKeys(ctx, data.keys || []);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+function renderApiKeys(ctx, keys) {
+  const { els } = ctx;
+  if (!keys.length) {
+    els.apiKeyList.className = "list-stack empty-state";
+    els.apiKeyList.textContent = "Belum ada API key.";
+    return;
+  }
+  els.apiKeyList.className = "list-stack";
+  els.apiKeyList.innerHTML = keys.map((key) => `
     <article class="list-item" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
       <div style="flex:1; min-width:0;">
-        <strong>${u(n.name)}</strong>
-        <p style="font-size:0.85rem; color:var(--muted);">${u(n.prefix)}\u2026 \xB7 Dibuat ${u(new Date(n.createdAt).toLocaleDateString("id-ID"))}${n.lastUsedAt?` \xB7 Terakhir dipakai ${u(new Date(n.lastUsedAt).toLocaleString("id-ID"))}`:""}</p>
+        <strong>${escapeHtml(key.name)}</strong>
+        <p style="font-size:0.85rem; color:var(--muted);">${escapeHtml(key.prefix)}\u2026 \xB7 Dibuat ${escapeHtml(new Date(key.createdAt).toLocaleDateString("id-ID"))}${key.lastUsedAt ? ` \xB7 Terakhir dipakai ${escapeHtml(new Date(key.lastUsedAt).toLocaleString("id-ID"))}` : ""}</p>
       </div>
-      <button type="button" class="action-button danger-button revoke-api-key-btn" data-key-id="${u(n.id)}">Revoke</button>
+      <button type="button" class="action-button danger-button revoke-api-key-btn" data-key-id="${escapeHtml(key.id)}">Revoke</button>
     </article>
-  `).join("")}var an=x(()=>{F();H()});var ys={};Q(ys,{clearNotificationBadge:()=>Ci,getNotificationCount:()=>Mi,startNotificationListener:()=>nn,stopNotificationListener:()=>hs});function nn(e){hs();try{xe=new EventSource("/api/notifications"),xe.onmessage=t=>{try{let a=JSON.parse(t.data);Ti(e,a)}catch{}},xe.onerror=()=>{}}catch{}}function hs(){xe&&(xe.close(),xe=null)}function Ti(e,t){let{type:a,title:n,message:s,assessmentId:r}=t;if(a==="submission"||a==="complaint"){et+=1,Ei(e),p(`${n}: ${s}`,"info");let{els:i}=e;if(i.notifList){let o=document.createElement("div");o.className="feedback-card",o.style.borderLeft="4px solid var(--accent)",o.innerHTML=`
+  `).join("");
+}
+var init_api_keys = __esm({
+  "src/js/api-keys.js"() {
+    init_toast();
+    init_utils();
+  }
+});
+
+// src/js/notifications.js
+var notifications_exports = {};
+__export(notifications_exports, {
+  clearNotificationBadge: () => clearNotificationBadge,
+  getNotificationCount: () => getNotificationCount,
+  startNotificationListener: () => startNotificationListener,
+  stopNotificationListener: () => stopNotificationListener
+});
+function startNotificationListener(ctx) {
+  stopNotificationListener();
+  try {
+    notifEventSource = new EventSource("/api/notifications");
+    notifEventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleNotification(ctx, data);
+      } catch {
+      }
+    };
+    notifEventSource.onerror = () => {
+    };
+  } catch {
+  }
+}
+function stopNotificationListener() {
+  if (notifEventSource) {
+    notifEventSource.close();
+    notifEventSource = null;
+  }
+}
+function handleNotification(ctx, data) {
+  const { type, title, message, assessmentId } = data;
+  if (type === "submission" || type === "complaint") {
+    notifCount += 1;
+    updateBadge(ctx);
+    showToast(`${title}: ${message}`, "info");
+    const { els } = ctx;
+    if (els.notifList) {
+      const notif = document.createElement("div");
+      notif.className = "feedback-card";
+      notif.style.borderLeft = "4px solid var(--accent)";
+      notif.innerHTML = `
         <div style="display:flex; justify-content:space-between; gap:8px;">
           <div>
-            <strong>${u(n)}</strong>
-            <p style="color:var(--muted); font-size:0.9rem; margin:4px 0;">${u(s)}</p>
-            <small style="color:var(--muted);">${new Date().toLocaleTimeString("id-ID")}</small>
+            <strong>${escapeHtml(title)}</strong>
+            <p style="color:var(--muted); font-size:0.9rem; margin:4px 0;">${escapeHtml(message)}</p>
+            <small style="color:var(--muted);">${(/* @__PURE__ */ new Date()).toLocaleTimeString("id-ID")}</small>
           </div>
-          ${r?`<button type="button" class="secondary-button" onclick="window.dispatchEvent(new CustomEvent('notif-view-assessment', {detail:{id:'${r}'}}))" style="flex-shrink:0; font-size:0.85rem;">Lihat</button>`:""}
+          ${assessmentId ? `<button type="button" class="secondary-button" onclick="window.dispatchEvent(new CustomEvent('notif-view-assessment', {detail:{id:'${assessmentId}'}}))" style="flex-shrink:0; font-size:0.85rem;">Lihat</button>` : ""}
         </div>
-      `;let l=i.notifList.querySelector(".empty-state");for(l&&l.remove(),i.notifList.prepend(o);i.notifList.children.length>20;)i.notifList.lastElementChild.remove()}}}function Ei(e){let{els:t}=e;t.notifBadge&&(t.notifBadge.textContent=String(et),t.notifBadge.classList.toggle("hidden",et===0))}function Ci(){et=0;let e=document.getElementById("notifBadge");e&&e.classList.add("hidden")}function Mi(){return et}var xe,et,sn=x(()=>{F();H();xe=null,et=0});var at={};Q(at,{applyRoleAccess:()=>Ss,bootstrapAuthenticatedApp:()=>ge,canAccessView:()=>$s,clearAuthForms:()=>Ct,closeRegisterModal:()=>be,closeResultModal:()=>ln,createAppContext:()=>rn,handleModalKeyboard:()=>un,isAssessmentLocked:()=>Mt,loadUsers:()=>qe,openRegisterModal:()=>on,refreshSimulator:()=>Di,refreshSimulatorIfEnabled:()=>ee,renderCurrentState:()=>I,renderSimulator:()=>qt,roleLabel:()=>Ee,setAssessmentTab:()=>ws,showApp:()=>ks,showAuth:()=>tt,switchView:()=>N,trapFocus:()=>vs});function rn(){let e=ta(),t=vn({recordButton:e.recordButton,recordStatus:e.recordStatus,answerText:e.answerText,recordTimer:e.recordTimer,volumeIndicator:e.volumeIndicator});return{els:e,recorder:t,auth:null,state:{assessments:[],submissions:[],classes:[],memberships:[]},users:[],session:null,pendingAssessmentConfig:null,pendingQuestions:[],isEvaluating:!1,lastModalTrigger:null,micCheck:null,pendingExamAssessmentId:null,preExamTrigger:null,isStartingExam:!1,currentWizardStep:1,memberSearchQuery:"",memberCurrentPage:1,MEMBERS_PER_PAGE:10,questionTimerInterval:null,currentQuestionTimeLeft:0,questionStartTime:Date.now()}}async function ge(e,t){e.auth=t,e.state=await ia(),e.session=yn(e.state),e.users=e.auth.user.role==="admin"?await qe(e):[],Ct(e),ks(e),Ss(e),await I(e);let{renderUsers:a}=await Promise.resolve().then(()=>(bt(),ba));a(e),ee(e)}async function qe(e){try{return await Ht()}catch(t){return p(`Gagal memuat user tenant: ${t.message}`),[]}}function tt(e){let{els:t}=e;t.authView.classList.remove("hidden"),t.appShell.classList.add("hidden"),be(e),ln(e)}function ks(e){let{els:t,auth:a}=e;t.authView.classList.add("hidden"),t.appShell.classList.remove("hidden"),be(e),t.accountName.textContent=a.user.name,t.tenantName.textContent=a.tenant.name,t.accountRole.textContent=Ee(a.user.role)}function Ct(e){e.els.loginForm.reset(),e.els.registerForm.reset()}function on(e){let{els:t}=e;t.registerModal&&(e.lastModalTrigger=document.activeElement,t.registerModal.classList.remove("hidden"),t.registerTenant&&t.registerTenant.focus())}function be(e){let{els:t}=e;t.registerModal&&(t.registerModal.classList.add("hidden"),e.lastModalTrigger instanceof HTMLElement&&document.contains(e.lastModalTrigger)&&e.lastModalTrigger.focus(),e.lastModalTrigger=null)}function ln(e){let{els:t}=e;if(!t.resultPanel||t.resultPanel.classList.contains("hidden"))return;t.resultPanel.classList.add("hidden");let a=t.resultPanel._returnFocus;a instanceof HTMLElement&&document.contains(a)&&a.focus()}function vs(e,t){let a=[...t.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(r=>!r.closest(".hidden"));if(!a.length)return;let n=a[0],s=a.at(-1);e.shiftKey&&document.activeElement===n?(e.preventDefault(),s.focus()):!e.shiftKey&&document.activeElement===s&&(e.preventDefault(),n.focus())}function un(e,t){let{els:a}=e,n=a.registerModal&&!a.registerModal.classList.contains("hidden"),s=a.resultPanel&&!a.resultPanel.classList.contains("hidden");if(!(!n&&!s)){if(t.key==="Escape"){t.preventDefault(),s?ln(e):be(e);return}t.key==="Tab"&&vs(t,s?a.resultPanel:a.registerModal)}}function Mt(e,t){if(!t)return!1;if(t.status==="closed")return!0;let n=e.state.submissions.filter(r=>r.assessmentId===t.id).length;if(t.allowRetakes)return!1;let s=Number(t.maxAttempts)||1;return n>=s}async function I(e){let{els:t,auth:a,session:n,state:s}=e;if(a.user?.role!=="student")n.ensureAssessmentSelected();else{n.currentAssessmentId&&!s.assessments.some(w=>w.id===n.currentAssessmentId)&&(n.currentAssessmentId=null);let h=n.getCurrentAssessment();h&&Mt(e,h)&&(n.currentAssessmentId=null,n.currentAnswers=[],n.currentQuestionIndex=0)}ma(t,s,n),a.user&&se(t,s.submissions,a.user.name);let{renderClasses:r}=await Promise.resolve().then(()=>(ya(),Nn)),{renderQuestionEditor:i}=await Promise.resolve().then(()=>(We(),vt));r(e),i(e);let{renderComplaints:o,updateComplaintBadge:l,notifyStudentComplaintStatus:c}=await Promise.resolve().then(()=>(Ba(),is));a.user?.role==="teacher"?(o(e),l(e)):a.user?.role==="student"&&c(e);let d=s.assessments.length>0,m=window.ENABLE_DEMO_SIMULATION==="true"||window.location.hostname==="127.0.0.1"||window.location.hostname==="localhost";document.querySelectorAll(".sidebar-settings").forEach(h=>h.classList.toggle("hidden",!m)),t.seedDemoTeacher&&t.seedDemoTeacher.classList.toggle("hidden",d),t.seedDemoAdmin&&t.seedDemoAdmin.classList.toggle("hidden",d),t.seedDemo&&t.seedDemo.classList.toggle("hidden",d),t.removeDemoData&&t.removeDemoData.classList.toggle("hidden",a.user?.role==="student"||!d),a.user?.role==="student"?(t.studentName.value=a.user.name,t.studentName.readOnly=!0,n.getCurrentAssessment()?.oralExamEnabled===!1&&e.recorder.setEnabled(!1)):t.studentName.readOnly=!1}function Ss(e){let{els:t,auth:a}=e,n=a.user.role;t.seedDemo&&t.seedDemo.classList.toggle("hidden",n==="student"),t.seedDemoTeacher&&t.seedDemoTeacher.classList.toggle("hidden",n==="student"),t.seedDemoAdmin&&t.seedDemoAdmin.classList.toggle("hidden",n!=="admin"),t.removeDemoData&&t.removeDemoData.classList.toggle("hidden",n==="student"),document.body.classList.remove("teacher-mode","student-mode","admin-mode");let s="";n==="teacher"?s=`
+      `;
+      const empty = els.notifList.querySelector(".empty-state");
+      if (empty) empty.remove();
+      els.notifList.prepend(notif);
+      while (els.notifList.children.length > 20) {
+        els.notifList.lastElementChild.remove();
+      }
+    }
+  }
+}
+function updateBadge(ctx) {
+  const { els } = ctx;
+  if (els.notifBadge) {
+    els.notifBadge.textContent = String(notifCount);
+    els.notifBadge.classList.toggle("hidden", notifCount === 0);
+  }
+}
+function clearNotificationBadge() {
+  notifCount = 0;
+  const badge = document.getElementById("notifBadge");
+  if (badge) badge.classList.add("hidden");
+}
+function getNotificationCount() {
+  return notifCount;
+}
+var notifEventSource, notifCount;
+var init_notifications = __esm({
+  "src/js/notifications.js"() {
+    init_toast();
+    init_utils();
+    notifEventSource = null;
+    notifCount = 0;
+  }
+});
+
+// src/js/app-context.js
+var app_context_exports = {};
+__export(app_context_exports, {
+  applyRoleAccess: () => applyRoleAccess,
+  bootstrapAuthenticatedApp: () => bootstrapAuthenticatedApp,
+  canAccessView: () => canAccessView,
+  clearAuthForms: () => clearAuthForms,
+  closeRegisterModal: () => closeRegisterModal,
+  closeResultModal: () => closeResultModal,
+  createAppContext: () => createAppContext,
+  handleModalKeyboard: () => handleModalKeyboard,
+  isAssessmentLocked: () => isAssessmentLocked,
+  loadUsers: () => loadUsers,
+  openRegisterModal: () => openRegisterModal,
+  refreshSimulator: () => refreshSimulator,
+  refreshSimulatorIfEnabled: () => refreshSimulatorIfEnabled,
+  renderCurrentState: () => renderCurrentState2,
+  renderSimulator: () => renderSimulator,
+  roleLabel: () => roleLabel,
+  setAssessmentTab: () => setAssessmentTab,
+  showApp: () => showApp,
+  showAuth: () => showAuth,
+  switchView: () => switchView,
+  trapFocus: () => trapFocus
+});
+function createAppContext() {
+  const els = getElements();
+  const recorder = createRecorder({
+    recordButton: els.recordButton,
+    recordStatus: els.recordStatus,
+    answerText: els.answerText,
+    recordTimer: els.recordTimer,
+    volumeIndicator: els.volumeIndicator
+  });
+  return {
+    els,
+    recorder,
+    auth: null,
+    state: { assessments: [], submissions: [], classes: [], memberships: [] },
+    users: [],
+    session: null,
+    pendingAssessmentConfig: null,
+    pendingQuestions: [],
+    isEvaluating: false,
+    lastModalTrigger: null,
+    micCheck: null,
+    pendingExamAssessmentId: null,
+    preExamTrigger: null,
+    isStartingExam: false,
+    currentWizardStep: 1,
+    memberSearchQuery: "",
+    memberCurrentPage: 1,
+    MEMBERS_PER_PAGE: 10,
+    questionTimerInterval: null,
+    currentQuestionTimeLeft: 0,
+    questionStartTime: Date.now(),
+    currentViewId: null
+  };
+}
+async function bootstrapAuthenticatedApp(ctx, nextAuth) {
+  ctx.auth = nextAuth;
+  ctx.state = await loadState();
+  ctx.session = createSession(ctx.state);
+  ctx.users = ctx.auth.user.role === "admin" ? await loadUsers(ctx) : [];
+  clearAuthForms(ctx);
+  showApp(ctx);
+  applyRoleAccess(ctx);
+  await renderCurrentState2(ctx);
+  const { renderUsers: renderUsers2 } = await Promise.resolve().then(() => (init_user_management(), user_management_exports));
+  renderUsers2(ctx);
+  refreshSimulatorIfEnabled(ctx);
+}
+async function loadUsers(ctx) {
+  try {
+    return await listUsers();
+  } catch (error) {
+    showToast(`Gagal memuat user tenant: ${error.message}`);
+    return [];
+  }
+}
+function showAuth(ctx) {
+  const { els } = ctx;
+  els.authView.classList.remove("hidden");
+  els.appShell.classList.add("hidden");
+  closeRegisterModal(ctx);
+  closeResultModal(ctx);
+}
+function showApp(ctx) {
+  const { els, auth } = ctx;
+  els.authView.classList.add("hidden");
+  els.appShell.classList.remove("hidden");
+  closeRegisterModal(ctx);
+  els.accountName.textContent = auth.user.name;
+  els.tenantName.textContent = auth.tenant.name;
+  els.accountRole.textContent = roleLabel(auth.user.role);
+}
+function clearAuthForms(ctx) {
+  ctx.els.loginForm.reset();
+  ctx.els.registerForm.reset();
+}
+function openRegisterModal(ctx) {
+  const { els } = ctx;
+  if (els.registerModal) {
+    ctx.lastModalTrigger = document.activeElement;
+    els.registerModal.classList.remove("hidden");
+    if (els.registerTenant) els.registerTenant.focus();
+  }
+}
+function closeRegisterModal(ctx) {
+  const { els } = ctx;
+  if (els.registerModal) {
+    els.registerModal.classList.add("hidden");
+    if (ctx.lastModalTrigger instanceof HTMLElement && document.contains(ctx.lastModalTrigger)) ctx.lastModalTrigger.focus();
+    ctx.lastModalTrigger = null;
+  }
+}
+function closeResultModal(ctx) {
+  const { els } = ctx;
+  if (!els.resultPanel || els.resultPanel.classList.contains("hidden")) return;
+  els.resultPanel.classList.add("hidden");
+  const returnFocus = els.resultPanel._returnFocus;
+  if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) returnFocus.focus();
+}
+function trapFocus(event, modal) {
+  const focusable = [...modal.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter((element) => !element.closest(".hidden"));
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+function handleModalKeyboard(ctx, event) {
+  const { els } = ctx;
+  const registerOpen = els.registerModal && !els.registerModal.classList.contains("hidden");
+  const resultOpen = els.resultPanel && !els.resultPanel.classList.contains("hidden");
+  if (!registerOpen && !resultOpen) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    if (resultOpen) closeResultModal(ctx);
+    else closeRegisterModal(ctx);
+    return;
+  }
+  if (event.key === "Tab") trapFocus(event, resultOpen ? els.resultPanel : els.registerModal);
+}
+function isAssessmentLocked(ctx, assessment) {
+  if (!assessment) return false;
+  if (assessment.status === "closed") return true;
+  const studentSubmissions = ctx.state.submissions.filter((submission) => submission.assessmentId === assessment.id);
+  const used = studentSubmissions.length;
+  if (assessment.allowRetakes) return false;
+  const maxAttempts = Number(assessment.maxAttempts) || 1;
+  return used >= maxAttempts;
+}
+async function renderCurrentState2(ctx) {
+  const { els, auth, session, state } = ctx;
+  if (auth.user?.role !== "student") {
+    session.ensureAssessmentSelected();
+  } else {
+    if (session.currentAssessmentId && !state.assessments.some((a) => a.id === session.currentAssessmentId)) {
+      session.currentAssessmentId = null;
+    }
+    const currentAssessment = session.getCurrentAssessment();
+    if (currentAssessment && isAssessmentLocked(ctx, currentAssessment)) {
+      session.currentAssessmentId = null;
+      session.currentAnswers = [];
+      session.currentQuestionIndex = 0;
+    }
+  }
+  renderApp(els, state, session);
+  if (auth.user) renderStudentHistory(els, state.submissions, auth.user.name);
+  const { renderClasses: renderClasses2 } = await Promise.resolve().then(() => (init_class_management(), class_management_exports));
+  const { renderQuestionEditor: renderQuestionEditor2 } = await Promise.resolve().then(() => (init_assessment_wizard(), assessment_wizard_exports));
+  renderClasses2(ctx);
+  renderQuestionEditor2(ctx);
+  const { renderComplaints: renderComplaints2, updateComplaintBadge: updateComplaintBadge2, notifyStudentComplaintStatus: notifyStudentComplaintStatus2 } = await Promise.resolve().then(() => (init_complaints(), complaints_exports));
+  if (auth.user?.role === "teacher") {
+    renderComplaints2(ctx);
+    updateComplaintBadge2(ctx);
+  } else if (auth.user?.role === "student") {
+    notifyStudentComplaintStatus2(ctx);
+  }
+  const hasData = state.assessments.length > 0;
+  const isDev = window.ENABLE_DEMO_SIMULATION === "true" || window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+  const devTools = document.querySelectorAll(".sidebar-settings");
+  devTools.forEach((el) => el.classList.toggle("hidden", !isDev));
+  if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", hasData);
+  if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", hasData);
+  if (els.seedDemo) els.seedDemo.classList.toggle("hidden", hasData);
+  if (els.removeDemoData) els.removeDemoData.classList.toggle("hidden", auth.user?.role === "student" || !hasData);
+  if (auth.user?.role === "student") {
+    els.studentName.value = auth.user.name;
+    els.studentName.readOnly = true;
+    if (session.getCurrentAssessment()?.oralExamEnabled === false) ctx.recorder.setEnabled(false);
+  } else {
+    els.studentName.readOnly = false;
+  }
+}
+function applyRoleAccess(ctx) {
+  const { els, auth } = ctx;
+  const role = auth.user.role;
+  if (els.seedDemo) els.seedDemo.classList.toggle("hidden", role === "student");
+  if (els.seedDemoTeacher) els.seedDemoTeacher.classList.toggle("hidden", role === "student");
+  if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", role !== "admin");
+  if (els.removeDemoData) els.removeDemoData.classList.toggle("hidden", role === "student");
+  document.body.classList.remove("teacher-mode", "student-mode", "admin-mode");
+  let navHtml = "";
+  if (role === "teacher") {
+    navHtml = `
       <button class="nav-button" data-view="dashboardView"><span aria-hidden="true">\u25A6</span> Dashboard</button>
       <div class="nav-group">
         <button class="nav-button" data-view="assessmentListView" aria-haspopup="true" aria-expanded="true">
@@ -909,121 +5990,1903 @@ Masukkan skor baru (0-100):`,l.score);if(c===null)return;let d=parseInt(c,10);if
       <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">\u25C9</span> Siswa</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">\u25A4</span> Monitoring</button>
       <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">\u{1F4E6}</span> Bank Soal</button>
-      <button class="nav-button" data-view="notifView">
-        <span aria-hidden="true">\u{1F514}</span> Notifikasi
-        <span id="notifBadge" class="nav-badge hidden">0</span>
-      </button>
-      <button class="nav-button" data-view="complaintView">
-        <span aria-hidden="true">\u{1F4E9}</span> Komplain
-        <span id="complaintNavBadge" class="nav-badge hidden">0</span>
-      </button>
-    `:n==="student"?s=`
+      <button class="nav-button" data-view="notifView"><span aria-hidden="true">\u{1F514}</span> Notifikasi <span id="notifBadge" class="nav-badge hidden">0</span></button>
+      <button class="nav-button" data-view="complaintView"><span aria-hidden="true">\u{1F4E9}</span> Komplain <span id="complaintNavBadge" class="nav-badge hidden">0</span></button>
+    `;
+  } else if (role === "student") {
+    navHtml = `
       <button class="nav-button" data-view="studentView"><span aria-hidden="true">\u25C9</span> Kerjakan</button>
       <button class="nav-button" data-view="studentHistoryView"><span aria-hidden="true">\u{1F552}</span> Riwayat</button>
       <button class="nav-button" data-view="studentNotifView"><span aria-hidden="true">\u{1F4E9}</span> Notifikasi</button>
-    `:n==="admin"&&(s=`
+    `;
+  } else if (role === "admin") {
+    navHtml = `
       <button class="nav-button" data-view="observabilityView"><span aria-hidden="true">\u{1F4C8}</span> Observabilitas</button>
       <button class="nav-button" data-view="researchView"><span aria-hidden="true">\u{1F9EA}</span> Riset</button>
       <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">\u{1F464}</span> Akun</button>
       <button class="nav-button" data-view="apiKeysView"><span aria-hidden="true">\u{1F511}</span> API Keys</button>
       <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">\u{1F4E6}</span> Bank Soal</button>
-    `),t.mainNav.innerHTML=s;let r=t.mainNav.querySelector(".nav-group"),i=r?.querySelector(".nav-sub");r?.querySelector(".nav-button")?.addEventListener("click",o=>{o.preventDefault();let l=i?.classList.contains("hidden")??!0;r.classList.toggle("open",l),i?.classList.toggle("hidden",!l),r.querySelector(".nav-button")?.setAttribute("aria-expanded",String(l))}),t.mainNav.querySelectorAll("[data-nav-assessment-tab]").forEach(o=>{o.addEventListener("click",()=>{ws(e,o.dataset.navAssessmentTab),N(e,"assessmentListView")})}),t.mainNav.querySelectorAll("[data-nav-view]").forEach(o=>{o.addEventListener("click",()=>N(e,o.dataset.navView))}),n==="student"?(document.body.classList.add("student-mode"),N(e,"studentView")):n==="admin"?(document.body.classList.add("admin-mode"),N(e,"observabilityView")):(document.body.classList.add("teacher-mode"),N(e,"dashboardView"))}function ws(e,t){let{els:a}=e;a.assessmentTabFilter&&a.assessmentTabFilter.querySelectorAll(".tab-filter-btn").forEach(n=>{let s=n.dataset.tab===t;n.classList.toggle("active",s),n.setAttribute("aria-selected",String(s))})}function $s(e,t){if(!e.auth.user)return!1;let a=e.auth.user.role;return a==="student"?t==="studentView"||t==="studentHistoryView"||t==="studentNotifView":a==="admin"?t==="accountView"||t==="monitorView"||t==="observabilityView"||t==="apiKeysView"||t==="researchView"||t==="questionBankView":a==="teacher"?["dashboardView","teacherView","assessmentListView","assessmentDetailView","monitorView","manageClassView","studentProfileView","complaintView","questionBankView","notifView"].includes(t):!1}async function N(e,t){if(!$s(e,t))return;let{els:a}=e;if(a.mainNav.querySelectorAll(".nav-button").forEach(s=>s.classList.toggle("active",s.dataset.view===t)),a.views.forEach(s=>s.classList.toggle("active",s.id===t)),t==="dashboardView"){let{renderDashboard:s}=await Promise.resolve().then(()=>(Ze(),Tt));s(e)}if(t==="assessmentListView"){let{renderAssessmentsWithTab:s}=await Promise.resolve().then(()=>(Ze(),Tt));s(e)}if(t==="studentProfileView"){let{renderStudentProfile:s}=await Promise.resolve().then(()=>(Ze(),Tt));qi(e);let r=[...new Set(e.state.submissions.map(i=>i.studentName))];if(r.length){let i=e.profileSelectedStudent&&r.includes(e.profileSelectedStudent)?e.profileSelectedStudent:r[0];Pi(e,i),s(e,i)}else a.studentProfileContent.innerHTML='<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>'}if(t==="observabilityView"){let{loadTelemetry:s}=await Promise.resolve().then(()=>(Wa(),ms));s(e)}if(t==="researchView"){let{loadResearch:s}=await Promise.resolve().then(()=>(Za(),gs));s(e)}if(t==="apiKeysView"){let{loadApiKeys:s}=await Promise.resolve().then(()=>(an(),bs));s(e)}if(t==="questionBankView"){let{loadQuestionBank:s}=await Promise.resolve().then(()=>(kt(),On));s(e)}if(t==="notifView"){let{clearNotificationBadge:s}=await Promise.resolve().then(()=>(sn(),ys));s()}}function qi(e){let{els:t}=e;if(!t.profileStudentSelect)return;let n=[...new Set(e.state.submissions.map(s=>s.studentName))].sort((s,r)=>s.localeCompare(r)).map(s=>`<option value="${u(s)}">${u(s)}</option>`).join("");t.profileStudentSelect.innerHTML!==n&&(t.profileStudentSelect.innerHTML=n)}function Pi(e,t){e.els.profileStudentSelect&&(e.els.profileStudentSelect.value=t)}async function ee(e){let{els:t}=e;if(t.simulatorWidget)try{let a=await Ve();t.simulatorWidget.classList.remove("hidden"),qt(e,a)}catch{t.simulatorWidget.classList.add("hidden")}}async function Di(e){let{els:t}=e;try{let a=await Ve();qt(e,a)}catch(a){console.error("Gagal memuat data simulator:",a),t.simulatorTenantList&&(t.simulatorTenantList.innerHTML=`<div class="empty-state">Gagal memuat tenant: ${u(a.message)}</div>`)}}function qt(e,t){let{els:a,auth:n}=e;if(!a.simulatorTenantList)return;let{tenants:s,users:r}=t;if(!s||!s.length){a.simulatorTenantList.innerHTML='<div class="empty-state">Belum ada tenant.</div>';return}let i={};r.forEach(o=>{let l=o.tenantId||o.tenant_id;i[l]||(i[l]=[]),i[l].push(o)}),a.simulatorTenantList.innerHTML=s.map(o=>{let c=(i[o.id]||[]).map(d=>{let m=n&&n.authenticated&&n.user&&n.user.id===d.id,k=`simulator-role-${d.role}`;return`
-        <div class="simulator-user-row ${m?"active":""}">
+    `;
+  }
+  els.mainNav.innerHTML = navHtml;
+  const penulisGroup = els.mainNav.querySelector(".nav-group");
+  const penulisSub = penulisGroup?.querySelector(".nav-sub");
+  penulisGroup?.querySelector(".nav-button")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const collapsed = penulisSub?.classList.contains("hidden") ?? true;
+    penulisGroup.classList.toggle("open", collapsed);
+    penulisSub?.classList.toggle("hidden", !collapsed);
+    penulisGroup.querySelector(".nav-button")?.setAttribute("aria-expanded", String(collapsed));
+  });
+  els.mainNav.querySelectorAll("[data-nav-assessment-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setAssessmentTab(ctx, btn.dataset.navAssessmentTab);
+      switchView(ctx, "assessmentListView");
+    });
+  });
+  els.mainNav.querySelectorAll("[data-nav-view]").forEach((btn) => btn.addEventListener("click", () => switchView(ctx, btn.dataset.navView)));
+  if (role === "student") {
+    document.body.classList.add("student-mode");
+    switchView(ctx, "studentView");
+  } else if (role === "admin") {
+    document.body.classList.add("admin-mode");
+    switchView(ctx, "observabilityView");
+  } else {
+    document.body.classList.add("teacher-mode");
+    switchView(ctx, "dashboardView");
+  }
+}
+function setAssessmentTab(ctx, tab) {
+  const { els } = ctx;
+  if (!els.assessmentTabFilter) return;
+  els.assessmentTabFilter.querySelectorAll(".tab-filter-btn").forEach((b) => {
+    const active = b.dataset.tab === tab;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+}
+function canAccessView(ctx, viewId) {
+  if (!ctx.auth.user) return false;
+  const role = ctx.auth.user.role;
+  if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
+  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView" || viewId === "questionBankView";
+  if (role === "teacher") return ["dashboardView", "teacherView", "assessmentListView", "assessmentDetailView", "monitorView", "manageClassView", "studentProfileView", "complaintView", "questionBankView", "notifView"].includes(viewId);
+  return false;
+}
+async function switchView(ctx, viewId, { fromHistory = false } = {}) {
+  if (!canAccessView(ctx, viewId)) return;
+  const previousViewId = ctx.currentViewId;
+  if (!fromHistory && previousViewId === viewId) return;
+  if (!fromHistory) {
+    const nextState = { ...history.state || {}, lisanView: viewId };
+    const hash = `#${viewId}`;
+    if (history.state?.lisanView) history.pushState(nextState, "", hash);
+    else history.replaceState(nextState, "", hash);
+  }
+  ctx.currentViewId = viewId;
+  const { els } = ctx;
+  const navBtns = els.mainNav.querySelectorAll(".nav-button");
+  navBtns.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
+  els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
+  if (viewId === "dashboardView") {
+    const { renderDashboard: renderDashboard2 } = await Promise.resolve().then(() => (init_dashboard(), dashboard_exports));
+    renderDashboard2(ctx);
+  }
+  if (viewId === "assessmentListView") {
+    const { renderAssessmentsWithTab: renderAssessmentsWithTab2 } = await Promise.resolve().then(() => (init_dashboard(), dashboard_exports));
+    renderAssessmentsWithTab2(ctx);
+  }
+  if (viewId === "studentProfileView") {
+    const { renderStudentProfile: renderStudentProfile2 } = await Promise.resolve().then(() => (init_dashboard(), dashboard_exports));
+    populateProfileSelect(ctx);
+    const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))];
+    if (names.length) {
+      const selected = ctx.profileSelectedStudent && names.includes(ctx.profileSelectedStudent) ? ctx.profileSelectedStudent : names[0];
+      elProfileSet(ctx, selected);
+      renderStudentProfile2(ctx, selected);
+    } else {
+      els.studentProfileContent.innerHTML = '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
+    }
+  }
+  if (viewId === "observabilityView") {
+    const { loadTelemetry: loadTelemetry2 } = await Promise.resolve().then(() => (init_observability(), observability_exports));
+    loadTelemetry2(ctx);
+  }
+  if (viewId === "researchView") {
+    const { loadResearch: loadResearch2 } = await Promise.resolve().then(() => (init_research(), research_exports));
+    loadResearch2(ctx);
+  }
+  if (viewId === "apiKeysView") {
+    const { loadApiKeys: loadApiKeys2 } = await Promise.resolve().then(() => (init_api_keys(), api_keys_exports));
+    loadApiKeys2(ctx);
+  }
+  if (viewId === "questionBankView") {
+    const { loadQuestionBank: loadQuestionBank2 } = await Promise.resolve().then(() => (init_question_bank(), question_bank_exports));
+    loadQuestionBank2(ctx);
+  }
+  if (viewId === "notifView") {
+    const { clearNotificationBadge: clearNotificationBadge2 } = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
+    clearNotificationBadge2();
+  }
+}
+function populateProfileSelect(ctx) {
+  const { els } = ctx;
+  if (!els.profileStudentSelect) return;
+  const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))].sort((a, b) => a.localeCompare(b));
+  const options = names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  if (els.profileStudentSelect.innerHTML !== options) els.profileStudentSelect.innerHTML = options;
+}
+function elProfileSet(ctx, name) {
+  if (ctx.els.profileStudentSelect) ctx.els.profileStudentSelect.value = name;
+}
+async function refreshSimulatorIfEnabled(ctx) {
+  const { els } = ctx;
+  if (!els.simulatorWidget) return;
+  try {
+    const data = await getSimulationData();
+    els.simulatorWidget.classList.remove("hidden");
+    renderSimulator(ctx, data);
+  } catch (error) {
+    els.simulatorWidget.classList.add("hidden");
+  }
+}
+async function refreshSimulator(ctx) {
+  const { els } = ctx;
+  try {
+    const data = await getSimulationData();
+    renderSimulator(ctx, data);
+  } catch (error) {
+    console.error("Gagal memuat data simulator:", error);
+    if (els.simulatorTenantList) els.simulatorTenantList.innerHTML = `<div class="empty-state">Gagal memuat tenant: ${escapeHtml(error.message)}</div>`;
+  }
+}
+function renderSimulator(ctx, data) {
+  const { els, auth } = ctx;
+  if (!els.simulatorTenantList) return;
+  const { tenants, users: allUsers } = data;
+  if (!tenants || !tenants.length) {
+    els.simulatorTenantList.innerHTML = `<div class="empty-state">Belum ada tenant.</div>`;
+    return;
+  }
+  const usersByTenant = {};
+  allUsers.forEach((u) => {
+    const tId = u.tenantId || u.tenant_id;
+    if (!usersByTenant[tId]) usersByTenant[tId] = [];
+    usersByTenant[tId].push(u);
+  });
+  els.simulatorTenantList.innerHTML = tenants.map((t) => {
+    const tUsers = usersByTenant[t.id] || [];
+    const userRows = tUsers.map((u) => {
+      const isActive = auth && auth.authenticated && auth.user && auth.user.id === u.id;
+      const roleClass = `simulator-role-${u.role}`;
+      return `
+        <div class="simulator-user-row ${isActive ? "active" : ""}">
           <div class="simulator-user-info">
-            <span class="simulator-user-name">${u(d.name)}</span>
-            <span class="simulator-user-detail">${u(d.email)}</span>
-            <span class="simulator-user-role-badge ${k}">${u(Ee(d.role))}</span>
+            <span class="simulator-user-name">${escapeHtml(u.name)}</span>
+            <span class="simulator-user-detail">${escapeHtml(u.email)}</span>
+            <span class="simulator-user-role-badge ${roleClass}">${escapeHtml(roleLabel(u.role))}</span>
           </div>
-          ${m?'<span class="simulator-login-btn active" style="background: var(--emerald); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Aktif</span>':`<button class="simulator-login-btn" data-user-id="${u(d.id)}" type="button">Masuk</button>`}
+          ${isActive ? `<span class="simulator-login-btn active" style="background: var(--emerald); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Aktif</span>` : `<button class="simulator-login-btn" data-user-id="${escapeHtml(u.id)}" type="button">Masuk</button>`}
         </div>
-      `}).join("");return`
+      `;
+    }).join("");
+    return `
       <div class="simulator-tenant-group">
-        <div class="simulator-tenant-name">${u(o.name)}</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          ${c.length?c:'<p style="font-size: 0.75rem; color: var(--muted); margin: 0;">Tidak ada akun</p>'}
-        </div>
+        <div class="simulator-tenant-name">${escapeHtml(t.name)}</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">${userRows.length ? userRows : '<p style="font-size: 0.75rem; color: var(--muted); margin: 0;">Tidak ada akun</p>'}</div>
       </div>
-    `}).join("")}var V=x(()=>{Y();kn();na();Oe();B();ie();F();H()});B();V();B();Y();F();V();function Ls(e){let{els:t}=e;document.addEventListener("keydown",a=>un(e,a)),t.openRegisterModalBtn&&t.openRegisterModalBtn.addEventListener("click",()=>on(e)),t.closeRegisterModalBtn&&t.closeRegisterModalBtn.addEventListener("click",()=>be(e)),t.registerModal&&t.registerModal.addEventListener("click",a=>{a.target===t.registerModal&&be(e)}),t.loginForm.addEventListener("submit",async a=>{a.preventDefault(),D(a.submitter,!0,"Login...","Login");try{let n=await Rt({email:t.loginEmail.value,password:t.loginPassword.value});await ge(e,n)}catch(n){console.error("Login error:",n),p(n.message||"Login gagal")}finally{D(a.submitter,!1,"Login...","Login")}}),t.registerForm.addEventListener("submit",async a=>{a.preventDefault(),D(a.submitter,!0,"Membuat tenant...","Buat tenant");try{let n=await Nt({tenantName:t.registerTenant.value,name:t.registerName.value,email:t.registerEmail.value,password:t.registerPassword.value});be(e),await ge(e,n)}catch(n){p(n.message)}finally{D(a.submitter,!1,"Membuat tenant...","Buat tenant")}}),t.registerPassword&&t.registerPassword.addEventListener("input",()=>{let a=t.registerPassword.value,n=document.querySelectorAll("#registerPasswordStrength .password-strength-bar"),s=document.getElementById("registerPasswordStrengthLabel");if(!n.length)return;let r=0;a.length>=8&&(r+=1),/[a-z]/.test(a)&&/[A-Z]/.test(a)&&(r+=1),/\d/.test(a)&&(r+=1),/[^a-zA-Z0-9]/.test(a)&&(r+=1);let i=a.length===0?-1:r<=1?0:r<=2?1:2,o=["weak","medium","strong"],l=["","Lemah","Sedang","Kuat"];n.forEach((c,d)=>{c.className="password-strength-bar"+(d<=i&&i>=0?" "+o[i]:"")}),s&&(s.textContent=i>=0?l[i+1]:"",s.className="password-strength-label"+(i>=0?" "+o[i]:""))}),t.logoutButton.addEventListener("click",async()=>{await jt(),e.auth={authenticated:!1},e.state={assessments:[],submissions:[],classes:[],memberships:[]},e.users=[],e.session=null,Ct(e),tt(e);let{refreshSimulatorIfEnabled:a}=await Promise.resolve().then(()=>(V(),at));a(e)})}We();B();va();Y();wa();na();var Pt=4,xi=.03;function As({volumeIndicator:e,playback:t}){let a=null,n=null,s=null,r=null,i=0,o=null,l=!1;async function c(v){if(l)return{ok:!1,message:"Tes mikrofon sedang berjalan."};l=!0,b();try{if(!window.isSecureContext)return{ok:!1,message:"Mikrofon hanya bisa dipakai di HTTPS atau localhost."};if(!navigator.mediaDevices?.getUserMedia)return{ok:!1,message:"Browser tidak mendukung akses mikrofon. Jawaban bisa diketik manual."};try{a=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!0,noiseSuppression:!0,autoGainControl:!0}})}catch(T){return{ok:!1,message:ut(T),name:T?.name||""}}let L=a.getAudioTracks();if(!L.length)return{ok:!1,message:"Mikrofon terdeteksi tetapi tidak ada track audio aktif."};let y=L[0].label||"Mikrofon bawaan";k();let S=await d(v);return h(),f(),S.length&&m(S),{ok:!0,label:y,heard:i>=xi,peak:i,hasPlayback:S.length>0,message:`Mikrofon aktif: ${y}`}}finally{h(),f(),l=!1}}function d(v){return new Promise(L=>{let y=null,S=[],T=M=>{if(typeof v=="function"&&v(M),M>0){setTimeout(()=>T(M-1),1e3);return}y&&y.state==="recording"?y.stop():L(S)};if(typeof window.MediaRecorder!="function"){T(Pt);return}try{y=new MediaRecorder(a)}catch(M){console.warn("MediaRecorder tidak tersedia untuk tes mikrofon:",M?.message),T(Pt);return}y.ondataavailable=M=>{M.data?.size&&S.push(M.data)},y.onstop=()=>L(S),y.onerror=()=>L(S),y.start(),T(Pt)})}function m(v){t&&(g(),o=URL.createObjectURL(new Blob(v,{type:"audio/webm"})),t.src=o,t.classList.remove("hidden"))}function k(){h(),i=0;try{let v=window.AudioContext||window.webkitAudioContext;if(!v)return;n=new v;let L=n.createMediaStreamSource(a);s=n.createAnalyser(),s.fftSize=1024,L.connect(s);let y=new Uint8Array(s.fftSize),S=e?[...e.querySelectorAll(".volume-bar")]:[],T=()=>{if(!s)return;s.getByteTimeDomainData(y);let M=0;for(let j=0;j<y.length;j+=1){let O=(y[j]-128)/128;M+=O*O}let q=Math.sqrt(M/y.length);i=Math.max(i,q);let _=Math.round(Math.min(1,q*6)*S.length);S.forEach((j,O)=>j.classList.toggle("active",O<_)),r=requestAnimationFrame(T)};T()}catch(v){console.warn("Level meter tes mikrofon tidak tersedia:",v?.message)}}function h(){r&&(cancelAnimationFrame(r),r=null),n&&(n.close().catch(()=>{}),n=null),s=null,w()}function w(){e?.querySelectorAll(".volume-bar").forEach(v=>v.classList.remove("active"))}function f(){a&&(a.getTracks().forEach(v=>v.stop()),a=null)}function g(){o&&(URL.revokeObjectURL(o),o=null)}function b(){h(),f(),t&&(t.pause?.(),t.removeAttribute("src"),t.classList.add("hidden")),g()}return{run:c,reset:b,isRunning:()=>l,sampleSeconds:Pt}}ie();F();H();V();function Cs(e){let{els:t}=e;e.micCheck=As({volumeIndicator:t.preExamVolume,playback:t.preExamPlayback}),t.studentAssessmentGrid&&t.studentAssessmentGrid.addEventListener("click",a=>{let n=a.target.closest(".start-assessment-btn")||a.target.closest(".assessment-card");if(!n)return;let s=e.state.assessments.find(r=>r.id===n.dataset.id);if(s){if(Mt(e,s)){s.status==="closed"?p("Akses ke penilaian ini sedang ditutup oleh guru."):p("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");return}Bi(e,s,n)}}),Ii(e),t.backToDashboard&&t.backToDashboard.addEventListener("click",async()=>{e.recorder.stop(),rt(e),qs(e),e.session.currentAssessmentId=null,await I(e)}),t.saveAnswer.addEventListener("click",async()=>{e.recorder.stop(),await xt(e);let a=e.session.getCurrentAssessment(),n=e.session.currentQuestionIndex,s=a?.questions?.[n];if(e.inProbing){e.inProbing=!1,e.probingPrompt=null,Dt(e);return}if(s?.probing&&!e.session.currentAnswers[n]?.probing?.done){await Ps(e);return}Dt(e)}),t.finishAssessment.addEventListener("click",a=>{rt(e),Is(e)}),t.testMicButton&&t.testMicButton.addEventListener("click",async()=>{let a=await e.recorder.testMicrophone();Gi(e,a)})}function Ii(e){let{els:t}=e;t.preExamModal&&(t.preExamMicTest?.addEventListener("click",()=>ji(e)),t.preExamStart?.addEventListener("click",()=>Fi(e)),t.preExamCancel?.addEventListener("click",()=>nt(e)),t.preExamClose?.addEventListener("click",()=>nt(e)),t.preExamModal.addEventListener("click",a=>{a.target===t.preExamModal&&nt(e)}),document.addEventListener("keydown",a=>{a.key!=="Escape"||t.preExamModal.classList.contains("hidden")||(a.preventDefault(),nt(e))}))}function Bi(e,t,a=null){let{els:n}=e;if(e.pendingExamAssessmentId=t.id,!n.preExamModal){Ms(e,t.id);return}e.preExamTrigger=a,e.micCheck?.reset(),n.preExamTitle&&(n.preExamTitle.textContent=t.topic||"Penilaian"),n.preExamMeta&&(n.preExamMeta.innerHTML=Ri(e,t)),Ni(e);let s=t.oralExamEnabled!==!1;n.preExamMicSection?.classList.toggle("hidden",!s),n.preExamStart&&(n.preExamStart.textContent="Mulai ujian sekarang",n.preExamStart.disabled=s),st(e,s?"Tes mikrofon dulu agar jawaban lisan Anda terekam. Timer belum berjalan.":"Penilaian ini tidak memerlukan mikrofon. Timer mulai setelah Anda menekan tombol mulai.",!1),n.preExamModal.classList.remove("hidden"),(s?n.preExamMicTest:n.preExamStart)?.focus()}function nt(e,{returnFocus:t=!0}={}){let{els:a}=e;a.preExamModal&&(a.preExamModal.classList.add("hidden"),e.micCheck?.reset(),e.pendingExamAssessmentId=null,t&&e.preExamTrigger instanceof HTMLElement&&document.contains(e.preExamTrigger)&&e.preExamTrigger.focus(),e.preExamTrigger=null)}function Ri(e,t){let a=t.questions?.length||0,n=Number(t.timeLimit)||0,s=e.state.submissions.filter(o=>o.assessmentId===t.id).length,r=t.allowRetakes?1/0:Number(t.maxAttempts)||1,i=Number.isFinite(r)?`${Math.max(0,r-s)} percobaan tersisa`:"Percobaan tak terbatas";return`
+    `;
+  }).join("");
+}
+var init_app_context = __esm({
+  "src/js/app-context.js"() {
+    init_dom();
+    init_session();
+    init_recorder();
+    init_storage();
+    init_api();
+    init_render();
+    init_toast();
+    init_utils();
+  }
+});
+
+// src/js/main.js
+init_api();
+init_app_context();
+
+// src/js/auth-ui.js
+init_api();
+init_dom();
+init_toast();
+init_app_context();
+function bindAuthEvents(ctx) {
+  const { els } = ctx;
+  document.addEventListener("keydown", (event) => handleModalKeyboard(ctx, event));
+  if (els.openRegisterModalBtn) {
+    els.openRegisterModalBtn.addEventListener("click", () => openRegisterModal(ctx));
+  }
+  if (els.closeRegisterModalBtn) {
+    els.closeRegisterModalBtn.addEventListener("click", () => closeRegisterModal(ctx));
+  }
+  if (els.registerModal) {
+    els.registerModal.addEventListener("click", (event) => {
+      if (event.target === els.registerModal) {
+        closeRegisterModal(ctx);
+      }
+    });
+  }
+  els.loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setButtonLoading(event.submitter, true, "Login...", "Login");
+    try {
+      const nextAuth = await login({
+        email: els.loginEmail.value,
+        password: els.loginPassword.value
+      });
+      await bootstrapAuthenticatedApp(ctx, nextAuth);
+    } catch (error) {
+      console.error("Login error:", error);
+      showToast(error.message || "Login gagal");
+    } finally {
+      setButtonLoading(event.submitter, false, "Login...", "Login");
+    }
+  });
+  els.registerForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setButtonLoading(event.submitter, true, "Membuat tenant...", "Buat tenant");
+    try {
+      const nextAuth = await registerTenant({
+        tenantName: els.registerTenant.value,
+        name: els.registerName.value,
+        email: els.registerEmail.value,
+        password: els.registerPassword.value
+      });
+      closeRegisterModal(ctx);
+      await bootstrapAuthenticatedApp(ctx, nextAuth);
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      setButtonLoading(event.submitter, false, "Membuat tenant...", "Buat tenant");
+    }
+  });
+  if (els.registerPassword) {
+    els.registerPassword.addEventListener("input", () => {
+      const val = els.registerPassword.value;
+      const bars = document.querySelectorAll("#registerPasswordStrength .password-strength-bar");
+      const label = document.getElementById("registerPasswordStrengthLabel");
+      if (!bars.length) return;
+      let score = 0;
+      if (val.length >= 8) score += 1;
+      if (/[a-z]/.test(val) && /[A-Z]/.test(val)) score += 1;
+      if (/\d/.test(val)) score += 1;
+      if (/[^a-zA-Z0-9]/.test(val)) score += 1;
+      const level = val.length === 0 ? -1 : score <= 1 ? 0 : score <= 2 ? 1 : 2;
+      const levels = ["weak", "medium", "strong"];
+      const labels = ["", "Lemah", "Sedang", "Kuat"];
+      bars.forEach((bar, i) => {
+        bar.className = "password-strength-bar" + (i <= level && level >= 0 ? " " + levels[level] : "");
+      });
+      if (label) {
+        label.textContent = level >= 0 ? labels[level + 1] : "";
+        label.className = "password-strength-label" + (level >= 0 ? " " + levels[level] : "");
+      }
+    });
+  }
+  els.logoutButton.addEventListener("click", async () => {
+    await logout();
+    ctx.auth = { authenticated: false };
+    ctx.state = { assessments: [], submissions: [], classes: [], memberships: [] };
+    ctx.users = [];
+    ctx.session = null;
+    clearAuthForms(ctx);
+    showAuth(ctx);
+    const { refreshSimulatorIfEnabled: refreshSimulatorIfEnabled2 } = await Promise.resolve().then(() => (init_app_context(), app_context_exports));
+    refreshSimulatorIfEnabled2(ctx);
+  });
+}
+
+// src/js/main.js
+init_assessment_wizard();
+
+// src/js/assessment-ux.js
+function enhanceAssessmentWizardUX(ctx) {
+  const form = ctx?.els?.form;
+  if (!form || form.dataset.advancedSettingsEnhanced === "true") return;
+  const fieldIds = ["difficulty", "timeLimit", "maxAttempts", "examples"];
+  const controls = fieldIds.map((id) => document.getElementById(id)).filter((element) => element && form.contains(element));
+  const checks = form.querySelector(".wizard-checks");
+  const hasAdvancedContent = controls.length > 0 || !!checks;
+  if (!hasAdvancedContent) return;
+  const details = document.createElement("details");
+  details.className = "advanced-settings";
+  details.style.margin = "12px 0 16px";
+  const summary = document.createElement("summary");
+  summary.textContent = "\u2699\uFE0F Pengaturan lanjutan";
+  summary.style.cursor = "pointer";
+  summary.style.fontWeight = "600";
+  summary.style.padding = "10px 0";
+  details.appendChild(summary);
+  const hint = document.createElement("p");
+  hint.textContent = "Opsional. Nilai default sudah cukup untuk mulai membuat penilaian.";
+  hint.style.margin = "0 0 12px";
+  hint.style.fontSize = "0.88rem";
+  hint.style.opacity = "0.72";
+  details.appendChild(hint);
+  const panel = document.createElement("div");
+  panel.className = "advanced-settings-panel";
+  panel.style.display = "grid";
+  panel.style.gap = "12px";
+  details.appendChild(panel);
+  const firstControl = controls[0] || checks.querySelector("input, select, textarea");
+  const insertionPoint = firstControl?.closest(".form-row-2") || firstControl?.closest("label") || checks || firstControl;
+  if (!insertionPoint?.parentNode) return;
+  insertionPoint.parentNode.insertBefore(details, insertionPoint);
+  controls.forEach((control) => {
+    const label = control.closest("label");
+    if (label) panel.appendChild(label);
+  });
+  if (checks && !details.contains(checks)) panel.appendChild(checks);
+  form.querySelectorAll(".form-row-2").forEach((row) => {
+    if (!row.querySelector("input, select, textarea, button")) row.remove();
+  });
+  const primaryButton = form.querySelector("#wizardToQuestions") || form.querySelector("button[type='submit']");
+  if (primaryButton) primaryButton.setAttribute("data-primary-action", "true");
+  form.dataset.advancedSettingsEnhanced = "true";
+}
+
+// src/js/student-flow.js
+init_api();
+init_assessment_factory();
+init_dom();
+init_fallback_assessment();
+
+// src/js/mic-check.js
+init_recorder();
+var SAMPLE_SECONDS = 4;
+var HEARD_THRESHOLD = 0.03;
+function createMicCheck({ volumeIndicator, playback }) {
+  let stream = null;
+  let audioContext = null;
+  let analyser = null;
+  let meterRaf = null;
+  let peakLevel = 0;
+  let playbackUrl = null;
+  let running = false;
+  async function run(onTick) {
+    if (running) return { ok: false, message: "Tes mikrofon sedang berjalan." };
+    running = true;
+    reset();
+    try {
+      if (!window.isSecureContext) {
+        return { ok: false, message: "Mikrofon hanya bisa dipakai di HTTPS atau localhost." };
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        return { ok: false, message: "Browser tidak mendukung akses mikrofon. Jawaban bisa diketik manual." };
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+      } catch (error) {
+        return { ok: false, message: getMicrophoneErrorMessage(error), name: error?.name || "" };
+      }
+      const tracks = stream.getAudioTracks();
+      if (!tracks.length) {
+        return { ok: false, message: "Mikrofon terdeteksi tetapi tidak ada track audio aktif." };
+      }
+      const label = tracks[0].label || "Mikrofon bawaan";
+      startMeter();
+      const chunks = await recordSample(onTick);
+      stopMeter();
+      releaseStream();
+      if (chunks.length) setPlayback(chunks);
+      return {
+        ok: true,
+        label,
+        heard: peakLevel >= HEARD_THRESHOLD,
+        peak: peakLevel,
+        hasPlayback: chunks.length > 0,
+        message: `Mikrofon aktif: ${label}`
+      };
+    } finally {
+      stopMeter();
+      releaseStream();
+      running = false;
+    }
+  }
+  function recordSample(onTick) {
+    return new Promise((resolve) => {
+      let recorder = null;
+      const chunks = [];
+      const countdown = (secondsLeft) => {
+        if (typeof onTick === "function") onTick(secondsLeft);
+        if (secondsLeft > 0) {
+          setTimeout(() => countdown(secondsLeft - 1), 1e3);
+          return;
+        }
+        if (recorder && recorder.state === "recording") {
+          recorder.stop();
+        } else {
+          resolve(chunks);
+        }
+      };
+      if (typeof window.MediaRecorder !== "function") {
+        countdown(SAMPLE_SECONDS);
+        return;
+      }
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (error) {
+        console.warn("MediaRecorder tidak tersedia untuk tes mikrofon:", error?.message);
+        countdown(SAMPLE_SECONDS);
+        return;
+      }
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) chunks.push(event.data);
+      };
+      recorder.onstop = () => resolve(chunks);
+      recorder.onerror = () => resolve(chunks);
+      recorder.start();
+      countdown(SAMPLE_SECONDS);
+    });
+  }
+  function setPlayback(chunks) {
+    if (!playback) return;
+    revokePlayback();
+    playbackUrl = URL.createObjectURL(new Blob(chunks, { type: "audio/webm" }));
+    playback.src = playbackUrl;
+    playback.classList.remove("hidden");
+  }
+  function startMeter() {
+    stopMeter();
+    peakLevel = 0;
+    try {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextCtor) return;
+      audioContext = new AudioContextCtor();
+      const source = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+      const bars = volumeIndicator ? [...volumeIndicator.querySelectorAll(".volume-bar")] : [];
+      const tick = () => {
+        if (!analyser) return;
+        analyser.getByteTimeDomainData(samples);
+        let sumSquares = 0;
+        for (let i = 0; i < samples.length; i += 1) {
+          const deviation = (samples[i] - 128) / 128;
+          sumSquares += deviation * deviation;
+        }
+        const rms = Math.sqrt(sumSquares / samples.length);
+        peakLevel = Math.max(peakLevel, rms);
+        const activeBars = Math.round(Math.min(1, rms * 6) * bars.length);
+        bars.forEach((bar, index) => bar.classList.toggle("active", index < activeBars));
+        meterRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (error) {
+      console.warn("Level meter tes mikrofon tidak tersedia:", error?.message);
+    }
+  }
+  function stopMeter() {
+    if (meterRaf) {
+      cancelAnimationFrame(meterRaf);
+      meterRaf = null;
+    }
+    if (audioContext) {
+      audioContext.close().catch(() => {
+      });
+      audioContext = null;
+    }
+    analyser = null;
+    clearBars();
+  }
+  function clearBars() {
+    volumeIndicator?.querySelectorAll(".volume-bar").forEach((bar) => bar.classList.remove("active"));
+  }
+  function releaseStream() {
+    if (!stream) return;
+    stream.getTracks().forEach((track) => track.stop());
+    stream = null;
+  }
+  function revokePlayback() {
+    if (!playbackUrl) return;
+    URL.revokeObjectURL(playbackUrl);
+    playbackUrl = null;
+  }
+  function reset() {
+    stopMeter();
+    releaseStream();
+    if (playback) {
+      playback.pause?.();
+      playback.removeAttribute("src");
+      playback.classList.add("hidden");
+    }
+    revokePlayback();
+  }
+  return { run, reset, isRunning: () => running, sampleSeconds: SAMPLE_SECONDS };
+}
+
+// src/js/student-flow.js
+init_render();
+init_toast();
+init_utils();
+init_app_context();
+function bindStudentFlowEvents(ctx) {
+  const { els } = ctx;
+  ctx.micCheck = createMicCheck({
+    volumeIndicator: els.preExamVolume,
+    playback: els.preExamPlayback
+  });
+  if (els.studentAssessmentGrid) {
+    els.studentAssessmentGrid.addEventListener("click", (e) => {
+      const btn = e.target.closest(".start-assessment-btn") || e.target.closest(".assessment-card");
+      if (!btn) return;
+      const assessment = ctx.state.assessments.find((item) => item.id === btn.dataset.id);
+      if (!assessment) return;
+      if (isAssessmentLocked(ctx, assessment)) {
+        if (assessment.status === "closed") {
+          showToast("Akses ke penilaian ini sedang ditutup oleh guru.");
+        } else {
+          showToast("Penilaian ini sudah dikumpulkan dan tidak bisa dibuka lagi.");
+        }
+        return;
+      }
+      openPreExamModal(ctx, assessment, btn);
+    });
+  }
+  bindPreExamEvents(ctx);
+  if (els.backToDashboard) {
+    els.backToDashboard.addEventListener("click", async () => {
+      ctx.recorder.stop();
+      stopQuestionTimer(ctx);
+      resetProbingState(ctx);
+      ctx.session.currentAssessmentId = null;
+      await renderCurrentState2(ctx);
+    });
+  }
+  els.saveAnswer.addEventListener("click", async () => {
+    ctx.recorder.stop();
+    await saveCurrentAnswer(ctx);
+    const assessment = ctx.session.getCurrentAssessment();
+    const qi = ctx.session.currentQuestionIndex;
+    const q = assessment?.questions?.[qi];
+    if (ctx.inProbing) {
+      ctx.inProbing = false;
+      ctx.probingPrompt = null;
+      advanceAfterAnswer(ctx);
+      return;
+    }
+    if (q?.probing && !ctx.session.currentAnswers[qi]?.probing?.done) {
+      await startProbingForCurrentQuestion(ctx);
+      return;
+    }
+    advanceAfterAnswer(ctx);
+  });
+  els.finishAssessment.addEventListener("click", (e) => {
+    stopQuestionTimer(ctx);
+    confirmAndFinishAssessment(ctx);
+  });
+  if (els.testMicButton) {
+    els.testMicButton.addEventListener("click", async () => {
+      const result = await ctx.recorder.testMicrophone();
+      renderMicDiagnostics(ctx, result);
+    });
+  }
+}
+function bindPreExamEvents(ctx) {
+  const { els } = ctx;
+  if (!els.preExamModal) return;
+  els.preExamMicTest?.addEventListener("click", () => runPreExamMicTest(ctx));
+  els.preExamStart?.addEventListener("click", () => startExamFromModal(ctx));
+  els.preExamCancel?.addEventListener("click", () => closePreExamModal(ctx));
+  els.preExamClose?.addEventListener("click", () => closePreExamModal(ctx));
+  els.preExamModal.addEventListener("click", (event) => {
+    if (event.target === els.preExamModal) closePreExamModal(ctx);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || els.preExamModal.classList.contains("hidden")) return;
+    event.preventDefault();
+    closePreExamModal(ctx);
+  });
+}
+function openPreExamModal(ctx, assessment, trigger = null) {
+  const { els } = ctx;
+  ctx.pendingExamAssessmentId = assessment.id;
+  if (!els.preExamModal) {
+    startExam(ctx, assessment.id);
+    return;
+  }
+  ctx.preExamTrigger = trigger;
+  ctx.micCheck?.reset();
+  if (els.preExamTitle) els.preExamTitle.textContent = assessment.topic || "Penilaian";
+  if (els.preExamMeta) els.preExamMeta.innerHTML = buildPreExamMeta(ctx, assessment);
+  resetPreExamMicUi(ctx);
+  const isOralExam = assessment.oralExamEnabled !== false;
+  els.preExamMicSection?.classList.toggle("hidden", !isOralExam);
+  if (els.preExamStart) {
+    els.preExamStart.textContent = "Mulai ujian sekarang";
+    els.preExamStart.disabled = isOralExam;
+  }
+  setPreExamNote(
+    ctx,
+    isOralExam ? "Tes mikrofon dulu agar jawaban lisan Anda terekam. Timer belum berjalan." : "Penilaian ini tidak memerlukan mikrofon. Timer mulai setelah Anda menekan tombol mulai.",
+    false
+  );
+  els.preExamModal.classList.remove("hidden");
+  (isOralExam ? els.preExamMicTest : els.preExamStart)?.focus();
+}
+function closePreExamModal(ctx, { returnFocus = true } = {}) {
+  const { els } = ctx;
+  if (!els.preExamModal) return;
+  els.preExamModal.classList.add("hidden");
+  ctx.micCheck?.reset();
+  ctx.pendingExamAssessmentId = null;
+  if (returnFocus && ctx.preExamTrigger instanceof HTMLElement && document.contains(ctx.preExamTrigger)) {
+    ctx.preExamTrigger.focus();
+  }
+  ctx.preExamTrigger = null;
+}
+function buildPreExamMeta(ctx, assessment) {
+  const total = assessment.questions?.length || 0;
+  const timeLimit = Number(assessment.timeLimit) || 0;
+  const used = ctx.state.submissions.filter((submission) => submission.assessmentId === assessment.id).length;
+  const maxAttempts = assessment.allowRetakes ? Infinity : Number(assessment.maxAttempts) || 1;
+  const attempts = Number.isFinite(maxAttempts) ? `${Math.max(0, maxAttempts - used)} percobaan tersisa` : "Percobaan tak terbatas";
+  return `
     <div class="pre-exam-topic">
-      <strong>Topik:</strong> ${u(t.topic||"-")}
+      <strong>Topik:</strong> ${escapeHtml(assessment.topic || "-")}
     </div>
-    ${t.outcomes?`<div class="pre-exam-outcome"><strong>Kompetensi:</strong> ${u(t.outcomes)}</div>`:""}
+    ${assessment.outcomes ? `<div class="pre-exam-outcome"><strong>Kompetensi:</strong> ${escapeHtml(assessment.outcomes)}</div>` : ""}
     <div class="pre-exam-stats">
-      ${[`\u{1F4DD} ${a} soal`,n>0?`\u23F1 ${ue(n)} / soal`:"\u23F1 Tanpa batas waktu",`\u{1F504} ${i}`,`\u{1F39A} ${t.difficulty||"-"}`].map(o=>`<span>${u(o)}</span>`).join("")}
+      ${[
+    `\u{1F4DD} ${total} soal`,
+    timeLimit > 0 ? `\u23F1 ${formatDuration(timeLimit)} / soal` : "\u23F1 Tanpa batas waktu",
+    `\u{1F504} ${attempts}`,
+    `\u{1F39A} ${assessment.difficulty || "-"}`
+  ].map((text) => `<span>${escapeHtml(text)}</span>`).join("")}
     </div>
-  `}function Ni(e){let{els:t}=e;t.preExamMicTest&&(t.preExamMicTest.disabled=!1,t.preExamMicTest.textContent="Tes mikrofon"),Ie(e,"Mikrofon belum dites",""),t.preExamMicDiagnostics&&(t.preExamMicDiagnostics.innerHTML="",t.preExamMicDiagnostics.classList.add("hidden"))}function Ie(e,t,a){let{els:n}=e;n.preExamMicStatus&&(n.preExamMicStatus.textContent=t,n.preExamMicStatus.className=`mic-status${a?` ${a}`:""}`)}function st(e,t,a){let{els:n}=e;n.preExamStartNote&&(n.preExamStartNote.textContent=t,n.preExamStartNote.className=`pre-exam-note${a?" warn":""}`)}async function ji(e){let{els:t}=e;if(!e.micCheck||e.micCheck.isRunning())return;t.preExamMicTest&&(t.preExamMicTest.disabled=!0),t.preExamStart&&(t.preExamStart.disabled=!0),t.preExamMicDiagnostics&&t.preExamMicDiagnostics.classList.add("hidden"),Ie(e,"Menyiapkan mikrofon...",""),st(e,"Bicara dengan suara normal selama beberapa detik.",!1);let a=await e.micCheck.run(n=>{n>0&&Ie(e,`Bicara sekarang... ${n}s`,"")});t.preExamMicTest&&(t.preExamMicTest.disabled=!1,t.preExamMicTest.textContent="Tes ulang mikrofon"),t.preExamStart&&(t.preExamStart.disabled=!1),Hi(e,a)}function Hi(e,t){let{els:a}=e,n=a.preExamMicDiagnostics;if(!t.ok){Ie(e,"\u2715 Mikrofon bermasalah","error"),n&&(n.classList.remove("hidden","ok"),n.classList.add("error"),n.innerHTML=`
+  `;
+}
+function resetPreExamMicUi(ctx) {
+  const { els } = ctx;
+  if (els.preExamMicTest) {
+    els.preExamMicTest.disabled = false;
+    els.preExamMicTest.textContent = "Tes mikrofon";
+  }
+  setPreExamMicStatus(ctx, "Mikrofon belum dites", "");
+  if (els.preExamMicDiagnostics) {
+    els.preExamMicDiagnostics.innerHTML = "";
+    els.preExamMicDiagnostics.classList.add("hidden");
+  }
+}
+function setPreExamMicStatus(ctx, text, variant) {
+  const { els } = ctx;
+  if (!els.preExamMicStatus) return;
+  els.preExamMicStatus.textContent = text;
+  els.preExamMicStatus.className = `mic-status${variant ? ` ${variant}` : ""}`;
+}
+function setPreExamNote(ctx, text, warn) {
+  const { els } = ctx;
+  if (!els.preExamStartNote) return;
+  els.preExamStartNote.textContent = text;
+  els.preExamStartNote.className = `pre-exam-note${warn ? " warn" : ""}`;
+}
+async function runPreExamMicTest(ctx) {
+  const { els } = ctx;
+  if (!ctx.micCheck || ctx.micCheck.isRunning()) return;
+  if (els.preExamMicTest) els.preExamMicTest.disabled = true;
+  if (els.preExamStart) els.preExamStart.disabled = true;
+  if (els.preExamMicDiagnostics) els.preExamMicDiagnostics.classList.add("hidden");
+  setPreExamMicStatus(ctx, "Menyiapkan mikrofon...", "");
+  setPreExamNote(ctx, "Bicara dengan suara normal selama beberapa detik.", false);
+  const result = await ctx.micCheck.run((secondsLeft) => {
+    if (secondsLeft > 0) setPreExamMicStatus(ctx, `Bicara sekarang... ${secondsLeft}s`, "");
+  });
+  if (els.preExamMicTest) {
+    els.preExamMicTest.disabled = false;
+    els.preExamMicTest.textContent = "Tes ulang mikrofon";
+  }
+  if (els.preExamStart) els.preExamStart.disabled = false;
+  renderPreExamMicResult(ctx, result);
+}
+function renderPreExamMicResult(ctx, result) {
+  const { els } = ctx;
+  const box = els.preExamMicDiagnostics;
+  if (!result.ok) {
+    setPreExamMicStatus(ctx, "\u2715 Mikrofon bermasalah", "error");
+    if (box) {
+      box.classList.remove("hidden", "ok");
+      box.classList.add("error");
+      box.innerHTML = `
         <strong>Mikrofon belum bisa dipakai.</strong>
-        <p>${u(t.message)}</p>
-        ${xs(t.name)}
-      `),a.preExamStart&&(a.preExamStart.textContent="Mulai tanpa mikrofon"),st(e,"Mikrofon gagal. Anda tetap bisa mulai dan mengetik jawaban di kolom transkripsi.",!0);return}if(!t.heard){Ie(e,"\u26A0 Suara tidak terdengar","error"),n&&(n.classList.remove("hidden","ok"),n.classList.add("error"),n.innerHTML=`
+        <p>${escapeHtml(result.message)}</p>
+        ${buildMicHelp(result.name)}
+      `;
+    }
+    if (els.preExamStart) els.preExamStart.textContent = "Mulai tanpa mikrofon";
+    setPreExamNote(ctx, "Mikrofon gagal. Anda tetap bisa mulai dan mengetik jawaban di kolom transkripsi.", true);
+    return;
+  }
+  if (!result.heard) {
+    setPreExamMicStatus(ctx, "\u26A0 Suara tidak terdengar", "error");
+    if (box) {
+      box.classList.remove("hidden", "ok");
+      box.classList.add("error");
+      box.innerHTML = `
         <strong>Mikrofon terbaca, tetapi tidak ada suara masuk.</strong>
-        <p>${u(t.message)}</p>
+        <p>${escapeHtml(result.message)}</p>
         <ul>
           <li>Pastikan mikrofon tidak dalam kondisi mute (hardware maupun sistem).</li>
           <li>Pilih perangkat input yang benar di pengaturan suara.</li>
           <li>Dekatkan mikrofon lalu klik <b>Tes ulang mikrofon</b>.</li>
         </ul>
-      `),st(e,"Sebaiknya tes ulang dulu sebelum mulai agar jawaban lisan Anda terekam.",!0);return}Ie(e,"\u2713 Mikrofon siap","ok"),n&&(n.classList.remove("hidden","error"),n.classList.add("ok"),n.innerHTML=`
+      `;
+    }
+    setPreExamNote(ctx, "Sebaiknya tes ulang dulu sebelum mulai agar jawaban lisan Anda terekam.", true);
+    return;
+  }
+  setPreExamMicStatus(ctx, "\u2713 Mikrofon siap", "ok");
+  if (box) {
+    box.classList.remove("hidden", "error");
+    box.classList.add("ok");
+    box.innerHTML = `
       <strong>Mikrofon siap digunakan.</strong>
-      <p>${u(t.message)}</p>
-      ${t.hasPlayback?"<p>Putar rekaman di atas untuk memastikan suara Anda jelas.</p>":""}
-    `),st(e,"Mikrofon siap. Timer akan mulai begitu Anda menekan tombol mulai.",!1)}async function Fi(e){let t=e.pendingExamAssessmentId;if(!(!t||e.isStartingExam)){e.isStartingExam=!0,e.els.preExamStart&&(e.els.preExamStart.disabled=!0);try{nt(e,{returnFocus:!1}),await Ms(e,t)}finally{e.isStartingExam=!1}}}async function Ms(e,t){let{els:a}=e;e.recorder.stop(),e.session.selectAssessment(t),qs(e),a.resultPanel.classList.add("hidden"),await I(e),await dn(e),It(e),e.questionStartTime=Date.now(),window.addEventListener("beforeunload",Ds)}function qs(e){e.inProbing=!1,e.probingPrompt=null}function Dt(e){let{els:t}=e,a=e.session.getCurrentAssessment(),n=e.session.currentQuestionIndex;if(a&&n===a.questions.length-1){rt(e),Is(e);return}e.session.goNext(),Je(t,a,e.session),dn(e),It(e),e.questionStartTime=Date.now()}async function Ps(e){let{els:t}=e,a=e.session.getCurrentAssessment(),n=e.session.currentQuestionIndex,s=a?.questions?.[n];if(!s)return;let r=e.session.currentAnswers[n]?.text||"";e.inProbing=!0,e.probingPrompt=null,e.probingRaw="",t.questionProgress&&(t.questionProgress.textContent=`Soal ${n+1} dari ${a.questions.length} \u2014 pertanyaan lanjutan`),t.activeHint&&(t.activeHint.textContent="AI menyiapkan pertanyaan lanjutan berdasarkan jawaban Anda...",t.activeHint.classList.remove("hidden")),t.recordButton&&(t.recordButton.disabled=!0),t.answerText&&(t.answerText.readOnly=!0,t.answerText.value=""),D(t.saveAnswer,!0,"Menyiapkan pertanyaan lanjutan...","Simpan & lanjut");let i;try{i=await Vi(e,a,s,r)}catch{e.inProbing=!1,p("Gagal membuat pertanyaan lanjutan, lanjut ke soal berikutnya.","error"),e.session.currentAnswers[n].probing={done:!0},D(t.saveAnswer,!1,"","Simpan & lanjut"),Dt(e);return}finally{D(t.saveAnswer,!1,"","Simpan & lanjut")}e.probingPrompt=i.prompt,e.session.currentAnswers[n].probing={prompt:i.prompt,answer:"",audio:null,duration:0,done:!1},Ki(e,i),It(e),e.questionStartTime=Date.now()}async function Vi(e,t,a,n){let s={prompt:a.prompt,focus:a.focus||t.topic,outcomes:a.outcome||t.outcomes,answer:n},r=()=>Fn({prompt:a.prompt,answer:n,focus:a.focus||t.topic,topic:t.topic}),i=null;try{i=await Qi(new Promise((o,l)=>{ae({action:"generate-probing",payload:s,onChunk:c=>{Ui(e,c)},onResult:c=>o(c?.probing||null),onError:c=>l(new Error(c))}).catch(l)}),_i)}catch{i=null}return i&&String(i.prompt||"").trim()?i:r()}function Ui(e,t){let{els:a}=e;e.probingRaw=(e.probingRaw||"")+t;let n=Oi(e.probingRaw,"prompt");if(n!==null&&a.activeQuestion){let s='<span class="probing-badge" role="status">\u26A1 Pertanyaan lanjutan</span>';a.activeQuestion.innerHTML=`${s}<span class="probing-text">${u(n)}</span>`,a.activeQuestion.classList.add("probing-active","probing-live")}}function Oi(e,t){let a=`"${t}"`,n=e.indexOf(a);if(n===-1)return null;let s=n+a.length;for(;s<e.length&&(e[s]===" "||e[s]===":");)s+=1;if(e[s]!=='"')return null;s+=1;let r="";for(;s<e.length;){let i=e[s];if(i==="\\"){let o=e[s+1];if(o===void 0)break;if(o==="n"){r+=`
-`,s+=2;continue}if(o==='"'){r+='"',s+=2;continue}if(o==="\\"){r+="\\",s+=2;continue}r+=i,s+=1;continue}if(i==='"')break;r+=i,s+=1}return r}var _i=15e3;function Qi(e,t){let a,n=new Promise((s,r)=>{a=setTimeout(()=>r(new Error("timeout")),t)});return Promise.race([e,n]).finally(()=>clearTimeout(a))}function Ki(e,t){let{els:a}=e,n=String(t?.prompt||"").trim()||"Pertanyaan lanjutan.";e.probingRaw="",a.activeQuestion&&(a.activeQuestion.innerHTML=`
+      <p>${escapeHtml(result.message)}</p>
+      ${result.hasPlayback ? "<p>Putar rekaman di atas untuk memastikan suara Anda jelas.</p>" : ""}
+    `;
+  }
+  setPreExamNote(ctx, "Mikrofon siap. Timer akan mulai begitu Anda menekan tombol mulai.", false);
+}
+async function startExamFromModal(ctx) {
+  const assessmentId = ctx.pendingExamAssessmentId;
+  if (!assessmentId || ctx.isStartingExam) return;
+  ctx.isStartingExam = true;
+  if (ctx.els.preExamStart) ctx.els.preExamStart.disabled = true;
+  try {
+    closePreExamModal(ctx, { returnFocus: false });
+    await startExam(ctx, assessmentId);
+  } finally {
+    ctx.isStartingExam = false;
+  }
+}
+async function startExam(ctx, assessmentId) {
+  const { els } = ctx;
+  ctx.recorder.stop();
+  ctx.session.selectAssessment(assessmentId);
+  resetProbingState(ctx);
+  els.resultPanel.classList.add("hidden");
+  await renderCurrentState2(ctx);
+  await startRecorderForCurrentAssessment(ctx);
+  startQuestionTimer(ctx);
+  ctx.questionStartTime = Date.now();
+  window.addEventListener("beforeunload", beforeUnloadHandler);
+}
+function resetProbingState(ctx) {
+  ctx.inProbing = false;
+  ctx.probingPrompt = null;
+}
+function advanceAfterAnswer(ctx) {
+  const { els } = ctx;
+  const assessment = ctx.session.getCurrentAssessment();
+  const qi = ctx.session.currentQuestionIndex;
+  const isLast = assessment && qi === assessment.questions.length - 1;
+  if (isLast) {
+    stopQuestionTimer(ctx);
+    confirmAndFinishAssessment(ctx);
+    return;
+  }
+  ctx.session.goNext();
+  renderQuestion(els, assessment, ctx.session);
+  startRecorderForCurrentAssessment(ctx);
+  startQuestionTimer(ctx);
+  ctx.questionStartTime = Date.now();
+}
+async function startProbingForCurrentQuestion(ctx) {
+  const { els } = ctx;
+  const assessment = ctx.session.getCurrentAssessment();
+  const qi = ctx.session.currentQuestionIndex;
+  const q = assessment?.questions?.[qi];
+  if (!q) return;
+  const answer = ctx.session.currentAnswers[qi]?.text || "";
+  ctx.inProbing = true;
+  ctx.probingPrompt = null;
+  ctx.probingRaw = "";
+  if (els.questionProgress) {
+    els.questionProgress.textContent = `Soal ${qi + 1} dari ${assessment.questions.length} \u2014 pertanyaan lanjutan`;
+  }
+  if (els.activeHint) {
+    els.activeHint.textContent = "AI menyiapkan pertanyaan lanjutan berdasarkan jawaban Anda...";
+    els.activeHint.classList.remove("hidden");
+  }
+  if (els.recordButton) els.recordButton.disabled = true;
+  if (els.answerText) {
+    els.answerText.readOnly = true;
+    els.answerText.value = "";
+  }
+  setButtonLoading(els.saveAnswer, true, "Menyiapkan pertanyaan lanjutan...", "Simpan & lanjut");
+  let probing;
+  try {
+    probing = await generateProbingForAnswer(ctx, assessment, q, answer);
+  } catch (error) {
+    ctx.inProbing = false;
+    showToast("Gagal membuat pertanyaan lanjutan, lanjut ke soal berikutnya.", "error");
+    ctx.session.currentAnswers[qi].probing = { done: true };
+    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
+    advanceAfterAnswer(ctx);
+    return;
+  } finally {
+    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
+  }
+  ctx.probingPrompt = probing.prompt;
+  ctx.session.currentAnswers[qi].probing = {
+    prompt: probing.prompt,
+    answer: "",
+    audio: null,
+    duration: 0,
+    done: false
+  };
+  renderProbing(ctx, probing);
+  startQuestionTimer(ctx);
+  ctx.questionStartTime = Date.now();
+}
+async function generateProbingForAnswer(ctx, assessment, question, answer) {
+  const payload = {
+    prompt: question.prompt,
+    focus: question.focus || assessment.topic,
+    outcomes: question.outcome || assessment.outcomes,
+    answer
+  };
+  const fallback = () => generateProbingFallback({
+    prompt: question.prompt,
+    answer,
+    focus: question.focus || assessment.topic,
+    topic: assessment.topic
+  });
+  let probing = null;
+  try {
+    probing = await withTimeout(
+      new Promise((resolve, reject) => {
+        streamAssessmentAction({
+          action: "generate-probing",
+          payload,
+          // Streaming kata-per-kata: tampilkan prompt lanjutan begitu token
+          // JSON-nya mengalir dari server, agar siswa melihat pertanyaan
+          // lanjutan "terlahir" secara live (dengan animasi).
+          onChunk: (text) => {
+            renderProbingStream(ctx, text);
+          },
+          onResult: (data) => resolve(data?.probing || null),
+          onError: (message) => reject(new Error(message))
+        }).catch(reject);
+      }),
+      PROBING_TIMEOUT_MS
+    );
+  } catch {
+    probing = null;
+  }
+  if (probing && String(probing.prompt || "").trim()) return probing;
+  return fallback();
+}
+function renderProbingStream(ctx, chunk) {
+  const { els } = ctx;
+  ctx.probingRaw = (ctx.probingRaw || "") + chunk;
+  const prompt2 = extractStreamedField2(ctx.probingRaw, "prompt");
+  if (prompt2 === null) return;
+  if (els.activeQuestion) {
+    const badge = `<span class="probing-badge" role="status">\u26A1 Pertanyaan lanjutan</span>`;
+    els.activeQuestion.innerHTML = `${badge}<span class="probing-text">${escapeHtml(prompt2)}</span>`;
+    els.activeQuestion.classList.add("probing-active", "probing-live");
+  }
+}
+function extractStreamedField2(raw, field) {
+  const keyPattern = `"${field}"`;
+  const keyIdx = raw.indexOf(keyPattern);
+  if (keyIdx === -1) return null;
+  let i = keyIdx + keyPattern.length;
+  while (i < raw.length && (raw[i] === " " || raw[i] === ":")) i += 1;
+  if (raw[i] !== '"') return null;
+  i += 1;
+  let out = "";
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === "\\") {
+      const next = raw[i + 1];
+      if (next === void 0) break;
+      if (next === "n") {
+        out += "\n";
+        i += 2;
+        continue;
+      }
+      if (next === '"') {
+        out += '"';
+        i += 2;
+        continue;
+      }
+      if (next === "\\") {
+        out += "\\";
+        i += 2;
+        continue;
+      }
+      out += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '"') break;
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+var PROBING_TIMEOUT_MS = 15e3;
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+function renderProbing(ctx, probing) {
+  const { els } = ctx;
+  const prompt2 = String(probing?.prompt || "").trim() || "Pertanyaan lanjutan.";
+  ctx.probingRaw = "";
+  if (els.activeQuestion) {
+    els.activeQuestion.innerHTML = `
       <span class="probing-badge" role="status">\u26A1 Pertanyaan lanjutan</span>
-      <span class="probing-text">${u(n)}</span>
-    `,a.activeQuestion.classList.remove("probing-live"),a.activeQuestion.classList.add("probing-active")),a.activeHint&&(a.activeHint.textContent="Jawab pertanyaan lanjutan ini. Timer berjalan seperti soal sebelumnya.",a.activeHint.classList.remove("hidden")),a.recordButton&&(a.recordButton.disabled=!1),a.answerText&&(a.answerText.readOnly=!1,a.answerText.value=""),a.saveAnswer&&(a.saveAnswer.textContent="Simpan & lanjut")}function Ds(e){e.preventDefault(),e.returnValue=""}function zi(){window.removeEventListener("beforeunload",Ds)}async function xt(e){var n;let t=await e.recorder.getAudioBase64(),a=Math.round((Date.now()-e.questionStartTime)/1e3);if(e.inProbing){let s=e.session.currentQuestionIndex,r=(n=e.session.currentAnswers[s]).probing||(n.probing={done:!1});r.answer=(e.els.answerText.value||"").trim(),t&&(r.audio=t),r.duration=(r.duration||0)+a,r.done=!0}else e.session.saveAnswer(e.els.answerText.value,t,a);e.recorder.clearAudio(),e.questionStartTime=Date.now()}async function dn(e){let a=e.session.getCurrentAssessment()?.oralExamEnabled!==!1;if(e.recorder.setEnabled(a),!!a){e.recorder.resetStatus();try{await e.recorder.start()}catch(n){console.warn("Could not start recorder:",n)}}}function Ts(e){let t=e.session.getCurrentAssessment();return t?t.questions.reduce((a,n,s)=>{let r=e.session.currentAnswers[s],i=(r?.text||"").trim().length>0,o=!!r?.audio;return i||o?a:a+1},0):0}function Gi(e,t){let{els:a}=e;if(!(!a.micStatus||!a.micDiagnostics)){if(a.micDiagnostics.classList.remove("hidden"),a.micDiagnostics.classList.toggle("ok",t.ok),a.micDiagnostics.classList.toggle("error",!t.ok),t.ok){a.micStatus.textContent="\u2713 Mikrofon siap",a.micStatus.className="mic-status ok",a.micDiagnostics.innerHTML=`
+      <span class="probing-text">${escapeHtml(prompt2)}</span>
+    `;
+    els.activeQuestion.classList.remove("probing-live");
+    els.activeQuestion.classList.add("probing-active");
+  }
+  if (els.activeHint) {
+    els.activeHint.textContent = "Jawab pertanyaan lanjutan ini. Timer berjalan seperti soal sebelumnya.";
+    els.activeHint.classList.remove("hidden");
+  }
+  if (els.recordButton) els.recordButton.disabled = false;
+  if (els.answerText) {
+    els.answerText.readOnly = false;
+    els.answerText.value = "";
+  }
+  if (els.saveAnswer) els.saveAnswer.textContent = "Simpan & lanjut";
+}
+function beforeUnloadHandler(e) {
+  e.preventDefault();
+  e.returnValue = "";
+}
+function clearBeforeUnload() {
+  window.removeEventListener("beforeunload", beforeUnloadHandler);
+}
+async function saveCurrentAnswer(ctx) {
+  var _a;
+  const audio = await ctx.recorder.getAudioBase64();
+  const elapsed = Math.round((Date.now() - ctx.questionStartTime) / 1e3);
+  if (ctx.inProbing) {
+    const qi = ctx.session.currentQuestionIndex;
+    const probing = (_a = ctx.session.currentAnswers[qi]).probing || (_a.probing = { done: false });
+    probing.answer = (ctx.els.answerText.value || "").trim();
+    if (audio) probing.audio = audio;
+    probing.duration = (probing.duration || 0) + elapsed;
+    probing.done = true;
+  } else {
+    ctx.session.saveAnswer(ctx.els.answerText.value, audio, elapsed);
+  }
+  ctx.recorder.clearAudio();
+  ctx.questionStartTime = Date.now();
+}
+async function startRecorderForCurrentAssessment(ctx) {
+  const assessment = ctx.session.getCurrentAssessment();
+  const isOralExam = assessment?.oralExamEnabled !== false;
+  ctx.recorder.setEnabled(isOralExam);
+  if (!isOralExam) return;
+  ctx.recorder.resetStatus();
+  try {
+    await ctx.recorder.start();
+  } catch (err) {
+    console.warn("Could not start recorder:", err);
+  }
+}
+function getUnansweredCount(ctx) {
+  const assessment = ctx.session.getCurrentAssessment();
+  if (!assessment) return 0;
+  return assessment.questions.reduce((count, _, index) => {
+    const answer = ctx.session.currentAnswers[index];
+    const hasText = (answer?.text || "").trim().length > 0;
+    const hasAudio = Boolean(answer?.audio);
+    return hasText || hasAudio ? count : count + 1;
+  }, 0);
+}
+function renderMicDiagnostics(ctx, result) {
+  const { els } = ctx;
+  if (!els.micStatus || !els.micDiagnostics) return;
+  els.micDiagnostics.classList.remove("hidden");
+  els.micDiagnostics.classList.toggle("ok", result.ok);
+  els.micDiagnostics.classList.toggle("error", !result.ok);
+  if (result.ok) {
+    els.micStatus.textContent = "\u2713 Mikrofon siap";
+    els.micStatus.className = "mic-status ok";
+    els.micDiagnostics.innerHTML = `
       <strong>Mikrofon siap digunakan.</strong>
-      <p>${u(t.message)}</p>
-    `;return}a.micStatus.textContent="\u2715 Mikrofon bermasalah",a.micStatus.className="mic-status error",a.micDiagnostics.innerHTML=`
+      <p>${escapeHtml(result.message)}</p>
+    `;
+    return;
+  }
+  els.micStatus.textContent = "\u2715 Mikrofon bermasalah";
+  els.micStatus.className = "mic-status error";
+  els.micDiagnostics.innerHTML = `
     <strong>Mikrofon belum bisa dipakai.</strong>
-    <p>${u(t.message)}</p>
-    ${xs(t.name)}
+    <p>${escapeHtml(result.message)}</p>
+    ${buildMicHelp(result.name)}
     <p style="margin-top: 8px;"><b>Alternatif:</b> Anda tetap bisa menjawab dengan mengetik jawaban di kolom transkripsi di bawah, lalu klik <b>Simpan & lanjut</b>.</p>
-  `}}function xs(e){return e==="NotAllowedError"||e==="SecurityError"?`
+  `;
+}
+function buildMicHelp(errorName) {
+  if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+    return `
       <ul>
         <li>Klik ikon gembok \u{1F512} di address bar browser.</li>
         <li>Ubah izin mikrofon menjadi <b>Allow</b> / <b>Izinkan</b>.</li>
         <li>Muat ulang halaman (F5) lalu coba lagi.</li>
       </ul>
-    `:e==="NotFoundError"||e==="DevicesNotFoundError"?`
+    `;
+  }
+  if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+    return `
       <ul>
         <li>Pastikan mikrofon tersambung dan tidak dimatikan.</li>
         <li>Pilih perangkat input yang benar di pengaturan suara sistem.</li>
         <li>Di browser, buka <b>Settings &gt; Privacy &gt; Microphone</b> dan pilih perangkat.</li>
       </ul>
-    `:e==="NotReadableError"||e==="TrackStartError"?`
+    `;
+  }
+  if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+    return `
       <ul>
         <li>Mikrofon mungkin sedang dipakai aplikasi lain (Zoom, Meet, dsb).</li>
         <li>Tutup aplikasi lain yang memakai mikrofon, lalu coba lagi.</li>
       </ul>
-    `:`
+    `;
+  }
+  return `
     <ul>
       <li>Pastikan halaman dibuka di HTTPS atau localhost.</li>
       <li>Gunakan browser terbaru (Chrome/Edge) dan izinkan akses mikrofon.</li>
     </ul>
-  `}async function Is(e){let t=e.session.getCurrentAssessment();if(!t)return;let a=Ts(e),n=t.questions.length;await xt(e);let s=Ts(e),r;s>0?r=s===n?"Belum ada satu pun soal yang dijawab. Anda akan mengumpulkan penilaian tanpa jawaban.":`${s} dari ${n} soal belum dijawab. Soal kosong akan dinilai 0.`:r=`Semua ${n} soal sudah dijawab. Yakin ingin menyelesaikan dan mengumpulkan penilaian?`,await R(r,"Selesaikan Penilaian")&&Bs(e)}async function Bs(e){let{els:t}=e;if(e.isEvaluating)return;zi();let a=e.session.getCurrentAssessment();if(a){e.isEvaluating=!0,t.evaluationLoadingModal?.classList.remove("hidden"),t.evaluationStreamContent&&(t.evaluationStreamContent.textContent=""),pa(t,a,e.session.currentAnswers),ft(t,"Menyiapkan evaluasi..."),D(t.finishAssessment,!0,"Menilai dengan AI...","Selesaikan penilaian");try{await xt(e);let n=e.auth.user.role==="student"?e.auth.user.name:t.studentName.value.trim()||"Siswa tanpa nama",s=await Ji(e,a,n);a.isTryout?(s.isTryout=!0,p("Hasil tryout ditampilkan di sini (tidak disimpan ke database)","info")):(await X(s),e.state.submissions.push(s)),de(t,e.state),se(t,e.state.submissions,e.auth.user.name),ne(t,s,e.auth),e.auth.user.role==="student"&&(e.session.currentAssessmentId=null,await I(e))}catch(n){p(`Gagal menyimpan hasil: ${n.message}`)}finally{e.isEvaluating=!1,t.evaluationLoadingModal?.classList.add("hidden"),D(t.finishAssessment,!1,"Menilai dengan AI...","Selesaikan penilaian")}}}async function Ji(e,t,a){let n=e.session.currentAnswers;try{let s=n.map(c=>Es(c).text),r=Xi(t),i=await ae({action:"evaluate",payload:{assessment:r,answers:s,studentName:a},onChunk:c=>{ft(e.els,c)}}),o=i.evaluation.questionScores.map((c,d)=>({...c,audio:n[d]?.audio||null,duration:n[d]?.duration||0,probing:n[d]?.probing||null})),l=i.evaluation;return ka({assessment:t,studentName:a,finalScore:l.finalScore,questionScores:o,feedback:l.feedback,status:l.requiresHumanReview?"NEEDS_REVIEW":"EVALUATED",verification:l.verification||null,criteria:l.criteria||[],evaluationRunId:l.evaluationRunId||null,evaluationId:l.evaluationId||null,evaluationSource:"harness",insight:Wi(l)})}catch{p("AI sedang tidak dapat diakses, penilaian memakai evaluasi lokal yang tetap valid.","info");let r=n.map(o=>Es(o));return{...Un(t,r,a,ka),evaluationSource:"fallback",verification:null,criteria:[]}}}function Es(e){let t=String(e?.text||"").trim(),a=e?.probing;if(!(a&&a.done&&String(a.answer||"").trim().length>0))return{...e,text:t};let s=String(a.answer).trim(),r=t?`${t}
+  `;
+}
+async function confirmAndFinishAssessment(ctx) {
+  const assessment = ctx.session.getCurrentAssessment();
+  if (!assessment) return;
+  const unanswered = getUnansweredCount(ctx);
+  const total = assessment.questions.length;
+  await saveCurrentAnswer(ctx);
+  const unansweredAfterSave = getUnansweredCount(ctx);
+  let message;
+  if (unansweredAfterSave > 0) {
+    message = unansweredAfterSave === total ? "Belum ada satu pun soal yang dijawab. Anda akan mengumpulkan penilaian tanpa jawaban." : `${unansweredAfterSave} dari ${total} soal belum dijawab. Soal kosong akan dinilai 0.`;
+  } else {
+    message = `Semua ${total} soal sudah dijawab. Yakin ingin menyelesaikan dan mengumpulkan penilaian?`;
+  }
+  const proceed = await showConfirmDialog(message, "Selesaikan Penilaian");
+  if (!proceed) return;
+  handleFinishAssessment(ctx);
+}
+async function handleFinishAssessment(ctx) {
+  const { els } = ctx;
+  if (ctx.isEvaluating) return;
+  clearBeforeUnload();
+  const assessment = ctx.session.getCurrentAssessment();
+  if (!assessment) return;
+  ctx.isEvaluating = true;
+  els.evaluationLoadingModal?.classList.remove("hidden");
+  if (els.evaluationStreamContent) els.evaluationStreamContent.textContent = "";
+  renderEvaluationPreview(els, assessment, ctx.session.currentAnswers);
+  updateEvaluationProgress(els, "Menyiapkan evaluasi...");
+  setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan penilaian");
+  try {
+    await saveCurrentAnswer(ctx);
+    const studentName = ctx.auth.user.role === "student" ? ctx.auth.user.name : els.studentName.value.trim() || "Siswa tanpa nama";
+    const submission = await evaluateWithFallback(ctx, assessment, studentName);
+    if (!assessment.isTryout) {
+      await saveSubmissionToDatabase(submission);
+      ctx.state.submissions.push(submission);
+    } else {
+      submission.isTryout = true;
+      showToast("Hasil tryout ditampilkan di sini (tidak disimpan ke database)", "info");
+    }
+    renderMonitoring(els, ctx.state);
+    renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+    showResult(els, submission, ctx.auth);
+    if (ctx.auth.user.role === "student") {
+      ctx.session.currentAssessmentId = null;
+      await renderCurrentState2(ctx);
+    }
+  } catch (error) {
+    showToast(`Gagal menyimpan hasil: ${error.message}`);
+  } finally {
+    ctx.isEvaluating = false;
+    els.evaluationLoadingModal?.classList.add("hidden");
+    setButtonLoading(els.finishAssessment, false, "Menilai dengan AI...", "Selesaikan penilaian");
+  }
+}
+async function evaluateWithFallback(ctx, assessment, studentName) {
+  const answers = ctx.session.currentAnswers;
+  try {
+    const textAnswers = answers.map((a) => combineAnswerWithProbing(a).text);
+    const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
+    const data = await streamAssessmentAction({
+      action: "evaluate",
+      payload: { assessment: safeAssessment, answers: textAnswers, studentName },
+      onChunk: (text) => {
+        updateEvaluationProgress(ctx.els, text);
+      }
+    });
+    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => ({
+      ...qs,
+      audio: answers[idx]?.audio || null,
+      duration: answers[idx]?.duration || 0,
+      probing: answers[idx]?.probing || null
+    }));
+    const evaluation = data.evaluation;
+    return createSubmission({
+      assessment,
+      studentName,
+      finalScore: evaluation.finalScore,
+      questionScores: questionScoresWithMetadata,
+      feedback: evaluation.feedback,
+      status: evaluation.requiresHumanReview ? "NEEDS_REVIEW" : "EVALUATED",
+      verification: evaluation.verification || null,
+      criteria: evaluation.criteria || [],
+      evaluationRunId: evaluation.evaluationRunId || null,
+      evaluationId: evaluation.evaluationId || null,
+      evaluationSource: "harness",
+      insight: buildHarnessInsight(evaluation)
+    });
+  } catch (error) {
+    showToast("AI sedang tidak dapat diakses, penilaian memakai evaluasi lokal yang tetap valid.", "info");
+    const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
+    const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
+    return {
+      ...fallback,
+      evaluationSource: "fallback",
+      verification: null,
+      criteria: []
+    };
+  }
+}
+function combineAnswerWithProbing(answerObj) {
+  const base = String(answerObj?.text || "").trim();
+  const probing = answerObj?.probing;
+  const hasProbing = probing && probing.done && String(probing.answer || "").trim().length > 0;
+  if (!hasProbing) return { ...answerObj, text: base };
+  const probingText = String(probing.answer).trim();
+  const combined = base ? `${base}
 
 [Jawaban pertanyaan lanjutan]
-${s}`:s;return{...e,text:r}}function Wi(e){let t=Array.isArray(e.criteria)?e.criteria:[];if(!t.length)return"";let a=t.filter(r=>Number.isFinite(Number(r.score))).sort((r,i)=>Number(r.score)-Number(i.score))[0],n=t.filter(r=>Number.isFinite(Number(r.score))).sort((r,i)=>Number(i.score)-Number(r.score))[0],s=[];return n&&s.push(`Kekuatan utama pada ${n.name||K(n.criterionId)||"kriteria terkuat"}.`),a&&s.push(`Area yang perlu diperkuat: ${a.name||K(a.criterionId)||"kriteria terlemah"}.`),s.join(" ").trim()}function Xi(e){return!e||!Array.isArray(e.questions)?e:{...e,questions:e.questions.map(t=>({prompt:t?.prompt||"",focus:t?.focus||"",rubric:t?.rubric||"",criteria:Array.isArray(t?.criteria)?t.criteria:[]}))}}function rt(e){let{els:t}=e;e.questionTimerInterval&&(clearInterval(e.questionTimerInterval),e.questionTimerInterval=null),t.timerDisplay&&(t.timerDisplay.style.animation="none")}function It(e){rt(e);let{els:t}=e,a=e.session.getCurrentAssessment();if(!a||!a.timeLimit||a.timeLimit<=0){t.timerDisplay&&(t.timerDisplay.style.display="none"),t.recordButton&&(t.recordButton.disabled=!1),t.answerText&&(t.answerText.disabled=!1);return}let n=e.session.currentQuestionIndex,s=e.inProbing?e.session.currentAnswers[n]?.probing:e.session.currentAnswers[n];if(s){if(s.timeLeft===void 0&&(s.timeLeft=a.timeLimit),e.currentQuestionTimeLeft=s.timeLeft,e.currentQuestionTimeLeft<=0){t.timerDisplay&&(t.timerDisplay.style.display="inline-flex",t.timerDisplay.style.color="var(--rose)",t.timerDisplay.style.borderColor="var(--rose)",t.timerDisplay.innerHTML="<strong>Waktu Habis</strong>"),t.recordButton&&(t.recordButton.disabled=!0),t.answerText&&(t.answerText.disabled=!0),e.recorder.stop();return}t.timerDisplay&&(t.timerDisplay.style.display="inline-flex",t.timerDisplay.style.color="var(--rose)",t.timerDisplay.style.borderColor="var(--rose)",t.timerDisplay.innerHTML=`<strong>${Qe(e.currentQuestionTimeLeft)}</strong> tersisa`),t.recordButton&&(t.recordButton.disabled=!1),t.answerText&&(t.answerText.disabled=!1),e.questionTimerInterval=setInterval(()=>{e.currentQuestionTimeLeft--,s.timeLeft=e.currentQuestionTimeLeft,e.currentQuestionTimeLeft<=0?(rt(e),Yi(e)):t.timerDisplay&&(t.timerDisplay.innerHTML=`<strong>${Qe(e.currentQuestionTimeLeft)}</strong> tersisa`,e.currentQuestionTimeLeft<=10&&(t.timerDisplay.style.animation="pulseRed 1s infinite"))},1e3)}}async function Yi(e){let{els:t}=e;t.timerDisplay&&(t.timerDisplay.innerHTML="<strong>Waktu Habis</strong>"),e.recorder.stop(),t.recordButton&&(t.recordButton.disabled=!0),t.answerText&&(t.answerText.disabled=!0),p("Waktu habis! Jawaban disimpan secara otomatis.","error"),await new Promise(i=>setTimeout(i,200)),await xt(e);let a=e.session.getCurrentAssessment();if(!a)return;let n=e.session.currentQuestionIndex,s=a.questions[n];if(e.inProbing){e.inProbing=!1,e.probingPrompt=null,Dt(e);return}if(s?.probing&&!e.session.currentAnswers[n]?.probing?.done){await Ps(e);return}n===a.questions.length-1?await Bs(e):(e.session.goNext(),Je(t,a,e.session),await dn(e),It(e),e.questionStartTime=Date.now())}ya();bt();B();F();V();function Rs(e){let{els:t}=e;t.simulatorToggle&&t.simulatorToggle.addEventListener("click",()=>{let a=t.simulatorPanel.classList.toggle("hidden");t.simulatorToggle.setAttribute("aria-expanded",!a),a||ee(e)}),t.simulatorClose&&t.simulatorClose.addEventListener("click",()=>{t.simulatorPanel.classList.add("hidden"),t.simulatorToggle.setAttribute("aria-expanded","false")}),t.simulatorTenantList&&t.simulatorTenantList.addEventListener("click",async a=>{let n=a.target.closest(".simulator-login-btn:not(.active)");if(!n)return;let s=n.dataset.userId;if(s){n.disabled=!0,n.textContent="Loading...";try{let r=await Xt(s);p(`Berhasil masuk sebagai ${r.user.name} (${r.tenant.name})`,"success"),await ge(e,r)}catch(r){p(r.message,"error"),n.disabled=!1,n.textContent="Masuk"}}})}B();ie();F();V();function Ns(e){let{els:t}=e;t.submissionList.addEventListener("click",async n=>{let s=n.target.closest(".view-submission-btn");if(!s)return;let i=s.closest(".submission-row").dataset.id;await a(e,i)}),t.studentHistoryList.addEventListener("click",async n=>{let s=n.target.closest(".view-submission-btn");if(!s)return;let i=s.closest(".submission-row").dataset.id;await a(e,i)});async function a(n,s){let r=n.state.submissions.find(o=>o.id===s);if(!r)return;let i=r;try{i=await He(s)}catch{}ne(n.els,i,n.auth)}t.resultPanel.addEventListener("click",async n=>{if(n.target.closest(".close-result-btn")||n.target===t.resultPanel){let{closeResultModal:f}=await Promise.resolve().then(()=>(V(),at));f(e);return}let s=n.target.closest(".complaint-btn");if(s){let f=parseInt(s.dataset.index,10),g=t.resultPanel.dataset.submissionId,b=e.state.submissions.find(S=>S.id===g);if(!b)return;let v=b.questionScores[f],L=`\u26A0\uFE0F PERHATIAN
+${probingText}` : probingText;
+  return { ...answerObj, text: combined };
+}
+function buildHarnessInsight(evaluation) {
+  const criteria = Array.isArray(evaluation.criteria) ? evaluation.criteria : [];
+  if (!criteria.length) return "";
+  const weakest = criteria.filter((c) => Number.isFinite(Number(c.score))).sort((a, b) => Number(a.score) - Number(b.score))[0];
+  const strongest = criteria.filter((c) => Number.isFinite(Number(c.score))).sort((a, b) => Number(b.score) - Number(a.score))[0];
+  const parts = [];
+  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "kriteria terkuat"}.`);
+  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "kriteria terlemah"}.`);
+  return parts.join(" ").trim();
+}
+function sanitizeAssessmentForEvaluation(assessment) {
+  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
+  return {
+    ...assessment,
+    questions: assessment.questions.map((question) => ({
+      prompt: question?.prompt || "",
+      focus: question?.focus || "",
+      // Pertahankan rubrik & pemetaan kriteria PER SOAL. Criteria penilaian
+      // harus diambil dari rubrik per soal, bukan dari rubrik topik yang
+      // digabung — ini yang membuat evaluasi konsisten dengan substansi soal.
+      rubric: question?.rubric || "",
+      criteria: Array.isArray(question?.criteria) ? question.criteria : []
+    }))
+  };
+}
+function stopQuestionTimer(ctx) {
+  const { els } = ctx;
+  if (ctx.questionTimerInterval) {
+    clearInterval(ctx.questionTimerInterval);
+    ctx.questionTimerInterval = null;
+  }
+  if (els.timerDisplay) els.timerDisplay.style.animation = "none";
+}
+function startQuestionTimer(ctx) {
+  stopQuestionTimer(ctx);
+  const { els } = ctx;
+  const assessment = ctx.session.getCurrentAssessment();
+  if (!assessment || !assessment.timeLimit || assessment.timeLimit <= 0) {
+    if (els.timerDisplay) els.timerDisplay.style.display = "none";
+    if (els.recordButton) els.recordButton.disabled = false;
+    if (els.answerText) els.answerText.disabled = false;
+    return;
+  }
+  const qi = ctx.session.currentQuestionIndex;
+  const target = ctx.inProbing ? ctx.session.currentAnswers[qi]?.probing : ctx.session.currentAnswers[qi];
+  if (!target) return;
+  if (target.timeLeft === void 0) {
+    target.timeLeft = assessment.timeLimit;
+  }
+  ctx.currentQuestionTimeLeft = target.timeLeft;
+  if (ctx.currentQuestionTimeLeft <= 0) {
+    if (els.timerDisplay) {
+      els.timerDisplay.style.display = "inline-flex";
+      els.timerDisplay.style.color = "var(--rose)";
+      els.timerDisplay.style.borderColor = "var(--rose)";
+      els.timerDisplay.innerHTML = `<strong>Waktu Habis</strong>`;
+    }
+    if (els.recordButton) els.recordButton.disabled = true;
+    if (els.answerText) els.answerText.disabled = true;
+    ctx.recorder.stop();
+    return;
+  }
+  if (els.timerDisplay) {
+    els.timerDisplay.style.display = "inline-flex";
+    els.timerDisplay.style.color = "var(--rose)";
+    els.timerDisplay.style.borderColor = "var(--rose)";
+    els.timerDisplay.innerHTML = `<strong>${formatTime(ctx.currentQuestionTimeLeft)}</strong> tersisa`;
+  }
+  if (els.recordButton) els.recordButton.disabled = false;
+  if (els.answerText) els.answerText.disabled = false;
+  ctx.questionTimerInterval = setInterval(() => {
+    ctx.currentQuestionTimeLeft--;
+    target.timeLeft = ctx.currentQuestionTimeLeft;
+    if (ctx.currentQuestionTimeLeft <= 0) {
+      stopQuestionTimer(ctx);
+      handleTimeOut(ctx);
+    } else {
+      if (els.timerDisplay) {
+        els.timerDisplay.innerHTML = `<strong>${formatTime(ctx.currentQuestionTimeLeft)}</strong> tersisa`;
+        if (ctx.currentQuestionTimeLeft <= 10) {
+          els.timerDisplay.style.animation = "pulseRed 1s infinite";
+        }
+      }
+    }
+  }, 1e3);
+}
+async function handleTimeOut(ctx) {
+  const { els } = ctx;
+  if (els.timerDisplay) els.timerDisplay.innerHTML = `<strong>Waktu Habis</strong>`;
+  ctx.recorder.stop();
+  if (els.recordButton) els.recordButton.disabled = true;
+  if (els.answerText) els.answerText.disabled = true;
+  showToast("Waktu habis! Jawaban disimpan secara otomatis.", "error");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  await saveCurrentAnswer(ctx);
+  const assessment = ctx.session.getCurrentAssessment();
+  if (!assessment) return;
+  const qi = ctx.session.currentQuestionIndex;
+  const q = assessment.questions[qi];
+  if (ctx.inProbing) {
+    ctx.inProbing = false;
+    ctx.probingPrompt = null;
+    advanceAfterAnswer(ctx);
+    return;
+  }
+  if (q?.probing && !ctx.session.currentAnswers[qi]?.probing?.done) {
+    await startProbingForCurrentQuestion(ctx);
+    return;
+  }
+  const isLastQuestion = qi === assessment.questions.length - 1;
+  if (isLastQuestion) {
+    await handleFinishAssessment(ctx);
+  } else {
+    ctx.session.goNext();
+    renderQuestion(els, assessment, ctx.session);
+    await startRecorderForCurrentAssessment(ctx);
+    startQuestionTimer(ctx);
+    ctx.questionStartTime = Date.now();
+  }
+}
 
-Anda akan mengajukan komplain untuk Soal ${f+1} (skor ${v.score}).
+// src/js/main.js
+init_class_management();
+init_user_management();
 
-Jika guru menilai bahwa skor yang diberikan sudah sesuai, maka skor soal ini akan dikurangi 20 poin (menjadi ${Math.max(0,v.score-20)}).
+// src/js/simulator.js
+init_api();
+init_toast();
+init_app_context();
+function bindSimulatorEvents(ctx) {
+  const { els } = ctx;
+  if (els.simulatorToggle) {
+    els.simulatorToggle.addEventListener("click", () => {
+      const isHidden = els.simulatorPanel.classList.toggle("hidden");
+      els.simulatorToggle.setAttribute("aria-expanded", !isHidden);
+      if (!isHidden) {
+        refreshSimulatorIfEnabled(ctx);
+      }
+    });
+  }
+  if (els.simulatorClose) {
+    els.simulatorClose.addEventListener("click", () => {
+      els.simulatorPanel.classList.add("hidden");
+      els.simulatorToggle.setAttribute("aria-expanded", "false");
+    });
+  }
+  if (els.simulatorTenantList) {
+    els.simulatorTenantList.addEventListener("click", async (e) => {
+      const loginBtn = e.target.closest(".simulator-login-btn:not(.active)");
+      if (!loginBtn) return;
+      const targetUserId = loginBtn.dataset.userId;
+      if (!targetUserId) return;
+      loginBtn.disabled = true;
+      loginBtn.textContent = "Loading...";
+      try {
+        const nextAuth = await simulateLogin(targetUserId);
+        showToast(`Berhasil masuk sebagai ${nextAuth.user.name} (${nextAuth.tenant.name})`, "success");
+        await bootstrapAuthenticatedApp(ctx, nextAuth);
+      } catch (error) {
+        showToast(error.message, "error");
+        loginBtn.disabled = false;
+        loginBtn.textContent = "Masuk";
+      }
+    });
+  }
+}
 
-Apakah Anda yakin ingin melanjutkan komplain?`;if(!await R(L,"Komplain"))return;let y=prompt(`Komplain untuk Soal ${f+1} (skor ${v.score}):
-Jelaskan alasan Anda merasa nilai kurang sesuai.`);if(y===null)return;if(!y.trim()){p("Alasan komplain wajib diisi","error");return}try{let{submitComplaint:S}=await Promise.resolve().then(()=>(B(),ye)),M=(await S(g,f,y)).submission,q=e.state.submissions.findIndex(_=>_.id===g);q>=0&&(e.state.submissions[q]=M),p("Komplain terkirim. Guru akan meninjau ulang.","success"),ne(t,M,e.auth)}catch(S){p(S.message,"error")}return}let r=n.target.closest(".respond-complaint-btn");if(r){let f=parseInt(r.dataset.index,10),g=t.resultPanel.dataset.submissionId,b=e.state.submissions.find(T=>T.id===g);if(!b)return;let v=b.questionScores[f],L=prompt(`Re-evaluasi Soal ${f+1} (skor saat ini: ${v.score}):
-Masukkan skor baru (0-100):`,v.score);if(L===null)return;let y=parseInt(L,10);if(isNaN(y)||y<0||y>100){p("Skor tidak valid. Harus angka 0-100","error");return}let S=prompt("Respon untuk siswa (penjelasan keputusan):","");if(S===null)return;v.score=y,v.complaint={...v.complaint,status:"resolved",response:String(S||"").trim(),resolvedAt:new Date().toISOString()},b.finalScore=Math.round(b.questionScores.reduce((T,M)=>T+M.score,0)/b.questionScores.length);try{await X(b),p("Re-evaluasi berhasil disimpan","success"),ne(t,b,e.auth),de(t,e.state),se(t,e.state.submissions,e.auth.user.name)}catch(T){p(T.message,"error")}return}let i=n.target.closest(".reject-complaint-btn");if(i){let f=parseInt(i.dataset.index,10),g=t.resultPanel.dataset.submissionId,b=e.state.submissions.find(S=>S.id===g);if(!b)return;let v=b.questionScores[f],L=Math.max(0,v.score-20),y=prompt(`Tolak komplain untuk Soal ${f+1}?
+// src/js/monitoring.js
+init_api();
+init_render();
+init_toast();
+init_app_context();
+function bindMonitoringEvents(ctx) {
+  const { els } = ctx;
+  els.submissionList.addEventListener("click", async (e) => {
+    const viewBtn = e.target.closest(".view-submission-btn");
+    if (!viewBtn) return;
+    const item = viewBtn.closest(".submission-row");
+    const submissionId = item.dataset.id;
+    await openSubmissionForReview(ctx, submissionId);
+  });
+  els.studentHistoryList.addEventListener("click", async (e) => {
+    const viewBtn = e.target.closest(".view-submission-btn");
+    if (!viewBtn) return;
+    const item = viewBtn.closest(".submission-row");
+    const submissionId = item.dataset.id;
+    await openSubmissionForReview(ctx, submissionId);
+  });
+  async function openSubmissionForReview(ctx2, submissionId) {
+    const summary = ctx2.state.submissions.find((s) => s.id === submissionId);
+    if (!summary) return;
+    let submission = summary;
+    try {
+      submission = await getSubmissionDetail(submissionId);
+    } catch {
+    }
+    showResult(ctx2.els, submission, ctx2.auth);
+  }
+  els.resultPanel.addEventListener("click", async (e) => {
+    if (e.target.closest(".close-result-btn") || e.target === els.resultPanel) {
+      const { closeResultModal: closeResultModal2 } = await Promise.resolve().then(() => (init_app_context(), app_context_exports));
+      closeResultModal2(ctx);
+      return;
+    }
+    const complaintBtn = e.target.closest(".complaint-btn");
+    if (complaintBtn) {
+      const idx2 = parseInt(complaintBtn.dataset.index, 10);
+      const submissionId2 = els.resultPanel.dataset.submissionId;
+      const submission2 = ctx.state.submissions.find((s) => s.id === submissionId2);
+      if (!submission2) return;
+      const qs2 = submission2.questionScores[idx2];
+      const warning = `\u26A0\uFE0F PERHATIAN
 
-Skor akan dikurangi 20 poin: ${v.score} \u2192 ${L}
+Anda akan mengajukan komplain untuk Soal ${idx2 + 1} (skor ${qs2.score}).
 
-Tuliskan penjelasan untuk siswa (opsional):`,"");if(y===null)return;v.score=L,v.complaint={...v.complaint,status:"rejected",response:String(y||"").trim(),resolvedAt:new Date().toISOString()},b.finalScore=Math.round(b.questionScores.reduce((S,T)=>S+T.score,0)/b.questionScores.length);try{await X(b),p("Komplain ditolak. Skor dikurangi 20 poin.","success"),ne(t,b,e.auth),de(t,e.state),se(t,e.state.submissions,e.auth.user.name)}catch(S){p(S.message,"error")}return}let o=n.target.closest(".edit-override-btn");if(!o)return;let l=parseInt(o.dataset.index,10),c=t.resultPanel.dataset.submissionId,d=e.state.submissions.find(f=>f.id===c);if(!d)return;let m=d.questionScores[l],k=prompt("Masukkan skor baru (0-100):",m.score);if(k===null)return;let h=parseInt(k,10);if(isNaN(h)||h<0||h>100){p("Skor tidak valid. Harus angka 0-100","error");return}let w=prompt("Tambahkan / ubah catatan kelemahan (opsional):",m.gaps?.join(" ")||"");w!==null&&(m.gaps=[w]),m.score=h,d.finalScore=Math.round(d.questionScores.reduce((f,g)=>f+g.score,0)/d.questionScores.length);try{await X(d),p("Koreksi berhasil disimpan","success"),ne(t,d,e.auth),de(t,e.state),se(t,e.state.submissions,e.auth.user.name)}catch(f){p(f.message,"error")}}),t.downloadClassCsvBtn&&t.downloadClassCsvBtn.addEventListener("click",()=>{eo(e)}),t.assessmentList.addEventListener("click",async n=>{let s=n.target.closest("article");if(!s)return;let r=s.dataset.id,i=e.state.assessments.find(o=>o.id===r);if(i){if(n.target.classList.contains("more-menu-trigger")){let l=n.target.closest(".more-menu").querySelector(".more-menu-dropdown"),c=l.classList.toggle("hidden");n.target.setAttribute("aria-expanded",String(!c)),document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach(d=>{d!==l&&d.classList.add("hidden")});return}if(n.target.classList.contains("close-assessment")){let o=e.state.submissions.filter(d=>d.assessmentId===r),l=o.length?`${o.length} siswa sudah mengumpulkan. Nilai mereka tetap tersimpan, tetapi siswa lain tidak bisa memulai penilaian ini.`:"Belum ada siswa yang mengumpulkan. Siswa tidak akan bisa memulai penilaian ini.";if(!await R(`Tutup akses siswa para penilaian ini?
+Jika guru menilai bahwa skor yang diberikan sudah sesuai, maka skor soal ini akan dikurangi 20 poin (menjadi ${Math.max(0, qs2.score - 20)}).
 
-${l}
+Apakah Anda yakin ingin melanjutkan komplain?`;
+      if (!await showConfirmDialog(warning, "Komplain")) return;
+      const reason = prompt(`Komplain untuk Soal ${idx2 + 1} (skor ${qs2.score}):
+Jelaskan alasan Anda merasa nilai kurang sesuai.`);
+      if (reason === null) return;
+      if (!reason.trim()) {
+        showToast("Alasan komplain wajib diisi", "error");
+        return;
+      }
+      try {
+        const { submitComplaint: submitComplaint2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        const result = await submitComplaint2(submissionId2, idx2, reason);
+        const updated = result.submission;
+        const localIdx = ctx.state.submissions.findIndex((s) => s.id === submissionId2);
+        if (localIdx >= 0) ctx.state.submissions[localIdx] = updated;
+        showToast("Komplain terkirim. Guru akan meninjau ulang.", "success");
+        showResult(els, updated, ctx.auth);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+    const respondBtn = e.target.closest(".respond-complaint-btn");
+    if (respondBtn) {
+      const idx2 = parseInt(respondBtn.dataset.index, 10);
+      const submissionId2 = els.resultPanel.dataset.submissionId;
+      const submission2 = ctx.state.submissions.find((s) => s.id === submissionId2);
+      if (!submission2) return;
+      const qs2 = submission2.questionScores[idx2];
+      const newScoreStr2 = prompt(`Re-evaluasi Soal ${idx2 + 1} (skor saat ini: ${qs2.score}):
+Masukkan skor baru (0-100):`, qs2.score);
+      if (newScoreStr2 === null) return;
+      const scoreVal2 = parseInt(newScoreStr2, 10);
+      if (isNaN(scoreVal2) || scoreVal2 < 0 || scoreVal2 > 100) {
+        showToast("Skor tidak valid. Harus angka 0-100", "error");
+        return;
+      }
+      const response = prompt("Respon untuk siswa (penjelasan keputusan):", "");
+      if (response === null) return;
+      qs2.score = scoreVal2;
+      qs2.complaint = {
+        ...qs2.complaint,
+        status: "resolved",
+        response: String(response || "").trim(),
+        resolvedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      submission2.finalScore = Math.round(
+        submission2.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission2.questionScores.length
+      );
+      try {
+        await saveSubmissionToDatabase(submission2);
+        showToast("Re-evaluasi berhasil disimpan", "success");
+        showResult(els, submission2, ctx.auth);
+        renderMonitoring(els, ctx.state);
+        renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+    const rejectBtn = e.target.closest(".reject-complaint-btn");
+    if (rejectBtn) {
+      const idx2 = parseInt(rejectBtn.dataset.index, 10);
+      const submissionId2 = els.resultPanel.dataset.submissionId;
+      const submission2 = ctx.state.submissions.find((s) => s.id === submissionId2);
+      if (!submission2) return;
+      const qs2 = submission2.questionScores[idx2];
+      const newScore = Math.max(0, qs2.score - 20);
+      const response = prompt(`Tolak komplain untuk Soal ${idx2 + 1}?
 
-Anda bisa membukanya kembali kapan saja.`,"Tutup Penilaian"))return;await Ae(r,{status:"closed",classId:i.classId}),await cn(e),await I(e),p("Akses siswa ditutup. Siswa tidak bisa memulai penilaian ini.","success")}else if(n.target.classList.contains("reopen-assessment"))await Ae(r,{status:"published",classId:i.classId}),await cn(e),await I(e),p("Akses siswa dibuka kembali.","success");else if(n.target.classList.contains("delete-assessment")){if(!await R("Hapus penilaian beserta semua submission? Tindakan ini tidak bisa dibatalkan.","Hapus Penilaian"))return;await Wt(r),await cn(e),await I(e)}else if(n.target.classList.contains("edit-assessment")){e.pendingAssessmentConfig={id:i.id,topic:i.topic,difficulty:i.difficulty,classId:i.classId,outcomes:i.outcomes,rubric:i.rubric,oralExamEnabled:i.oralExamEnabled!==!1,disableManualTyping:!!i.disableManualTyping,allowRetakes:!!i.allowRetakes},e.pendingQuestions=i.questions;let{goToWizardStep:o,renderQuestionEditor:l}=await Promise.resolve().then(()=>(We(),vt));l(e),o(e,2),await N(e,"teacherView"),t.questionEditor.scrollIntoView({behavior:"smooth"})}else n.target.classList.contains("download-grades-assessment")&&Zi(e,i)}})}function Zi(e,t){let a=e.state.submissions.filter(k=>k.assessmentId===t.id);if(!a.length){p("Belum ada nilai/submission para assessment ini.","error");return}let n=new Map;a.forEach(k=>{let h=k.studentName,w=n.get(h);(!w||new Date(k.submittedAt)>new Date(w.submittedAt))&&n.set(h,k)});let s=Array.from(n.values());s.sort((k,h)=>k.studentName.localeCompare(h.studentName));let r=k=>{if(k==null)return"";let h=String(k);return h.includes(",")||h.includes('"')||h.includes(`
-`)||h.includes("\r")?`"${h.replace(/"/g,'""')}"`:h},i=[];i.push(["Nama Siswa","Email","Skor Akhir","Tanggal Pengerjaan"].map(r).join(",")),s.forEach(k=>{let h=e.state.memberships.find(g=>g.student_name===k.studentName&&g.class_id===t.classId),w=h&&h.student_email||"-",f=k.submittedAt?new Date(k.submittedAt).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-";i.push([k.studentName,w,k.finalScore,f].map(r).join(","))});let o=`\uFEFFsep=,
-`+i.join(`
-`),l=new Blob([o],{type:"text/csv;charset=utf-8"}),c=URL.createObjectURL(l),d=document.createElement("a");d.setAttribute("href",c);let m=t.topic.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");d.setAttribute("download",`nilai_${m}.csv`),document.body.appendChild(d),d.click(),document.body.removeChild(d),p("CSV Nilai Assessment berhasil didownload.","success")}function eo(e){let{els:t}=e,a=t.monitorClassFilter?.value;if(!a){p("Pilih kelas terlebih dahulu para download nilai.","error");return}let n=e.state.classes.find(f=>f.id===a),s=n?n.name:"Kelas",r=e.state.submissions.filter(f=>f.classId===a);if(!r.length){p("Belum ada nilai/submission di kelas ini.","error");return}let i=new Map;r.forEach(f=>{let g=`${f.studentName}_${f.assessmentId}`,b=i.get(g);(!b||new Date(f.submittedAt)>new Date(b.submittedAt))&&i.set(g,f)});let o=Array.from(i.values());o.sort((f,g)=>{let b=f.studentName.localeCompare(g.studentName);return b!==0?b:f.assessmentTitle.localeCompare(g.assessmentTitle)});let l=f=>{if(f==null)return"";let g=String(f);return g.includes(",")||g.includes('"')||g.includes(`
-`)||g.includes("\r")?`"${g.replace(/"/g,'""')}"`:g},c=[];c.push(["Nama Siswa","Email","Topik Assessment","Skor Akhir","Tanggal Pengerjaan"].map(l).join(",")),o.forEach(f=>{let g=e.state.memberships.find(L=>L.student_name===f.studentName&&L.class_id===a),b=g&&g.student_email||"-",v=f.submittedAt?new Date(f.submittedAt).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"-";c.push([f.studentName,b,f.assessmentTitle,f.finalScore,v].map(l).join(","))});let d=`\uFEFFsep=,
-`+c.join(`
-`),m=new Blob([d],{type:"text/csv;charset=utf-8"}),k=URL.createObjectURL(m),h=document.createElement("a");h.setAttribute("href",k);let w=s.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");h.setAttribute("download",`nilai_${w}.csv`),document.body.appendChild(h),h.click(),document.body.removeChild(h),p("CSV berhasil didownload.","success")}async function cn(e){let{loadState:t}=await Promise.resolve().then(()=>(Oe(),dt)),a=await t();e.state.assessments=a.assessments,e.state.submissions=a.submissions,e.state.classes=a.classes,e.state.memberships=a.memberships}B();F();V();function js(e){let{els:t}=e;t.seedDemoTeacher&&t.seedDemoTeacher.addEventListener("click",async()=>{if(e.state.assessments.length){p("Data contoh sudah ada. Gunakan 'Hapus data dummy' untuk mengisi ulang.");return}try{let a=await ot("teacher");await mn(e),p(`Data contoh guru dibuat: ${a.assessmentsAdded} penilaian, ${a.studentsAdded} siswa.`,"success")}catch(a){p(`Gagal mengisi data contoh guru: ${a.message}`)}}),t.seedDemoAdmin&&t.seedDemoAdmin.addEventListener("click",async()=>{try{let a=await ot("admin");await mn(e),p(`Data contoh admin siap: observabilitas, riset (${a.runsCreated} run), dan API keys.`,"success")}catch(a){p(`Gagal mengisi data contoh admin: ${a.message}`)}}),t.removeDemoData&&t.removeDemoData.addEventListener("click",async()=>{if(await R("Hapus data dummy (data contoh) saja? Data asli Anda tetap aman.","Hapus Data Dummy"))try{let{removeDemoData:a}=await Promise.resolve().then(()=>(B(),ye)),n=await a();await mn(e),p(`Data dummy dihapus: ${n.removed} baris.`,"success")}catch(a){p(`Gagal menghapus data dummy: ${a.message}`,"error")}})}async function mn(e){let{loadState:t}=await Promise.resolve().then(()=>(Oe(),dt)),a=await t();if(e.state.assessments=a.assessments,e.state.submissions=a.submissions,e.state.classes=a.classes,e.state.memberships=a.memberships,e.auth.user.role==="admin"){let{loadUsers:n}=await Promise.resolve().then(()=>(V(),at));e.users=await n(e);let{renderUsers:s}=await Promise.resolve().then(()=>(bt(),ba));s(e)}await renderCurrentState(e),await ee(e)}Ba();an();Za();Wa();Ze();kt();sn();async function Hs(){let e=rn();e.auth=await Bt(),Ls(e),Ta(e),Cs(e),ha(e),ga(e),Rs(e),Ns(e),js(e),xa(e),tn(e),Ya(e),Ja(e),Ua(e),La(e),e.auth.authenticated&&["admin","teacher"].includes(e.auth.user.role)&&nn(e),e.els.mainNav.addEventListener("click",s=>{let r=s.target.closest(".nav-button");r&&N(e,r.dataset.view)}),document.addEventListener("click",async s=>{let r=s.target.closest("[data-student-filter]");if(r){document.querySelectorAll("[data-student-filter]").forEach(o=>{o.classList.toggle("active",o===r)});let{renderStudentArea:i}=await Promise.resolve().then(()=>(ie(),In));i(e.els,e.state,e.session);return}}),document.addEventListener("click",s=>{let r=s.target.closest("[data-nav-view]");r&&N(e,r.dataset.navView)}),document.addEventListener("click",s=>{s.target.closest(".more-menu")||document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach(r=>{r.classList.add("hidden");let i=r.closest(".more-menu")?.querySelector(".more-menu-trigger");i&&i.setAttribute("aria-expanded","false")})});let{refreshSimulatorIfEnabled:t}=await Promise.resolve().then(()=>(V(),at));t(e);let a=localStorage.getItem("lisan-theme"),n=s=>{let r=document.documentElement;r.classList.toggle("dark-mode",s==="dark"),r.classList.toggle("light-mode",s==="light"),localStorage.setItem("lisan-theme",s),e.els.darkModeToggle&&(e.els.darkModeToggle.innerHTML=s==="dark"?'<span aria-hidden="true">\u2600\uFE0F</span><span>Mode Terang</span>':'<span aria-hidden="true">\u{1F319}</span><span>Mode Gelap</span>')};a==="dark"?n("dark"):a==="light"&&n("light"),e.els.darkModeToggle&&e.els.darkModeToggle.addEventListener("click",()=>{let s=document.documentElement.classList.contains("dark-mode");n(s?"light":"dark")}),e.els.hamburgerBtn&&(e.els.hamburgerBtn.addEventListener("click",()=>{let s=document.querySelector(".sidebar");s.classList.toggle("nav-open"),e.els.hamburgerBtn.classList.toggle("open"),e.els.hamburgerBtn.setAttribute("aria-expanded",s.classList.contains("nav-open")?"true":"false")}),document.querySelector(".sidebar")?.addEventListener("click",s=>{(s.target.closest(".nav-button")||s.target.closest(".nav-sub-item"))&&window.innerWidth<=900&&(document.querySelector(".sidebar").classList.remove("nav-open"),e.els.hamburgerBtn.classList.remove("open"),e.els.hamburgerBtn.setAttribute("aria-expanded","false"))})),e.auth.authenticated?await ge(e,e.auth):tt(e)}Hs().catch(e=>{console.error(e),alert(`Aplikasi gagal dijalankan: ${e.message}`)});
+Skor akan dikurangi 20 poin: ${qs2.score} \u2192 ${newScore}
+
+Tuliskan penjelasan untuk siswa (opsional):`, "");
+      if (response === null) return;
+      qs2.score = newScore;
+      qs2.complaint = {
+        ...qs2.complaint,
+        status: "rejected",
+        response: String(response || "").trim(),
+        resolvedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      submission2.finalScore = Math.round(
+        submission2.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission2.questionScores.length
+      );
+      try {
+        await saveSubmissionToDatabase(submission2);
+        showToast("Komplain ditolak. Skor dikurangi 20 poin.", "success");
+        showResult(els, submission2, ctx.auth);
+        renderMonitoring(els, ctx.state);
+        renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+      return;
+    }
+    const editBtn = e.target.closest(".edit-override-btn");
+    if (!editBtn) return;
+    const idx = parseInt(editBtn.dataset.index, 10);
+    const submissionId = els.resultPanel.dataset.submissionId;
+    const submission = ctx.state.submissions.find((s) => s.id === submissionId);
+    if (!submission) return;
+    const qs = submission.questionScores[idx];
+    const newScoreStr = prompt("Masukkan skor baru (0-100):", qs.score);
+    if (newScoreStr === null) return;
+    const scoreVal = parseInt(newScoreStr, 10);
+    if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
+      showToast("Skor tidak valid. Harus angka 0-100", "error");
+      return;
+    }
+    const newFeedback = prompt("Tambahkan / ubah catatan kelemahan (opsional):", qs.gaps?.join(" ") || "");
+    if (newFeedback !== null) {
+      qs.gaps = [newFeedback];
+    }
+    qs.score = scoreVal;
+    submission.finalScore = Math.round(
+      submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
+    );
+    try {
+      await saveSubmissionToDatabase(submission);
+      showToast("Koreksi berhasil disimpan", "success");
+      showResult(els, submission, ctx.auth);
+      renderMonitoring(els, ctx.state);
+      renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+  if (els.downloadClassCsvBtn) {
+    els.downloadClassCsvBtn.addEventListener("click", () => {
+      downloadClassCsv(ctx);
+    });
+  }
+  els.assessmentList.addEventListener("click", async (event) => {
+    const article = event.target.closest("article");
+    if (!article) return;
+    const id = article.dataset.id;
+    const assessment = ctx.state.assessments.find((a) => a.id === id);
+    if (!assessment) return;
+    if (event.target.classList.contains("more-menu-trigger")) {
+      const menu = event.target.closest(".more-menu");
+      const dropdown = menu.querySelector(".more-menu-dropdown");
+      const isHidden = dropdown.classList.toggle("hidden");
+      event.target.setAttribute("aria-expanded", String(!isHidden));
+      document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((d) => {
+        if (d !== dropdown) d.classList.add("hidden");
+      });
+      return;
+    }
+    if (event.target.classList.contains("close-assessment")) {
+      const studentSubmissions = ctx.state.submissions.filter((s) => s.assessmentId === id);
+      const impact = studentSubmissions.length ? `${studentSubmissions.length} siswa sudah mengumpulkan. Nilai mereka tetap tersimpan, tetapi siswa lain tidak bisa memulai penilaian ini.` : "Belum ada siswa yang mengumpulkan. Siswa tidak akan bisa memulai penilaian ini.";
+      const proceed = await showConfirmDialog(`Tutup akses siswa para penilaian ini?
+
+${impact}
+
+Anda bisa membukanya kembali kapan saja.`, "Tutup Penilaian");
+      if (!proceed) return;
+      await updateAssessment(id, { status: "closed", classId: assessment.classId });
+      await reloadState2(ctx);
+      await renderCurrentState2(ctx);
+      showToast("Akses siswa ditutup. Siswa tidak bisa memulai penilaian ini.", "success");
+    } else if (event.target.classList.contains("reopen-assessment")) {
+      await updateAssessment(id, { status: "published", classId: assessment.classId });
+      await reloadState2(ctx);
+      await renderCurrentState2(ctx);
+      showToast("Akses siswa dibuka kembali.", "success");
+    } else if (event.target.classList.contains("delete-assessment")) {
+      if (!await showConfirmDialog("Hapus penilaian beserta semua submission? Tindakan ini tidak bisa dibatalkan.", "Hapus Penilaian")) return;
+      await deleteAssessment(id);
+      await reloadState2(ctx);
+      await renderCurrentState2(ctx);
+    } else if (event.target.classList.contains("edit-assessment")) {
+      ctx.pendingAssessmentConfig = {
+        id: assessment.id,
+        topic: assessment.topic,
+        difficulty: assessment.difficulty,
+        classId: assessment.classId,
+        outcomes: assessment.outcomes,
+        rubric: assessment.rubric,
+        oralExamEnabled: assessment.oralExamEnabled !== false,
+        disableManualTyping: !!assessment.disableManualTyping,
+        allowRetakes: !!assessment.allowRetakes
+      };
+      ctx.pendingQuestions = assessment.questions;
+      const { goToWizardStep: goToWizardStep2, renderQuestionEditor: renderQuestionEditor2 } = await Promise.resolve().then(() => (init_assessment_wizard(), assessment_wizard_exports));
+      renderQuestionEditor2(ctx);
+      goToWizardStep2(ctx, 2);
+      await switchView(ctx, "teacherView");
+      els.questionEditor.scrollIntoView({ behavior: "smooth" });
+    } else if (event.target.classList.contains("download-grades-assessment")) {
+      downloadAssessmentGrades(ctx, assessment);
+    }
+  });
+}
+function downloadAssessmentGrades(ctx, assessment) {
+  const assessmentSubmissions = ctx.state.submissions.filter((s) => s.assessmentId === assessment.id);
+  if (!assessmentSubmissions.length) {
+    showToast("Belum ada nilai/submission para assessment ini.", "error");
+    return;
+  }
+  const latestSubmissionsMap = /* @__PURE__ */ new Map();
+  assessmentSubmissions.forEach((sub) => {
+    const key = sub.studentName;
+    const existing = latestSubmissionsMap.get(key);
+    if (!existing || new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
+      latestSubmissionsMap.set(key, sub);
+    }
+  });
+  const latestSubmissions = Array.from(latestSubmissionsMap.values());
+  latestSubmissions.sort((a, b) => a.studentName.localeCompare(b.studentName));
+  const escapeCsv = (val) => {
+    if (val === null || val === void 0) return "";
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  const csvRows = [];
+  csvRows.push(["Nama Siswa", "Email", "Skor Akhir", "Tanggal Pengerjaan"].map(escapeCsv).join(","));
+  latestSubmissions.forEach((sub) => {
+    const membership = ctx.state.memberships.find(
+      (m) => m.student_name === sub.studentName && m.class_id === assessment.classId
+    );
+    const email = membership ? membership.student_email || "-" : "-";
+    const formattedDate = sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) : "-";
+    csvRows.push([sub.studentName, email, sub.finalScore, formattedDate].map(escapeCsv).join(","));
+  });
+  const csvContent = "\uFEFFsep=,\n" + csvRows.join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  const safeTopicName = assessment.topic.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  link.setAttribute("download", `nilai_${safeTopicName}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast("CSV Nilai Assessment berhasil didownload.", "success");
+}
+function downloadClassCsv(ctx) {
+  const { els } = ctx;
+  const classId = els.monitorClassFilter?.value;
+  if (!classId) {
+    showToast("Pilih kelas terlebih dahulu para download nilai.", "error");
+    return;
+  }
+  const selectedClass = ctx.state.classes.find((c) => c.id === classId);
+  const className = selectedClass ? selectedClass.name : "Kelas";
+  const classSubmissions = ctx.state.submissions.filter((s) => s.classId === classId);
+  if (!classSubmissions.length) {
+    showToast("Belum ada nilai/submission di kelas ini.", "error");
+    return;
+  }
+  const latestSubmissionsMap = /* @__PURE__ */ new Map();
+  classSubmissions.forEach((sub) => {
+    const key = `${sub.studentName}_${sub.assessmentId}`;
+    const existing = latestSubmissionsMap.get(key);
+    if (!existing || new Date(sub.submittedAt) > new Date(existing.submittedAt)) {
+      latestSubmissionsMap.set(key, sub);
+    }
+  });
+  const latestSubmissions = Array.from(latestSubmissionsMap.values());
+  latestSubmissions.sort((a, b) => {
+    const nameCompare = a.studentName.localeCompare(b.studentName);
+    if (nameCompare !== 0) return nameCompare;
+    return a.assessmentTitle.localeCompare(b.assessmentTitle);
+  });
+  const escapeCsv = (val) => {
+    if (val === null || val === void 0) return "";
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  const csvRows = [];
+  csvRows.push(["Nama Siswa", "Email", "Topik Assessment", "Skor Akhir", "Tanggal Pengerjaan"].map(escapeCsv).join(","));
+  latestSubmissions.forEach((sub) => {
+    const membership = ctx.state.memberships.find(
+      (m) => m.student_name === sub.studentName && m.class_id === classId
+    );
+    const email = membership ? membership.student_email || "-" : "-";
+    const formattedDate = sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) : "-";
+    csvRows.push([sub.studentName, email, sub.assessmentTitle, sub.finalScore, formattedDate].map(escapeCsv).join(","));
+  });
+  const csvContent = "\uFEFFsep=,\n" + csvRows.join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  const safeClassName = className.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  link.setAttribute("download", `nilai_${safeClassName}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast("CSV berhasil didownload.", "success");
+}
+async function reloadState2(ctx) {
+  const { loadState: loadState2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const nextState = await loadState2();
+  ctx.state.assessments = nextState.assessments;
+  ctx.state.submissions = nextState.submissions;
+  ctx.state.classes = nextState.classes;
+  ctx.state.memberships = nextState.memberships;
+}
+
+// src/js/demo-data.js
+init_api();
+init_toast();
+init_app_context();
+function bindDemoDataEvents(ctx) {
+  const { els } = ctx;
+  if (els.seedDemoTeacher) {
+    els.seedDemoTeacher.addEventListener("click", async () => {
+      if (ctx.state.assessments.length) {
+        showToast("Data contoh sudah ada. Gunakan 'Hapus data dummy' untuk mengisi ulang.");
+        return;
+      }
+      try {
+        const result = await seedDemoData("teacher");
+        await refreshDemoState(ctx);
+        showToast(
+          `Data contoh guru dibuat: ${result.assessmentsAdded} penilaian, ${result.studentsAdded} siswa.`,
+          "success"
+        );
+      } catch (error) {
+        showToast(`Gagal mengisi data contoh guru: ${error.message}`);
+      }
+    });
+  }
+  if (els.seedDemoAdmin) {
+    els.seedDemoAdmin.addEventListener("click", async () => {
+      try {
+        const result = await seedDemoData("admin");
+        await refreshDemoState(ctx);
+        showToast(
+          `Data contoh admin siap: observabilitas, riset (${result.runsCreated} run), dan API keys.`,
+          "success"
+        );
+      } catch (error) {
+        showToast(`Gagal mengisi data contoh admin: ${error.message}`);
+      }
+    });
+  }
+  if (els.removeDemoData) {
+    els.removeDemoData.addEventListener("click", async () => {
+      if (!await showConfirmDialog("Hapus data dummy (data contoh) saja? Data asli Anda tetap aman.", "Hapus Data Dummy")) return;
+      try {
+        const { removeDemoData: removeDemoData2 } = await Promise.resolve().then(() => (init_api(), api_exports));
+        const result = await removeDemoData2();
+        await refreshDemoState(ctx);
+        showToast(
+          `Data dummy dihapus: ${result.removed} baris.`,
+          "success"
+        );
+      } catch (error) {
+        showToast(`Gagal menghapus data dummy: ${error.message}`, "error");
+      }
+    });
+  }
+}
+async function refreshDemoState(ctx) {
+  const { loadState: loadState2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+  const next = await loadState2();
+  ctx.state.assessments = next.assessments;
+  ctx.state.submissions = next.submissions;
+  ctx.state.classes = next.classes;
+  ctx.state.memberships = next.memberships;
+  if (ctx.auth.user.role === "admin") {
+    const { loadUsers: loadUsers2 } = await Promise.resolve().then(() => (init_app_context(), app_context_exports));
+    ctx.users = await loadUsers2(ctx);
+    const { renderUsers: renderUsers2 } = await Promise.resolve().then(() => (init_user_management(), user_management_exports));
+    renderUsers2(ctx);
+  }
+  await renderCurrentState(ctx);
+  await refreshSimulatorIfEnabled(ctx);
+}
+
+// src/js/main.js
+init_complaints();
+init_api_keys();
+init_research();
+init_observability();
+init_dashboard();
+init_question_bank();
+init_notifications();
+async function initApp() {
+  const ctx = createAppContext();
+  ctx.auth = await getCurrentUser();
+  bindAuthEvents(ctx);
+  bindAssessmentWizardEvents(ctx);
+  enhanceAssessmentWizardUX(ctx);
+  bindStudentFlowEvents(ctx);
+  bindClassManagementEvents(ctx);
+  bindUserManagementEvents(ctx);
+  bindSimulatorEvents(ctx);
+  bindMonitoringEvents(ctx);
+  bindDemoDataEvents(ctx);
+  bindComplaintEvents(ctx);
+  bindApiKeyEvents(ctx);
+  bindResearchEvents(ctx);
+  bindObservabilityEvents(ctx);
+  bindDashboardEvents(ctx);
+  bindQuestionBankEvents(ctx);
+  if (ctx.auth.authenticated && ["admin", "teacher"].includes(ctx.auth.user.role)) {
+    startNotificationListener(ctx);
+  }
+  ctx.els.mainNav.addEventListener("click", (e) => {
+    const btn = e.target.closest(".nav-button");
+    if (btn) switchView(ctx, btn.dataset.view);
+  });
+  window.addEventListener("popstate", () => {
+    if (!ctx.auth?.authenticated) return;
+    const viewId = history.state?.lisanView;
+    if (viewId) switchView(ctx, viewId, { fromHistory: true });
+  });
+  document.addEventListener("click", async (e) => {
+    const filterBtn = e.target.closest("[data-student-filter]");
+    if (filterBtn) {
+      document.querySelectorAll("[data-student-filter]").forEach((b) => {
+        b.classList.toggle("active", b === filterBtn);
+      });
+      const { renderStudentArea: renderStudentArea2 } = await Promise.resolve().then(() => (init_render(), render_exports));
+      renderStudentArea2(ctx.els, ctx.state, ctx.session);
+      return;
+    }
+  });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-nav-view]");
+    if (btn) switchView(ctx, btn.dataset.navView);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".more-menu")) {
+      document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((d) => {
+        d.classList.add("hidden");
+        const trigger = d.closest(".more-menu")?.querySelector(".more-menu-trigger");
+        if (trigger) trigger.setAttribute("aria-expanded", "false");
+      });
+    }
+  });
+  const { refreshSimulatorIfEnabled: refreshSimulatorIfEnabled2 } = await Promise.resolve().then(() => (init_app_context(), app_context_exports));
+  refreshSimulatorIfEnabled2(ctx);
+  const savedTheme = localStorage.getItem("lisan-theme");
+  const applyTheme = (theme) => {
+    const root = document.documentElement;
+    root.classList.toggle("dark-mode", theme === "dark");
+    root.classList.toggle("light-mode", theme === "light");
+    localStorage.setItem("lisan-theme", theme);
+    if (ctx.els.darkModeToggle) {
+      ctx.els.darkModeToggle.innerHTML = theme === "dark" ? '<span aria-hidden="true">\u2600\uFE0F</span><span>Mode Terang</span>' : '<span aria-hidden="true">\u{1F319}</span><span>Mode Gelap</span>';
+    }
+  };
+  if (savedTheme === "dark") applyTheme("dark");
+  else if (savedTheme === "light") applyTheme("light");
+  if (ctx.els.darkModeToggle) {
+    ctx.els.darkModeToggle.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.contains("dark-mode");
+      applyTheme(isDark ? "light" : "dark");
+    });
+  }
+  if (ctx.els.hamburgerBtn) {
+    ctx.els.hamburgerBtn.addEventListener("click", () => {
+      const sidebar = document.querySelector(".sidebar");
+      sidebar.classList.toggle("nav-open");
+      ctx.els.hamburgerBtn.classList.toggle("open");
+      ctx.els.hamburgerBtn.setAttribute(
+        "aria-expanded",
+        sidebar.classList.contains("nav-open") ? "true" : "false"
+      );
+    });
+    document.querySelector(".sidebar")?.addEventListener("click", (e) => {
+      if (e.target.closest(".nav-button") || e.target.closest(".nav-sub-item")) {
+        if (window.innerWidth <= 900) {
+          document.querySelector(".sidebar").classList.remove("nav-open");
+          ctx.els.hamburgerBtn.classList.remove("open");
+          ctx.els.hamburgerBtn.setAttribute("aria-expanded", "false");
+        }
+      }
+    });
+  }
+  if (ctx.auth.authenticated) {
+    await bootstrapAuthenticatedApp(ctx, ctx.auth);
+  } else {
+    showAuth(ctx);
+  }
+}
+
+// src/js/app.js
+initApp().catch((error) => {
+  console.error(error);
+  alert(`Aplikasi gagal dijalankan: ${error.message}`);
+});
+//# sourceMappingURL=app.bundle.js.map
