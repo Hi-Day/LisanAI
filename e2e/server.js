@@ -7,6 +7,9 @@ const path = require("node:path");
 const E2E_DB = path.join(os.tmpdir(), `oralai-e2e-${Date.now()}.db`);
 process.env.TURSO_DATABASE_URL = `file:${E2E_DB}`;
 process.env.ENABLE_DEMO_SIMULATION = "false";
+// One shared server serves the whole suite; login rate limits would fail
+// legitimate sequential test logins.
+process.env.E2E_DISABLE_RATE_LIMIT = "true";
 process.env.PORT = "4174";
 
 const { loadEnv } = require("../server/config");
@@ -23,9 +26,8 @@ let isDbInitialized = false;
 
 const API_ROUTE_ALIASES = {
   database: "data",
-  state: "data",
   probing: "evaluation",
-  evidence-feedback: "evaluation",
+  "evidence-feedback": "evaluation",
   apikeys: "auth",
   docs: "v1",
   research: "admin",

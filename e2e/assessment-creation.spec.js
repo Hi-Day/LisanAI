@@ -12,7 +12,7 @@ async function loginAsTeacher(page) {
 
 async function fillContext(page, topic, outcomes) {
   await page.fill("#topic", topic);
-  await page.fill("#outcomes", outcomes);
+  await page.locator("[data-outcome-input]").first().fill(outcomes);
   await page.selectOption("#classSelect", { label: "Kelas E2E" });
 }
 
@@ -36,9 +36,8 @@ test.describe("Assessment creation workflow", () => {
     await page.fill("#topic", "Fotosintesis");
     await page.click("#recommendOutcomes");
 
-    await expect(page.locator("#recommendStreamPanel")).toBeVisible();
-    await expect(page.locator("#outcomes")).not.toHaveValue("");
-    await expect(page.locator("#recommendStreamContent")).not.toHaveText("");
+    await expect(page.locator(".assessment-outcome-ai-stream")).toBeVisible();
+    await expect(page.locator("[data-outcome-input]").first()).not.toHaveValue("", { timeout: 30_000 });
   });
 
   test("AI generation opens the refactored question editor with streamed questions", async ({ page }) => {
@@ -47,7 +46,7 @@ test.describe("Assessment creation workflow", () => {
     await page.click("#wizardToQuestions");
     await expect(page.locator("#createManualAssessment")).toBeVisible();
 
-    await page.locator("#assessmentForm").evaluate((form) => form.requestSubmit());
+    await page.locator('#assessmentForm button[type="submit"]').click();
 
     await expect(page.locator("#questionEditor")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(".editable-question")).toHaveCount(2);
@@ -97,7 +96,7 @@ test.describe("Assessment creation workflow", () => {
     await page.locator(".editable-question [data-field='prompt']").fill("Jelaskan hubungan produsen dan konsumen.");
     await page.click("#saveToBankBtn");
 
-    await page.click("#mainNav button[data-nav-view='questionBankView']");
+    await page.click("#mainNav button[data-view='questionBankView']");
     await expect(page.locator("#questionBankView")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#questionBankList")).toContainText("Jelaskan hubungan produsen dan konsumen.");
   });

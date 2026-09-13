@@ -97,6 +97,7 @@ export async function loadQuestionBank(ctx) {
 }
 
 export async function saveCurrentQuestionsToBank(ctx) {
+  window.__lisanAssessmentWizardBridge?.sync?.();
   const config = ctx.pendingAssessmentConfig;
   if (!config || !ctx.pendingQuestions.length) {
     showToast("Tidak ada soal untuk disimpan", "error");

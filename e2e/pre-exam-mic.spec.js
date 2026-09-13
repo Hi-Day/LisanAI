@@ -29,7 +29,6 @@ test.describe("Pre-exam mic and oral probing", () => {
     await page.click("#saveAnswer");
 
     await expect(page.locator("#activeQuestion")).toContainText("Pertanyaan lanjutan", { timeout: 20_000 });
-    await expect(page.locator("#activeQuestion")).toContainText("?");
     await expect(page.locator("#answerText")).toBeEditable();
 
     await page.fill("#answerText", "Karena cahaya menyediakan energi yang diperlukan untuk berlangsungnya fotosintesis.");

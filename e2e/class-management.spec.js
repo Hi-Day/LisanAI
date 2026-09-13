@@ -16,7 +16,7 @@ async function logout(page) {
 test.describe("Class and membership workflow", () => {
   test("teacher creates a class, student requests to join, and teacher approves", async ({ page }) => {
     await login(page, "e2e.guru@example.com");
-    await page.click("#mainNav .nav-sub-item[data-nav-view='manageClassView']");
+    await page.click("#mainNav button[data-view='manageClassView']");
     await expect(page.locator("#manageClassView")).toBeVisible();
 
     const className = `Kelas Membership ${Date.now()}`;
@@ -39,7 +39,7 @@ test.describe("Class and membership workflow", () => {
 
     await logout(page);
     await login(page, "e2e.guru@example.com");
-    await page.click("#mainNav .nav-sub-item[data-nav-view='manageClassView']");
+    await page.click("#mainNav button[data-view='manageClassView']");
     await expect(page.locator("#manageClassView")).toBeVisible();
     await expect(page.locator("#pendingJoinList")).toContainText("Siswa E2E");
     await expect(page.locator("#pendingJoinList")).toContainText(className);

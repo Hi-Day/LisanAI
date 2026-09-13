@@ -47,15 +47,15 @@ test.describe("Student assessment flow", () => {
 
     await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("#resultPanel")).toContainText("Nilai");
-    await expect(page.locator("#resultPanel .close-result-btn")).toBeVisible();
+    await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+    await expect(page.locator("#resultPanel .close-result-btn").first()).toBeVisible();
 
-    await page.click("#resultPanel .close-result-btn");
+    await page.locator("#resultPanel .close-result-btn").first().click();
     await page.click("#logoutButton");
     await expect(page.locator("#authView")).toBeVisible({ timeout: 10_000 });
 
     await loginAs(page, "e2e.guru@example.com");
-    await page.click("#mainNav .nav-sub-item[data-nav-view='monitorView']");
+    await page.click("#mainNav button[data-view='monitorView']");
     await expect(page.locator("#monitorView")).toBeVisible();
     await expect(page.locator("#submissionList")).toContainText("Siswa E2E");
     await expect(page.locator("#submissionList")).toContainText("Ujian Tulis E2E");
