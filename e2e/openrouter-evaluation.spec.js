@@ -38,8 +38,9 @@ test.describe("Student AI evaluation via OpenRouter", () => {
     );
     await page.click("#finishAssessment");
 
-    const confirmButton = page.locator("#confirmDialog button").filter({ hasText: /Selesaikan|Ya|Kumpulkan/i }).first();
-    if (await confirmButton.count()) await confirmButton.click();
+    const confirmButton = page.locator("#confirmModalOk");
+    await expect(confirmButton).toBeVisible({ timeout: 5_000 });
+    await confirmButton.click();
 
     await expect.poll(() => evaluationResponses.length, { timeout: 90_000 }).toBeGreaterThan(0);
 
