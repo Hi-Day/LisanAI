@@ -50,14 +50,21 @@ export function createAppContext() {
 
 export async function bootstrapAuthenticatedApp(ctx, nextAuth) {
   ctx.auth = nextAuth;
-  ctx.state = await loadState();
+  const isAdmin = ctx.auth.user.role === "admin";
+  const [state, users] = await Promise.all([
+    loadState(),
+    isAdmin ? loadUsers(ctx) : Promise.resolve([]),
+  ]);
+  ctx.state = state;
+  ctx.users = users;
   ctx.session = createSession(ctx.state);
-  ctx.users = ctx.auth.user.role === "admin" ? await loadUsers(ctx) : [];
   clearAuthForms(ctx);
   showApp(ctx);
   applyRoleAccess(ctx);
   await renderCurrentState(ctx);
-  const { renderUsers } = await import("./user-management.js");
+  const [{ renderUsers }] = await Promise.all([
+    import("./user-management.js"),
+  ]);
   renderUsers(ctx);
   refreshSimulatorIfEnabled(ctx);
 }
@@ -217,234 +224,3 @@ export function applyRoleAccess(ctx) {
   if (els.seedDemoAdmin) els.seedDemoAdmin.classList.toggle("hidden", role !== "admin");
   if (els.removeDemoData) els.removeDemoData.classList.toggle("hidden", role === "student");
   document.body.classList.remove("teacher-mode", "student-mode", "admin-mode");
-
-  let navHtml = "";
-  if (role === "teacher") {
-    navHtml = `
-      <button class="nav-button" data-view="dashboardView"><span aria-hidden="true">▦</span> Dashboard</button>
-      <div class="nav-group">
-        <button class="nav-button" data-view="assessmentListView" aria-haspopup="true" aria-expanded="true">
-          <span aria-hidden="true">⌘</span> Penilaian <span class="nav-caret" aria-hidden="true">▾</span>
-        </button>
-        <div class="nav-sub nav-group-open">
-          <button class="nav-sub-item" data-nav-view="teacherView">✚ Buat Penilaian</button>
-          <button class="nav-sub-item" data-nav-assessment-tab="all">Semua Penilaian</button>
-          <button class="nav-sub-item" data-nav-assessment-tab="draft">Draft</button>
-          <button class="nav-sub-item" data-nav-assessment-tab="published">Published</button>
-        </div>
-      </div>
-      <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
-      <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">◉</span> Siswa</button>
-      <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
-      <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
-      <button class="nav-button" data-view="notifView"><span aria-hidden="true">🔔</span> Notifikasi <span id="notifBadge" class="nav-badge hidden">0</span></button>
-      <button class="nav-button" data-view="complaintView"><span aria-hidden="true">📩</span> Komplain <span id="complaintNavBadge" class="nav-badge hidden">0</span></button>
-    `;
-  } else if (role === "student") {
-    navHtml = `
-      <button class="nav-button" data-view="studentView"><span aria-hidden="true">◉</span> Kerjakan</button>
-      <button class="nav-button" data-view="studentHistoryView"><span aria-hidden="true">🕒</span> Riwayat</button>
-      <button class="nav-button" data-view="studentNotifView"><span aria-hidden="true">📩</span> Notifikasi</button>
-    `;
-  } else if (role === "admin") {
-    navHtml = `
-      <button class="nav-button" data-view="observabilityView"><span aria-hidden="true">📈</span> Observabilitas</button>
-      <button class="nav-button" data-view="researchView"><span aria-hidden="true">🧪</span> Riset</button>
-      <button class="nav-button" id="adminNav" data-view="accountView"><span aria-hidden="true">👤</span> Akun</button>
-      <button class="nav-button" data-view="apiKeysView"><span aria-hidden="true">🔑</span> API Keys</button>
-      <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
-    `;
-  }
-  els.mainNav.innerHTML = navHtml;
-
-  const penulisGroup = els.mainNav.querySelector(".nav-group");
-  const penulisSub = penulisGroup?.querySelector(".nav-sub");
-  penulisGroup?.querySelector(".nav-button")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    const collapsed = penulisSub?.classList.contains("hidden") ?? true;
-    penulisGroup.classList.toggle("open", collapsed);
-    penulisSub?.classList.toggle("hidden", !collapsed);
-    penulisGroup.querySelector(".nav-button")?.setAttribute("aria-expanded", String(collapsed));
-  });
-  els.mainNav.querySelectorAll("[data-nav-assessment-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setAssessmentTab(ctx, btn.dataset.navAssessmentTab);
-      switchView(ctx, "assessmentListView");
-    });
-  });
-  els.mainNav.querySelectorAll("[data-nav-view]").forEach((btn) => btn.addEventListener("click", () => switchView(ctx, btn.dataset.navView)));
-
-  if (role === "student") {
-    document.body.classList.add("student-mode");
-    switchView(ctx, "studentView");
-  } else if (role === "admin") {
-    document.body.classList.add("admin-mode");
-    switchView(ctx, "observabilityView");
-  } else {
-    document.body.classList.add("teacher-mode");
-    switchView(ctx, "dashboardView");
-  }
-}
-
-export function setAssessmentTab(ctx, tab) {
-  const { els } = ctx;
-  if (!els.assessmentTabFilter) return;
-  els.assessmentTabFilter.querySelectorAll(".tab-filter-btn").forEach((b) => {
-    const active = b.dataset.tab === tab;
-    b.classList.toggle("active", active);
-    b.setAttribute("aria-selected", String(active));
-  });
-}
-
-export function canAccessView(ctx, viewId) {
-  if (!ctx.auth.user) return false;
-  const role = ctx.auth.user.role;
-  if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
-  if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView" || viewId === "questionBankView";
-  if (role === "teacher") return ["dashboardView", "teacherView", "assessmentListView", "assessmentDetailView", "monitorView", "manageClassView", "studentProfileView", "complaintView", "questionBankView", "notifView"].includes(viewId);
-  return false;
-}
-
-/**
- * Switch the visible SPA view and keep browser/Android Back navigation in sync.
- * When fromHistory=true, the browser has already moved the history pointer,
- * so we only render the requested state and never create another entry.
- */
-export async function switchView(ctx, viewId, { fromHistory = false } = {}) {
-  if (!canAccessView(ctx, viewId)) return;
-
-  const previousViewId = ctx.currentViewId;
-  if (!fromHistory && previousViewId === viewId) return;
-
-  if (!fromHistory) {
-    const nextState = { ...(history.state || {}), lisanView: viewId };
-    const hash = `#${viewId}`;
-    if (history.state?.lisanView) history.pushState(nextState, "", hash);
-    else history.replaceState(nextState, "", hash);
-  }
-
-  ctx.currentViewId = viewId;
-  const { els } = ctx;
-  const navBtns = els.mainNav.querySelectorAll(".nav-button");
-  navBtns.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
-  els.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
-  if (viewId === "dashboardView") {
-    const { renderDashboard } = await import("./dashboard.js");
-    renderDashboard(ctx);
-  }
-  if (viewId === "assessmentListView") {
-    const { renderAssessmentsWithTab } = await import("./dashboard.js");
-    renderAssessmentsWithTab(ctx);
-  }
-  if (viewId === "studentProfileView") {
-    const { renderStudentProfile } = await import("./dashboard.js");
-    populateProfileSelect(ctx);
-    const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))];
-    if (names.length) {
-      const selected = ctx.profileSelectedStudent && names.includes(ctx.profileSelectedStudent) ? ctx.profileSelectedStudent : names[0];
-      elProfileSet(ctx, selected);
-      renderStudentProfile(ctx, selected);
-    } else {
-      els.studentProfileContent.innerHTML = '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
-    }
-  }
-  if (viewId === "observabilityView") {
-    const { loadTelemetry } = await import("./observability.js");
-    loadTelemetry(ctx);
-  }
-  if (viewId === "researchView") {
-    const { loadResearch } = await import("./research.js");
-    loadResearch(ctx);
-  }
-  if (viewId === "apiKeysView") {
-    const { loadApiKeys } = await import("./api-keys.js");
-    loadApiKeys(ctx);
-  }
-  if (viewId === "questionBankView") {
-    const { loadQuestionBank } = await import("./question-bank.js");
-    loadQuestionBank(ctx);
-  }
-  if (viewId === "notifView") {
-    const { clearNotificationBadge } = await import("./notifications.js");
-    clearNotificationBadge();
-  }
-}
-
-function populateProfileSelect(ctx) {
-  const { els } = ctx;
-  if (!els.profileStudentSelect) return;
-  const names = [...new Set(ctx.state.submissions.map((s) => s.studentName))].sort((a, b) => a.localeCompare(b));
-  const options = names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-  if (els.profileStudentSelect.innerHTML !== options) els.profileStudentSelect.innerHTML = options;
-}
-
-function elProfileSet(ctx, name) {
-  if (ctx.els.profileStudentSelect) ctx.els.profileStudentSelect.value = name;
-}
-
-export async function refreshSimulatorIfEnabled(ctx) {
-  const { els } = ctx;
-  if (!els.simulatorWidget) return;
-  try {
-    const data = await getSimulationData();
-    els.simulatorWidget.classList.remove("hidden");
-    renderSimulator(ctx, data);
-  } catch (error) {
-    els.simulatorWidget.classList.add("hidden");
-  }
-}
-
-export async function refreshSimulator(ctx) {
-  const { els } = ctx;
-  try {
-    const data = await getSimulationData();
-    renderSimulator(ctx, data);
-  } catch (error) {
-    console.error("Gagal memuat data simulator:", error);
-    if (els.simulatorTenantList) els.simulatorTenantList.innerHTML = `<div class="empty-state">Gagal memuat tenant: ${escapeHtml(error.message)}</div>`;
-  }
-}
-
-export function renderSimulator(ctx, data) {
-  const { els, auth } = ctx;
-  if (!els.simulatorTenantList) return;
-  const { tenants, users: allUsers } = data;
-  if (!tenants || !tenants.length) {
-    els.simulatorTenantList.innerHTML = `<div class="empty-state">Belum ada tenant.</div>`;
-    return;
-  }
-
-  const usersByTenant = {};
-  allUsers.forEach(u => {
-    const tId = u.tenantId || u.tenant_id;
-    if (!usersByTenant[tId]) usersByTenant[tId] = [];
-    usersByTenant[tId].push(u);
-  });
-
-  els.simulatorTenantList.innerHTML = tenants.map(t => {
-    const tUsers = usersByTenant[t.id] || [];
-    const userRows = tUsers.map(u => {
-      const isActive = auth && auth.authenticated && auth.user && auth.user.id === u.id;
-      const roleClass = `simulator-role-${u.role}`;
-      return `
-        <div class="simulator-user-row ${isActive ? 'active' : ''}">
-          <div class="simulator-user-info">
-            <span class="simulator-user-name">${escapeHtml(u.name)}</span>
-            <span class="simulator-user-detail">${escapeHtml(u.email)}</span>
-            <span class="simulator-user-role-badge ${roleClass}">${escapeHtml(roleLabel(u.role))}</span>
-          </div>
-          ${isActive ? `<span class="simulator-login-btn active" style="background: var(--emerald); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Aktif</span>` : `<button class="simulator-login-btn" data-user-id="${escapeHtml(u.id)}" type="button">Masuk</button>`}
-        </div>
-      `;
-    }).join("");
-
-    return `
-      <div class="simulator-tenant-group">
-        <div class="simulator-tenant-name">${escapeHtml(t.name)}</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">${userRows.length ? userRows : '<p style="font-size: 0.75rem; color: var(--muted); margin: 0;">Tidak ada akun</p>'}</div>
-      </div>
-    `;
-  }).join("");
-}
-
-export { roleLabel };
