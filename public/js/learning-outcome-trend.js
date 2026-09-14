@@ -89,13 +89,25 @@ async function refresh() {
 }
 
 function start() {
-  const container = document.getElementById("compTrendChart");
-  if (!container) return;
-  const description = container.previousElementSibling;
-  if (description?.classList.contains("panel-hint")) description.textContent = "Learning Outcome adalah unit trajectory; evidence dan criterion menjadi dasar pembentuk skor.";
-  const observer = new MutationObserver(() => { clearTimeout(start.timer); start.timer = setTimeout(refresh, 80); });
-  observer.observe(container, { childList: true, subtree: true });
-  refresh();
+  const attach = () => {
+    const container = document.getElementById("compTrendChart");
+    if (!container) return false;
+    const description = container.previousElementSibling;
+    if (description?.classList.contains("panel-hint")) description.textContent = "Learning Outcome adalah unit trajectory; evidence dan criterion menjadi dasar pembentuk skor.";
+    refresh();
+    return true;
+  };
+
+  if (attach()) return;
+
+  // The profile view can be mounted dynamically. Watch the document only until
+  // the chart appears, then disconnect. Never observe the chart itself because
+  // refresh() updates its innerHTML and would otherwise trigger an infinite loop.
+  const observer = new MutationObserver(() => {
+    if (attach()) observer.disconnect();
+  });
+  if (document.body) observer.observe(document.body, { childList: true, subtree: true });
 }
+
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
 else start();
