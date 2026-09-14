@@ -10,7 +10,8 @@
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "test:e2e": "node scripts/build.js && playwright test",
     "seed:showcase": "node scripts/provision-showcase-demo.js",
-    "seed:pendopo": "node scripts/provision-pendopo-demo.js"
+    "seed:pendopo": "node scripts/provision-pendopo-demo.js",
+    "seed:competency": "node scripts/repair-showcase-competency.js"
   },
   "keywords": [],
   "author": "",
