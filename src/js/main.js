@@ -1,51 +1,94 @@
 import { getCurrentUser } from "./api.js";
-import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView } from "./app-context.js";
+import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView, refreshSimulatorIfEnabled } from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
-import { bindAssessmentWizardEvents } from "./assessment-wizard.js";
-import { enhanceAssessmentWizardUX } from "./assessment-ux.js";
-import { bindStudentFlowEvents } from "./student-flow.js";
-import { bindClassManagementEvents } from "./class-management.js";
-import { bindUserManagementEvents } from "./user-management.js";
-import { bindSimulatorEvents } from "./simulator.js";
-import { bindMonitoringEvents } from "./monitoring.js";
-import { bindDemoDataEvents } from "./demo-data.js";
-import { bindComplaintEvents } from "./complaints.js";
-import { bindApiKeyEvents, loadApiKeys } from "./api-keys.js";
-import { bindResearchEvents } from "./research.js";
-import { bindObservabilityEvents } from "./observability.js";
-import { bindDashboardEvents } from "./dashboard.js";
-import { bindQuestionBankEvents } from "./question-bank.js";
-import { startNotificationListener } from "./notifications.js";
 
 /**
- * Application entry point. Creates the shared context, wires up all feature
- * modules, and bootstraps the authenticated (or guest) view.
+ * Load feature modules only after authentication is known. The authenticated
+ * bootstrap and feature downloads run in parallel so the app does not pay the
+ * cost of every feature module before the first authenticated render.
+ */
+async function loadAuthenticatedFeatures() {
+  const [
+    assessmentWizard,
+    assessmentUx,
+    studentFlow,
+    classManagement,
+    userManagement,
+    simulator,
+    monitoring,
+    demoData,
+    complaints,
+    apiKeys,
+    research,
+    observability,
+    dashboard,
+    questionBank,
+    notifications,
+  ] = await Promise.all([
+    import("./assessment-wizard.js"),
+    import("./assessment-ux.js"),
+    import("./student-flow.js"),
+    import("./class-management.js"),
+    import("./user-management.js"),
+    import("./simulator.js"),
+    import("./monitoring.js"),
+    import("./demo-data.js"),
+    import("./complaints.js"),
+    import("./api-keys.js"),
+    import("./research.js"),
+    import("./observability.js"),
+    import("./dashboard.js"),
+    import("./question-bank.js"),
+    import("./notifications.js"),
+  ]);
+
+  return {
+    bind(ctx) {
+      assessmentWizard.bindAssessmentWizardEvents(ctx);
+      assessmentUx.enhanceAssessmentWizardUX(ctx);
+      studentFlow.bindStudentFlowEvents(ctx);
+      classManagement.bindClassManagementEvents(ctx);
+      userManagement.bindUserManagementEvents(ctx);
+      simulator.bindSimulatorEvents(ctx);
+      monitoring.bindMonitoringEvents(ctx);
+      demoData.bindDemoDataEvents(ctx);
+      complaints.bindComplaintEvents(ctx);
+      apiKeys.bindApiKeyEvents(ctx);
+      research.bindResearchEvents(ctx);
+      observability.bindObservabilityEvents(ctx);
+      dashboard.bindDashboardEvents(ctx);
+      questionBank.bindQuestionBankEvents(ctx);
+
+      if (ctx.auth.authenticated && ["admin", "teacher"].includes(ctx.auth.user.role)) {
+        notifications.startNotificationListener(ctx);
+      }
+    },
+  };
+}
+
+/**
+ * Application entry point. Creates the shared context, authenticates, and
+ * lazily loads authenticated feature modules without changing feature APIs.
  */
 export async function initApp() {
   const ctx = createAppContext();
   ctx.auth = await getCurrentUser();
 
-  // Wire up all feature event handlers against the shared context.
+  // Authentication is the only feature module required before we know whether
+  // the user needs the full application bundle.
   bindAuthEvents(ctx);
-  bindAssessmentWizardEvents(ctx);
-  enhanceAssessmentWizardUX(ctx);
-  bindStudentFlowEvents(ctx);
-  bindClassManagementEvents(ctx);
-  bindUserManagementEvents(ctx);
-  bindSimulatorEvents(ctx);
-  bindMonitoringEvents(ctx);
-  bindDemoDataEvents(ctx);
-  bindComplaintEvents(ctx);
-  bindApiKeyEvents(ctx);
-  bindResearchEvents(ctx);
-  bindObservabilityEvents(ctx);
-  bindDashboardEvents(ctx);
-  bindQuestionBankEvents(ctx);
 
-  // Start SSE notification listener for teachers
-  if (ctx.auth.authenticated && ["admin", "teacher"].includes(ctx.auth.user.role)) {
-    startNotificationListener(ctx);
-  }
+  const authenticated = ctx.auth.authenticated;
+  const bootstrapPromise = authenticated
+    ? bootstrapAuthenticatedApp(ctx, ctx.auth)
+    : Promise.resolve();
+  const featuresPromise = authenticated
+    ? loadAuthenticatedFeatures()
+    : Promise.resolve(null);
+
+  // Bootstrap data/rendering and feature downloads happen concurrently.
+  const [features] = await Promise.all([featuresPromise, bootstrapPromise]);
+  if (features) features.bind(ctx);
 
   // Navigation
   ctx.els.mainNav.addEventListener("click", (e) => {
@@ -91,7 +134,6 @@ export async function initApp() {
     }
   });
 
-  const { refreshSimulatorIfEnabled } = await import("./app-context.js");
   refreshSimulatorIfEnabled(ctx);
 
   // Dark mode toggle
@@ -140,9 +182,5 @@ export async function initApp() {
     });
   }
 
-  if (ctx.auth.authenticated) {
-    await bootstrapAuthenticatedApp(ctx, ctx.auth);
-  } else {
-    showAuth(ctx);
-  }
+  if (!authenticated) showAuth(ctx);
 }
