@@ -1,50 +1,93 @@
 import { getCurrentUser } from "./api.js";
-import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView } from "./app-context.js";
+import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView, refreshSimulatorIfEnabled } from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
-import { bindAssessmentWizardEvents } from "./assessment-wizard.js";
-import { enhanceAssessmentWizardUX } from "./assessment-ux.js";
-import { bindStudentFlowEvents } from "./student-flow.js";
-import { bindClassManagementEvents } from "./class-management.js";
-import { bindUserManagementEvents } from "./user-management.js";
-import { bindSimulatorEvents } from "./simulator.js";
-import { bindMonitoringEvents } from "./monitoring.js";
-import { bindDemoDataEvents } from "./demo-data.js";
-import { bindComplaintEvents } from "./complaints.js";
-import { bindApiKeyEvents, loadApiKeys } from "./api-keys.js";
-import { bindResearchEvents } from "./research.js";
-import { bindObservabilityEvents } from "./observability.js";
-import { bindDashboardEvents } from "./dashboard.js";
-import { bindQuestionBankEvents } from "./question-bank.js";
-import { startNotificationListener } from "./notifications.js";
 
 /**
- * Application entry point. Creates the shared context, wires up all feature
- * modules, and bootstraps the authenticated (or guest) view.
+ * Load only the feature modules needed by the authenticated role. Each module
+ * is a separate async chunk, so the initial application bundle no longer
+ * contains every teacher/admin/student feature.
+ */
+async function loadAuthenticatedFeatures(role) {
+  const imports = {
+    assessmentWizard: import("./assessment-wizard.js"),
+    assessmentUx: import("./assessment-ux.js"),
+    complaints: import("./complaints.js"),
+    simulator: import("./simulator.js"),
+  };
+
+  if (role === "teacher") {
+    Object.assign(imports, {
+      studentFlow: import("./student-flow.js"),
+      classManagement: import("./class-management.js"),
+      monitoring: import("./monitoring.js"),
+      demoData: import("./demo-data.js"),
+      dashboard: import("./dashboard.js"),
+      questionBank: import("./question-bank.js"),
+      notifications: import("./notifications.js"),
+    });
+  } else if (role === "admin") {
+    Object.assign(imports, {
+      userManagement: import("./user-management.js"),
+      monitoring: import("./monitoring.js"),
+      apiKeys: import("./api-keys.js"),
+      research: import("./research.js"),
+      observability: import("./observability.js"),
+      questionBank: import("./question-bank.js"),
+      notifications: import("./notifications.js"),
+    });
+  } else if (role === "student") {
+    Object.assign(imports, {
+      studentFlow: import("./student-flow.js"),
+    });
+  }
+
+  const loaded = await Promise.all(Object.entries(imports).map(async ([name, promise]) => [name, await promise]));
+  return Object.fromEntries(loaded);
+}
+
+function bindAuthenticatedFeatures(ctx, modules) {
+  modules.assessmentWizard?.bindAssessmentWizardEvents(ctx);
+  modules.assessmentUx?.enhanceAssessmentWizardUX(ctx);
+  modules.complaints?.bindComplaintEvents(ctx);
+  modules.simulator?.bindSimulatorEvents(ctx);
+
+  if (ctx.auth.user.role === "teacher") {
+    modules.studentFlow?.bindStudentFlowEvents(ctx);
+    modules.classManagement?.bindClassManagementEvents(ctx);
+    modules.monitoring?.bindMonitoringEvents(ctx);
+    modules.demoData?.bindDemoDataEvents(ctx);
+    modules.dashboard?.bindDashboardEvents(ctx);
+    modules.questionBank?.bindQuestionBankEvents(ctx);
+    modules.notifications?.startNotificationListener(ctx);
+  } else if (ctx.auth.user.role === "admin") {
+    modules.userManagement?.bindUserManagementEvents(ctx);
+    modules.monitoring?.bindMonitoringEvents(ctx);
+    modules.apiKeys?.bindApiKeyEvents(ctx);
+    modules.research?.bindResearchEvents(ctx);
+    modules.observability?.bindObservabilityEvents(ctx);
+    modules.questionBank?.bindQuestionBankEvents(ctx);
+    modules.notifications?.startNotificationListener(ctx);
+  } else if (ctx.auth.user.role === "student") {
+    modules.studentFlow?.bindStudentFlowEvents(ctx);
+  }
+}
+
+/**
+ * Application entry point. Authentication stays eager; authenticated feature
+ * modules are loaded lazily and in parallel with the data bootstrap.
  */
 export async function initApp() {
   const ctx = createAppContext();
   ctx.auth = await getCurrentUser();
-
-  // Wire up all feature event handlers against the shared context.
   bindAuthEvents(ctx);
-  bindAssessmentWizardEvents(ctx);
-  enhanceAssessmentWizardUX(ctx);
-  bindStudentFlowEvents(ctx);
-  bindClassManagementEvents(ctx);
-  bindUserManagementEvents(ctx);
-  bindSimulatorEvents(ctx);
-  bindMonitoringEvents(ctx);
-  bindDemoDataEvents(ctx);
-  bindComplaintEvents(ctx);
-  bindApiKeyEvents(ctx);
-  bindResearchEvents(ctx);
-  bindObservabilityEvents(ctx);
-  bindDashboardEvents(ctx);
-  bindQuestionBankEvents(ctx);
 
-  // Start SSE notification listener for teachers
-  if (ctx.auth.authenticated && ["admin", "teacher"].includes(ctx.auth.user.role)) {
-    startNotificationListener(ctx);
+  if (!ctx.auth.authenticated) {
+    showAuth(ctx);
+  } else {
+    const bootstrapPromise = bootstrapAuthenticatedApp(ctx, ctx.auth);
+    const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
+    const [features] = await Promise.all([featuresPromise, bootstrapPromise]);
+    bindAuthenticatedFeatures(ctx, features);
   }
 
   // Navigation
@@ -91,13 +134,9 @@ export async function initApp() {
     }
   });
 
-  const { refreshSimulatorIfEnabled } = await import("./app-context.js");
   refreshSimulatorIfEnabled(ctx);
 
   // Dark mode toggle
-  // Explicitly manage BOTH .light-mode and .dark-mode so the OS-preference
-  // media query (:root:not(.light-mode):not(.dark-mode)) never fights the
-  // user's explicit choice.
   const savedTheme = localStorage.getItem("lisan-theme");
   const applyTheme = (theme) => {
     const root = document.documentElement;
@@ -128,7 +167,6 @@ export async function initApp() {
       ctx.els.hamburgerBtn.setAttribute("aria-expanded",
         sidebar.classList.contains("nav-open") ? "true" : "false");
     });
-    // Close nav on nav click (mobile)
     document.querySelector(".sidebar")?.addEventListener("click", (e) => {
       if (e.target.closest(".nav-button") || e.target.closest(".nav-sub-item")) {
         if (window.innerWidth <= 900) {
@@ -138,11 +176,5 @@ export async function initApp() {
         }
       }
     });
-  }
-
-  if (ctx.auth.authenticated) {
-    await bootstrapAuthenticatedApp(ctx, ctx.auth);
-  } else {
-    showAuth(ctx);
   }
 }
