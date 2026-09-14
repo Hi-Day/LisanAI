@@ -93,8 +93,6 @@ function start() {
   if (!container) return;
   const description = container.previousElementSibling;
   if (description?.classList.contains("panel-hint")) description.textContent = "Learning Outcome adalah unit trajectory; evidence dan criterion menjadi dasar pembentuk skor.";
-  const observer = new MutationObserver(() => { clearTimeout(start.timer); start.timer = setTimeout(refresh, 80); });
-  observer.observe(container, { childList: true, subtree: true });
   refresh();
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
