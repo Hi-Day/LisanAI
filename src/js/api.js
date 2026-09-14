@@ -132,7 +132,11 @@ export async function streamAssessmentAction({ action, payload, onChunk, onResul
     headers["X-CSRF-Token"] = clientCsrfToken;
   }
 
-  const response = await fetch("/api/assessment", {
+  // Student evaluation is handled by /api/evaluation, while assessment
+  // authoring/generation remains on /api/assessment. Keeping the routing here
+  // prevents the student flow from hitting the teacher/admin-only endpoint.
+  const endpoint = action === "evaluate" ? "/api/evaluation" : "/api/assessment";
+  const response = await fetch(endpoint, {
     method: "POST",
     credentials: "include",
     headers,
