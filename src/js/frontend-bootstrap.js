@@ -57,6 +57,7 @@ export async function renderRoleState(ctx, modules = {}) {
     modules.complaints?.renderComplaints(ctx);
     modules.complaints?.updateComplaintBadge(ctx);
   } else if (role === "student") {
+    modules.studentClassManagement?.renderStudentClasses(ctx);
     modules.complaints?.notifyStudentComplaintStatus(ctx);
   }
 
