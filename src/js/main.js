@@ -88,6 +88,13 @@ export async function initApp() {
     const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
     const [features] = await Promise.all([featuresPromise, bootstrapPromise]);
     bindAuthenticatedFeatures(ctx, features);
+
+    // bootstrapAuthenticatedApp renders the shell before feature event
+    // handlers are available. Re-render the active view after binding so
+    // controls that depend on feature initialization are fully wired.
+    if (ctx.currentViewId) {
+      await switchView(ctx, ctx.currentViewId, { fromHistory: true });
+    }
   }
 
   // Navigation
