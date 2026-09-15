@@ -26,6 +26,7 @@ let isDbInitialized = false;
 
 const API_ROUTE_ALIASES = {
   database: "data",
+  notifications: "data",
   probing: "evaluation",
   "evidence-feedback": "evaluation",
   apikeys: "auth",
