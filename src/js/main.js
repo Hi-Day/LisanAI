@@ -173,9 +173,36 @@ function bindMobileNavigation(ctx) {
   });
 }
 
+async function bootstrapAuthenticated(ctx, nextAuth) {
+  const featuresPromise = loadAuthenticatedFeatures(nextAuth.user.role);
+  await bootstrapCoreApp(ctx, nextAuth);
+
+  try {
+    const features = await featuresPromise;
+    ctx.features = features;
+
+    await applyRoleAccess(ctx);
+    await renderRoleState(ctx, features);
+    bindAuthenticatedFeatures(ctx, features);
+
+    if (nextAuth.user.role === "admin") {
+      features.userManagement?.renderUsers(ctx);
+    }
+
+    await refreshSimulatorIfEnabled(ctx);
+    showApp(ctx);
+  } catch (error) {
+    console.error("Authenticated bootstrap failed:", error);
+    ctx.features = null;
+    showAuth(ctx);
+    throw error;
+  }
+}
+
 export async function initApp() {
   const ctx = createAppContext();
   ctx.auth = await getCurrentUser();
+  ctx.onAuthenticated = (nextAuth) => bootstrapAuthenticated(ctx, nextAuth);
   bindAuthEvents(ctx);
 
   if (!ctx.auth.authenticated) {
@@ -186,25 +213,8 @@ export async function initApp() {
     return;
   }
 
-  // Resolve the role before downloading authenticated feature code. Core data
-  // bootstrap and role-specific downloads happen in parallel.
-  const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
-  await bootstrapCoreApp(ctx, ctx.auth);
-  const features = await featuresPromise;
-
-  // appShell starts hidden in index.html. Keep it hidden until role access,
-  // rendering, and feature bindings are complete to avoid partial interaction.
-  await applyRoleAccess(ctx);
-  await renderRoleState(ctx);
-  bindAuthenticatedFeatures(ctx, features);
-
-  if (ctx.auth.user.role === "admin") {
-    features.userManagement?.renderUsers(ctx);
-  }
-
-  await refreshSimulatorIfEnabled(ctx);
+  await bootstrapAuthenticated(ctx, ctx.auth);
   bindGlobalNavigation(ctx);
   bindThemeControls(ctx);
   bindMobileNavigation(ctx);
-  showApp(ctx);
 }
