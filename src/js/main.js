@@ -1,148 +1,227 @@
 import { getCurrentUser } from "./api.js";
-import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView } from "./app-context.js";
+import {
+  createAppContext,
+  showAuth,
+  showApp,
+  switchView,
+  applyRoleAccess,
+  refreshSimulatorIfEnabled,
+} from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
-import { bindAssessmentWizardEvents } from "./assessment-wizard.js";
-import { enhanceAssessmentWizardUX } from "./assessment-ux.js";
-import { bindStudentFlowEvents } from "./student-flow.js";
-import { bindClassManagementEvents } from "./class-management.js";
-import { bindUserManagementEvents } from "./user-management.js";
-import { bindSimulatorEvents } from "./simulator.js";
-import { bindMonitoringEvents } from "./monitoring.js";
-import { bindDemoDataEvents } from "./demo-data.js";
-import { bindComplaintEvents } from "./complaints.js";
-import { bindApiKeyEvents, loadApiKeys } from "./api-keys.js";
-import { bindResearchEvents } from "./research.js";
-import { bindObservabilityEvents } from "./observability.js";
-import { bindDashboardEvents } from "./dashboard.js";
-import { bindQuestionBankEvents } from "./question-bank.js";
-import { startNotificationListener } from "./notifications.js";
+import { bootstrapCoreApp, renderRoleState } from "./frontend-bootstrap.js";
 
-/**
- * Application entry point. Creates the shared context, wires up all feature
- * modules, and bootstraps the authenticated (or guest) view.
- */
-export async function initApp() {
-  const ctx = createAppContext();
-  ctx.auth = await getCurrentUser();
+const ROLE_FEATURES = {
+  student: {
+    studentFlow: () => import("./student-flow.js"),
+    studentClassManagement: () => import("./student-class-management.js"),
+    studentComplaints: () => import("./student-complaints.js"),
+    resultModal: () => import("./result-modal.js"),
+  },
+  teacher: {
+    complaints: () => import("./complaints.js"),
+    assessmentWizard: () => import("./assessment-wizard.js"),
+    assessmentUx: () => import("./assessment-ux.js"),
+    classManagement: () => import("./class-management.js"),
+    monitoring: () => import("./monitoring.js"),
+    demoData: () => import("./demo-data.js"),
+    dashboard: () => import("./dashboard.js"),
+    questionBank: () => import("./question-bank.js"),
+    notifications: () => import("./notifications.js"),
+    simulator: () => import("./simulator.js"),
+    resultModal: () => import("./result-modal.js"),
+  },
+  admin: {
+    userManagement: () => import("./user-management.js"),
+    monitoring: () => import("./monitoring.js"),
+    apiKeys: () => import("./api-keys.js"),
+    research: () => import("./research.js"),
+    observability: () => import("./observability.js"),
+    questionBank: () => import("./question-bank.js"),
+    notifications: () => import("./notifications.js"),
+    simulator: () => import("./simulator.js"),
+    resultModal: () => import("./result-modal.js"),
+  },
+};
 
-  // Wire up all feature event handlers against the shared context.
-  bindAuthEvents(ctx);
-  bindAssessmentWizardEvents(ctx);
-  enhanceAssessmentWizardUX(ctx);
-  bindStudentFlowEvents(ctx);
-  bindClassManagementEvents(ctx);
-  bindUserManagementEvents(ctx);
-  bindSimulatorEvents(ctx);
-  bindMonitoringEvents(ctx);
-  bindDemoDataEvents(ctx);
-  bindComplaintEvents(ctx);
-  bindApiKeyEvents(ctx);
-  bindResearchEvents(ctx);
-  bindObservabilityEvents(ctx);
-  bindDashboardEvents(ctx);
-  bindQuestionBankEvents(ctx);
+async function loadAuthenticatedFeatures(role) {
+  const factories = ROLE_FEATURES[role] || {};
+  const loaded = await Promise.all(
+    Object.entries(factories).map(async ([name, load]) => [name, await load()])
+  );
+  return Object.fromEntries(loaded);
+}
 
-  // Start SSE notification listener for teachers
-  if (ctx.auth.authenticated && ["admin", "teacher"].includes(ctx.auth.user.role)) {
-    startNotificationListener(ctx);
+function bindTeacherFeatures(ctx, modules) {
+  modules.assessmentWizard?.bindAssessmentWizardEvents(ctx);
+  modules.assessmentUx?.enhanceAssessmentWizardUX(ctx);
+  modules.classManagement?.bindClassManagementEvents(ctx);
+  modules.monitoring?.bindMonitoringEvents(ctx);
+  modules.demoData?.bindDemoDataEvents(ctx);
+  modules.dashboard?.bindDashboardEvents(ctx);
+  modules.questionBank?.bindQuestionBankEvents(ctx);
+  modules.notifications?.startNotificationListener(ctx);
+  modules.simulator?.bindSimulatorEvents(ctx);
+}
+
+function bindAdminFeatures(ctx, modules) {
+  modules.userManagement?.bindUserManagementEvents(ctx);
+  modules.monitoring?.bindMonitoringEvents(ctx);
+  modules.apiKeys?.bindApiKeyEvents(ctx);
+  modules.research?.bindResearchEvents(ctx);
+  modules.observability?.bindObservabilityEvents(ctx);
+  modules.questionBank?.bindQuestionBankEvents(ctx);
+  modules.notifications?.startNotificationListener(ctx);
+  modules.simulator?.bindSimulatorEvents(ctx);
+}
+
+function bindStudentFeatures(ctx, modules) {
+  modules.studentFlow?.bindStudentFlowEvents(ctx);
+  modules.studentClassManagement?.bindStudentClassManagementEvents(ctx);
+}
+
+function bindAuthenticatedFeatures(ctx, modules) {
+  const role = ctx.auth.user.role;
+  if (role === "teacher") {
+    modules.complaints?.bindComplaintEvents(ctx);
   }
+  modules.resultModal?.bindResultModalEvents(ctx);
 
-  // Navigation
-  ctx.els.mainNav.addEventListener("click", (e) => {
-    const btn = e.target.closest(".nav-button");
-    if (btn) switchView(ctx, btn.dataset.view);
+  if (role === "teacher") bindTeacherFeatures(ctx, modules);
+  else if (role === "admin") bindAdminFeatures(ctx, modules);
+  else if (role === "student") bindStudentFeatures(ctx, modules);
+}
+
+function bindGlobalNavigation(ctx) {
+  ctx.els.mainNav.addEventListener("click", (event) => {
+    const button = event.target.closest(".nav-button");
+    if (button) void switchView(ctx, button.dataset.view);
   });
 
-  // Browser/Android Back navigation for the SPA. View changes create history
-  // entries in app-context.js; popstate only renders the already-selected entry.
   window.addEventListener("popstate", () => {
     if (!ctx.auth?.authenticated) return;
     const viewId = history.state?.lisanView;
-    if (viewId) switchView(ctx, viewId, { fromHistory: true });
+    if (viewId) void switchView(ctx, viewId, { fromHistory: true });
   });
 
-  // Student filter tabs (tryout/assessment toggle)
-  document.addEventListener("click", async (e) => {
-    const filterBtn = e.target.closest("[data-student-filter]");
-    if (filterBtn) {
-      document.querySelectorAll("[data-student-filter]").forEach((b) => {
-        b.classList.toggle("active", b === filterBtn);
-      });
-      const { renderStudentArea } = await import("./render.js");
-      renderStudentArea(ctx.els, ctx.state, ctx.session);
-      return;
-    }
+  document.addEventListener("click", async (event) => {
+    const filterButton = event.target.closest("[data-student-filter]");
+    if (!filterButton) return;
+
+    document.querySelectorAll("[data-student-filter]").forEach((button) => {
+      button.classList.toggle("active", button === filterButton);
+    });
+
+    const { renderStudentArea } = await import("./render.js");
+    renderStudentArea(ctx.els, ctx.state, ctx.session);
   });
 
-  // Global handler for data-nav-view buttons (e.g. wizard "Import dari Bank Soal").
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-nav-view]");
-    if (btn) switchView(ctx, btn.dataset.navView);
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-nav-view]");
+    if (button) void switchView(ctx, button.dataset.navView);
   });
 
-  // Global "more-menu" close behavior (shared across views).
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".more-menu")) {
-      document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((d) => {
-        d.classList.add("hidden");
-        const trigger = d.closest(".more-menu")?.querySelector(".more-menu-trigger");
-        if (trigger) trigger.setAttribute("aria-expanded", "false");
-      });
-    }
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".more-menu")) return;
+
+    document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((dropdown) => {
+      dropdown.classList.add("hidden");
+      const trigger = dropdown.closest(".more-menu")?.querySelector(".more-menu-trigger");
+      if (trigger) trigger.setAttribute("aria-expanded", "false");
+    });
   });
+}
 
-  const { refreshSimulatorIfEnabled } = await import("./app-context.js");
-  refreshSimulatorIfEnabled(ctx);
-
-  // Dark mode toggle
-  // Explicitly manage BOTH .light-mode and .dark-mode so the OS-preference
-  // media query (:root:not(.light-mode):not(.dark-mode)) never fights the
-  // user's explicit choice.
+function bindThemeControls(ctx) {
   const savedTheme = localStorage.getItem("lisan-theme");
+
   const applyTheme = (theme) => {
     const root = document.documentElement;
     root.classList.toggle("dark-mode", theme === "dark");
     root.classList.toggle("light-mode", theme === "light");
     localStorage.setItem("lisan-theme", theme);
+
     if (ctx.els.darkModeToggle) {
       ctx.els.darkModeToggle.innerHTML = theme === "dark"
         ? '<span aria-hidden="true">☀️</span><span>Mode Terang</span>'
         : '<span aria-hidden="true">🌙</span><span>Mode Gelap</span>';
     }
   };
+
   if (savedTheme === "dark") applyTheme("dark");
   else if (savedTheme === "light") applyTheme("light");
-  if (ctx.els.darkModeToggle) {
-    ctx.els.darkModeToggle.addEventListener("click", () => {
-      const isDark = document.documentElement.classList.contains("dark-mode");
-      applyTheme(isDark ? "light" : "dark");
-    });
-  }
 
-  // Hamburger menu for mobile
-  if (ctx.els.hamburgerBtn) {
-    ctx.els.hamburgerBtn.addEventListener("click", () => {
-      const sidebar = document.querySelector(".sidebar");
-      sidebar.classList.toggle("nav-open");
-      ctx.els.hamburgerBtn.classList.toggle("open");
-      ctx.els.hamburgerBtn.setAttribute("aria-expanded",
-        sidebar.classList.contains("nav-open") ? "true" : "false");
-    });
-    // Close nav on nav click (mobile)
-    document.querySelector(".sidebar")?.addEventListener("click", (e) => {
-      if (e.target.closest(".nav-button") || e.target.closest(".nav-sub-item")) {
-        if (window.innerWidth <= 900) {
-          document.querySelector(".sidebar").classList.remove("nav-open");
-          ctx.els.hamburgerBtn.classList.remove("open");
-          ctx.els.hamburgerBtn.setAttribute("aria-expanded", "false");
-        }
-      }
-    });
-  }
+  ctx.els.darkModeToggle?.addEventListener("click", () => {
+    const isDark = document.documentElement.classList.contains("dark-mode");
+    applyTheme(isDark ? "light" : "dark");
+  });
+}
 
-  if (ctx.auth.authenticated) {
-    await bootstrapAuthenticatedApp(ctx, ctx.auth);
-  } else {
+function bindMobileNavigation(ctx) {
+  if (!ctx.els.hamburgerBtn) return;
+
+  ctx.els.hamburgerBtn.addEventListener("click", () => {
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar) return;
+
+    sidebar.classList.toggle("nav-open");
+    ctx.els.hamburgerBtn.classList.toggle("open");
+    ctx.els.hamburgerBtn.setAttribute(
+      "aria-expanded",
+      sidebar.classList.contains("nav-open") ? "true" : "false"
+    );
+  });
+
+  document.querySelector(".sidebar")?.addEventListener("click", (event) => {
+    if (!(event.target.closest(".nav-button") || event.target.closest(".nav-sub-item"))) return;
+    if (window.innerWidth > 900) return;
+
+    document.querySelector(".sidebar")?.classList.remove("nav-open");
+    ctx.els.hamburgerBtn.classList.remove("open");
+    ctx.els.hamburgerBtn.setAttribute("aria-expanded", "false");
+  });
+}
+
+async function bootstrapAuthenticated(ctx, nextAuth) {
+  try {
+    const featuresPromise = loadAuthenticatedFeatures(nextAuth.user.role);
+    await bootstrapCoreApp(ctx, nextAuth);
+    const features = await featuresPromise;
+    ctx.features = features;
+
+    await applyRoleAccess(ctx);
+    await renderRoleState(ctx, features);
+    bindAuthenticatedFeatures(ctx, features);
+
+    if (nextAuth.user.role === "admin") {
+      features.userManagement?.renderUsers(ctx);
+    }
+
+    await refreshSimulatorIfEnabled(ctx);
+    showApp(ctx);
+  } catch (error) {
+    console.error("Authenticated bootstrap failed:", error);
+    ctx.features = null;
     showAuth(ctx);
+    throw error;
   }
+}
+
+export async function initApp() {
+  const ctx = createAppContext();
+  ctx.auth = await getCurrentUser();
+  ctx.onAuthenticated = (nextAuth) => bootstrapAuthenticated(ctx, nextAuth);
+  bindAuthEvents(ctx);
+
+  if (!ctx.auth.authenticated) {
+    showAuth(ctx);
+    bindGlobalNavigation(ctx);
+    bindThemeControls(ctx);
+    bindMobileNavigation(ctx);
+    return;
+  }
+
+  await bootstrapAuthenticated(ctx, ctx.auth);
+  bindGlobalNavigation(ctx);
+  bindThemeControls(ctx);
+  bindMobileNavigation(ctx);
 }
