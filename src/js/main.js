@@ -85,8 +85,6 @@ function bindAuthenticatedFeatures(ctx, modules) {
   const role = ctx.auth.user.role;
   if (role === "teacher") {
     modules.complaints?.bindComplaintEvents(ctx);
-  } else if (role === "student") {
-    modules.studentComplaints?.bindStudentComplaintEvents(ctx);
   }
   modules.resultModal?.bindResultModalEvents(ctx);
 
