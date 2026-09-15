@@ -1,5 +1,5 @@
 import { getCurrentUser } from "./api.js";
-import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView, refreshSimulatorIfEnabled } from "./app-context.js";
+import { createAppContext, bootstrapAuthenticatedApp, showAuth, showApp, switchView, refreshSimulatorIfEnabled } from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
 
 async function loadAuthenticatedFeatures(role) {
@@ -40,8 +40,13 @@ export async function initApp() {
     // and switchView replace feature DOM nodes.
     const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
     await bootstrapAuthenticatedApp(ctx, ctx.auth);
+    // bootstrapAuthenticatedApp renders the shell before returning. Keep it
+    // hidden until every lazy feature has been loaded and its handlers are bound,
+    // so users/tests cannot interact with partially initialized feature DOM.
+    ctx.els.appShell.classList.add("hidden");
     const features = await featuresPromise;
     bindAuthenticatedFeatures(ctx, features);
+    showApp(ctx);
   }
 
   ctx.els.mainNav.addEventListener("click", (e) => { const btn = e.target.closest(".nav-button"); if (btn) switchView(ctx, btn.dataset.view); });
