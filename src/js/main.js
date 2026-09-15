@@ -84,17 +84,14 @@ export async function initApp() {
   if (!ctx.auth.authenticated) {
     showAuth(ctx);
   } else {
+    // Load feature code and bootstrap data concurrently. bootstrap renders the
+    // initial authenticated view; bind the feature handlers to that rendered
+    // DOM afterwards. Do not re-render here because that would replace the
+    // elements whose handlers were just attached.
     const bootstrapPromise = bootstrapAuthenticatedApp(ctx, ctx.auth);
     const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
     const [features] = await Promise.all([featuresPromise, bootstrapPromise]);
     bindAuthenticatedFeatures(ctx, features);
-
-    // bootstrapAuthenticatedApp renders the shell before feature event
-    // handlers are available. Re-render the active view after binding so
-    // controls that depend on feature initialization are fully wired.
-    if (ctx.currentViewId) {
-      await switchView(ctx, ctx.currentViewId, { fromHistory: true });
-    }
   }
 
   // Navigation
