@@ -22,7 +22,7 @@ async function loadUsers() {
   }
 }
 
-export async function renderRoleState(ctx) {
+export async function renderRoleState(ctx, modules = {}) {
   const { els, auth, session, state } = ctx;
 
   if (auth.user?.role !== "student") {
@@ -52,19 +52,12 @@ export async function renderRoleState(ctx) {
   const role = auth.user?.role;
 
   if (role === "teacher") {
-    const [{ renderClasses }, { renderQuestionEditor }, complaints] = await Promise.all([
-      import("./class-management.js"),
-      import("./assessment-wizard.js"),
-      import("./complaints.js"),
-    ]);
-
-    renderClasses(ctx);
-    renderQuestionEditor(ctx);
-    complaints.renderComplaints(ctx);
-    complaints.updateComplaintBadge(ctx);
+    modules.classManagement?.renderClasses(ctx);
+    modules.assessmentWizard?.renderQuestionEditor(ctx);
+    modules.complaints?.renderComplaints(ctx);
+    modules.complaints?.updateComplaintBadge(ctx);
   } else if (role === "student") {
-    const { notifyStudentComplaintStatus } = await import("./complaints.js");
-    notifyStudentComplaintStatus(ctx);
+    modules.complaints?.notifyStudentComplaintStatus(ctx);
   }
 
   const hasData = state.assessments.length > 0;
