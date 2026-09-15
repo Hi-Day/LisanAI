@@ -58,7 +58,7 @@ export async function renderRoleState(ctx, modules = {}) {
     modules.complaints?.updateComplaintBadge(ctx);
   } else if (role === "student") {
     modules.studentClassManagement?.renderStudentClasses(ctx);
-    modules.complaints?.notifyStudentComplaintStatus(ctx);
+    modules.studentComplaints?.notifyStudentComplaintStatus(ctx);
   }
 
   const hasData = state.assessments.length > 0;
