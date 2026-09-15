@@ -14,6 +14,8 @@ const ROLE_FEATURES = {
   student: {
     complaints: () => import("./complaints.js"),
     studentFlow: () => import("./student-flow.js"),
+    studentClassManagement: () => import("./student-class-management.js"),
+    resultModal: () => import("./result-modal.js"),
   },
   teacher: {
     complaints: () => import("./complaints.js"),
@@ -27,6 +29,7 @@ const ROLE_FEATURES = {
     questionBank: () => import("./question-bank.js"),
     notifications: () => import("./notifications.js"),
     simulator: () => import("./simulator.js"),
+    resultModal: () => import("./result-modal.js"),
   },
   admin: {
     userManagement: () => import("./user-management.js"),
@@ -37,6 +40,7 @@ const ROLE_FEATURES = {
     questionBank: () => import("./question-bank.js"),
     notifications: () => import("./notifications.js"),
     simulator: () => import("./simulator.js"),
+    resultModal: () => import("./result-modal.js"),
   },
 };
 
@@ -74,11 +78,13 @@ function bindAdminFeatures(ctx, modules) {
 
 function bindStudentFeatures(ctx, modules) {
   modules.studentFlow?.bindStudentFlowEvents(ctx);
+  modules.studentClassManagement?.bindStudentClassManagementEvents(ctx);
 }
 
 function bindAuthenticatedFeatures(ctx, modules) {
   const role = ctx.auth.user.role;
   modules.complaints?.bindComplaintEvents(ctx);
+  modules.resultModal?.bindResultModalEvents(ctx);
 
   if (role === "teacher") bindTeacherFeatures(ctx, modules);
   else if (role === "admin") bindAdminFeatures(ctx, modules);
