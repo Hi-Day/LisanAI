@@ -70,12 +70,14 @@ export async function initApp() {
   if (!ctx.auth.authenticated) {
     showAuth(ctx);
   } else {
-    // Feature modules must be bound before bootstrap renders any authenticated
-    // view. This avoids a race where applyRoleAccess/switchView replaces DOM
-    // nodes after the handlers were attached.
-    const features = await loadAuthenticatedFeatures(ctx.auth.user.role);
-    bindAuthenticatedFeatures(ctx, features);
+    // Load feature modules while the authenticated bootstrap is preparing the
+    // initial state, but bind their DOM handlers only after bootstrap has
+    // completed all initial rendering. This prevents render functions from
+    // replacing nodes after handlers are attached.
+    const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
     await bootstrapAuthenticatedApp(ctx, ctx.auth);
+    const features = await featuresPromise;
+    bindAuthenticatedFeatures(ctx, features);
   }
 
   ctx.els.mainNav.addEventListener("click", (e) => {
