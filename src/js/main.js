@@ -70,14 +70,13 @@ export async function initApp() {
   if (!ctx.auth.authenticated) {
     showAuth(ctx);
   } else {
-    // Load feature modules while the authenticated bootstrap is preparing the
-    // initial state, but bind their DOM handlers only after bootstrap has
-    // completed all initial rendering. This prevents render functions from
-    // replacing nodes after handlers are attached.
-    const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
-    await bootstrapAuthenticatedApp(ctx, ctx.auth);
-    const features = await featuresPromise;
+    // Feature handlers must exist before bootstrap exposes the authenticated UI.
+    // bootstrap renders/replaces view content and tests/users can interact as
+    // soon as the app shell becomes visible. Modules are downloaded in parallel
+    // before binding, while bootstrap itself still performs the data/render work.
+    const features = await loadAuthenticatedFeatures(ctx.auth.user.role);
     bindAuthenticatedFeatures(ctx, features);
+    await bootstrapAuthenticatedApp(ctx, ctx.auth);
   }
 
   ctx.els.mainNav.addEventListener("click", (e) => {
