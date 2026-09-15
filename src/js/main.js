@@ -21,7 +21,6 @@ const ROLE_FEATURES = {
     complaints: () => import("./complaints.js"),
     assessmentWizard: () => import("./assessment-wizard.js"),
     assessmentUx: () => import("./assessment-ux.js"),
-    studentFlow: () => import("./student-flow.js"),
     classManagement: () => import("./class-management.js"),
     monitoring: () => import("./monitoring.js"),
     demoData: () => import("./demo-data.js"),
@@ -55,7 +54,6 @@ async function loadAuthenticatedFeatures(role) {
 function bindTeacherFeatures(ctx, modules) {
   modules.assessmentWizard?.bindAssessmentWizardEvents(ctx);
   modules.assessmentUx?.enhanceAssessmentWizardUX(ctx);
-  modules.studentFlow?.bindStudentFlowEvents(ctx);
   modules.classManagement?.bindClassManagementEvents(ctx);
   modules.monitoring?.bindMonitoringEvents(ctx);
   modules.demoData?.bindDemoDataEvents(ctx);
@@ -184,10 +182,9 @@ function bindMobileNavigation(ctx) {
 }
 
 async function bootstrapAuthenticated(ctx, nextAuth) {
-  const featuresPromise = loadAuthenticatedFeatures(nextAuth.user.role);
-  await bootstrapCoreApp(ctx, nextAuth);
-
   try {
+    const featuresPromise = loadAuthenticatedFeatures(nextAuth.user.role);
+    await bootstrapCoreApp(ctx, nextAuth);
     const features = await featuresPromise;
     ctx.features = features;
 
