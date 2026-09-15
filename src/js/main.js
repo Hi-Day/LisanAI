@@ -12,9 +12,9 @@ import { bootstrapCoreApp, renderRoleState } from "./frontend-bootstrap.js";
 
 const ROLE_FEATURES = {
   student: {
-    complaints: () => import("./complaints.js"),
     studentFlow: () => import("./student-flow.js"),
     studentClassManagement: () => import("./student-class-management.js"),
+    studentComplaints: () => import("./student-complaints.js"),
     resultModal: () => import("./result-modal.js"),
   },
   teacher: {
@@ -83,7 +83,11 @@ function bindStudentFeatures(ctx, modules) {
 
 function bindAuthenticatedFeatures(ctx, modules) {
   const role = ctx.auth.user.role;
-  modules.complaints?.bindComplaintEvents(ctx);
+  if (role === "teacher") {
+    modules.complaints?.bindComplaintEvents(ctx);
+  } else if (role === "student") {
+    modules.studentComplaints?.bindStudentComplaintEvents(ctx);
+  }
   modules.resultModal?.bindResultModalEvents(ctx);
 
   if (role === "teacher") bindTeacherFeatures(ctx, modules);
