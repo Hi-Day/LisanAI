@@ -2,11 +2,6 @@ import { getCurrentUser } from "./api.js";
 import { createAppContext, bootstrapAuthenticatedApp, showAuth, switchView, refreshSimulatorIfEnabled } from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
 
-/**
- * Load only the feature modules needed by the authenticated role. Each module
- * is a separate async chunk, so the initial application bundle no longer
- * contains every teacher/admin/student feature.
- */
 async function loadAuthenticatedFeatures(role) {
   const imports = {
     assessmentWizard: import("./assessment-wizard.js"),
@@ -14,7 +9,6 @@ async function loadAuthenticatedFeatures(role) {
     complaints: import("./complaints.js"),
     simulator: import("./simulator.js"),
   };
-
   if (role === "teacher") {
     Object.assign(imports, {
       studentFlow: import("./student-flow.js"),
@@ -36,11 +30,8 @@ async function loadAuthenticatedFeatures(role) {
       notifications: import("./notifications.js"),
     });
   } else if (role === "student") {
-    Object.assign(imports, {
-      studentFlow: import("./student-flow.js"),
-    });
+    Object.assign(imports, { studentFlow: import("./student-flow.js") });
   }
-
   const loaded = await Promise.all(Object.entries(imports).map(async ([name, promise]) => [name, await promise]));
   return Object.fromEntries(loaded);
 }
@@ -50,7 +41,6 @@ function bindAuthenticatedFeatures(ctx, modules) {
   modules.assessmentUx?.enhanceAssessmentWizardUX(ctx);
   modules.complaints?.bindComplaintEvents(ctx);
   modules.simulator?.bindSimulatorEvents(ctx);
-
   if (ctx.auth.user.role === "teacher") {
     modules.studentFlow?.bindStudentFlowEvents(ctx);
     modules.classManagement?.bindClassManagementEvents(ctx);
@@ -72,10 +62,6 @@ function bindAuthenticatedFeatures(ctx, modules) {
   }
 }
 
-/**
- * Application entry point. Authentication stays eager; authenticated feature
- * modules are loaded lazily and in parallel with the data bootstrap.
- */
 export async function initApp() {
   const ctx = createAppContext();
   ctx.auth = await getCurrentUser();
@@ -84,50 +70,39 @@ export async function initApp() {
   if (!ctx.auth.authenticated) {
     showAuth(ctx);
   } else {
-    // Load feature code and bootstrap data concurrently. bootstrap renders the
-    // initial authenticated view; bind the feature handlers to that rendered
-    // DOM afterwards. Do not re-render here because that would replace the
-    // elements whose handlers were just attached.
-    const bootstrapPromise = bootstrapAuthenticatedApp(ctx, ctx.auth);
-    const featuresPromise = loadAuthenticatedFeatures(ctx.auth.user.role);
-    const [features] = await Promise.all([featuresPromise, bootstrapPromise]);
+    // Feature modules must be bound before bootstrap renders any authenticated
+    // view. This avoids a race where applyRoleAccess/switchView replaces DOM
+    // nodes after the handlers were attached.
+    const features = await loadAuthenticatedFeatures(ctx.auth.user.role);
     bindAuthenticatedFeatures(ctx, features);
+    await bootstrapAuthenticatedApp(ctx, ctx.auth);
   }
 
-  // Navigation
   ctx.els.mainNav.addEventListener("click", (e) => {
     const btn = e.target.closest(".nav-button");
     if (btn) switchView(ctx, btn.dataset.view);
   });
 
-  // Browser/Android Back navigation for the SPA. View changes create history
-  // entries in app-context.js; popstate only renders the already-selected entry.
   window.addEventListener("popstate", () => {
     if (!ctx.auth?.authenticated) return;
     const viewId = history.state?.lisanView;
     if (viewId) switchView(ctx, viewId, { fromHistory: true });
   });
 
-  // Student filter tabs (tryout/assessment toggle)
   document.addEventListener("click", async (e) => {
     const filterBtn = e.target.closest("[data-student-filter]");
     if (filterBtn) {
-      document.querySelectorAll("[data-student-filter]").forEach((b) => {
-        b.classList.toggle("active", b === filterBtn);
-      });
+      document.querySelectorAll("[data-student-filter]").forEach((b) => b.classList.toggle("active", b === filterBtn));
       const { renderStudentArea } = await import("./render.js");
       renderStudentArea(ctx.els, ctx.state, ctx.session);
-      return;
     }
   });
 
-  // Global handler for data-nav-view buttons (e.g. wizard "Import dari Bank Soal").
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-nav-view]");
     if (btn) switchView(ctx, btn.dataset.navView);
   });
 
-  // Global "more-menu" close behavior (shared across views).
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".more-menu")) {
       document.querySelectorAll(".more-menu-dropdown:not(.hidden)").forEach((d) => {
@@ -140,7 +115,6 @@ export async function initApp() {
 
   refreshSimulatorIfEnabled(ctx);
 
-  // Dark mode toggle
   const savedTheme = localStorage.getItem("lisan-theme");
   const applyTheme = (theme) => {
     const root = document.documentElement;
@@ -162,14 +136,12 @@ export async function initApp() {
     });
   }
 
-  // Hamburger menu for mobile
   if (ctx.els.hamburgerBtn) {
     ctx.els.hamburgerBtn.addEventListener("click", () => {
       const sidebar = document.querySelector(".sidebar");
       sidebar.classList.toggle("nav-open");
       ctx.els.hamburgerBtn.classList.toggle("open");
-      ctx.els.hamburgerBtn.setAttribute("aria-expanded",
-        sidebar.classList.contains("nav-open") ? "true" : "false");
+      ctx.els.hamburgerBtn.setAttribute("aria-expanded", sidebar.classList.contains("nav-open") ? "true" : "false");
     });
     document.querySelector(".sidebar")?.addEventListener("click", (e) => {
       if (e.target.closest(".nav-button") || e.target.closest(".nav-sub-item")) {
