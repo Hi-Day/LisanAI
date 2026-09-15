@@ -4,10 +4,6 @@ import { escapeHtml } from "./utils.js";
  * Student-only complaint notification rendering.
  * Teacher complaint handling remains isolated in complaints.js.
  */
-export function bindStudentComplaintEvents() {
-  // Reserved for student-only notification interactions.
-}
-
 export function notifyStudentComplaintStatus(ctx) {
   const { els, auth } = ctx;
   if (!auth?.user || auth.user.role !== "student") return;
