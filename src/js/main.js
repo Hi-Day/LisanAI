@@ -58,6 +58,7 @@ function bindTeacherFeatures(ctx, modules) {
   modules.dashboard?.bindDashboardEvents(ctx);
   modules.questionBank?.bindQuestionBankEvents(ctx);
   modules.notifications?.startNotificationListener(ctx);
+  modules.simulator?.bindSimulatorEvents(ctx);
 }
 
 function bindAdminFeatures(ctx, modules) {
@@ -68,6 +69,7 @@ function bindAdminFeatures(ctx, modules) {
   modules.observability?.bindObservabilityEvents(ctx);
   modules.questionBank?.bindQuestionBankEvents(ctx);
   modules.notifications?.startNotificationListener(ctx);
+  modules.simulator?.bindSimulatorEvents(ctx);
 }
 
 function bindStudentFeatures(ctx, modules) {
