@@ -160,7 +160,7 @@ function checkStudentRuntimeBoundary() {
 
   if (fs.existsSync(studentFlowPath)) {
     const source = fs.readFileSync(studentFlowPath, "utf8");
-    if (/\brenderCurrentState\s*\(/.test(source) || /renderCurrentState/.test(source)) {
+    if (/renderCurrentState/.test(source)) {
       fail("src/js/student-flow.js: student runtime must use student-render-state.js, not renderCurrentState().");
     }
     if (!/from ["']\.\/student-render-state\.js["']/.test(source)) {
