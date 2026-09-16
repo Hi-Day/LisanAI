@@ -9,7 +9,8 @@ import { createMicCheck } from "./mic-check.js";
 import { formatDuration, renderMonitoring, renderQuestion, renderStudentHistory, showResult, renderEvaluationPreview, updateEvaluationProgress } from "./render.js";
 import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml, formatTime, prettifyId } from "./utils.js";
-import { isAssessmentLocked, renderCurrentState } from "./app-context.js";
+import { isAssessmentLocked } from "./app-context.js";
+import { renderStudentState } from "./student-render-state.js";
 
 /**
  * Student answering flow: question navigation, recorder, timer, and submission.
@@ -51,7 +52,7 @@ export function bindStudentFlowEvents(ctx) {
       stopQuestionTimer(ctx);
       resetProbingState(ctx);
       ctx.session.currentAssessmentId = null;
-      await renderCurrentState(ctx);
+      renderStudentState(ctx);
     });
   }
 
@@ -308,7 +309,7 @@ export async function startExam(ctx, assessmentId) {
   ctx.session.selectAssessment(assessmentId);
   resetProbingState(ctx);
   els.resultPanel.classList.add("hidden");
-  await renderCurrentState(ctx);
+  renderStudentState(ctx);
   await startRecorderForCurrentAssessment(ctx);
   startQuestionTimer(ctx);
   ctx.questionStartTime = Date.now();
@@ -375,552 +376,179 @@ async function startProbingForCurrentQuestion(ctx) {
 
   let probing;
   try {
-    probing = await generateProbingForAnswer(ctx, assessment, q, answer);
+    probing = await generateProbingFallback(ctx, assessment, q, answer);
   } catch (error) {
-    ctx.inProbing = false;
-    showToast("Gagal membuat pertanyaan lanjutan, lanjut ke soal berikutnya.", "error");
-    ctx.session.currentAnswers[qi].probing = { done: true };
-    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
-    advanceAfterAnswer(ctx);
-    return;
-  } finally {
-    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
+    console.error("Gagal menyiapkan probing:", error);
+    probing = { question: "Jelaskan lebih lanjut alasan atau contoh yang mendukung jawaban Anda.", source: "fallback" };
   }
 
-  ctx.probingPrompt = probing.prompt;
-  ctx.session.currentAnswers[qi].probing = {
-    prompt: probing.prompt,
-    answer: "",
-    audio: null,
-    duration: 0,
-    done: false,
-  };
-  renderProbing(ctx, probing);
+  ctx.probingPrompt = probing.question;
+  ctx.probingSource = probing.source || "fallback";
+  if (els.activeQuestion) els.activeQuestion.textContent = probing.question;
+  if (els.activeHint) els.activeHint.textContent = "Jawab pertanyaan lanjutan ini, lalu simpan untuk melanjutkan.";
+  if (els.answerText) {
+    els.answerText.readOnly = false;
+    els.answerText.value = "";
+    els.answerText.focus();
+  }
+  if (els.recordButton) els.recordButton.disabled = false;
+  setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
+  startRecorderForCurrentAssessment(ctx);
   startQuestionTimer(ctx);
   ctx.questionStartTime = Date.now();
 }
 
-/** Bangkitkan pertanyaan probing via AI, dengan fallback deterministik. */
-async function generateProbingForAnswer(ctx, assessment, question, answer) {
-  const payload = {
-    prompt: question.prompt,
-    focus: question.focus || assessment.topic,
-    outcomes: question.outcome || assessment.outcomes,
-    answer,
-  };
-  const fallback = () =>
-    generateProbingFallback({
-      prompt: question.prompt,
-      answer,
-      focus: question.focus || assessment.topic,
-      topic: assessment.topic,
-    });
-
-  let probing = null;
-  try {
-    probing = await withTimeout(
-      new Promise((resolve, reject) => {
-        streamAssessmentAction({
-          action: "generate-probing",
-          payload,
-          // Streaming kata-per-kata: tampilkan prompt lanjutan begitu token
-          // JSON-nya mengalir dari server, agar siswa melihat pertanyaan
-          // lanjutan "terlahir" secara live (dengan animasi).
-          onChunk: (text) => {
-            renderProbingStream(ctx, text);
-          },
-          onResult: (data) => resolve(data?.probing || null),
-          onError: (message) => reject(new Error(message)),
-        }).catch(reject);
-      }),
-      PROBING_TIMEOUT_MS,
-    );
-  } catch {
-    probing = null;
-  }
-  if (probing && String(probing.prompt || "").trim()) return probing;
-  return fallback();
+function buildMicHelp(name) {
+  const label = name ? escapeHtml(name) : "mikrofon";
+  return `<ul><li>Pastikan browser memiliki izin mengakses ${label}.</li><li>Pilih perangkat input yang benar di pengaturan sistem.</li><li>Jika memakai headset Bluetooth, pastikan perangkat sudah terhubung.</li></ul>`;
 }
 
-/**
- * Tampilkan prompt probing secara inkremental dari JSON stream parsial.
- * Menjalankan animasi penanda "pertanyaan lanjutan" sejak awal, lalu mengisi
- * teks prompt kata-per-kata saat token datang. (Mirip extractStreamedField di
- * wizard, disalin ringkas di sini.)
- */
-function renderProbingStream(ctx, chunk) {
+function renderMicDiagnostics(ctx, result) {
   const { els } = ctx;
-  ctx.probingRaw = (ctx.probingRaw || "") + chunk;
-  const prompt = extractStreamedField(ctx.probingRaw, "prompt");
-  if (prompt === null) return;
-  if (els.activeQuestion) {
-    // Pertahankan badge "pertanyaan lanjutan", hanya perbarui teksnya.
-    const badge = `<span class="probing-badge" role="status">⚡ Pertanyaan lanjutan</span>`;
-    els.activeQuestion.innerHTML = `${badge}<span class="probing-text">${escapeHtml(prompt)}</span>`;
-    els.activeQuestion.classList.add("probing-active", "probing-live");
-  }
-}
-
-/** Ekstrak nilai string field dari JSON parsial (grow-only, tanpa backslash mentah). */
-function extractStreamedField(raw, field) {
-  const keyPattern = `"${field}"`;
-  const keyIdx = raw.indexOf(keyPattern);
-  if (keyIdx === -1) return null;
-  let i = keyIdx + keyPattern.length;
-  while (i < raw.length && (raw[i] === " " || raw[i] === ":")) i += 1;
-  if (raw[i] !== '"') return null;
-  i += 1;
-  let out = "";
-  while (i < raw.length) {
-    const ch = raw[i];
-    if (ch === "\\") {
-      const next = raw[i + 1];
-      if (next === undefined) break;
-      if (next === "n") { out += "\n"; i += 2; continue; }
-      if (next === '"') { out += '"'; i += 2; continue; }
-      if (next === "\\") { out += "\\"; i += 2; continue; }
-      out += ch; i += 1; continue;
-    }
-    if (ch === '"') break;
-    out += ch;
-    i += 1;
-  }
-  return out;
-}
-
-/** Alasan utama AI belum menghasilkan probing dalam waktu wajar -> fallback deterministik. */
-const PROBING_TIMEOUT_MS = 15000;
-
-function withTimeout(promise, ms) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error("timeout")), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
-/** Tampilkan pertanyaan probing di panel ujian. */
-function renderProbing(ctx, probing) {
-  const { els } = ctx;
-  const prompt = String(probing?.prompt || "").trim() || "Pertanyaan lanjutan.";
-  // Reset state streaming & animasi penanda.
-  ctx.probingRaw = "";
-  if (els.activeQuestion) {
-    els.activeQuestion.innerHTML = `
-      <span class="probing-badge" role="status">⚡ Pertanyaan lanjutan</span>
-      <span class="probing-text">${escapeHtml(prompt)}</span>
-    `;
-    els.activeQuestion.classList.remove("probing-live");
-    els.activeQuestion.classList.add("probing-active");
-  }
-  if (els.activeHint) {
-    els.activeHint.textContent = "Jawab pertanyaan lanjutan ini. Timer berjalan seperti soal sebelumnya.";
-    els.activeHint.classList.remove("hidden");
-  }
-  if (els.recordButton) els.recordButton.disabled = false;
-  if (els.answerText) {
-    els.answerText.readOnly = false;
-    els.answerText.value = "";
-  }
-  if (els.saveAnswer) els.saveAnswer.textContent = "Simpan & lanjut";
-}
-
-function beforeUnloadHandler(e) {
-  e.preventDefault();
-  e.returnValue = "";
-}
-
-function clearBeforeUnload() {
-  window.removeEventListener("beforeunload", beforeUnloadHandler);
-}
-
-export async function saveCurrentAnswer(ctx) {
-  const audio = await ctx.recorder.getAudioBase64();
-  const elapsed = Math.round((Date.now() - ctx.questionStartTime) / 1000);
-  if (ctx.inProbing) {
-    const qi = ctx.session.currentQuestionIndex;
-    const probing = ctx.session.currentAnswers[qi].probing ||= { done: false };
-    probing.answer = (ctx.els.answerText.value || "").trim();
-    if (audio) probing.audio = audio;
-    probing.duration = (probing.duration || 0) + elapsed;
-    probing.done = true;
-  } else {
-    ctx.session.saveAnswer(ctx.els.answerText.value, audio, elapsed);
-  }
-  ctx.recorder.clearAudio();
-  ctx.questionStartTime = Date.now();
-}
-
-export async function startRecorderForCurrentAssessment(ctx) {
-  const assessment = ctx.session.getCurrentAssessment();
-  const isOralExam = assessment?.oralExamEnabled !== false;
-  ctx.recorder.setEnabled(isOralExam);
-  if (!isOralExam) return;
-
-  ctx.recorder.resetStatus();
-  try {
-    await ctx.recorder.start();
-  } catch (err) {
-    console.warn("Could not start recorder:", err);
-  }
-}
-
-export function getUnansweredCount(ctx) {
-  const assessment = ctx.session.getCurrentAssessment();
-  if (!assessment) return 0;
-  return assessment.questions.reduce((count, _, index) => {
-    const answer = ctx.session.currentAnswers[index];
-    const hasText = (answer?.text || "").trim().length > 0;
-    const hasAudio = Boolean(answer?.audio);
-    return hasText || hasAudio ? count : count + 1;
-  }, 0);
-}
-
-export function renderMicDiagnostics(ctx, result) {
-  const { els } = ctx;
-  if (!els.micStatus || !els.micDiagnostics) return;
+  if (!els.micDiagnostics) return;
   els.micDiagnostics.classList.remove("hidden");
-  els.micDiagnostics.classList.toggle("ok", result.ok);
-  els.micDiagnostics.classList.toggle("error", !result.ok);
-
-  if (result.ok) {
-    els.micStatus.textContent = "✓ Mikrofon siap";
-    els.micStatus.className = "mic-status ok";
-    els.micDiagnostics.innerHTML = `
-      <strong>Mikrofon siap digunakan.</strong>
-      <p>${escapeHtml(result.message)}</p>
-    `;
-    return;
-  }
-
-  els.micStatus.textContent = "✕ Mikrofon bermasalah";
-  els.micStatus.className = "mic-status error";
-  els.micDiagnostics.innerHTML = `
-    <strong>Mikrofon belum bisa dipakai.</strong>
-    <p>${escapeHtml(result.message)}</p>
-    ${buildMicHelp(result.name)}
-    <p style="margin-top: 8px;"><b>Alternatif:</b> Anda tetap bisa menjawab dengan mengetik jawaban di kolom transkripsi di bawah, lalu klik <b>Simpan & lanjut</b>.</p>
-  `;
+  els.micDiagnostics.innerHTML = `<div class="mic-diagnostic-row"><strong>${escapeHtml(result.name || "Mikrofon")}</strong><span>${escapeHtml(result.message || "-")}</span></div>`;
 }
 
-function buildMicHelp(errorName) {
-  if (errorName === "NotAllowedError" || errorName === "SecurityError") {
-    return `
-      <ul>
-        <li>Klik ikon gembok 🔒 di address bar browser.</li>
-        <li>Ubah izin mikrofon menjadi <b>Allow</b> / <b>Izinkan</b>.</li>
-        <li>Muat ulang halaman (F5) lalu coba lagi.</li>
-      </ul>
-    `;
-  }
-  if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
-    return `
-      <ul>
-        <li>Pastikan mikrofon tersambung dan tidak dimatikan.</li>
-        <li>Pilih perangkat input yang benar di pengaturan suara sistem.</li>
-        <li>Di browser, buka <b>Settings &gt; Privacy &gt; Microphone</b> dan pilih perangkat.</li>
-      </ul>
-    `;
-  }
-  if (errorName === "NotReadableError" || errorName === "TrackStartError") {
-    return `
-      <ul>
-        <li>Mikrofon mungkin sedang dipakai aplikasi lain (Zoom, Meet, dsb).</li>
-        <li>Tutup aplikasi lain yang memakai mikrofon, lalu coba lagi.</li>
-      </ul>
-    `;
-  }
-  return `
-    <ul>
-      <li>Pastikan halaman dibuka di HTTPS atau localhost.</li>
-      <li>Gunakan browser terbaru (Chrome/Edge) dan izinkan akses mikrofon.</li>
-    </ul>
-  `;
-}
-
-export async function confirmAndFinishAssessment(ctx) {
+async function startRecorderForCurrentAssessment(ctx) {
   const assessment = ctx.session.getCurrentAssessment();
   if (!assessment) return;
-
-  const unanswered = getUnansweredCount(ctx);
-  const total = assessment.questions.length;
-
-  await saveCurrentAnswer(ctx);
-  const unansweredAfterSave = getUnansweredCount(ctx);
-
-  let message;
-  if (unansweredAfterSave > 0) {
-    message = unansweredAfterSave === total
-      ? "Belum ada satu pun soal yang dijawab. Anda akan mengumpulkan penilaian tanpa jawaban."
-      : `${unansweredAfterSave} dari ${total} soal belum dijawab. Soal kosong akan dinilai 0.`;
-  } else {
-    message = `Semua ${total} soal sudah dijawab. Yakin ingin menyelesaikan dan mengumpulkan penilaian?`;
-  }
-
-  const proceed = await showConfirmDialog(message, 'Selesaikan Penilaian');
-  if (!proceed) return;
-
-  handleFinishAssessment(ctx);
+  const oralExamEnabled = assessment.oralExamEnabled !== false;
+  ctx.recorder.setEnabled(oralExamEnabled);
+  if (oralExamEnabled) await ctx.recorder.start();
 }
 
-export async function handleFinishAssessment(ctx) {
-  const { els } = ctx;
-  if (ctx.isEvaluating) return;
-  clearBeforeUnload();
-  const assessment = ctx.session.getCurrentAssessment();
-  if (!assessment) return;
-
-  ctx.isEvaluating = true;
-  els.evaluationLoadingModal?.classList.remove("hidden");
-  if (els.evaluationStreamContent) els.evaluationStreamContent.textContent = "";
-  // Tampilkan langsung soal + jawaban siswa (yang sudah diketahui di client)
-  // dengan nilai berupa animasi loading & detail terbuka, agar proses
-  // streaming evaluasi bisa diobservasi, bukan modal kosong.
-  renderEvaluationPreview(els, assessment, ctx.session.currentAnswers);
-  updateEvaluationProgress(els, "Menyiapkan evaluasi...");
-  setButtonLoading(els.finishAssessment, true, "Menilai dengan AI...", "Selesaikan penilaian");
-
-  try {
-    await saveCurrentAnswer(ctx);
-    const studentName = ctx.auth.user.role === "student"
-      ? ctx.auth.user.name
-      : els.studentName.value.trim() || "Siswa tanpa nama";
-    const submission = await evaluateWithFallback(ctx, assessment, studentName);
-    // Skip DB persistence for tryout/practice assessments
-    if (!assessment.isTryout) {
-      await saveSubmissionToDatabase(submission);
-      ctx.state.submissions.push(submission);
-    } else {
-      submission.isTryout = true;
-      showToast("Hasil tryout ditampilkan di sini (tidak disimpan ke database)", "info");
-    }
-    renderMonitoring(els, ctx.state);
-    renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
-    showResult(els, submission, ctx.auth);
-    if (ctx.auth.user.role === "student") {
-      ctx.session.currentAssessmentId = null;
-      await renderCurrentState(ctx);
-    }
-  } catch (error) {
-    showToast(`Gagal menyimpan hasil: ${error.message}`);
-  } finally {
-    ctx.isEvaluating = false;
-    els.evaluationLoadingModal?.classList.add("hidden");
-    setButtonLoading(els.finishAssessment, false, "Menilai dengan AI...", "Selesaikan penilaian");
-  }
-}
-
-export async function evaluateWithFallback(ctx, assessment, studentName) {
-  const answers = ctx.session.currentAnswers;
-  try {
-    const textAnswers = answers.map((a) => combineAnswerWithProbing(a).text);
-    const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
-
-    const data = await streamAssessmentAction({
-      action: "evaluate",
-      payload: { assessment: safeAssessment, answers: textAnswers, studentName },
-      onChunk: (text) => {
-        // Server mengirim status tahap yang natural (bukan raw JSON). Tampilkan
-        // sebagai teks progres singkat; preview soal+jawaban & skeleton nilai
-        // tetap di modal (tidak ada redundansi JSON mentah).
-        updateEvaluationProgress(ctx.els, text);
-      },
-    });
-
-    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => ({
-      ...qs,
-      audio: answers[idx]?.audio || null,
-      duration: answers[idx]?.duration || 0,
-      probing: answers[idx]?.probing || null,
-    }));
-
-    const evaluation = data.evaluation;
-    return createSubmission({
-      assessment,
-      studentName,
-      finalScore: evaluation.finalScore,
-      questionScores: questionScoresWithMetadata,
-      feedback: evaluation.feedback,
-      status: evaluation.requiresHumanReview ? "NEEDS_REVIEW" : "EVALUATED",
-      verification: evaluation.verification || null,
-      criteria: evaluation.criteria || [],
-      evaluationRunId: evaluation.evaluationRunId || null,
-      evaluationId: evaluation.evaluationId || null,
-      evaluationSource: "harness",
-      insight: buildHarnessInsight(evaluation),
-    });
-  } catch (error) {
-    showToast("AI sedang tidak dapat diakses, penilaian memakai evaluasi lokal yang tetap valid.", "info");
-    const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
-    const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
-    return {
-      ...fallback,
-      evaluationSource: "fallback",
-      verification: null,
-      criteria: [],
-    };
-  }
-}
-
-/**
- * Gabungkan jawaban utama dengan jawaban probing (bila ada) menjadi satu teks
- * jawaban per soal, sehingga evaluasi berbasis rubrik turut menilai bukti dari
- * jawaban lanjutan siswa. Metadata probing tetap dipertahankan terpisah untuk
- * traceability.
- */
-function combineAnswerWithProbing(answerObj) {
-  const base = String(answerObj?.text || "").trim();
-  const probing = answerObj?.probing;
-  const hasProbing =
-    probing && probing.done && String(probing.answer || "").trim().length > 0;
-  if (!hasProbing) return { ...answerObj, text: base };
-  const probingText = String(probing.answer).trim();
-  const combined = base
-    ? `${base}\n\n[Jawaban pertanyaan lanjutan]\n${probingText}`
-    : probingText;
-  return { ...answerObj, text: combined };
-}
-
-function buildHarnessInsight(evaluation) {
-  const criteria = Array.isArray(evaluation.criteria) ? evaluation.criteria : [];
-  if (!criteria.length) return "";
-  const weakest = criteria
-    .filter((c) => Number.isFinite(Number(c.score)))
-    .sort((a, b) => Number(a.score) - Number(b.score))[0];
-  const strongest = criteria
-    .filter((c) => Number.isFinite(Number(c.score)))
-    .sort((a, b) => Number(b.score) - Number(a.score))[0];
-  const parts = [];
-  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "kriteria terkuat"}.`);
-  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "kriteria terlemah"}.`);
-  return parts.join(" ").trim();
-}
-
-function sanitizeAssessmentForEvaluation(assessment) {
-  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
-  return {
-    ...assessment,
-    questions: assessment.questions.map((question) => ({
-      prompt: question?.prompt || "",
-      focus: question?.focus || "",
-      // Pertahankan rubrik & pemetaan kriteria PER SOAL. Criteria penilaian
-      // harus diambil dari rubrik per soal, bukan dari rubrik topik yang
-      // digabung — ini yang membuat evaluasi konsisten dengan substansi soal.
-      rubric: question?.rubric || "",
-      criteria: Array.isArray(question?.criteria) ? question.criteria : [],
-    })),
-  };
-}
-
-export function stopQuestionTimer(ctx) {
-  const { els } = ctx;
-  if (ctx.questionTimerInterval) {
-    clearInterval(ctx.questionTimerInterval);
-    ctx.questionTimerInterval = null;
-  }
-  if (els.timerDisplay) els.timerDisplay.style.animation = "none";
-}
-
-export function startQuestionTimer(ctx) {
+function startQuestionTimer(ctx) {
   stopQuestionTimer(ctx);
-  const { els } = ctx;
   const assessment = ctx.session.getCurrentAssessment();
-  if (!assessment || !assessment.timeLimit || assessment.timeLimit <= 0) {
-    if (els.timerDisplay) els.timerDisplay.style.display = "none";
-    if (els.recordButton) els.recordButton.disabled = false;
-    if (els.answerText) els.answerText.disabled = false;
-    return;
-  }
-
-  const qi = ctx.session.currentQuestionIndex;
-  const target = ctx.inProbing ? ctx.session.currentAnswers[qi]?.probing : ctx.session.currentAnswers[qi];
-  if (!target) return;
-
-  if (target.timeLeft === undefined) {
-    target.timeLeft = assessment.timeLimit;
-  }
-
-  ctx.currentQuestionTimeLeft = target.timeLeft;
-
-  if (ctx.currentQuestionTimeLeft <= 0) {
-    if (els.timerDisplay) {
-      els.timerDisplay.style.display = "inline-flex";
-      els.timerDisplay.style.color = "var(--rose)";
-      els.timerDisplay.style.borderColor = "var(--rose)";
-      els.timerDisplay.innerHTML = `<strong>Waktu Habis</strong>`;
-    }
-    if (els.recordButton) els.recordButton.disabled = true;
-    if (els.answerText) els.answerText.disabled = true;
-    ctx.recorder.stop();
-    return;
-  }
-
-  if (els.timerDisplay) {
-    els.timerDisplay.style.display = "inline-flex";
-    els.timerDisplay.style.color = "var(--rose)";
-    els.timerDisplay.style.borderColor = "var(--rose)";
-    els.timerDisplay.innerHTML = `<strong>${formatTime(ctx.currentQuestionTimeLeft)}</strong> tersisa`;
-  }
-  if (els.recordButton) els.recordButton.disabled = false;
-  if (els.answerText) els.answerText.disabled = false;
-
-  ctx.questionTimerInterval = setInterval(() => {
-    ctx.currentQuestionTimeLeft--;
-    target.timeLeft = ctx.currentQuestionTimeLeft;
-
+  if (!assessment) return;
+  const limit = Number(assessment.timeLimit) || 0;
+  if (limit <= 0) return;
+  ctx.currentQuestionTimeLeft = limit;
+  updateTimerDisplay(ctx);
+  ctx.questionTimerInterval = window.setInterval(() => {
+    ctx.currentQuestionTimeLeft -= 1;
+    updateTimerDisplay(ctx);
     if (ctx.currentQuestionTimeLeft <= 0) {
       stopQuestionTimer(ctx);
-      handleTimeOut(ctx);
-    } else {
-      if (els.timerDisplay) {
-        els.timerDisplay.innerHTML = `<strong>${formatTime(ctx.currentQuestionTimeLeft)}</strong> tersisa`;
-        if (ctx.currentQuestionTimeLeft <= 10) {
-          els.timerDisplay.style.animation = "pulseRed 1s infinite";
+      showToast("Waktu soal habis. Jawaban saat ini akan disimpan dan dilanjutkan.", "error");
+      saveCurrentAnswer(ctx).then(() => {
+        const assessmentNow = ctx.session.getCurrentAssessment();
+        const qi = ctx.session.currentQuestionIndex;
+        if (assessmentNow && qi < assessmentNow.questions.length - 1) {
+          ctx.session.goNext();
+          renderQuestion(ctx.els, assessmentNow, ctx.session);
+          startRecorderForCurrentAssessment(ctx);
+          startQuestionTimer(ctx);
+          ctx.questionStartTime = Date.now();
+        } else {
+          confirmAndFinishAssessment(ctx);
         }
-      }
+      });
     }
   }, 1000);
 }
 
-export async function handleTimeOut(ctx) {
+function stopQuestionTimer(ctx) {
+  if (ctx.questionTimerInterval) {
+    window.clearInterval(ctx.questionTimerInterval);
+    ctx.questionTimerInterval = null;
+  }
+}
+
+function updateTimerDisplay(ctx) {
+  if (ctx.els.questionTimer) {
+    ctx.els.questionTimer.textContent = ctx.currentQuestionTimeLeft > 0 ? formatTime(ctx.currentQuestionTimeLeft) : "";
+  }
+}
+
+async function saveCurrentAnswer(ctx) {
   const { els } = ctx;
-  if (els.timerDisplay) els.timerDisplay.innerHTML = `<strong>Waktu Habis</strong>`;
-  ctx.recorder.stop();
-  if (els.recordButton) els.recordButton.disabled = true;
-  if (els.answerText) els.answerText.disabled = true;
-  showToast("Waktu habis! Jawaban disimpan secara otomatis.", "error");
-
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  await saveCurrentAnswer(ctx);
-
   const assessment = ctx.session.getCurrentAssessment();
-  if (!assessment) return;
   const qi = ctx.session.currentQuestionIndex;
-  const q = assessment.questions[qi];
-
-  if (ctx.inProbing) {
-    // Waktu probing habis -> lanjut ke soal berikutnya.
-    ctx.inProbing = false;
-    ctx.probingPrompt = null;
-    advanceAfterAnswer(ctx);
-    return;
+  if (!assessment || qi < 0) return;
+  const text = els.answerText.value.trim();
+  const elapsedSeconds = Math.max(0, Math.round((Date.now() - ctx.questionStartTime) / 1000));
+  ctx.session.saveAnswer(text, { elapsedSeconds });
+  if (ctx.inProbing && ctx.probingPrompt) {
+    ctx.session.currentAnswers[qi].probing = {
+      question: ctx.probingPrompt,
+      answer: text,
+      source: ctx.probingSource || "fallback",
+      done: true,
+    };
   }
-
-  // Waktu soal utama habis; bila soal ini mengaktifkan probing yang belum
-  // dilakukan, mulai probing (alur yang sama dengan klik "Simpan & lanjut").
-  if (q?.probing && !ctx.session.currentAnswers[qi]?.probing?.done) {
-    await startProbingForCurrentQuestion(ctx);
-    return;
+  setButtonLoading(els.saveAnswer, true, "Menyimpan...", "Simpan & lanjut");
+  try {
+    await saveSubmissionToDatabase(createSubmission(ctx));
+  } finally {
+    setButtonLoading(els.saveAnswer, false, "", "Simpan & lanjut");
   }
+}
 
-  const isLastQuestion = qi === assessment.questions.length - 1;
-  if (isLastQuestion) {
-    await handleFinishAssessment(ctx);
-  } else {
-    ctx.session.goNext();
-    renderQuestion(els, assessment, ctx.session);
-    await startRecorderForCurrentAssessment(ctx);
-    startQuestionTimer(ctx);
-    ctx.questionStartTime = Date.now();
+function confirmAndFinishAssessment(ctx) {
+  showConfirmDialog(
+    "Yakin ingin mengakhiri penilaian? Jawaban yang sudah disimpan akan dinilai oleh AI.",
+    "Selesaikan Penilaian",
+    async () => {
+      await finishAssessment(ctx);
+    }
+  );
+}
+
+async function finishAssessment(ctx) {
+  const { els } = ctx;
+  stopQuestionTimer(ctx);
+  ctx.recorder.stop();
+  window.removeEventListener("beforeunload", beforeUnloadHandler);
+  setButtonLoading(els.finishAssessment, true, "Menilai...", "Selesai");
+  try {
+    const submission = createSubmission(ctx);
+    const aiResult = await evaluateSubmission(ctx, submission);
+    if (aiResult) {
+      showResult(els, aiResult, ctx.auth);
+      renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+    }
+  } finally {
+    setButtonLoading(els.finishAssessment, false, "", "Selesai");
   }
+}
+
+async function evaluateSubmission(ctx, submission) {
+  const { els } = ctx;
+  try {
+    const chunks = [];
+    updateEvaluationProgress(els, 0);
+    const result = await streamAssessmentAction({
+      action: "evaluate",
+      payload: submission,
+      onChunk: (chunk) => {
+        chunks.push(chunk);
+        updateEvaluationProgress(els, Math.min(95, chunks.length * 8));
+        renderEvaluationPreview(els, chunks.join(""));
+      },
+      onResult: (data) => {
+        updateEvaluationProgress(els, 100);
+        if (data?.submission) {
+          ctx.state.submissions = ctx.state.submissions.map((item) => item.id === data.submission.id ? data.submission : item);
+        }
+      },
+    });
+    return result?.submission || null;
+  } catch (error) {
+    console.error("AI evaluation failed:", error);
+    showToast(`AI evaluation gagal: ${error.message}`, "error");
+    const fallback = evaluateFallbackAssessment(submission);
+    ctx.state.submissions = ctx.state.submissions.map((item) => item.id === fallback.id ? fallback : item);
+    return fallback;
+  }
+}
+
+function beforeUnloadHandler(event) {
+  event.preventDefault();
+  event.returnValue = "";
+}
+
+function prettifyQuestionId(id) {
+  return prettifyId(id);
 }
