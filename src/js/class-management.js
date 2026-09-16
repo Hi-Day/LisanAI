@@ -3,7 +3,6 @@ import {
   createClassroom,
   deleteClassroom,
   deleteMembership,
-  joinClass,
   updateClassroom,
   updateMembership,
 } from "./api.js";
@@ -12,8 +11,8 @@ import { escapeHtml } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 
 /**
- * Class management: create/edit/delete classes, join requests, approved members,
- * search + pagination, and bulk-add students.
+ * Teacher-only class management.
+ * Student join/list rendering lives in student-class-management.js.
  */
 export function bindClassManagementEvents(ctx) {
   const { els } = ctx;
@@ -26,28 +25,6 @@ export function bindClassManagementEvents(ctx) {
     ctx.state.classes.unshift({ ...classroom, status: "teacher" });
     els.classForm.reset();
     await renderCurrentState(ctx);
-  });
-
-  els.joinClassForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const code = els.joinCode.value.trim();
-    if (!code) return;
-    await joinClass(code);
-    await reloadState(ctx);
-    els.joinClassForm.reset();
-    await renderCurrentState(ctx);
-    showToast("Request join terkirim. Tunggu approval guru.");
-  });
-
-  els.studentJoinClassForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const code = els.studentJoinCode.value.trim();
-    if (!code) return;
-    await joinClass(code);
-    await reloadState(ctx);
-    els.studentJoinClassForm.reset();
-    await renderCurrentState(ctx);
-    showToast("Request join terkirim. Tunggu approval guru.");
   });
 
   els.pendingJoinList.addEventListener("click", async (event) => {
@@ -235,28 +212,10 @@ export function bindClassManagementEvents(ctx) {
 
 export function renderClasses(ctx) {
   const { els } = ctx;
-  const isStudent = ctx.auth.user?.role === "student";
-  els.classForm.classList.toggle("hidden", isStudent);
-  els.joinClassForm.classList.toggle("hidden", !isStudent);
-  els.pendingJoinList.classList.toggle("hidden", isStudent);
-
-  const usableClasses = ctx.state.classes.filter((item) => !isStudent || item.status === "approved");
-  els.classSelect.innerHTML = usableClasses.length
-    ? usableClasses.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")
-    : `<option value="">Belum ada kelas</option>`;
-
-  if (els.monitorClassFilter && !isStudent) {
-    const currentVal = els.monitorClassFilter.value;
-    els.monitorClassFilter.innerHTML = `<option value="">Semua Kelas</option>` +
-      ctx.state.classes.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
-    if (currentVal && ctx.state.classes.some((c) => c.id === currentVal)) {
-      els.monitorClassFilter.value = currentVal;
-    }
-  }
 
   if (!ctx.state.classes.length) {
     els.classList.className = "list-stack empty-state";
-    els.classList.textContent = isStudent ? "Belum join kelas." : "Belum ada kelas.";
+    els.classList.textContent = "Belum ada kelas.";
   } else {
     els.classList.className = "list-stack";
     els.classList.innerHTML = ctx.state.classes.map((item) => `
@@ -264,46 +223,14 @@ export function renderClasses(ctx) {
         <div style="flex: 1; min-width: 0;">
           <strong>${escapeHtml(item.name)}</strong>
           <p>Kode: <b>${escapeHtml(item.join_code || item.joinCode || "-")}</b></p>
-          ${!isStudent ? `
-            <div class="item-actions">
-              <button type="button" class="action-button edit-class">Edit</button>
-              <button type="button" class="action-button danger-button delete-class">Hapus</button>
-            </div>
-          ` : ""}
+          <div class="item-actions">
+            <button type="button" class="action-button edit-class">Edit</button>
+            <button type="button" class="action-button danger-button delete-class">Hapus</button>
+          </div>
         </div>
       </article>
     `).join("");
   }
-
-  if (isStudent) {
-    const activeClasses = ctx.state.classes.filter((c) => c.status === "approved" || c.status === "pending");
-    if (!activeClasses.length) {
-      els.studentClassList.className = "list-stack empty-state";
-      els.studentClassList.textContent = "Belum join kelas.";
-    } else {
-      els.studentClassList.className = "list-stack";
-      els.studentClassList.innerHTML = activeClasses.map((item) => `
-        <article class="list-item">
-          <div>
-            <strong>${escapeHtml(item.name)}</strong>
-            <p>Status: ${item.status === "approved" ? "Disetujui" : "Menunggu"}</p>
-          </div>
-        </article>
-      `).join("");
-    }
-
-    if (els.studentClassFilter) {
-      const approvedClasses = activeClasses.filter((c) => c.status === "approved");
-      const currentVal = els.studentClassFilter.value;
-      els.studentClassFilter.innerHTML = `<option value="">Semua Kelas</option>` +
-        approvedClasses.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
-      if (currentVal && approvedClasses.some((c) => c.id === currentVal)) {
-        els.studentClassFilter.value = currentVal;
-      }
-    }
-  }
-
-  if (els.approvedMemberList) els.approvedMemberList.classList.toggle("hidden", isStudent);
 
   const pending = ctx.state.memberships.filter((item) => item.status === "pending");
   if (!pending.length) {
@@ -327,7 +254,6 @@ export function renderClasses(ctx) {
 
   if (els.approvedMemberList) {
     const approved = ctx.state.memberships.filter((item) => item.status === "approved");
-
     const filtered = ctx.memberSearchQuery.trim() === ""
       ? approved
       : approved.filter((item) => {
@@ -338,51 +264,45 @@ export function renderClasses(ctx) {
           );
         });
 
-    if (els.memberCountText) {
-      els.memberCountText.textContent = `${filtered.length} anggota`;
-    }
+    if (els.memberCountText) els.memberCountText.textContent = `${filtered.length} anggota`;
 
     if (!filtered.length) {
       els.approvedMemberList.className = "list-stack empty-state";
       els.approvedMemberList.textContent = ctx.memberSearchQuery.trim() === ""
         ? "Belum ada anggota."
         : "Tidak ada hasil pencarian.";
-      if (els.memberPaginationContainer) {
-        els.memberPaginationContainer.style.display = "none";
-      }
-    } else {
-      const totalPages = Math.ceil(filtered.length / ctx.MEMBERS_PER_PAGE);
-      if (ctx.memberCurrentPage > totalPages) {
-        ctx.memberCurrentPage = Math.max(1, totalPages);
-      }
+      if (els.memberPaginationContainer) els.memberPaginationContainer.style.display = "none";
+      return;
+    }
 
-      const startIdx = (ctx.memberCurrentPage - 1) * ctx.MEMBERS_PER_PAGE;
-      const endIdx = startIdx + ctx.MEMBERS_PER_PAGE;
-      const pageItems = filtered.slice(startIdx, endIdx);
+    const totalPages = Math.ceil(filtered.length / ctx.MEMBERS_PER_PAGE);
+    if (ctx.memberCurrentPage > totalPages) ctx.memberCurrentPage = Math.max(1, totalPages);
 
-      els.approvedMemberList.className = "list-stack";
-      els.approvedMemberList.innerHTML = pageItems.map((item) => `
-        <article class="list-item">
-          <div>
-            <strong>${escapeHtml(item.student_name)}</strong>
-            <p>${escapeHtml(item.student_email)}</p>
-            <p style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">${escapeHtml(item.class_name)}</p>
-            <div class="item-actions">
-              <button class="action-button danger-button remove-member" data-id="${escapeHtml(item.id)}" type="button">Keluarkan</button>
-            </div>
+    const startIdx = (ctx.memberCurrentPage - 1) * ctx.MEMBERS_PER_PAGE;
+    const pageItems = filtered.slice(startIdx, startIdx + ctx.MEMBERS_PER_PAGE);
+
+    els.approvedMemberList.className = "list-stack";
+    els.approvedMemberList.innerHTML = pageItems.map((item) => `
+      <article class="list-item">
+        <div>
+          <strong>${escapeHtml(item.student_name)}</strong>
+          <p>${escapeHtml(item.student_email)}</p>
+          <p style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">${escapeHtml(item.class_name)}</p>
+          <div class="item-actions">
+            <button class="action-button danger-button remove-member" data-id="${escapeHtml(item.id)}" type="button">Keluarkan</button>
           </div>
-        </article>
-      `).join("");
+        </div>
+      </article>
+    `).join("");
 
-      if (els.memberPaginationContainer) {
-        if (totalPages <= 1) {
-          els.memberPaginationContainer.style.display = "none";
-        } else {
-          els.memberPaginationContainer.style.display = "flex";
-          els.memberPrevBtn.disabled = ctx.memberCurrentPage === 1;
-          els.memberNextBtn.disabled = ctx.memberCurrentPage === totalPages;
-          els.memberPageInfo.textContent = `Halaman ${ctx.memberCurrentPage} dari ${totalPages}`;
-        }
+    if (els.memberPaginationContainer) {
+      if (totalPages <= 1) {
+        els.memberPaginationContainer.style.display = "none";
+      } else {
+        els.memberPaginationContainer.style.display = "flex";
+        els.memberPrevBtn.disabled = ctx.memberCurrentPage === 1;
+        els.memberNextBtn.disabled = ctx.memberCurrentPage === totalPages;
+        els.memberPageInfo.textContent = `Halaman ${ctx.memberCurrentPage} dari ${totalPages}`;
       }
     }
   }
