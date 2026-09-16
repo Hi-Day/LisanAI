@@ -213,6 +213,16 @@ export function bindClassManagementEvents(ctx) {
 export function renderClasses(ctx) {
   const { els } = ctx;
 
+  if (els.classSelect) {
+    const currentValue = els.classSelect.value;
+    els.classSelect.innerHTML = ctx.state.classes.length
+      ? ctx.state.classes.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")
+      : `<option value="">Belum ada kelas</option>`;
+    if (currentValue && ctx.state.classes.some((item) => item.id === currentValue)) {
+      els.classSelect.value = currentValue;
+    }
+  }
+
   if (!ctx.state.classes.length) {
     els.classList.className = "list-stack empty-state";
     els.classList.textContent = "Belum ada kelas.";
