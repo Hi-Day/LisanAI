@@ -1,6 +1,6 @@
 import { getSimulationData, simulateLogin } from "./api.js";
 import { showToast } from "./toast.js";
-import { bootstrapAuthenticatedApp, refreshSimulatorIfEnabled, renderSimulator } from "./app-context.js";
+import { refreshSimulatorIfEnabled, renderSimulator } from "./app-context.js";
 
 /**
  * Demo simulator panel: tenant/user listing and one-click login.
@@ -38,7 +38,9 @@ export function bindSimulatorEvents(ctx) {
       try {
         const nextAuth = await simulateLogin(targetUserId);
         showToast(`Berhasil masuk sebagai ${nextAuth.user.name} (${nextAuth.tenant.name})`, "success");
-        await bootstrapAuthenticatedApp(ctx, nextAuth);
+        if (ctx.onAuthenticated) {
+          await ctx.onAuthenticated(nextAuth);
+        }
       } catch (error) {
         showToast(error.message, "error");
         loginBtn.disabled = false;
@@ -48,4 +50,4 @@ export function bindSimulatorEvents(ctx) {
   }
 }
 
-export { getSimulationData, renderSimulator };
+export { getSimulationData, renderSimulator }; 

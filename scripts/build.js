@@ -94,8 +94,11 @@ const uiPolishEnhancement = `
 async function main() {
   const result = await build({
     entryPoints: [path.join(ROOT, "src", "js", "app.js")],
-    outfile: path.join(ROOT, "public", "js", "app.bundle.js"),
+    outdir: path.join(ROOT, "public", "js"),
+    entryNames: "app.bundle",
+    chunkNames: "chunks/[name]-[hash]",
     bundle: true,
+    splitting: true,
     minify: false,
     sourcemap: true,
     format: "esm",

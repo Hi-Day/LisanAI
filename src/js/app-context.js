@@ -55,7 +55,7 @@ export async function bootstrapAuthenticatedApp(ctx, nextAuth) {
   ctx.users = ctx.auth.user.role === "admin" ? await loadUsers(ctx) : [];
   clearAuthForms(ctx);
   showApp(ctx);
-  applyRoleAccess(ctx);
+  await applyRoleAccess(ctx);
   await renderCurrentState(ctx);
   const { renderUsers } = await import("./user-management.js");
   renderUsers(ctx);
@@ -209,7 +209,7 @@ export async function renderCurrentState(ctx) {
   }
 }
 
-export function applyRoleAccess(ctx) {
+export async function applyRoleAccess(ctx) {
   const { els, auth } = ctx;
   const role = auth.user.role;
   if (els.seedDemo) els.seedDemo.classList.toggle("hidden", role === "student");
@@ -276,13 +276,13 @@ export function applyRoleAccess(ctx) {
 
   if (role === "student") {
     document.body.classList.add("student-mode");
-    switchView(ctx, "studentView");
+    await switchView(ctx, "studentView");
   } else if (role === "admin") {
     document.body.classList.add("admin-mode");
-    switchView(ctx, "observabilityView");
+    await switchView(ctx, "observabilityView");
   } else {
     document.body.classList.add("teacher-mode");
-    switchView(ctx, "dashboardView");
+    await switchView(ctx, "dashboardView");
   }
 }
 

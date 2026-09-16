@@ -2,7 +2,6 @@ import { login, registerTenant, logout } from "./api.js";
 import { setButtonLoading } from "./dom.js";
 import { showToast } from "./toast.js";
 import {
-  bootstrapAuthenticatedApp,
   clearAuthForms,
   closeRegisterModal,
   handleModalKeyboard,
@@ -12,6 +11,8 @@ import {
 
 /**
  * Authentication UI: login form, register modal, logout, and modal keyboard handling.
+ * Authenticated bootstrap is delegated to the application entry point so the same
+ * role-aware lazy-loading path is used for initial load, login, and registration.
  */
 export function bindAuthEvents(ctx) {
   const { els } = ctx;
@@ -42,7 +43,7 @@ export function bindAuthEvents(ctx) {
         email: els.loginEmail.value,
         password: els.loginPassword.value,
       });
-      await bootstrapAuthenticatedApp(ctx, nextAuth);
+      await ctx.onAuthenticated?.(nextAuth);
     } catch (error) {
       console.error("Login error:", error);
       showToast(error.message || "Login gagal");
@@ -62,7 +63,7 @@ export function bindAuthEvents(ctx) {
         password: els.registerPassword.value,
       });
       closeRegisterModal(ctx);
-      await bootstrapAuthenticatedApp(ctx, nextAuth);
+      await ctx.onAuthenticated?.(nextAuth);
     } catch (error) {
       showToast(error.message);
     } finally {
@@ -101,6 +102,7 @@ export function bindAuthEvents(ctx) {
     ctx.state = { assessments: [], submissions: [], classes: [], memberships: [] };
     ctx.users = [];
     ctx.session = null;
+    ctx.features = null;
     clearAuthForms(ctx);
     showAuth(ctx);
     const { refreshSimulatorIfEnabled } = await import("./app-context.js");
