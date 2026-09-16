@@ -10,7 +10,6 @@ const {
   listTenantUsers, createTenantUser, createTenantUsersBatch,
 } = require("../auth-service");
 const { ensureDatabase } = require("../bootstrap");
-const { ensureShowcaseDemo } = require("../showcase-bootstrap");
 const { readJson, sendJson } = require("../http-utils");
 const { requireAuthenticatedRequest } = require("../http/request-security");
 const { recordTeacherScoreChange } = require("../evaluation/research");
@@ -29,7 +28,6 @@ module.exports = async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const action = url.searchParams.get("action");
       if (action === "state") {
-        await ensureShowcaseDemo();
         return sendJson(res, 200, await getState(auth));
       }
       if (action === "submission") {
