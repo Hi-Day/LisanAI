@@ -15,6 +15,7 @@ const ROLE_FEATURES = {
     studentFlow: () => import("./student-flow.js"),
     studentClassManagement: () => import("./student-class-management.js"),
     studentComplaints: () => import("./student-complaints.js"),
+    studentComplaintActions: () => import("./student-complaint-actions.js"),
     resultModal: () => import("./result-modal.js"),
   },
   teacher: {
@@ -77,6 +78,7 @@ function bindAdminFeatures(ctx, modules) {
 function bindStudentFeatures(ctx, modules) {
   modules.studentFlow?.bindStudentFlowEvents(ctx);
   modules.studentClassManagement?.bindStudentClassManagementEvents(ctx);
+  modules.studentComplaintActions?.bindStudentComplaintActions(ctx);
 }
 
 function bindAuthenticatedFeatures(ctx, modules) {
