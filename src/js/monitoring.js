@@ -9,8 +9,9 @@ import { showToast, showConfirmDialog } from "./toast.js";
 import { renderCurrentState, switchView } from "./app-context.js";
 
 /**
- * Monitoring & assessment management: submission review, score override,
- * assessment close/reopen/delete, and CSV grade export.
+ * Teacher/admin monitoring & assessment management: submission review,
+ * score override, assessment close/reopen/delete, and CSV grade export.
+ * Student complaint submission lives in student-complaint-actions.js.
  */
 export function bindMonitoringEvents(ctx) {
   const { els } = ctx;
@@ -44,40 +45,6 @@ export function bindMonitoringEvents(ctx) {
   }
 
   els.resultPanel.addEventListener("click", async (e) => {
-    // Student submits a complaint on a specific question.
-    const complaintBtn = e.target.closest(".complaint-btn");
-    if (complaintBtn) {
-      const idx = parseInt(complaintBtn.dataset.index, 10);
-      const submissionId = els.resultPanel.dataset.submissionId;
-      const submission = ctx.state.submissions.find((s) => s.id === submissionId);
-      if (!submission) return;
-
-      const qs = submission.questionScores[idx];
-      const warning = `⚠️ PERHATIAN\n\nAnda akan mengajukan komplain untuk Soal ${idx + 1} (skor ${qs.score}).\n\nJika guru menilai bahwa skor yang diberikan sudah sesuai, maka skor soal ini akan dikurangi 20 poin (menjadi ${Math.max(0, qs.score - 20)}).\n\nApakah Anda yakin ingin melanjutkan komplain?`;
-      if (!await showConfirmDialog(warning, "Komplain")) return;
-
-      const reason = prompt(`Komplain untuk Soal ${idx + 1} (skor ${qs.score}):\nJelaskan alasan Anda merasa nilai kurang sesuai.`);
-      if (reason === null) return;
-      if (!reason.trim()) {
-        showToast("Alasan komplain wajib diisi", "error");
-        return;
-      }
-
-      try {
-        const { submitComplaint } = await import("./api.js");
-        const result = await submitComplaint(submissionId, idx, reason);
-        // Update local state with the returned submission.
-        const updated = result.submission;
-        const localIdx = ctx.state.submissions.findIndex((s) => s.id === submissionId);
-        if (localIdx >= 0) ctx.state.submissions[localIdx] = updated;
-        showToast("Komplain terkirim. Guru akan meninjau ulang.", "success");
-        showResult(els, updated, ctx.auth);
-      } catch (err) {
-        showToast(err.message, "error");
-      }
-      return;
-    }
-
     // Teacher responds to a complaint and re-evaluates the score.
     const respondBtn = e.target.closest(".respond-complaint-btn");
     if (respondBtn) {
