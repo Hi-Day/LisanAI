@@ -38,6 +38,7 @@ for (const file of collectJsFiles(APPLICATION_DIR)) {
 
 checkFrontendRoleBoundaries();
 checkStudentComplaintIsolation();
+checkStudentRuntimeBoundary();
 
 if (failed) process.exit(1);
 console.log("Architecture boundary checks passed.");
@@ -150,6 +151,35 @@ function checkStudentComplaintIsolation() {
   }
 
   console.log("Student complaint isolation checks passed.");
+}
+
+function checkStudentRuntimeBoundary() {
+  const studentFlowPath = path.join(FRONTEND_DIR, "student-flow.js");
+  const studentRenderPath = path.join(FRONTEND_DIR, "student-render-state.js");
+  const appContextPath = path.join(FRONTEND_DIR, "app-context.js");
+
+  if (fs.existsSync(studentFlowPath)) {
+    const source = fs.readFileSync(studentFlowPath, "utf8");
+    if (/\brenderCurrentState\s*\(/.test(source) || /renderCurrentState/.test(source)) {
+      fail("src/js/student-flow.js: student runtime must use student-render-state.js, not renderCurrentState().");
+    }
+    if (!/from ["']\.\/student-render-state\.js["']/.test(source)) {
+      fail("src/js/student-flow.js: student runtime must import ./student-render-state.js.");
+    }
+  }
+
+  if (!fs.existsSync(studentRenderPath)) {
+    fail("src/js/student-render-state.js: student-safe render module is missing.");
+  }
+
+  if (fs.existsSync(appContextPath)) {
+    const source = fs.readFileSync(appContextPath, "utf8");
+    if (/await import\(["']\.\/class-management\.js["']\)/.test(source) || /await import\(["']\.\/assessment-wizard\.js["']\)/.test(source)) {
+      console.log("Student runtime note: app-context retains teacher render imports for legacy/shared teacher paths; student-flow no longer invokes them.");
+    }
+  }
+
+  console.log("Student runtime boundary checks passed.");
 }
 
 function extractRoleBlocks(source) {
