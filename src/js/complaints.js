@@ -4,15 +4,16 @@ import { escapeHtml } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 
 /**
- * Centralized complaint management for teachers + student complaint status.
+ * Centralized teacher complaint management.
  * - Teacher: a dedicated view listing all complaints across assessments.
  * - Teacher: nav badge showing the number of pending complaints.
- * - Student: notification banner when a complaint is resolved/rejected.
+ *
+ * Student complaint notifications live in student-complaints.js so the student
+ * bundle does not need to load teacher complaint-management code.
  */
 export function bindComplaintEvents(ctx) {
   const { els } = ctx;
 
-  // Teacher handles complaints from the centralized list.
   if (els.complaintList) {
     els.complaintList.addEventListener("click", async (e) => {
       const respondBtn = e.target.closest(".complaint-respond-btn");
@@ -28,7 +29,6 @@ export function bindComplaintEvents(ctx) {
       if (!qs?.complaint) return;
 
       if (rejectBtn) {
-        // Reject: score -20 automatically.
         const newScore = Math.max(0, qs.score - 20);
         const response = prompt(
           `Tolak komplain untuk Soal ${questionIndex + 1}?\n\nSkor akan dikurangi 20 poin: ${qs.score} → ${newScore}\n\nTuliskan penjelasan untuk siswa (opsional):`,
@@ -44,7 +44,6 @@ export function bindComplaintEvents(ctx) {
           resolvedAt: new Date().toISOString(),
         };
       } else {
-        // Respond: re-evaluate the score manually.
         const newScoreStr = prompt(
           `Re-evaluasi Soal ${questionIndex + 1} (skor saat ini: ${qs.score}):\nMasukkan skor baru (0-100):`,
           qs.score
@@ -84,10 +83,6 @@ export function bindComplaintEvents(ctx) {
   }
 }
 
-/**
- * Collect all complaints from submissions, grouped by status.
- * Returns { pending, resolved, rejected } arrays of complaint entries.
- */
 export function collectComplaints(ctx) {
   const entries = [];
   for (const submission of ctx.state.submissions) {
@@ -177,85 +172,10 @@ function renderComplaintItem(entry, statusClass) {
   `;
 }
 
-/**
- * Update the teacher nav badge with the number of pending complaints.
- */
 export function updateComplaintBadge(ctx) {
   const { els } = ctx;
   if (!els.complaintNavBadge) return;
   const { pending } = collectComplaints(ctx);
   els.complaintNavBadge.textContent = String(pending.length);
   els.complaintNavBadge.classList.toggle("hidden", pending.length === 0);
-}
-
-/**
- * Show the student's complaint statuses in the dedicated Notifikasi tab.
- * Called after state reload so the student sees the latest status.
- */
-export function notifyStudentComplaintStatus(ctx) {
-  const { els, auth } = ctx;
-  if (!auth?.user || auth.user.role !== "student") return;
-
-  // Remove the old assessment-page banner now that notifications
-  // live in their own tabs.
-  if (els.complaintNotification) {
-    els.complaintNotification.classList.add("hidden");
-    els.complaintNotification.innerHTML = "";
-  }
-
-  if (!els.studentNotifList) return;
-
-  const notifications = [];
-  for (const submission of ctx.state.submissions) {
-    (submission.questionScores || []).forEach((qs, questionIndex) => {
-      if (!qs.complaint) return;
-      const { status, response, reason, submittedAt } = qs.complaint;
-      if (status === "resolved") {
-        notifications.push({
-          icon: "✅",
-          statusClass: "complaint-resolved",
-          title: `Komplain untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) diterima`,
-          detail: `Skor baru: ${qs.score}.${response ? ` Guru: "${response}"` : ""}`,
-          reason,
-          submittedAt,
-        });
-      } else if (status === "rejected") {
-        notifications.push({
-          icon: "❌",
-          statusClass: "complaint-rejected",
-          title: `Komplain untuk "${submission.assessmentTitle}" (Soal ${questionIndex + 1}) ditolak`,
-          detail: `Skor dikurangi 20 poin menjadi ${qs.score}.${response ? ` Guru: "${response}"` : ""}`,
-          reason,
-          submittedAt,
-        });
-      }
-    });
-  }
-
-  if (!notifications.length) {
-    els.studentNotifList.className = "complaint-list empty-state";
-    els.studentNotifList.innerHTML = "Belum ada notifikasi komplain.";
-    return;
-  }
-
-  els.studentNotifList.className = "complaint-list";
-  els.studentNotifList.innerHTML = notifications
-    .map(
-      (n) => `
-        <article class="notif-card ${n.statusClass}">
-          <div class="notif-header">
-            <span class="notif-icon" aria-hidden="true">${n.icon}</span>
-            <div class="notif-title">
-              <strong>${escapeHtml(n.title)}</strong>
-              ${n.submittedAt ? `<span class="notif-date">${escapeHtml(new Date(n.submittedAt).toLocaleString("id-ID"))}</span>` : ""}
-            </div>
-          </div>
-          <div class="notif-body">
-            ${n.reason ? `<div class="notif-row"><span class="notif-label">Isi komplain</span><span>${escapeHtml(n.reason)}</span></div>` : ""}
-            <div class="notif-row"><span class="notif-label">Keputusan</span><span>${escapeHtml(n.detail)}</span></div>
-          </div>
-        </article>
-      `
-    )
-    .join("");
 }
