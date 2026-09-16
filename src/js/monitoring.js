@@ -44,12 +44,6 @@ export function bindMonitoringEvents(ctx) {
   }
 
   els.resultPanel.addEventListener("click", async (e) => {
-    if (e.target.closest(".close-result-btn") || e.target === els.resultPanel) {
-      const { closeResultModal } = await import("./app-context.js");
-      closeResultModal(ctx);
-      return;
-    }
-
     // Student submits a complaint on a specific question.
     const complaintBtn = e.target.closest(".complaint-btn");
     if (complaintBtn) {
