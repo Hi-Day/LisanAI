@@ -1,3 +1,7 @@
+// Bound teacher/admin state payloads to the newest submissions so the state
+// response cannot grow without limit (each row carries a large JSON payload).
+const SUBMISSION_FETCH_LIMIT = 500;
+
 async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
   const assessment = await db.get("SELECT id, class_id, status, payload FROM assessments WHERE id = ? AND tenant_id = ?", assessmentId, tenantId);
   if (!assessment) return;
@@ -26,8 +30,8 @@ async function saveSubmission(db, tenantId, userId, submission, bypassCheck = fa
 
 async function getVisibleSubmissions(db, auth) {
   if (auth.user.role === "student") return db.all("SELECT payload FROM submissions WHERE tenant_id = ? AND user_id = ? ORDER BY submitted_at ASC", auth.tenant.id, auth.user.id);
-  if (auth.user.role === "teacher") return db.all(`SELECT s.payload FROM submissions s JOIN assessments a ON a.id = s.assessment_id WHERE s.tenant_id = ? AND a.tenant_id = ? AND a.teacher_id = ? ORDER BY s.submitted_at ASC`, auth.tenant.id, auth.tenant.id, auth.user.id);
-  return db.all("SELECT payload FROM submissions WHERE tenant_id = ? ORDER BY submitted_at ASC", auth.tenant.id);
+  if (auth.user.role === "teacher") return db.all(`SELECT s.payload FROM (SELECT s.payload, s.submitted_at FROM submissions s JOIN assessments a ON a.id = s.assessment_id WHERE s.tenant_id = ? AND a.tenant_id = ? AND a.teacher_id = ? ORDER BY s.submitted_at DESC LIMIT ${SUBMISSION_FETCH_LIMIT}) s ORDER BY s.submitted_at ASC`, auth.tenant.id, auth.tenant.id, auth.user.id);
+  return db.all(`SELECT payload FROM (SELECT payload, submitted_at FROM submissions WHERE tenant_id = ? ORDER BY submitted_at DESC LIMIT ${SUBMISSION_FETCH_LIMIT}) ORDER BY submitted_at ASC`, auth.tenant.id);
 }
 
 async function getSubmissionDetail(db, auth, submissionId) {

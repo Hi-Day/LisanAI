@@ -7,10 +7,12 @@ const questionBank = require("./database/question-bank-repository");
 
 async function getState(auth) {
   const db = getDb();
-  const assessments = await assessment.getVisibleAssessments(db, auth);
-  const submissions = await submission.getVisibleSubmissions(db, auth);
-  const classes = await classroom.getVisibleClasses(db, auth);
-  const memberships = await membership.getVisibleMemberships(db, auth);
+  const [assessments, submissions, classes, memberships] = await Promise.all([
+    assessment.getVisibleAssessments(db, auth),
+    submission.getVisibleSubmissions(db, auth),
+    classroom.getVisibleClasses(db, auth),
+    membership.getVisibleMemberships(db, auth),
+  ]);
   const studentView = auth.user.role === "student";
   return {
     assessments: assessments.map((row) => assessment.sanitizeAssessmentForRole(JSON.parse(row.payload), studentView)),
