@@ -37,6 +37,7 @@ for (const file of collectJsFiles(APPLICATION_DIR)) {
 }
 
 checkFrontendRoleBoundaries();
+checkStudentComplaintIsolation();
 
 if (failed) process.exit(1);
 console.log("Architecture boundary checks passed.");
@@ -83,6 +84,9 @@ function checkFrontendRoleBoundaries() {
   if (!roleBlocks.student.includes('./student-complaints.js')) {
     fail("src/js/main.js: student role must explicitly load ./student-complaints.js.");
   }
+  if (!roleBlocks.student.includes('./student-complaint-actions.js')) {
+    fail("src/js/main.js: student role must explicitly load ./student-complaint-actions.js.");
+  }
 
   const teacherOnlyModules = [
     "./class-management.js",
@@ -115,6 +119,37 @@ function checkFrontendRoleBoundaries() {
   }
 
   console.log("Frontend role-boundary checks passed.");
+}
+
+function checkStudentComplaintIsolation() {
+  const monitoringPath = path.join(FRONTEND_DIR, "monitoring.js");
+  const complaintsPath = path.join(FRONTEND_DIR, "complaints.js");
+  const studentActionsPath = path.join(FRONTEND_DIR, "student-complaint-actions.js");
+
+  if (fs.existsSync(monitoringPath)) {
+    const monitoringSource = fs.readFileSync(monitoringPath, "utf8");
+    if (/submitComplaint\s*\(/.test(monitoringSource) || /\.complaint-btn/.test(monitoringSource)) {
+      fail("src/js/monitoring.js: student complaint submission must live in student-complaint-actions.js.");
+    }
+  }
+
+  if (fs.existsSync(complaintsPath)) {
+    const complaintsSource = fs.readFileSync(complaintsPath, "utf8");
+    if (/submitComplaint\s*\(/.test(complaintsSource) || /\.complaint-btn/.test(complaintsSource)) {
+      fail("src/js/complaints.js: student complaint submission must live in student-complaint-actions.js.");
+    }
+  }
+
+  if (!fs.existsSync(studentActionsPath)) {
+    fail("src/js/student-complaint-actions.js: student complaint action module is missing.");
+  } else {
+    const studentActionsSource = fs.readFileSync(studentActionsPath, "utf8");
+    if (!/submitComplaint\s*\(/.test(studentActionsSource)) {
+      fail("src/js/student-complaint-actions.js: expected submitComplaint() implementation.");
+    }
+  }
+
+  console.log("Student complaint isolation checks passed.");
 }
 
 function extractRoleBlocks(source) {
