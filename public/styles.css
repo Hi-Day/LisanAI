@@ -237,7 +237,11 @@ html.dark-mode {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    /* Without this, `infinite` animations (spinners, shimmers, pulse cues)
+       complete a loop every 0.01ms and strobe/blink instead of settling. */
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
