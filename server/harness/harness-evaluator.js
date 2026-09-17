@@ -74,7 +74,7 @@ async function evaluateWithHarness(payload) {
     requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
     evaluationRunId: result.evaluationRunId,
     evaluationId: result.evaluationId,
-    criteria: result.criteria,
+    criteria: annotateAnswerIndex(result.criteria, questions),
     verification,
     versioning: result.versioning,
     reliability: result.reliability,
@@ -200,6 +200,18 @@ function criterionMatches(criterion, keys) {
   const stripWeight = (k) => k.replace(/\s\d+$/, "").replace(/%/g, "").trim();
   return keys.some((k) => { const ks = stripWeight(k) || k; return (idKey && (idKey === ks || idKey.includes(ks) || ks.includes(idKey))) || (labelKey && (labelKey === ks || labelKey.includes(ks) || ks.includes(labelKey))); });
 }
+function annotateAnswerIndex(criteria, questions) {
+  const list = Array.isArray(questions) ? questions : [];
+  return (Array.isArray(criteria) ? criteria : []).map((c) => {
+    if (!c || Number.isInteger(c.answerIndex)) return c;
+    const matches = [];
+    list.forEach((q, qi) => {
+      const keys = questionCriterionKeys(q);
+      if (keys && keys.length && criterionMatches(c, keys)) matches.push(qi);
+    });
+    return matches.length === 1 ? { ...c, answerIndex: matches[0] } : c;
+  });
+}
 function withRubricWeight(criterion, rubric) {
   if (Number(criterion.weight) > 0) return criterion;
   const def = ((rubric && rubric.criteria) || []).find((c) => normKey(c.id) === normKey(criterion.criterionId));
@@ -263,4 +275,4 @@ function splitFeedback(rationale, score) {
   for (const sentence of sentences) { const lower = sentence.toLowerCase(); const isCritique = GAP_KEYWORDS.some((kw) => lower.includes(kw)); const isStrength = STRENGTH_KEYWORDS.some((kw) => lower.includes(kw)); if (isCritique) gaps.push(sentence); else if (isStrength) strengths.push(sentence); else if (lowScore) gaps.push(sentence); else strengths.push(sentence); }
   return { strengths, gaps };
 }
-module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence, calculateAlignedFinalScore, questionCriterionKeys, criterionMatches, shouldDowngradeToReview };
+module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence, calculateAlignedFinalScore, questionCriterionKeys, criterionMatches, annotateAnswerIndex, shouldDowngradeToReview };
