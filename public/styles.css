@@ -772,7 +772,7 @@ textarea[readonly] {
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
-  animation: button-spin 1.1s linear infinite;
+  animation: button-spin 1.4s linear infinite;
 }
 @keyframes button-spin { to { transform: rotate(360deg); } }
 
