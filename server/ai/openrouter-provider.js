@@ -1,5 +1,4 @@
 const { AIProvider } = require("./provider");
-const { MockProvider } = require("./mock-provider");
 const { requestModel, streamModel } = require("./openrouter-client");
 
 class OpenRouterProvider extends AIProvider {
@@ -22,16 +21,9 @@ class OpenRouterProvider extends AIProvider {
 
   async generateWithMetadata(request) {
     if (!this.hasApiKey()) {
-      return {
-        content: await new MockProvider().generate(request),
-        model: request.model || "mock",
-        promptTokens: 0,
-        completionTokens: 0,
-        retries: 0,
-        cacheReadInputTokens: 0,
-        cacheCreationInputTokens: 0,
-        kvCacheMeasured: false,
-      };
+      throw new Error(
+        "OPENROUTER_API_KEY belum dikonfigurasi. Set env OPENROUTER_API_KEY untuk mode openrouter, atau set HARNESS_PROVIDER=mock (atau AI_PROVIDER=mock) untuk mode mock eksplisit."
+      );
     }
 
     const messages = [];
