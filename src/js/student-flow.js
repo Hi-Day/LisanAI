@@ -558,12 +558,11 @@ export async function startRecorderForCurrentAssessment(ctx) {
   ctx.recorder.setEnabled(isOralExam);
   if (!isOralExam) return;
 
+  // Rekaman bersifat user-initiated: jangan auto-start di sini. Memulai
+  // getUserMedia/MediaRecorder tanpa gesture membuat rekaman sudah ON sebelum
+  // siswa menekan tombol, sehingga ketukan pertama justru menghentikannya.
+  // Tombol #recordButton adalah satu-satunya jalur gesture untuk memulai.
   ctx.recorder.resetStatus();
-  try {
-    await ctx.recorder.start();
-  } catch (err) {
-    console.warn("Could not start recorder:", err);
-  }
 }
 
 export function getUnansweredCount(ctx) {
