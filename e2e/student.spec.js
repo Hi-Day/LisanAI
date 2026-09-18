@@ -48,6 +48,9 @@ test.describe("Student assessment flow", () => {
     await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+    const resultAiBadge = page.locator("#resultPanel .result-ai-badge");
+    await expect(resultAiBadge).toBeVisible();
+    await expect(resultAiBadge).toHaveText(/^(Dinilai AI|Perlu tinjauan)$/);
     await expect(page.locator("#resultPanel .close-result-btn").first()).toBeVisible();
 
     await page.locator("#resultPanel .close-result-btn").first().click();
