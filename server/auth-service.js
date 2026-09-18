@@ -201,9 +201,17 @@ async function deleteSession(token) {
   await getDb().run("DELETE FROM sessions WHERE token_hash = ?", hashToken(token));
 }
 
+function csrfSecret() {
+  const secret = process.env.CSRF_SECRET;
+  if (secret) return secret;
+  const isProduction = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+  if (isProduction) throw new Error("CSRF_SECRET wajib diatur di produksi");
+  return "local-dev-secret";
+}
+
 function createCsrfToken(auth) {
   if (!auth?.sessionId) return null;
-  return hashToken(`csrf:${auth.sessionId}:${process.env.CSRF_SECRET || "local-dev-secret"}`);
+  return hashToken(`csrf:${auth.sessionId}:${csrfSecret()}`);
 }
 
 function assertCsrfToken(req, auth) {

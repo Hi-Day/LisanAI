@@ -99,6 +99,6 @@ module.exports = async (req, res) => {
 };
 
 function setSessionCookie(res, token, req) { setCookie(res, SESSION_COOKIE, token, cookieOptions(req, { maxAge: SESSION_MAX_AGE_SECONDS })); }
-function cookieOptions(req, options = {}) { const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim(); const isSecure = forwardedProto === "https" || Boolean(req.socket?.encrypted); return { ...options, sameSite: "Lax", secure: isSecure }; }
+function cookieOptions(req, options = {}) { const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim(); const isSecure = forwardedProto === "https" || Boolean(req.socket?.encrypted); return { ...options, httpOnly: true, sameSite: "Lax", secure: isSecure }; }
 function isDemoSimulationEnabled() { return String(process.env.ENABLE_DEMO_SIMULATION || "").toLowerCase() === "true"; }
 function rateLimitKey(req, scope) { const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim(); const ip = forwardedFor || req.socket?.remoteAddress || "local"; return `${scope}:${ip}`; }
