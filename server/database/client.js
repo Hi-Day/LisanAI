@@ -83,21 +83,121 @@ async function ensureColumn(table, column, type) {
   if (!columns.some((item) => item.name === column)) await db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 
-async function recordMigration(version, name) {
-  await db.run("INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)", version, name, new Date().toISOString());
+// Split a SQL script into individual statements on top-level semicolons.
+// Quoted strings/identifiers are respected ('...' with '' escapes, "..." with
+// "" escapes). `--` line comments are stripped; `/* */` block comments are
+// preserved inline. Empty/whitespace-only statements are dropped.
+function splitSqlStatements(sql) {
+  const statements = [];
+  let current = "";
+  let inSingle = false;
+  let inDouble = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i];
+    const next = sql[i + 1];
+
+    if (inLineComment) {
+      if (char === "\n") inLineComment = false;
+      continue;
+    }
+
+    if (inBlockComment) {
+      current += char;
+      if (char === "*" && next === "/") {
+        current += next;
+        i += 1;
+        inBlockComment = false;
+      }
+      continue;
+    }
+
+    if (inSingle) {
+      current += char;
+      if (char === "'") {
+        if (next === "'") {
+          current += next;
+          i += 1;
+        } else {
+          inSingle = false;
+        }
+      }
+      continue;
+    }
+
+    if (inDouble) {
+      current += char;
+      if (char === '"') {
+        if (next === '"') {
+          current += next;
+          i += 1;
+        } else {
+          inDouble = false;
+        }
+      }
+      continue;
+    }
+
+    if (char === "-" && next === "-") {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      current += char + next;
+      i += 1;
+      inBlockComment = true;
+      continue;
+    }
+
+    if (char === "'") {
+      inSingle = true;
+      current += char;
+      continue;
+    }
+
+    if (char === '"') {
+      inDouble = true;
+      current += char;
+      continue;
+    }
+
+    if (char === ";") {
+      const statement = current.trim();
+      if (statement) statements.push(statement);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const trailing = current.trim();
+  if (trailing) statements.push(trailing);
+  return statements;
 }
 
-async function runFileMigrations() {
-  const migrationsDir = path.join(__dirname, "..", "migrations");
+async function runFileMigrations(migrationsDir = path.join(__dirname, "..", "migrations")) {
   if (!fs.existsSync(migrationsDir)) return;
   const files = fs.readdirSync(migrationsDir).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
   for (const file of files) {
     const version = Number(file.split("_")[0]);
+    const name = file.replace(/\.sql$/, "");
     const existing = await db.get("SELECT version FROM schema_migrations WHERE version = ?", version);
     if (existing) continue;
-    await db.exec(fs.readFileSync(path.join(migrationsDir, file), "utf8"));
-    await recordMigration(version, file.replace(/\.sql$/, ""));
+
+    // Apply the migration DDL and record its version in one atomic libSQL batch,
+    // so a mid-file failure leaves neither partial schema nor a version record.
+    const batch = splitSqlStatements(fs.readFileSync(path.join(migrationsDir, file), "utf8")).map((sql) => ({ sql, args: [] }));
+    batch.push({
+      sql: "INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)",
+      args: [version, name, new Date().toISOString()],
+    });
+    await libsqlClient.batch(batch, "write");
   }
 }
 
-module.exports = { initDatabase, getDb };
+module.exports = { initDatabase, getDb, runFileMigrations, splitSqlStatements };

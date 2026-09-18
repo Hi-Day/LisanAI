@@ -3,8 +3,11 @@
 const SUBMISSION_FETCH_LIMIT = 500;
 
 async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
+  // A missing assessmentId is legitimate for flows where submissions are not
+  // bound to an assessment (see migration 010_submissions_nullable_assessment).
+  if (assessmentId == null) return;
   const assessment = await db.get("SELECT id, class_id, status, payload FROM assessments WHERE id = ? AND tenant_id = ?", assessmentId, tenantId);
-  if (!assessment) return;
+  if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
   if (assessment.status !== "published") throw Object.assign(new Error("Assessment belum tersedia untuk dikerjakan"), { status: 403 });
   const membership = await db.get(`SELECT id FROM class_memberships WHERE tenant_id = ? AND class_id = ? AND student_id = ? AND status = 'approved'`, tenantId, assessment.class_id, userId);
   if (!membership) throw Object.assign(new Error("Siswa belum disetujui di kelas assessment ini"), { status: 403 });
@@ -22,8 +25,16 @@ async function saveSubmission(db, tenantId, userId, submission, bypassCheck = fa
   try { await insert(submission.assessmentId); }
   catch (err) {
     const msg = String(err.message || err);
-    if (msg.includes("FOREIGN KEY constraint failed") || msg.includes("SQLITE_CONSTRAINT_FOREIGNKEY")) await insert(null);
-    else throw err;
+    const isForeignKey = msg.includes("FOREIGN KEY constraint failed") || msg.includes("SQLITE_CONSTRAINT_FOREIGNKEY");
+    if (!isForeignKey) throw err;
+    // Only a submission that never referenced an assessment may fall back to a
+    // NULL assessment_id. A provided-but-missing assessment must not silently
+    // create an orphan row that bypasses attempt limits and teacher queries.
+    if (submission.assessmentId == null) {
+      await insert(null);
+      return submission;
+    }
+    throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
   }
   return submission;
 }

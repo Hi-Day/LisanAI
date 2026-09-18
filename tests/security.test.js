@@ -220,15 +220,17 @@ test("student can submit up to maxAttempts, then is blocked", async () => {
   );
 });
 
-test("submission to an assessment missing from the DB is still saved (no data loss)", async () => {
+test("submission to an assessment missing from the DB is rejected with 404 and no orphan row", async () => {
   const { tenant, student } = context;
-  // The assessment id does not exist in the assessments table. The student was
-  // shown it (it was in their state), so the save must not hard-fail with 404.
+  // A provided assessment id that does not exist must not silently create a row
+  // with assessment_id = NULL (invisible to teacher JOINs and attempt limits).
   const submission = createSubmission("ghost-assessment-not-in-db", "ghost-sub-1");
-  const saved = await saveSubmission(tenant.id, student.id, submission);
-  assert.equal(saved.id, "ghost-sub-1");
+  await assert.rejects(
+    () => saveSubmission(tenant.id, student.id, submission),
+    (err) => err.status === 404 && /Assessment tidak ditemukan/.test(err.message)
+  );
   const row = await getDb().get("SELECT * FROM submissions WHERE id = ?", "ghost-sub-1");
-  assert.ok(row, "submission must be persisted even when the assessment is missing");
+  assert.ok(!row, "no orphan submission must be persisted");
 });
 
 test("student-facing state API omits ideal answers from assessment questions", async () => {

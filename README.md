@@ -152,6 +152,9 @@ Proyek terdeploy di Vercel:
 
 Push ke branch `master` otomatis memicu redeploy via integrasi GitHub.
 
+Untuk deploy, migrasi, backup, dan rollback, lihat [docs/OPERATIONS.md](docs/OPERATIONS.md).
+Cek status migrasi dengan `npm run migrate:status` (gate deploy: `-- --check`).
+
 Contributors:
 
 - Hi-Day

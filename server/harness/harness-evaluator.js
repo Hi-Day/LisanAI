@@ -275,4 +275,18 @@ function splitFeedback(rationale, score) {
   for (const sentence of sentences) { const lower = sentence.toLowerCase(); const isCritique = GAP_KEYWORDS.some((kw) => lower.includes(kw)); const isStrength = STRENGTH_KEYWORDS.some((kw) => lower.includes(kw)); if (isCritique) gaps.push(sentence); else if (isStrength) strengths.push(sentence); else if (lowScore) gaps.push(sentence); else strengths.push(sentence); }
   return { strengths, gaps };
 }
-module.exports = { evaluateWithHarness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence, calculateAlignedFinalScore, questionCriterionKeys, criterionMatches, annotateAnswerIndex, shouldDowngradeToReview };
+// Read-only readiness probe for the evaluation harness. Mirrors the provider
+// selection used by evaluateWithHarness without making any network calls and
+// without exposing secrets (only a boolean readiness flag).
+function getHarnessReadiness() {
+  const useOpenRouter = process.env.HARNESS_PROVIDER === "openrouter";
+  if (!useOpenRouter) return { provider: "mock", ready: true, mode: "mock" };
+  try {
+    const provider = new OpenRouterProvider();
+    return { provider: "openrouter", ready: Boolean(provider.hasApiKey()), mode: "openrouter" };
+  } catch (error) {
+    return { provider: "openrouter", ready: false, mode: "openrouter" };
+  }
+}
+
+module.exports = { evaluateWithHarness, getHarnessReadiness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence, calculateAlignedFinalScore, questionCriterionKeys, criterionMatches, annotateAnswerIndex, shouldDowngradeToReview };

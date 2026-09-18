@@ -3464,6 +3464,8 @@ html.dark-mode .ai-stream-panel {
 .badge-ok { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }
 .badge-warn { background: var(--warning-soft); color: var(--warning-strong); border-color: var(--warning); }
 .badge-bad { background: var(--danger-soft); color: var(--danger-strong); border-color: var(--danger); }
+.badge-ai { background: var(--ai-soft); color: var(--ai-hover); border: 1px solid var(--ai); white-space: nowrap; max-width: 100%; }
+.badge-review { background: var(--warning-soft); color: var(--warning-strong); border: 1px solid var(--warning); white-space: nowrap; max-width: 100%; }
 
 .status-badge.status-evaluated,
 .status-badge.status-published { background: var(--success-soft); color: var(--success-strong); border-color: var(--success); }

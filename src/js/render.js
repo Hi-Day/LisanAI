@@ -269,11 +269,36 @@ export function updateEvaluationProgress(els, text) {
   }
 }
 
+/**
+ * Resolve the AI/verification badge for a result.
+ * Distinguishes AI-generated scores from scores awaiting human verification
+ * (UX_FLOWS.md: AI-generated evaluation must be distinguishable from teacher
+ * verification). Always returns a deterministic badge.
+ */
+function resolveResultAiBadge(submission) {
+  const needsReview =
+    submission.status === "NEEDS_REVIEW" ||
+    submission.verification?.status === "REVIEW";
+  if (needsReview) {
+    return {
+      label: "Perlu tinjauan",
+      cls: "badge-review",
+      title: "Skor dihasilkan AI dan menunggu verifikasi manusia",
+    };
+  }
+  return {
+    label: "Dinilai AI",
+    cls: "badge-ai",
+    title: "Skor dihasilkan oleh AI",
+  };
+}
+
 export function showResult(els, submission, auth = null) {
   els.resultPanel._returnFocus = document.activeElement;
   els.resultPanel.classList.remove("hidden");
   els.resultPanel.dataset.submissionId = submission.id;
   const summary = buildResultSummary(submission);
+  const aiBadge = resolveResultAiBadge(submission);
   els.resultPanel.innerHTML = `
     <div class="result-modal-content">
       <button class="result-close-btn close-result-btn" type="button" aria-label="Tutup hasil penilaian">&times;</button>
@@ -290,6 +315,7 @@ export function showResult(els, submission, auth = null) {
           <span class="summary-score-label">Skor akhir</span>
           <strong>${submission.finalScore}</strong>
           <span class="summary-score-sub">dari 100</span>
+          <span class="badge result-ai-badge ${aiBadge.cls}" title="${aiBadge.title}"></span>
         </div>
         <div class="summary-columns">
           <div class="summary-col summary-strengths">
@@ -325,6 +351,10 @@ export function showResult(els, submission, auth = null) {
       </div>
     </div>
   `;
+  const aiBadgeEl = els.resultPanel.querySelector(".result-ai-badge");
+  if (aiBadgeEl) {
+    aiBadgeEl.textContent = aiBadge.label;
+  }
   const toggle = els.resultPanel.querySelector(".result-details-toggle");
   if (toggle) {
     toggle.addEventListener("click", () => {

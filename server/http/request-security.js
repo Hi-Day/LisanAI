@@ -7,7 +7,7 @@ async function authenticateRequest(req, options = {}) {
   let auth = await getSessionUser(parseCookies(req)[SESSION_COOKIE]);
   let viaApiKey = false;
 
-  if (!auth && options.allowApiKey !== false) {
+  if (!auth && options.allowApiKey === true) {
     const apiAuth = await authenticateApiKey(req);
     if (apiAuth) {
       auth = {
@@ -16,7 +16,7 @@ async function authenticateRequest(req, options = {}) {
           id: `apikey:${apiAuth.keyId}`,
           tenantId: apiAuth.tenantId,
           name: "API Key",
-          role: "admin",
+          role: "api",
         },
       };
       viaApiKey = true;

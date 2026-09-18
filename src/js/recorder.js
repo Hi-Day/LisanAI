@@ -20,6 +20,10 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
   let audioContext = null;
   let analyser = null;
   let volumeRaf = null;
+  // Promise yang resolve saat mediaRecorder.onstop selesai, supaya pemanggil
+  // (mis. getAudioBase64) bisa menunggu chunk audio terakhir benar-benar tiba.
+  let pendingStop = null;
+  let pendingStopResolve = null;
 
   // Chrome Android mengharuskan SpeechRecognition dimulai dari user gesture.
   // Tombol rekam adalah jalur gesture nyata: ketukan menjalankan toggle.
@@ -57,6 +61,9 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
       throw err;
     } finally {
       setPreparing(false);
+      // setPreparing(false) selalu menulis ulang aria-label ke "Mulai rekam".
+      // Bila MediaRecorder sudah berjalan, kembalikan UI ke keadaan merekam.
+      if (isRecording()) setRecording(true);
     }
   }
 
@@ -69,9 +76,16 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
   }
 
   function stop() {
-    runId += 1;
+    // Jangan menaikkan runId di sini: ondataavailable/onstop milik run yang
+    // baru saja dihentikan harus tetap diterima agar chunk audio terakhir
+    // tidak dibuang oleh guard activeRunId !== runId.
     if (recognition && recognizing) recognition.stop();
-    if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+    if (mediaRecorder?.state === "recording") {
+      pendingStop = new Promise((resolve) => {
+        pendingStopResolve = resolve;
+      });
+      mediaRecorder.stop();
+    }
     // Do NOT stop stream here, wait for mediaRecorder to finish saving chunks.
     // Stream will be stopped in onstop event of mediaRecorder.
     recognizing = false;
@@ -120,13 +134,13 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
     recognition.interimResults = true;
 
     recognition.onstart = () => {
-      if (activeRunId !== runId) return;
+      if (activeRunId !== runId || !stillRecording()) return;
       recognizing = true;
       recordStatus.textContent = "Merekam suara dan membuat transkripsi...";
     };
 
     recognition.onresult = (event) => {
-      if (activeRunId !== runId) return;
+      if (activeRunId !== runId || !stillRecording()) return;
       const { finalText, interimText } = collectSpeechText(event);
       if (finalText) transcriptDraft = [transcriptDraft, finalText].filter(Boolean).join(" ");
       const target = currentAnswerText();
@@ -192,6 +206,14 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
       if (event.data.size) audioChunks.push(event.data);
     };
     mediaRecorder.onstop = () => {
+      // Resolve dulu sebelum guard: run yang dihentikan tetap harus
+      // menyelesaikan pendingStop walau guard di bawah gagal.
+      if (pendingStopResolve) {
+        const resolve = pendingStopResolve;
+        pendingStopResolve = null;
+        pendingStop = null;
+        resolve();
+      }
       if (activeRunId !== runId) return;
       stopStream();
       stopTimer();
@@ -327,8 +349,11 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
     mediaStream = null;
   }
 
-  function getAudioBase64() {
-    if (audioChunks.length === 0) return Promise.resolve(null);
+  async function getAudioBase64() {
+    // Tunggu stop terakhir selesai agar chunk final (ondataavailable) dan
+    // onstop tidak terlewat saat pembacaan dilakukan segera setelah stop().
+    if (pendingStop) await pendingStop;
+    if (audioChunks.length === 0) return null;
     return new Promise((resolve) => {
       const blob = new Blob(audioChunks, { type: "audio/webm" });
       const reader = new FileReader();
