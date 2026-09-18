@@ -74,7 +74,7 @@ async function evaluateWithHarness(payload) {
     requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
     evaluationRunId: result.evaluationRunId,
     evaluationId: result.evaluationId,
-    criteria: result.criteria,
+    criteria: annotateAnswerIndex(result.criteria, questions),
     verification,
     versioning: result.versioning,
     reliability: result.reliability,
@@ -200,6 +200,18 @@ function criterionMatches(criterion, keys) {
   const stripWeight = (k) => k.replace(/\s\d+$/, "").replace(/%/g, "").trim();
   return keys.some((k) => { const ks = stripWeight(k) || k; return (idKey && (idKey === ks || idKey.includes(ks) || ks.includes(idKey))) || (labelKey && (labelKey === ks || labelKey.includes(ks) || ks.includes(labelKey))); });
 }
+function annotateAnswerIndex(criteria, questions) {
+  const list = Array.isArray(questions) ? questions : [];
+  return (Array.isArray(criteria) ? criteria : []).map((c) => {
+    if (!c || Number.isInteger(c.answerIndex)) return c;
+    const matches = [];
+    list.forEach((q, qi) => {
+      const keys = questionCriterionKeys(q);
+      if (keys && keys.length && criterionMatches(c, keys)) matches.push(qi);
+    });
+    return matches.length === 1 ? { ...c, answerIndex: matches[0] } : c;
+  });
+}
 function withRubricWeight(criterion, rubric) {
   if (Number(criterion.weight) > 0) return criterion;
   const def = ((rubric && rubric.criteria) || []).find((c) => normKey(c.id) === normKey(criterion.criterionId));
@@ -277,4 +289,4 @@ function getHarnessReadiness() {
   }
 }
 
-module.exports = { evaluateWithHarness, getHarnessReadiness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence, calculateAlignedFinalScore, questionCriterionKeys, criterionMatches, shouldDowngradeToReview };
+module.exports = { evaluateWithHarness, getHarnessReadiness, structuredRubric, normalizeWeights, splitFeedback, buildQuestionScores, aggregateScore, averageConfidence, calculateAlignedFinalScore, questionCriterionKeys, criterionMatches, annotateAnswerIndex, shouldDowngradeToReview };
