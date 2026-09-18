@@ -8,6 +8,7 @@
     "dev": "node scripts/build.js && node local-server.js",
     "start-local": "node scripts/build.js && node local-server.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "migrate:status": "node scripts/migrate-status.js",
     "test:e2e": "node scripts/build.js && playwright test",
     "test:e2e:openrouter": "node scripts/run-e2e-openrouter.js",
     "seed:showcase": "node scripts/provision-showcase-demo.js",
