@@ -68,9 +68,9 @@ test.describe("Teacher assessment flow", () => {
     await page.click("#mainNav [data-nav-assessment-tab='all']");
     await expect(page.locator("#assessmentListView")).toBeVisible();
 
-    const firstCard = page.locator("#assessmentList article.assessment-item").first();
-    await expect(firstCard).toBeVisible();
-    await firstCard.locator(".edit-assessment").click();
+    const card = page.locator("#assessmentList article.assessment-item").filter({ hasText: "Ujian Lisan E2E" }).first();
+    await expect(card).toBeVisible();
+    await card.locator(".edit-assessment").click();
 
     await expect(page.locator("#teacherView")).toBeVisible();
     await expect(page.locator("[data-wizard-panel='2']")).toBeVisible();
