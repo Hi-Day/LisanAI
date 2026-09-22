@@ -200,7 +200,11 @@ export function createRecorder({ recordButton, recordStatus, answerText, recordT
 
   function startMediaRecorder(status, activeRunId) {
     audioChunks = [];
-    mediaRecorder = new MediaRecorder(mediaStream);
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 24000 });
+    } catch {
+      mediaRecorder = new MediaRecorder(mediaStream);
+    }
     mediaRecorder.ondataavailable = (event) => {
       if (activeRunId !== runId) return;
       if (event.data.size) audioChunks.push(event.data);

@@ -120,6 +120,12 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, { submission: payload });
     }
 
+    if (action === "save-submission-audio") {
+      if (!isStudent && !isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+      await submissionService.saveSubmissionAudio(auth, payload);
+      return sendJson(res, 200, { ok: true });
+    }
+
     if (action === "submit-complaint") {
       if (!isStudent) return sendJson(res, 403, { error: "Forbidden" });
       const { submissionId, questionIndex, reason } = payload || {};

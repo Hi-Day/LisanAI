@@ -14,4 +14,6 @@ module.exports = {
     repository.getSubmissionDetail(getDb(), auth, submissionId),
   saveComplaint: (auth, submissionId, questionIndex, reason) =>
     repository.saveComplaint(getDb(), auth, submissionId, questionIndex, reason),
+  updateSubmissionAudio: (auth, submissionId, target, audio, options) =>
+    repository.updateSubmissionAudio(getDb(), auth.tenant.id, submissionId, target, audio, options),
 };

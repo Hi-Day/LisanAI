@@ -40,6 +40,7 @@ module.exports = {
   saveAssessment: (auth, assessmentData) => assessment.saveAssessment(getDb(), auth, assessmentData),
   saveSubmission: (tenantId, userId, submissionData, bypassCheck) => submission.saveSubmission(getDb(), tenantId, userId, submissionData, bypassCheck),
   saveComplaint: (auth, submissionId, questionIndex, reason) => submission.saveComplaint(getDb(), auth, submissionId, questionIndex, reason),
+  updateSubmissionFeedback: (tenantId, submissionId, fields) => submission.updateSubmissionFeedback(getDb(), tenantId, submissionId, fields),
   updateAssessment: (auth, assessmentId, patch) => assessment.updateAssessment(getDb(), auth, assessmentId, patch),
   updateClass: (auth, classId, patch) => classroom.updateClass(getDb(), auth, classId, patch),
   updateMembershipStatus: (auth, membershipId, status) => membership.updateMembershipStatus(getDb(), auth, membershipId, status),
