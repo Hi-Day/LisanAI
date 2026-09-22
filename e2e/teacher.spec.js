@@ -60,4 +60,22 @@ test.describe("Teacher assessment flow", () => {
     // Should return to step 1 and the assessment should appear in the list
     await expect(page.locator("#assessmentList")).toContainText("Hukum Newton");
   });
+
+  test("teacher can open the question editor via Edit Soal", async ({ page }) => {
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.click("#mainNav [data-nav-assessment-tab='all']");
+    await expect(page.locator("#assessmentListView")).toBeVisible();
+
+    const card = page.locator("#assessmentList article.assessment-item").filter({ hasText: "Ujian Lisan E2E" }).first();
+    await expect(card).toBeVisible();
+    await card.locator(".edit-assessment").click();
+
+    await expect(page.locator("#teacherView")).toBeVisible();
+    await expect(page.locator("[data-wizard-panel='2']")).toBeVisible();
+    await expect(page.locator("#questionEditor")).toBeVisible();
+    await expect(page.locator(".editable-question")).toHaveCount(2);
+    expect(pageErrors).toEqual([]);
+  });
 });

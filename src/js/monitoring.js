@@ -208,24 +208,24 @@ export function bindMonitoringEvents(ctx) {
       await deleteAssessment(id);
       await reloadState(ctx);
       await renderCurrentState(ctx);
-    } else if (event.target.classList.contains("edit-assessment")) {
-      ctx.pendingAssessmentConfig = {
-        id: assessment.id,
-        topic: assessment.topic,
-        difficulty: assessment.difficulty,
-        classId: assessment.classId,
-        outcomes: assessment.outcomes,
-        rubric: assessment.rubric,
-        oralExamEnabled: assessment.oralExamEnabled !== false,
-        disableManualTyping: !!assessment.disableManualTyping,
-        allowRetakes: !!assessment.allowRetakes,
-      };
-      ctx.pendingQuestions = assessment.questions;
-      const { goToWizardStep, renderQuestionEditor } = await import("./assessment-wizard.js");
-      renderQuestionEditor(ctx);
-      goToWizardStep(ctx, 2);
-      await switchView(ctx, "teacherView");
-      els.questionEditor.scrollIntoView({ behavior: "smooth" });
+    } else if (event.target.closest(".edit-assessment")) {
+      try {
+        ctx.pendingAssessmentConfig = {
+          ...assessment,
+          oralExamEnabled: assessment.oralExamEnabled !== false,
+          disableManualTyping: !!assessment.disableManualTyping,
+          allowRetakes: !!assessment.allowRetakes,
+        };
+        ctx.pendingQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
+        const { goToWizardStep } = await import("./assessment-wizard-tail.js");
+        const { renderQuestionEditor } = await import("./assessment-wizard.js");
+        renderQuestionEditor(ctx);
+        goToWizardStep(ctx, 2);
+        await switchView(ctx, "teacherView");
+        els.questionEditor.scrollIntoView({ behavior: "smooth" });
+      } catch (error) {
+        showToast(error.message || "Gagal membuka editor soal", "error");
+      }
     } else if (event.target.classList.contains("download-grades-assessment")) {
       downloadAssessmentGrades(ctx, assessment);
     }
