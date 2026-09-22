@@ -13,7 +13,7 @@ async function loginAsTeacher(page) {
 async function fillContext(page, topic, outcomes) {
   await page.fill("#topic", topic);
   await page.locator("[data-outcome-input]").first().fill(outcomes);
-  await page.selectOption("#classSelect", { label: "Kelas E2E" });
+  await page.selectOption("#classSelect", "e2e-class-1");
 }
 
 test.describe("Assessment creation workflow", () => {

@@ -85,6 +85,12 @@ async function seedDemoData() {
     password: "password123",
     role: "student",
   });
+  await createTenantUser(tenant.id, {
+    name: "Guru Baru E2E",
+    email: "e2e.guru.baru@example.com",
+    password: "password123",
+    role: "teacher",
+  });
 
   const classroom = {
     id: "e2e-class-1",
