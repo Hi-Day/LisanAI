@@ -86,6 +86,42 @@ async function saveComplaint(db, auth, submissionId, questionIndex, reason) {
   return submission;
 }
 
+async function updateSubmissionAudio(db, tenantId, submissionId, { index, kind }, audio, options = {}) {
+  const clauses = ["id = ?", "tenant_id = ?"];
+  const args = [submissionId, tenantId];
+  if (options.userId) {
+    clauses.push("user_id = ?");
+    args.push(options.userId);
+  }
+  let sql;
+  let params;
+  if (kind === "probing") {
+    // Extract the probing OBJECT (not .probing.audio) so re-patching an existing
+    // probing audio stays valid JSON; COALESCE + json('{}') creates it when null.
+    const probingPath = "'$.questionScores[' || CAST(? AS INTEGER) || '].probing'";
+    sql = `UPDATE submissions SET payload = json_set(payload, ${probingPath}, json_set(COALESCE(json_extract(payload, ${probingPath}), json('{}')), '$.audio', ?)) WHERE ${clauses.join(" AND ")}`;
+    params = [index, index, audio, ...args];
+  } else {
+    sql = `UPDATE submissions SET payload = json_set(payload, '$.questionScores[' || CAST(? AS INTEGER) || '].audio', ?) WHERE ${clauses.join(" AND ")}`;
+    params = [index, audio, ...args];
+  }
+  const result = await db.run(sql, ...params);
+  if (!result.changes) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+}
+
+async function updateSubmissionFeedback(db, tenantId, submissionId, fields) {
+  const result = await db.run(
+    `UPDATE submissions SET payload = json_set(payload, '$.evidenceFeedback', json(?), '$.evidenceQuality', json(?), '$.competencyState', json(?), '$.scoreState', ?) WHERE id = ? AND tenant_id = ?`,
+    JSON.stringify(fields.evidenceFeedback),
+    JSON.stringify(fields.evidenceQuality),
+    JSON.stringify(fields.competencyState),
+    fields.scoreState,
+    submissionId,
+    tenantId
+  );
+  if (!result.changes) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+}
+
 function stripSubmissionAudio(submission) {
   if (!submission || typeof submission !== "object") return submission;
   const { audio: rootAudio, ...rest } = submission; const out = { ...rest };
@@ -97,4 +133,4 @@ function stripSubmissionAudio(submission) {
   return out;
 }
 
-module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio };
+module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback };

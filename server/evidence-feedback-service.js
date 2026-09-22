@@ -1,4 +1,4 @@
-const { getDb, saveSubmission } = require("./database");
+const { getDb, updateSubmissionFeedback } = require("./database");
 const { applyEvidenceFeedbackLoop } = require("./evidence-feedback-loop");
 
 async function processEvidenceFeedback(auth, submission) {
@@ -46,7 +46,12 @@ async function processEvidenceFeedback(auth, submission) {
   }
 
   const enriched = applyEvidenceFeedbackLoop(submission, assessment);
-  await saveSubmission(auth.tenant.id, existing.user_id, enriched, true);
+  await updateSubmissionFeedback(auth.tenant.id, submission.id, {
+    evidenceFeedback: enriched.evidenceFeedback,
+    evidenceQuality: enriched.evidenceQuality,
+    competencyState: enriched.competencyState,
+    scoreState: enriched.scoreState,
+  });
   return enriched;
 }
 

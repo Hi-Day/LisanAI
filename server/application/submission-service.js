@@ -22,4 +22,31 @@ async function saveComplaint(auth, submissionId, questionIndex, reason) {
   return submissionGateway.saveComplaint(auth, submissionId, questionIndex, reason);
 }
 
-module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, getSubmission, saveComplaint };
+const MAX_AUDIO_CHARS = 3_000_000;
+const MAX_QUESTION_INDEX = 100;
+
+async function saveSubmissionAudio(auth, patch = {}) {
+  const { id, index, kind, audio } = patch || {};
+  if (typeof id !== "string" || !id.trim()) {
+    throw Object.assign(new Error("ID submission wajib diisi"), { status: 400 });
+  }
+  if (!Number.isInteger(index) || index < 0 || index > MAX_QUESTION_INDEX) {
+    throw Object.assign(new Error("Indeks soal tidak valid"), { status: 400 });
+  }
+  if (typeof audio !== "string" || !audio.startsWith("data:audio/") || audio.length > MAX_AUDIO_CHARS) {
+    throw Object.assign(new Error("Data audio tidak valid atau terlalu besar"), { status: 400 });
+  }
+
+  const payload = await submissionGateway.getSubmissionDetail(auth, id);
+  if (!Array.isArray(payload.questionScores) || !payload.questionScores[index]) {
+    throw Object.assign(new Error("Soal tidak ditemukan"), { status: 404 });
+  }
+
+  // Students may only patch their own submission; the repository adds the
+  // user_id clause as defense-in-depth on top of the gateway's ownership check.
+  const options = auth.user.role === "student" ? { userId: auth.user.id } : {};
+  await submissionGateway.updateSubmissionAudio(auth, id, { index, kind }, audio, options);
+  return { ok: true };
+}
+
+module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, getSubmission, saveComplaint, saveSubmissionAudio };

@@ -102,6 +102,14 @@ export async function saveSubmissionToDatabase(submission) {
   await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
 }
 
+export async function saveSubmissionAudio(submissionId, { index, kind, audio }) {
+  await postJson(
+    "/api/database",
+    { action: "save-submission-audio", payload: { id: submissionId, index, kind, audio } },
+    "Gagal mengunggah audio jawaban"
+  );
+}
+
 export async function submitComplaint(submissionId, questionIndex, reason) {
   return postJson(
     "/api/database",

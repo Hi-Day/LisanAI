@@ -11,6 +11,15 @@ test.use({
 
 test.describe("Student oral recording flow", () => {
   test("student records an oral answer and receives an evaluation", async ({ page }) => {
+    const dbRequests = [];
+    page.on("request", (request) => {
+      if (!request.url().includes("/api/database")) return;
+      const post = request.postData() || "";
+      let action = null;
+      try { action = JSON.parse(post).action; } catch { /* ignore */ }
+      dbRequests.push({ action, hasAudio: post.includes("data:audio") });
+    });
+
     await loginAsStudent(page);
     await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
     await page.click(`.assessment-card[data-id='${ORAL_ID}'] .start-assessment-btn`);
@@ -61,5 +70,23 @@ test.describe("Student oral recording flow", () => {
     await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+
+    // Regression: the main submission must not carry base64 audio; audio is
+    // uploaded separately, and the evidence-feedback write must not erase it.
+    const saveRequest = dbRequests.find((item) => item.action === "save-submission");
+    expect(saveRequest, "main save-submission request captured").toBeTruthy();
+    expect(saveRequest.hasAudio).toBe(false);
+    const audioRequest = dbRequests.find((item) => item.action === "save-submission-audio");
+    expect(audioRequest, "audio upload request captured").toBeTruthy();
+    expect(audioRequest.hasAudio).toBe(true);
+
+    await expect
+      .poll(async () => page.evaluate(async (oralId) => {
+        const response = await fetch("/api/state", { credentials: "include" });
+        const state = await response.json();
+        const submission = (state.submissions || []).filter((item) => item.assessmentId === oralId).pop();
+        return submission ? (submission.questionScores || []).some((q) => q.hasAudio === true) : false;
+      }, ORAL_ID), { timeout: 20_000 })
+      .toBe(true);
   });
 });

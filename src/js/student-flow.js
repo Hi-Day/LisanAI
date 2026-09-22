@@ -1,5 +1,6 @@
 import {
   saveSubmissionToDatabase,
+  saveSubmissionAudio,
   streamAssessmentAction,
 } from "./api.js";
 import { createSubmission } from "./assessment-factory.js";
@@ -663,6 +664,48 @@ export async function confirmAndFinishAssessment(ctx) {
   handleFinishAssessment(ctx);
 }
 
+function splitSubmissionAudio(submission) {
+  const uploads = [];
+  const questionScores = (submission.questionScores || []).map((item, index) => {
+    const { audio, ...rest } = item || {};
+    const probing = item?.probing ? { ...item.probing } : item?.probing;
+    let probingAudio = null;
+    if (probing && probing.audio) {
+      probingAudio = probing.audio;
+      delete probing.audio;
+    }
+    if (audio) uploads.push({ index, kind: "main", audio });
+    if (probingAudio) uploads.push({ index, kind: "probing", audio: probingAudio });
+    return { ...rest, probing };
+  });
+  return { submission: { ...submission, questionScores }, uploads };
+}
+
+async function uploadSubmissionAudio(submission, uploads) {
+  let failed = 0;
+  for (const item of uploads) {
+    let ok = false;
+    for (let attempt = 0; attempt < 2 && !ok; attempt += 1) {
+      try {
+        await saveSubmissionAudio(submission.id, item);
+        ok = true;
+      } catch (error) {
+        if (attempt === 1) console.warn("Gagal mengunggah audio submission", submission.id, item.index, item.kind, error?.message);
+      }
+    }
+    if (!ok) { failed += 1; continue; }
+    const target = submission.questionScores[item.index];
+    if (!target) continue;
+    if (item.kind === "probing") {
+      target.probing = target.probing || {};
+      target.probing.audio = item.audio;
+    } else {
+      target.audio = item.audio;
+    }
+  }
+  return failed;
+}
+
 export async function handleFinishAssessment(ctx) {
   const { els } = ctx;
   if (ctx.isEvaluating) return;
@@ -688,8 +731,13 @@ export async function handleFinishAssessment(ctx) {
     const submission = await evaluateWithFallback(ctx, assessment, studentName);
     // Skip DB persistence for tryout/practice assessments
     if (!assessment.isTryout) {
-      await saveSubmissionToDatabase(submission);
-      ctx.state.submissions.push(submission);
+      const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
+      await saveSubmissionToDatabase(savedSubmission);
+      ctx.state.submissions.push(savedSubmission);
+      uploadSubmissionAudio(savedSubmission, uploads)
+        .then((failed) => { if (failed) showToast(`Hasil tersimpan, tetapi ${failed} rekaman gagal diunggah.`, "error"); })
+        .catch((error) => console.warn("Gagal mengunggah audio submission", error?.message));
+      showToast("Hasil penilaian tersimpan.", "success");
     } else {
       submission.isTryout = true;
       showToast("Hasil tryout ditampilkan di sini (tidak disimpan ke database)", "info");

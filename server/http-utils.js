@@ -1,23 +1,47 @@
 const { applySecurityHeaders } = require("./security-headers");
 
+const MAX_BODY_CHARS = Number(process.env.MAX_REQUEST_BODY_CHARS) || 4_000_000;
+
+function payloadTooLarge() {
+  return Object.assign(new Error("Payload terlalu besar"), { status: 413 });
+}
+
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let raw = "";
+    let settled = false;
+    const rejectTooLarge = () => {
+      if (settled) return;
+      settled = true;
+      reject(payloadTooLarge());
+    };
+
+    // Reject early when the declared size already exceeds the limit. This avoids
+    // reading a huge body only to reject it after the fact.
+    if (Number((req.headers && req.headers["content-length"]) || 0) > MAX_BODY_CHARS) {
+      rejectTooLarge();
+      return;
+    }
+
     req.on("data", (chunk) => {
+      if (settled) return;
       raw += chunk;
-      if (raw.length > 1_000_000) {
-        req.destroy();
-        reject(new Error("Payload terlalu besar"));
-      }
+      if (raw.length > MAX_BODY_CHARS) rejectTooLarge();
     });
     req.on("end", () => {
+      if (settled) return;
+      settled = true;
       try {
         resolve(raw ? JSON.parse(raw) : {});
       } catch {
         reject(new Error("JSON tidak valid"));
       }
     });
-    req.on("error", reject);
+    req.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
   });
 }
 
