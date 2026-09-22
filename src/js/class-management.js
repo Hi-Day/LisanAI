@@ -10,21 +10,40 @@ import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 
+let createClassPending = false;
+
 /**
  * Teacher-only class management.
  * Student join/list rendering lives in student-class-management.js.
  */
 export function bindClassManagementEvents(ctx) {
+  if (ctx.classManagementBound) return;
+  ctx.classManagementBound = true;
   const { els } = ctx;
 
   els.classForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (createClassPending) return;
     const name = els.classNameInput.value.trim();
     if (!name) return;
-    const classroom = await createClassroom(name);
-    ctx.state.classes.unshift({ ...classroom, status: "teacher" });
-    els.classForm.reset();
-    await renderCurrentState(ctx);
+
+    createClassPending = true;
+    const submitButton = event.submitter || els.classForm.querySelector('button[type="submit"]');
+    const { setButtonLoading } = await import("./dom.js");
+    setButtonLoading(submitButton, true, "Membuat...", "Buat kelas");
+    let created = false;
+    try {
+      const classroom = await createClassroom(name);
+      ctx.state.classes.unshift({ ...classroom, status: "teacher" });
+      els.classForm.reset();
+      created = true;
+    } catch (error) {
+      showToast(error.message || "Gagal membuat kelas", "error");
+    } finally {
+      createClassPending = false;
+      setButtonLoading(submitButton, false, "Membuat...", "Buat kelas");
+    }
+    if (created) await renderCurrentState(ctx);
   });
 
   els.pendingJoinList.addEventListener("click", async (event) => {
@@ -210,13 +229,18 @@ export function bindClassManagementEvents(ctx) {
   }
 }
 
+function classOptionLabel(classroom) {
+  const code = classroom.join_code || classroom.joinCode;
+  return code ? `${classroom.name} (${code})` : classroom.name;
+}
+
 export function renderClasses(ctx) {
   const { els } = ctx;
 
   if (els.classSelect) {
     const currentValue = els.classSelect.value;
     els.classSelect.innerHTML = ctx.state.classes.length
-      ? ctx.state.classes.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("")
+      ? ctx.state.classes.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(classOptionLabel(item))}</option>`).join("")
       : `<option value="">Belum ada kelas</option>`;
     if (currentValue && ctx.state.classes.some((item) => item.id === currentValue)) {
       els.classSelect.value = currentValue;
@@ -240,6 +264,15 @@ export function renderClasses(ctx) {
         </div>
       </article>
     `).join("");
+  }
+
+  if (els.bulkAddClassSelect) {
+    const currentValue = els.bulkAddClassSelect.value;
+    els.bulkAddClassSelect.innerHTML = `<option value="">Pilih kelas</option>` +
+      ctx.state.classes.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(classOptionLabel(c))}</option>`).join("");
+    if (currentValue && ctx.state.classes.some((c) => c.id === currentValue)) {
+      els.bulkAddClassSelect.value = currentValue;
+    }
   }
 
   const pending = ctx.state.memberships.filter((item) => item.status === "pending");
@@ -315,12 +348,6 @@ export function renderClasses(ctx) {
         els.memberPageInfo.textContent = `Halaman ${ctx.memberCurrentPage} dari ${totalPages}`;
       }
     }
-  }
-
-  if (els.bulkAddClassSelect) {
-    const classOptions = ctx.state.classes.map((c) => ({ id: c.id, name: c.name }));
-    els.bulkAddClassSelect.innerHTML = `<option value="">Pilih kelas</option>` +
-      classOptions.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
   }
 }
 
