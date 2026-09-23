@@ -7,6 +7,13 @@ export const DEFAULT_STATE = {
 
 export const DEFAULT_QUESTION_COUNT = 5;
 
+// Audio jawaban siswa saat ini TIDAK dipersist ke database (hanya direkam dan
+// dipakai selama sesi berjalan). Set true (atau set
+// window.__LISAN_SAVE_SUBMISSION_AUDIO = true sebelum app dimuat) untuk
+// mengaktifkan kembali unggahan audio ke submission.
+export const SAVE_SUBMISSION_AUDIO =
+  typeof window !== "undefined" && window.__LISAN_SAVE_SUBMISSION_AUDIO === true;
+
 export const FALLBACK_KEYWORDS = ["konsep", "alasan", "contoh", "hubungan"];
 
 export const STOPWORDS = new Set([
