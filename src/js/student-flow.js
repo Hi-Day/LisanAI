@@ -12,6 +12,7 @@ import { showToast, showConfirmDialog } from "./toast.js";
 import { escapeHtml, formatTime, prettifyId } from "./utils.js";
 import { isAssessmentLocked } from "./app-context.js";
 import { renderStudentState } from "./student-render-state.js";
+import { SAVE_SUBMISSION_AUDIO } from "./config.js";
 
 /**
  * Student answering flow: question navigation, recorder, timer, and submission.
@@ -734,9 +735,11 @@ export async function handleFinishAssessment(ctx) {
       const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
       await saveSubmissionToDatabase(savedSubmission);
       ctx.state.submissions.push(savedSubmission);
-      uploadSubmissionAudio(savedSubmission, uploads)
-        .then((failed) => { if (failed) showToast(`Hasil tersimpan, tetapi ${failed} rekaman gagal diunggah.`, "error"); })
-        .catch((error) => console.warn("Gagal mengunggah audio submission", error?.message));
+      if (SAVE_SUBMISSION_AUDIO) {
+        uploadSubmissionAudio(savedSubmission, uploads)
+          .then((failed) => { if (failed) showToast(`Hasil tersimpan, tetapi ${failed} rekaman gagal diunggah.`, "error"); })
+          .catch((error) => console.warn("Gagal mengunggah audio submission", error?.message));
+      }
       showToast("Hasil penilaian tersimpan.", "success");
     } else {
       submission.isTryout = true;

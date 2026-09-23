@@ -20,6 +20,8 @@ test.describe("Student oral recording flow", () => {
       dbRequests.push({ action, hasAudio: post.includes("data:audio") });
     });
 
+    await page.addInitScript(() => { window.__LISAN_SAVE_SUBMISSION_AUDIO = true; });
+
     await loginAsStudent(page);
     await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
     await page.click(`.assessment-card[data-id='${ORAL_ID}'] .start-assessment-btn`);
@@ -88,5 +90,77 @@ test.describe("Student oral recording flow", () => {
         return submission ? (submission.questionScores || []).some((q) => q.hasAudio === true) : false;
       }, ORAL_ID), { timeout: 20_000 })
       .toBe(true);
+  });
+
+  test("audio is not persisted when the toggle is off", async ({ page }) => {
+    const dbRequests = [];
+    page.on("request", (request) => {
+      if (!request.url().includes("/api/database")) return;
+      const post = request.postData() || "";
+      let action = null;
+      try { action = JSON.parse(post).action; } catch { /* ignore */ }
+      dbRequests.push({ action, hasAudio: post.includes("data:audio") });
+    });
+
+    await loginAsStudent(page);
+    await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
+    await page.click(`.assessment-card[data-id='${ORAL_ID}'] .start-assessment-btn`);
+
+    // Pre-exam: mikrofon harus siap sebelum penilaian bisa dimulai.
+    await page.click("#preExamMicTest");
+    await expect(page.locator("#preExamMicStatus")).toHaveText("✓ Mikrofon siap", { timeout: 20_000 });
+    await page.click("#preExamStart");
+
+    await expect(page.locator("#studentWorkspace")).toBeVisible();
+    await expect(page.locator("#recorderPanel")).toBeVisible();
+    await expect(page.locator("#activeQuestion")).toBeVisible();
+
+    // Rekaman tetap berjalan meskipun audio tidak dipersist.
+    const recordButton = page.locator("#recordButton");
+    const recordLabel = page.locator("#recordButton .record-label");
+    await expect(recordButton).toBeEnabled();
+    await expect(page.locator("#recordStatus")).toHaveText("Siap merekam");
+    await expect(recordButton).toHaveAttribute("aria-label", "Mulai rekam");
+    await recordButton.click();
+    await expect(recordButton).toHaveAttribute("aria-label", "Berhenti rekam", { timeout: 15_000 });
+    await expect(recordLabel).toHaveText("Berhenti", { timeout: 15_000 });
+    await expect(page.locator("#recordStatus")).toContainText("Merekam", { timeout: 15_000 });
+
+    await page.waitForTimeout(2000);
+
+    await recordButton.click();
+    await expect(recordButton).toHaveAttribute("aria-label", "Mulai rekam", { timeout: 15_000 });
+    await expect(recordLabel).toHaveText("Mulai rekam", { timeout: 15_000 });
+    await expect(page.locator("#recordStatus")).toContainText("Audio berhasil direkam", { timeout: 15_000 });
+
+    await page.fill("#answerText", "Fotosintesis adalah proses tumbuhan menggunakan cahaya untuk menghasilkan energi kimia.");
+    await page.click("#saveAnswer");
+
+    await expect(page.locator("#activeQuestion")).toContainText("Pertanyaan lanjutan", { timeout: 20_000 });
+    await expect(page.locator("#answerText")).toBeEditable();
+
+    await page.fill("#answerText", "Karena cahaya menyediakan energi yang diperlukan untuk berlangsungnya fotosintesis.");
+    await page.click("#finishAssessment");
+    await expect(page.locator("#confirmModal")).toBeVisible();
+    await page.click("#confirmModalOk");
+    await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
+    await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+
+    // Main save always happens without audio; no separate audio upload occurs.
+    const saveRequest = dbRequests.find((item) => item.action === "save-submission");
+    expect(saveRequest, "main save-submission request captured").toBeTruthy();
+    expect(saveRequest.hasAudio).toBe(false);
+    expect(dbRequests.some((item) => item.action === "save-submission-audio")).toBe(false);
+
+    await page.waitForTimeout(3000);
+    const hasAudio = await page.evaluate(async (assessmentId) => {
+      const response = await fetch("/api/state", { credentials: "include" });
+      const state = await response.json();
+      const submission = (state.submissions || []).filter((item) => item.assessmentId === assessmentId).pop();
+      if (!submission) return null;
+      return (submission.questionScores || []).some((q) => q.hasAudio === true);
+    }, ORAL_ID);
+    expect(hasAudio).toBe(false);
   });
 });
