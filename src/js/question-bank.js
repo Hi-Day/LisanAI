@@ -5,6 +5,67 @@ import { escapeHtml } from "./utils.js";
 import { renderCurrentState, switchView } from "./app-context.js";
 import { renderRubricTable } from "./render.js";
 
+function normalizeOutcome(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9\u00C0-\u024F]+/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+function parseAssessmentOutcomes(value) {
+  if (Array.isArray(value)) return value.map((item, index) => {
+    if (typeof item === "string") return { id: `LO${index + 1}`, text: item.trim() };
+    return {
+      id: String(item?.id || item?.learningOutcomeId || `LO${index + 1}`).trim(),
+      text: String(item?.text || item?.name || item?.title || item?.outcome || "").trim(),
+    };
+  }).filter((item) => item.text);
+  const text = String(value || "").trim();
+  if (!text) return [];
+  return text.split(/\r?\n|\s*;\s*/).map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const named = line.match(/^(?:[-*•]\s*)?(?:LO|CPL|CPMK|Learning Outcome)\s*[-#:.\s]*?(\d+)\s*[-:.):]?\s*(.+)$/i);
+    if (named) return { id: `LO${named[1]}`, text: named[2].trim() };
+    const numbered = line.match(/^(?:[-*•]\s*)?(\d+)[.)]\s*(.+)$/);
+    if (numbered) return { id: `LO${numbered[1]}`, text: numbered[2].trim() };
+    return { id: `LO${index + 1}`, text: line };
+  });
+}
+
+/**
+ * Rebind a question-bank question to the assessment's current LO objects.
+ * Text is checked first so a bank question cannot silently keep a stale local
+ * LO1/LO2 identifier after being imported into another assessment.
+ */
+export function rebindQuestionToAssessmentOutcomes(question, outcomesValue) {
+  const outcomes = parseAssessmentOutcomes(outcomesValue);
+  if (!outcomes.length) return { ...question, learningOutcomeIds: [], learningOutcomeId: "" };
+
+  const questionText = normalizeOutcome(question?.outcome);
+  let matched = questionText
+    ? outcomes.filter((lo) => normalizeOutcome(lo.text) === questionText)
+    : [];
+
+  if (!matched.length && questionText) {
+    matched = outcomes.filter((lo) => {
+      const text = normalizeOutcome(lo.text);
+      return text && (text.includes(questionText) || questionText.includes(text));
+    }).slice(0, 1);
+  }
+
+  if (!matched.length) {
+    const ids = Array.isArray(question?.learningOutcomeIds)
+      ? question.learningOutcomeIds.map(String)
+      : (question?.learningOutcomeId ? [String(question.learningOutcomeId)] : []);
+    matched = ids.map((id) => outcomes.find((lo) => normalizeOutcome(lo.id) === normalizeOutcome(id))).filter(Boolean);
+  }
+
+  if (!matched.length) return { ...question, learningOutcomeIds: [], learningOutcomeId: "" };
+
+  return {
+    ...question,
+    learningOutcomeIds: matched.map((lo) => lo.id),
+    learningOutcomeId: matched[0].id,
+    outcome: matched.map((lo) => lo.text).join("; "),
+  };
+}
+
 export function bindQuestionBankEvents(ctx) {
   const { els } = ctx;
 
@@ -37,12 +98,18 @@ export function bindQuestionBankEvents(ctx) {
       const id = importBtn.dataset.id;
       const question = ctx._questionBankData?.find((q) => q.id === id);
       if (!question) return;
+      const mappedQuestion = rebindQuestionToAssessmentOutcomes(
+        question,
+        ctx.pendingAssessmentConfig?.outcomes
+      );
       ctx.pendingQuestions.push({
         id: `q-${Date.now()}-${ctx.pendingQuestions.length}`,
-        prompt: question.prompt,
-        focus: question.focus,
-        outcome: question.outcome,
-        rubric: question.rubric,
+        prompt: mappedQuestion.prompt,
+        focus: mappedQuestion.focus,
+        outcome: mappedQuestion.outcome,
+        learningOutcomeIds: mappedQuestion.learningOutcomeIds || [],
+        learningOutcomeId: mappedQuestion.learningOutcomeId || "",
+        rubric: mappedQuestion.rubric,
         ideal: question.ideal,
         criteria: question.criteria || [],
       });
@@ -78,6 +145,7 @@ export async function loadQuestionBank(ctx) {
             <strong>${escapeHtml(q.prompt)}</strong>
             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 6px;">
               Fokus: ${escapeHtml(q.focus)}${q.outcome ? ` · ${escapeHtml(q.outcome)}` : ""}
+              ${q.learningOutcomeId ? `<span class="tag" style="margin-left:4px;">${escapeHtml(q.learningOutcomeId)}</span>` : '<span style="color: var(--danger, #b42318);">· Belum terpetakan ke LO</span>'}
             </p>
             ${q.rubric ? `<div style="margin-top:8px;">${renderRubricTable(q.rubric)}</div>` : ""}
           </div>
@@ -112,6 +180,8 @@ export async function saveCurrentQuestionsToBank(ctx) {
         prompt: q.prompt,
         focus: q.focus,
         outcome: q.outcome,
+        learningOutcomeIds: Array.isArray(q.learningOutcomeIds) ? q.learningOutcomeIds : (q.learningOutcomeId ? [q.learningOutcomeId] : []),
+        learningOutcomeId: q.learningOutcomeId || "",
         rubric: q.rubric,
         ideal: q.ideal,
         criteria: q.criteria,
