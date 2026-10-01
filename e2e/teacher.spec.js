@@ -49,6 +49,7 @@ test.describe("Teacher assessment flow", () => {
     // Fill the first question
     const firstQuestion = page.locator(".editable-question").first();
     await firstQuestion.locator("[data-field='prompt']").fill("Jelaskan hukum Newton pertama.");
+    await firstQuestion.locator("[data-field='outcome']").fill("Siswa mampu menerapkan hukum Newton.");
     await firstQuestion.locator("[data-field='ideal']").fill("Benda diam tetap diam jika tidak ada gaya.");
 
     // Go to review
