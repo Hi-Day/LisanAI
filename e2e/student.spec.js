@@ -19,6 +19,13 @@ test.describe("Student assessment flow", () => {
     await expect(page.locator("#studentClassList")).toContainText("Kelas E2E");
   });
 
+  test("student can open the competency progress view", async ({ page }) => {
+    await page.click("button[data-view='studentCompetencyView']");
+    await expect(page.locator("#studentCompetencyView")).toBeVisible();
+    await expect(page.locator("#studentCompetencySummary")).toBeVisible();
+    await expect(page.locator("#studentCompetencyList")).toBeVisible();
+  });
+
   test("student can open the history view", async ({ page }) => {
     await page.click("button[data-view='studentHistoryView']");
     await expect(page.locator("#studentHistoryView")).toBeVisible();
