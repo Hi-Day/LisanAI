@@ -182,7 +182,7 @@ export function buildCompetencyProfile(assessments, submissions) {
   const loMap = new Map();
 
   const ensureLO = (lo, assessment) => {
-    const key = lo.id;
+    const key = `${normalize(lo.id)}::${normalizeOutcome(lo.text)}`;
     if (!loMap.has(key)) {
       loMap.set(key, {
         id: lo.id,
@@ -207,8 +207,8 @@ export function buildCompetencyProfile(assessments, submissions) {
 
     const questionLO = new Map();
     questions.forEach((q, index) => {
-      const lo = resolveQuestionOutcome(q, outcomes);
-      if (lo) questionLO.set(index, lo);
+      const los = resolveLearningOutcomes(q, outcomes);
+      if (los.length) questionLO.set(index, los);
     });
 
     const studentBuckets = new Map();
@@ -218,48 +218,51 @@ export function buildCompetencyProfile(assessments, submissions) {
       const def = byId.get(String(c.criterionId)) || byName.get(normalize(c.name));
       const criterionId = String(c.criterionId || def?.id || c.name || "").trim();
       const criterionKey = normKey(c.criterionId || c.name || "");
-      let lo = Number.isInteger(c.answerIndex) ? questionLO.get(c.answerIndex) : null;
+      let los = Number.isInteger(c.answerIndex) ? (questionLO.get(c.answerIndex) || []) : [];
       if (!lo && criterionKey) {
         const questionKeys = (item) => (item && Array.isArray(item.criteria) ? item.criteria : [])
           .map((x) => normKey(typeof x === "object" && x ? x.id || x.criterionId || x.name || "" : x))
           .filter(Boolean);
         let q = questions.find((item) => questionKeys(item).some((key) => key === criterionKey));
         if (!q) q = questions.find((item) => questionKeys(item).some((key) => key.includes(criterionKey) || criterionKey.includes(key)));
-        if (q) lo = resolveQuestionOutcome(q, outcomes);
+        if (q) los = resolveLearningOutcomes(q, outcomes);
       }
-      if (!lo) return;
+      if (!los.length) return;
 
-      const entry = ensureLO(lo, assessment);
       const weight = Number(c.weight ?? def?.weight ?? 1);
       const safeWeight = Number.isFinite(weight) && weight > 0 ? weight : 1;
       const score = Number(c.score);
-      const bucketKey = `${sub.studentName || "student"}::${lo.id}::${sub.assessmentId || assessment.id}`;
-      if (!studentBuckets.has(bucketKey)) studentBuckets.set(bucketKey, { lo, weighted: 0, weight: 0, studentName: sub.studentName });
-      const bucket = studentBuckets.get(bucketKey);
-      bucket.weighted += score * safeWeight;
-      bucket.weight += safeWeight;
-
       const criterionName = (def && def.name) || c.name || prettifyId(c.criterionId) || "Kriteria";
-      if (!entry.criteriaMap.has(criterionName)) entry.criteriaMap.set(criterionName, []);
-      entry.criteriaMap.get(criterionName).push({ studentName: sub.studentName, score });
-      contributed = true;
+      los.forEach((lo) => {
+        const entry = ensureLO(lo, assessment);
+        const bucketKey = `${sub.studentName || "student"}::${normalize(lo.id)}::${normalizeOutcome(lo.text)}::${sub.assessmentId || assessment.id}`;
+        if (!studentBuckets.has(bucketKey)) studentBuckets.set(bucketKey, { lo, weighted: 0, weight: 0, studentName: sub.studentName });
+        const bucket = studentBuckets.get(bucketKey);
+        bucket.weighted += score * safeWeight;
+        bucket.weight += safeWeight;
+        if (!entry.criteriaMap.has(criterionName)) entry.criteriaMap.set(criterionName, []);
+        entry.criteriaMap.get(criterionName).push({ studentName: sub.studentName, score });
+        contributed = true;
+      });
     });
 
     if (!contributed && Array.isArray(sub.questionScores)) {
       sub.questionScores.forEach((qs, qi) => {
         if (!qs || !Number.isFinite(Number(qs.score))) return;
-        const lo = questionLO.get(qi);
-        if (!lo) return;
-        const entry = ensureLO(lo, assessment);
+        const los = questionLO.get(qi) || [];
+        if (!los.length) return;
         const score = Number(qs.score);
-        const bucketKey = `${sub.studentName || "student"}::${lo.id}::${sub.assessmentId || assessment.id}`;
-        if (!studentBuckets.has(bucketKey)) studentBuckets.set(bucketKey, { lo, weighted: 0, weight: 0, studentName: sub.studentName });
-        const bucket = studentBuckets.get(bucketKey);
-        bucket.weighted += score;
-        bucket.weight += 1;
         const criterionName = `Soal ${qi + 1}`;
-        if (!entry.criteriaMap.has(criterionName)) entry.criteriaMap.set(criterionName, []);
-        entry.criteriaMap.get(criterionName).push({ studentName: sub.studentName, score });
+        los.forEach((lo) => {
+          const entry = ensureLO(lo, assessment);
+          const bucketKey = `${sub.studentName || "student"}::${normalize(lo.id)}::${normalizeOutcome(lo.text)}::${sub.assessmentId || assessment.id}`;
+          if (!studentBuckets.has(bucketKey)) studentBuckets.set(bucketKey, { lo, weighted: 0, weight: 0, studentName: sub.studentName });
+          const bucket = studentBuckets.get(bucketKey);
+          bucket.weighted += score;
+          bucket.weight += 1;
+          if (!entry.criteriaMap.has(criterionName)) entry.criteriaMap.set(criterionName, []);
+          entry.criteriaMap.get(criterionName).push({ studentName: sub.studentName, score });
+        });
       });
     }
 
