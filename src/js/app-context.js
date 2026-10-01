@@ -243,6 +243,7 @@ export async function applyRoleAccess(ctx) {
   } else if (role === "student") {
     navHtml = `
       <button class="nav-button" data-view="studentView"><span aria-hidden="true">◉</span> Kerjakan</button>
+      <button class="nav-button" data-view="studentCompetencyView"><span aria-hidden="true">📈</span> Kompetensi</button>
       <button class="nav-button" data-view="studentHistoryView"><span aria-hidden="true">🕒</span> Riwayat</button>
       <button class="nav-button" data-view="studentNotifView"><span aria-hidden="true">📩</span> Notifikasi</button>
     `;
@@ -299,7 +300,7 @@ export function setAssessmentTab(ctx, tab) {
 export function canAccessView(ctx, viewId) {
   if (!ctx.auth.user) return false;
   const role = ctx.auth.user.role;
-  if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentNotifView";
+  if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentCompetencyView" || viewId === "studentNotifView";
   if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView" || viewId === "questionBankView";
   if (role === "teacher") return ["dashboardView", "teacherView", "assessmentListView", "assessmentDetailView", "monitorView", "manageClassView", "studentProfileView", "complaintView", "questionBankView", "notifView"].includes(viewId);
   return false;
@@ -347,6 +348,10 @@ export async function switchView(ctx, viewId, { fromHistory = false } = {}) {
     } else {
       els.studentProfileContent.innerHTML = '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
     }
+  }
+  if (viewId === "studentCompetencyView") {
+    const { renderStudentCompetency } = await import("./student-competency.js");
+    renderStudentCompetency(ctx);
   }
   if (viewId === "observabilityView") {
     const { loadTelemetry } = await import("./observability.js");
