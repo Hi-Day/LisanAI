@@ -123,7 +123,9 @@ export function bindQuestionBankEvents(ctx) {
       });
       const { renderQuestionEditor } = await import("./assessment-wizard.js");
       renderQuestionEditor(ctx);
+      const { goToWizardStep } = await import("./assessment-wizard-tail.js");
       switchView(ctx, "teacherView");
+      goToWizardStep(ctx, 2);
       showToast("Soal ditambahkan ke wizard", "success");
     }
   });
