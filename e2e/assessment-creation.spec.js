@@ -110,6 +110,8 @@ test.describe("Assessment creation workflow", () => {
     await expect(page.locator(".editable-question")).toHaveCount(2);
     await expect(page.locator(".editable-question").last().locator("[data-field='outcome']")).toHaveValue("Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
 
+    await page.click("#wizardToReview");
+    await expect(page.locator("#reviewSummary")).toBeVisible();
     await page.click("#saveQuestionSet");
     await expect(page.locator("#teacherView")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("[data-wizard-panel='1']")).toBeVisible();
