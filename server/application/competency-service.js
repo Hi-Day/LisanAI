@@ -74,9 +74,13 @@ async function execute(auth, options = {}) {
   const assessments = assessmentRows.map((row) => ({ ...row, payload: parsePayload(row.payload) }));
   const allowed = new Set(rows.map((row) => row.assessment_id));
   const scoped = assessments.filter((item) => allowed.has(item.id));
-  return buildCompetencyTrajectory(buildRecords(rows, scoped), {
+  const trajectory = buildCompetencyTrajectory(buildRecords(rows, scoped), {
     maxSnapshotsPerOutcome: Number(options.maxSnapshotsPerOutcome) || 30,
   });
+  if (auth.user.role === "student") {
+    await competencyRepository.replaceStudentCompetencyStates(auth.tenant.id, auth.user.id, trajectory);
+  }
+  return trajectory;
 }
 
 module.exports = { execute, buildRecords, evidenceCoverage };
