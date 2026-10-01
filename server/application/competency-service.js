@@ -1,5 +1,6 @@
 const { parseLearningOutcomes, questionOutcomeMap, questionLearningOutcomesMap } = require("../harness/learning-outcome-alignment");
 const { buildCompetencyTrajectory } = require("../competency-trajectory");
+const { stateToTrajectory } = require("../competency-materializer");
 const competencyRepository = require("../database/competency-repository");
 
 function parsePayload(value) {
@@ -55,6 +56,11 @@ function buildRecords(rows, assessments) {
 }
 
 async function execute(auth, options = {}) {
+  if (auth.user.role === "student") {
+    const states = await competencyRepository.listStudentCompetencyStates(auth.tenant.id, auth.user.id);
+    if (states.length) return states.map(stateToTrajectory);
+  }
+
   const rows = auth.user.role === "student"
     ? await competencyRepository.listStudentSubmissions(auth.tenant.id, auth.user.id)
     : auth.user.role === "teacher"
