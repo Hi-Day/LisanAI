@@ -6,7 +6,7 @@ import {
   renderStatusBadge,
 } from "./status.js";
 import { renderAssessmentItem, renderRubricTable } from "./render.js";
-import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria } from "./competency-profile.js";
+import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria, parseLearningOutcomes, resolveLearningOutcome } from "./competency-profile.js";
 import { switchView } from "./app-context.js";
 import { getSubmissionDetail } from "./api.js";
 
@@ -305,6 +305,8 @@ function renderAssessmentDetail(ctx, submission) {
     </div>
   `;
 
+  const outcomeMapHtml = renderAssessmentOutcomeMap(assessment, submission);
+
   const criteriaHtml = criteria.length
     ? `<div class="analytics-panel">
         <div class="panel-head-row">
@@ -335,6 +337,58 @@ function renderAssessmentDetail(ctx, submission) {
     ${rubricHtml}
     ${traceHtml}
   `;
+}
+
+function renderAssessmentOutcomeMap(assessment, submission) {
+  const outcomes = parseLearningOutcomes(assessment?.outcomes);
+  const questions = Array.isArray(assessment?.questions) ? assessment.questions : [];
+  const scores = Array.isArray(submission?.questionScores) ? submission.questionScores : [];
+  if (!outcomes.length || !questions.length) {
+    return `<div class="analytics-panel"><h3>Learning Outcome &amp; Kompetensi</h3><p class="empty-state">Assessment ini belum memiliki Learning Outcome yang terpetakan.</p></div>`;
+  }
+
+  const rows = questions.map((q, index) => {
+    const lo = resolveLearningOutcome(q, outcomes);
+    const score = scores[index]?.score;
+    const evidenceCount = Array.isArray(scores[index]?.evidence) ? scores[index].evidence.length : 0;
+    return `
+      <div class="lo-map-row">
+        <div class="lo-map-question">
+          <strong>Soal ${index + 1}</strong>
+          <span>${escapeHtml(compactText(q.prompt || "", 140))}</span>
+        </div>
+        <div class="lo-map-target">
+          ${lo
+            ? `<strong>${escapeHtml(lo.id)}</strong><span>${escapeHtml(lo.text)}</span>`
+            : `<span class="tag-warn">Belum terpetakan</span>`}
+        </div>
+        <div class="lo-map-score">
+          ${Number.isFinite(Number(score)) ? `<strong>${Number(score)}</strong><span>/100</span>` : "—"}
+          ${evidenceCount ? `<small>${evidenceCount} evidence</small>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+
+  const competency = buildCompetencyProfile([assessment], [{ ...submission, assessmentId: assessment.id }]);
+  const competencyHtml = competency.length
+    ? `<div class="lo-competency-summary">${competency.map((c) => `
+        <div class="lo-competency-card">
+          <div><strong>${escapeHtml(c.id)} — ${escapeHtml(c.name)}</strong><span>${c.records.length} evidence</span></div>
+          <strong>${Math.round(c.avg)}/100</strong>
+        </div>`).join("")}</div>`
+    : `<p class="panel-hint">Belum ada skor kompetensi yang dapat diturunkan dari evidence submission.</p>`;
+
+  return `
+    <div class="analytics-panel">
+      <div class="panel-head-row">
+        <h3 style="margin:0;">Learning Outcome &amp; Kompetensi</h3>
+        <span class="metric-pill">${outcomes.length} LO</span>
+      </div>
+      <p class="panel-hint">Jejak langsung dari soal → Learning Outcome → evidence → skor kompetensi.</p>
+      <div class="lo-map-stack">${rows}</div>
+      <h4 style="margin:18px 0 8px;">Ringkasan Profil Kompetensi</h4>
+      ${competencyHtml}
+    </div>`;
 }
 
 function renderCriterion(c, index, nameMap = new Map()) {
