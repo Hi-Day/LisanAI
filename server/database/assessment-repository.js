@@ -1,3 +1,5 @@
+const { validateAssessmentIntegrity } = require("../assessment-integrity");
+
 function writableError(message, status) { return Object.assign(new Error(message), { status }); }
 
 async function getWritableAssessment(db, auth, assessmentId) {
@@ -16,6 +18,7 @@ async function assertCanWriteAssessment(db, auth, assessment) {
 
 async function saveAssessment(db, auth, assessment) {
   await assertCanWriteAssessment(db, auth, assessment);
+  validateAssessmentIntegrity(assessment);
   await db.run(`INSERT OR REPLACE INTO assessments (id, tenant_id, class_id, teacher_id, status, topic, difficulty, payload, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, assessment.id, auth.tenant.id, assessment.classId, auth.user.id,
     assessment.status || "published", assessment.topic, assessment.difficulty, JSON.stringify(assessment), assessment.createdAt);
@@ -27,6 +30,7 @@ async function updateAssessment(db, auth, assessmentId, patch) {
   const payload = JSON.parse(existing.payload);
   const next = { ...payload, ...patch, id: payload.id, classId: patch.classId || payload.classId || existing.class_id, updatedAt: new Date().toISOString() };
   await assertCanWriteAssessment(db, auth, next);
+  validateAssessmentIntegrity(next);
   await db.run(`UPDATE assessments SET class_id = ?, status = ?, topic = ?, difficulty = ?, payload = ? WHERE id = ? AND tenant_id = ?`,
     next.classId, next.status || "published", next.topic, next.difficulty, JSON.stringify(next), assessmentId, auth.tenant.id);
   return next;
@@ -51,4 +55,4 @@ function sanitizeAssessmentForRole(assessment, isStudentView) {
   return { ...assessment, questions: assessment.questions.map((question) => { const { ideal, ...rest } = question || {}; return rest; }) };
 }
 
-module.exports = { saveAssessment, updateAssessment, deleteAssessment, getVisibleAssessments, getWritableAssessment, assertCanWriteAssessment, sanitizeAssessmentForRole };
+module.exports = { saveAssessment, updateAssessment, deleteAssessment, getVisibleAssessments, getWritableAssessment, assertCanWriteAssessment, sanitizeAssessmentForRole, validateAssessmentIntegrity };
