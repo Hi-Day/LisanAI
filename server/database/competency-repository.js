@@ -4,8 +4,15 @@ async function listAssessments(tenantId) {
   return getDb().all("SELECT id, class_id, teacher_id, payload FROM assessments WHERE tenant_id = ?", tenantId);
 }
 
-async function listStudentSubmissions(tenantId, userId) {
-  return getDb().all("SELECT * FROM submissions WHERE tenant_id = ? AND user_id = ? ORDER BY submitted_at ASC", tenantId, userId);
+async function listStudentSubmissions(tenantId, userId, limit = 300) {
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 300));
+  const rows = await getDb().all(
+    "SELECT * FROM submissions WHERE tenant_id = ? AND user_id = ? ORDER BY submitted_at DESC LIMIT ?",
+    tenantId,
+    userId,
+    safeLimit,
+  );
+  return rows.reverse();
 }
 
 async function listAssessmentsByIds(tenantId, assessmentIds = []) {
