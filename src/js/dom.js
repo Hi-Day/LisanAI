@@ -98,6 +98,7 @@ export function getElements() {
     studentCompetencyView: document.querySelector("#studentCompetencyView"),
     studentCompetencyCount: document.querySelector("#studentCompetencyCount"),
     studentCompetencySummary: document.querySelector("#studentCompetencySummary"),
+    studentCompetencyControls: document.querySelector("#studentCompetencyControls"),
     studentCompetencyList: document.querySelector("#studentCompetencyList"),
     classAverage: document.querySelector("#classAverage"),
     trendList: document.querySelector("#trendList"),
