@@ -89,6 +89,32 @@ test.describe("Assessment creation workflow", () => {
     await expect(page.locator(".editable-question")).toHaveCount(1);
   });
 
+
+  test("reuses a question-bank item with its learning outcome and saves the assessment", async ({ page }) => {
+    await fillContext(page, "Ekosistem", "LO1: Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
+    await page.fill("#questionCount", "1");
+    await page.click("#wizardToQuestions");
+    await page.click("#createManualAssessment");
+
+    await page.locator(".editable-question [data-field='prompt']").fill("Jelaskan hubungan produsen dan konsumen.");
+    await page.locator(".editable-question [data-field='outcome']").fill("Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
+    await page.click("#saveToBankBtn");
+
+    await page.click("#mainNav button[data-view='questionBankView']");
+    await expect(page.locator("#questionBankView")).toBeVisible({ timeout: 10_000 });
+    const bankItem = page.locator(".feedback-card", { hasText: "Jelaskan hubungan produsen dan konsumen." }).first();
+    await expect(bankItem).toContainText("LO1");
+    await bankItem.locator(".import-question-btn").click();
+
+    await expect(page.locator("[data-wizard-panel='2']")).toBeVisible();
+    await expect(page.locator(".editable-question")).toHaveCount(2);
+    await expect(page.locator(".editable-question").last().locator("[data-field='outcome']")).toHaveValue("Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
+
+    await page.click("#saveQuestionSet");
+    await expect(page.locator("#teacherView")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("[data-wizard-panel='1']")).toBeVisible();
+  });
+
   test("can save the edited question set to the question bank", async ({ page }) => {
     await fillContext(page, "Ekosistem", "Siswa mampu menjelaskan hubungan antar komponen ekosistem.");
     await page.fill("#questionCount", "1");
