@@ -13,7 +13,7 @@ test("competency profile keeps same LO id separate when outcome text differs", a
   ];
   const profile = buildCompetencyProfile(assessments, submissions);
   assert.equal(profile.length, 2);
-  assert.deepEqual(profile.map((x) => x.name).sort(), ["Menjelaskan konsep", "Menerapkan konsep"]);
+  assert.deepEqual(profile.map((x) => x.name).sort(), ["Menerapkan konsep", "Menjelaskan konsep"]);
 });
 
 test("competency profile contributes one question to every mapped learning outcome", async () => {
