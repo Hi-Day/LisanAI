@@ -119,6 +119,23 @@ export function parseLearningOutcomes(value) {
   });
 }
 
+function resolveLearningOutcomes(question, outcomes) {
+  const list = Array.isArray(outcomes) ? outcomes : [];
+  const ids = Array.isArray(question?.learningOutcomeIds) ? question.learningOutcomeIds : [];
+  const explicit = String(question?.learningOutcomeId || question?.outcomeId || "").trim();
+  const requested = [...ids.map(String), explicit].map((id) => id.trim()).filter(Boolean);
+  const resolved = requested.map((id) => list.find((lo) => normalize(lo.id) === normalize(id))).filter(Boolean);
+  if (resolved.length) return [...new Map(resolved.map((lo) => [lo.id, lo])).values()];
+  const text = normalizeOutcome(question?.outcome || "");
+  if (!text) return [];
+  const exact = list.filter((lo) => normalizeOutcome(lo.text) === text);
+  if (exact.length) return exact;
+  return list.filter((lo) => {
+    const a = normalizeOutcome(lo.text);
+    return a && (a.includes(text) || text.includes(a));
+  });
+}
+
 export function resolveLearningOutcome(question, outcomes) { return resolveQuestionOutcome(question, outcomes); }
 
 function resolveQuestionOutcome(question, outcomes) {
