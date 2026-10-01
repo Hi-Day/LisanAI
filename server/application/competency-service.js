@@ -1,4 +1,4 @@
-const { parseLearningOutcomes, questionOutcomeMap } = require("../harness/learning-outcome-alignment");
+const { parseLearningOutcomes, questionLearningOutcomesMap } = require("../harness/learning-outcome-alignment");
 const { buildCompetencyTrajectory } = require("../competency-trajectory");
 const competencyRepository = require("../database/competency-repository");
 
@@ -23,18 +23,21 @@ function buildRecords(rows, assessments) {
     const assessment = assessmentMap.get(row.assessment_id);
     if (!assessment) continue;
     const outcomes = parseLearningOutcomes(assessment.outcomes ?? assessment.learningOutcomes ?? assessment.learningOutcome);
-    const questionMap = questionOutcomeMap(assessment.questions || [], outcomes);
+    const questionMap = questionLearningOutcomesMap(assessment.questions || [], outcomes);
     const scores = Array.isArray(submission.questionScores) ? submission.questionScores : [];
     const groups = new Map();
     scores.forEach((qs, index) => {
-      const lo = questionMap.get(index);
+      const los = questionMap.get(index) || [];
       const score = Number(qs?.score);
-      if (!lo || !Number.isFinite(score)) return;
-      const bucket = groups.get(lo.id) || { learningOutcomeId: lo.id, learningOutcome: lo.text, scores: [], evidenceCount: 0, probingCount: 0 };
-      bucket.scores.push(Math.max(0, Math.min(100, score)));
-      bucket.evidenceCount += Array.isArray(qs?.evidence) ? qs.evidence.length : 0;
-      if (String(qs?.probing?.answer || "").trim()) { bucket.evidenceCount += 1; bucket.probingCount += 1; }
-      groups.set(lo.id, bucket);
+      if (!los.length || !Number.isFinite(score)) return;
+      los.forEach((lo) => {
+        const key = `${lo.id}::${String(lo.text || "").trim().toLowerCase()}`;
+        const bucket = groups.get(key) || { learningOutcomeId: lo.id, learningOutcome: lo.text, scores: [], evidenceCount: 0, probingCount: 0 };
+        bucket.scores.push(Math.max(0, Math.min(100, score)));
+        bucket.evidenceCount += Array.isArray(qs?.evidence) ? qs.evidence.length : 0;
+        if (String(qs?.probing?.answer || "").trim()) { bucket.evidenceCount += 1; bucket.probingCount += 1; }
+        groups.set(key, bucket);
+      });
     });
     groups.forEach((group) => records.push({
       learningOutcomeId: group.learningOutcomeId,
@@ -51,17 +54,23 @@ function buildRecords(rows, assessments) {
   return records;
 }
 
-async function execute(auth) {
-  const assessmentRows = await competencyRepository.listAssessments(auth.tenant.id);
-  const assessments = assessmentRows.map((row) => ({ ...row, payload: parsePayload(row.payload) }));
+async function execute(auth, options = {}) {
   const rows = auth.user.role === "student"
     ? await competencyRepository.listStudentSubmissions(auth.tenant.id, auth.user.id)
     : auth.user.role === "teacher"
       ? await competencyRepository.listTeacherSubmissions(auth.tenant.id, auth.user.id)
       : await competencyRepository.listTenantSubmissions(auth.tenant.id);
+
+  const assessmentIds = [...new Set(rows.map((row) => row.assessment_id).filter(Boolean))];
+  const assessmentRows = auth.user.role === "student"
+    ? await competencyRepository.listAssessmentsByIds(auth.tenant.id, assessmentIds)
+    : await competencyRepository.listAssessments(auth.tenant.id);
+  const assessments = assessmentRows.map((row) => ({ ...row, payload: parsePayload(row.payload) }));
   const allowed = new Set(rows.map((row) => row.assessment_id));
   const scoped = assessments.filter((item) => allowed.has(item.id));
-  return buildCompetencyTrajectory(buildRecords(rows, scoped));
+  return buildCompetencyTrajectory(buildRecords(rows, scoped), {
+    maxSnapshotsPerOutcome: Number(options.maxSnapshotsPerOutcome) || 30,
+  });
 }
 
 module.exports = { execute, buildRecords, evidenceCoverage };
