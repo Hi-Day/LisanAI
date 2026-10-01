@@ -102,7 +102,7 @@ async function seedScenario() {
     difficulty: "Menengah",
     outcomes: "Siswa mampu menjelaskan konsep utama.",
     rubric: "Akurasi, kelengkapan, dan kejelasan.",
-    questions: [{ prompt: "Jelaskan konsep utama.", ideal: "Jawaban ideal." }],
+    questions: [{ prompt: "Jelaskan konsep utama.", outcome: "Siswa mampu menjelaskan konsep utama.", learningOutcomeId: "LO1", ideal: "Jawaban ideal." }],
     createdAt: new Date().toISOString(),
   };
   await saveAssessment({ tenant, user: teacher }, assessment);
