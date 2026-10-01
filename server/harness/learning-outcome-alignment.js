@@ -49,6 +49,14 @@ function resolveLearningOutcome(question, outcomes) {
   return resolveLearningOutcomes(question, outcomes)[0] || null;
 }
 
+function questionLearningOutcomesMap(questions, outcomes) {
+  const map = new Map();
+  (questions || []).forEach((question, index) => {
+    map.set(index, resolveLearningOutcomes(question, outcomes));
+  });
+  return map;
+}
+
 function questionOutcomeMap(questions, outcomes) {
   const map = new Map();
   (questions || []).forEach((question, index) => {
@@ -199,4 +207,4 @@ function enrichQuestionLearningOutcome(question, outcomes) {
   return { ...question, learningOutcomeIds: los.map((lo) => lo.id), learningOutcomeId: los[0].id, outcome: los.map((lo) => lo.text).join("; ") };
 }
 
-module.exports = { normalizeText, parseLearningOutcomes, resolveLearningOutcome, resolveLearningOutcomes, questionOutcomeMap, mapCriteriaToLearningOutcomes, coverageReport, validateLearningOutcomeCoverage, enrichQuestionLearningOutcome, ensureLearningOutcomeCoverage, buildLearningOutcomeQuestionPlan };
+module.exports = { normalizeText, parseLearningOutcomes, resolveLearningOutcome, resolveLearningOutcomes, questionOutcomeMap, questionLearningOutcomesMap, mapCriteriaToLearningOutcomes, coverageReport, validateLearningOutcomeCoverage, enrichQuestionLearningOutcome, ensureLearningOutcomeCoverage, buildLearningOutcomeQuestionPlan };
