@@ -37,3 +37,18 @@ test("detects stable and declining trajectories", () => {
   assert.equal(trendForSnapshots([{ score: 80 }, { score: 70 }]).direction, "DECLINING");
   assert.equal(trendForSnapshots([{ score: 80 }]).direction, "BASELINE");
 });
+
+
+test("trajectory history is bounded while snapshotCount remains total", () => {
+  const { buildCompetencyTrajectory } = require("../server/competency-trajectory");
+  const records = Array.from({ length: 50 }, (_, index) => ({
+    learningOutcomeId: "LO1",
+    learningOutcome: "Kompetensi",
+    assessmentId: "a" + index,
+    submittedAt: "2026-02-" + String((index % 28) + 1).padStart(2, "0"),
+    score: 50 + index,
+  }));
+  const result = buildCompetencyTrajectory(records, { maxSnapshotsPerOutcome: 10 });
+  assert.equal(result[0].snapshotCount, 50);
+  assert.equal(result[0].history.length, 10);
+});
