@@ -43,6 +43,14 @@ export function rebindQuestionToAssessmentOutcomes(question, outcomesValue) {
     : [];
 
   if (!matched.length && questionText) {
+    // Support legacy/multi-LO bank entries whose outcome field contains
+    // several current LO texts joined by "; ".
+    matched = outcomes.filter((lo) => {
+      const text = normalizeOutcome(lo.text);
+      return text && questionText.includes(text);
+    });
+  }
+  if (!matched.length && questionText) {
     matched = outcomes.filter((lo) => {
       const text = normalizeOutcome(lo.text);
       return text && (text.includes(questionText) || questionText.includes(text));
