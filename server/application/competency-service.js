@@ -1,4 +1,4 @@
-const { parseLearningOutcomes, questionLearningOutcomesMap } = require("../harness/learning-outcome-alignment");
+const { parseLearningOutcomes, questionOutcomeMap, questionLearningOutcomesMap } = require("../harness/learning-outcome-alignment");
 const { buildCompetencyTrajectory } = require("../competency-trajectory");
 const competencyRepository = require("../database/competency-repository");
 
