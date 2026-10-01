@@ -48,19 +48,21 @@ function trendForSnapshots(snapshots) {
   return { direction, delta, slope: Number(slope.toFixed(2)) };
 }
 
-function buildLearningOutcomeTrajectory(learningOutcomeId, learningOutcome, snapshots = []) {
+function buildLearningOutcomeTrajectory(learningOutcomeId, learningOutcome, snapshots = [], options = {}) {
   const normalized = snapshots.map(normalizeSnapshot).sort((a, b) => {
     const ta = a.submittedAt ? Date.parse(a.submittedAt) : a.index;
     const tb = b.submittedAt ? Date.parse(b.submittedAt) : b.index;
     return ta - tb;
   });
-  const latest = normalized.at(-1) || null;
-  const trend = trendForSnapshots(normalized);
+  const maxSnapshots = Math.max(1, Number(options.maxSnapshotsPerOutcome) || 30);
+  const history = normalized.slice(-maxSnapshots);
+  const latest = history.at(-1) || null;
+  const trend = trendForSnapshots(history);
   return {
     learningOutcomeId,
     learningOutcome,
     snapshotCount: normalized.length,
-    history: normalized,
+    history,
     latest: latest ? {
       score: latest.score,
       evidenceCoverage: latest.evidenceCoverage,
@@ -81,20 +83,22 @@ function buildLearningOutcomeTrajectory(learningOutcomeId, learningOutcome, snap
   };
 }
 
-function buildCompetencyTrajectory(records = []) {
+function buildCompetencyTrajectory(records = [], options = {}) {
   const groups = new Map();
   for (const record of records) {
     const loId = record?.learningOutcomeId || record?.outcomeId;
     if (!loId) continue;
-    if (!groups.has(loId)) groups.set(loId, {
+    const text = record.learningOutcome || record.outcomeText || loId;
+    const key = `${String(loId).trim().toLowerCase()}::${String(text).trim().toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, {
       id: loId,
-      text: record.learningOutcome || record.outcomeText || loId,
+      text,
       snapshots: [],
     });
-    groups.get(loId).snapshots.push(record);
+    groups.get(key).snapshots.push(record);
   }
   return [...groups.values()].map((group) =>
-    buildLearningOutcomeTrajectory(group.id, group.text, group.snapshots)
+    buildLearningOutcomeTrajectory(group.id, group.text, group.snapshots, options)
   );
 }
 
