@@ -1,5 +1,27 @@
 const { getDb } = require("../database");
 
+async function replaceStudentCompetencyStates(tenantId, studentId, trajectory = []) {
+  const db = getDb();
+  await db.run("DELETE FROM student_competency_state WHERE tenant_id = ? AND student_id = ?", tenantId, studentId);
+  const now = new Date().toISOString();
+  for (const item of trajectory) {
+    await db.run(
+      `INSERT INTO student_competency_state
+       (tenant_id, student_id, learning_outcome_id, learning_outcome, latest_score, latest_submitted_at, snapshot_count, history, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      tenantId,
+      studentId,
+      item.learningOutcomeId,
+      item.learningOutcome,
+      item.latest?.score ?? 0,
+      item.latest?.submittedAt ?? null,
+      item.snapshotCount || item.history?.length || 0,
+      JSON.stringify(item.history || []),
+      now,
+    );
+  }
+}
+
 async function listStudentCompetencyStates(tenantId, studentId) {
   return getDb().all(
     "SELECT * FROM student_competency_state WHERE tenant_id = ? AND student_id = ? ORDER BY learning_outcome_id, learning_outcome",
@@ -44,6 +66,7 @@ async function listTenantSubmissions(tenantId) {
 }
 
 module.exports = {
+  replaceStudentCompetencyStates,
   listStudentCompetencyStates,
   listAssessments,
   listAssessmentsByIds,
