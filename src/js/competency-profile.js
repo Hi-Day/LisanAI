@@ -119,6 +119,8 @@ export function parseLearningOutcomes(value) {
   });
 }
 
+export function resolveLearningOutcome(question, outcomes) { return resolveQuestionOutcome(question, outcomes); }
+
 function resolveQuestionOutcome(question, outcomes) {
   const explicitId = String(question?.learningOutcomeId || question?.outcomeId || "").trim();
   if (explicitId) {
