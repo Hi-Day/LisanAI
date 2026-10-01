@@ -179,6 +179,7 @@ export async function saveCurrentQuestionsToBank(ctx) {
     showToast("Tidak ada soal untuk disimpan", "error");
     return;
   }
+  ctx.pendingQuestions = ctx.pendingQuestions.map((question) => rebindQuestionToAssessmentOutcomes(question, config.outcomes));
   let saved = 0;
   for (const q of ctx.pendingQuestions) {
     try {
