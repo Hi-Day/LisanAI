@@ -1,5 +1,13 @@
 const { getDb } = require("../database");
 
+async function listStudentCompetencyStates(tenantId, studentId) {
+  return getDb().all(
+    "SELECT * FROM student_competency_state WHERE tenant_id = ? AND student_id = ? ORDER BY learning_outcome_id, learning_outcome",
+    tenantId,
+    studentId,
+  );
+}
+
 async function listAssessments(tenantId) {
   return getDb().all("SELECT id, class_id, teacher_id, payload FROM assessments WHERE tenant_id = ?", tenantId);
 }
@@ -36,6 +44,7 @@ async function listTenantSubmissions(tenantId) {
 }
 
 module.exports = {
+  listStudentCompetencyStates,
   listAssessments,
   listAssessmentsByIds,
   listStudentSubmissions,
