@@ -3656,3 +3656,85 @@ html.dark-mode .ai-stream-panel {
 @media (max-width: 600px) {
   .student-competency-summary { grid-template-columns: 1fr; }
 }
+
+
+/* ---- Student competency learning dashboard ---- */
+.student-competency-panel { padding: 24px; }
+.student-competency-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin: 4px 0 20px;
+}
+.student-competency-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 0 12px;
+}
+.student-competency-search input { border: 0; outline: 0; background: transparent; width: 100%; min-height: 40px; padding: 8px 0; }
+.student-competency-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.student-filter-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: .78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.student-filter-btn:hover, .student-filter-btn.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-active); }
+.student-sort { display: flex; align-items: center; gap: 7px; font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.student-sort select { min-height: 38px; padding: 7px 30px 7px 10px; }
+.student-kpi-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 18px;
+}
+.student-kpi-card::after {
+  content: "";
+  position: absolute;
+  right: -22px;
+  bottom: -32px;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+}
+.student-kpi-positive::after { background: var(--success-soft); }
+.student-kpi-attention::after { background: var(--warning-soft); }
+.student-kpi-card .kpi-value { position: relative; z-index: 1; }
+.student-competency-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.student-competency-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,.08); border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
+.student-competency-title { min-width: 0; }
+.student-competency-title h4 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.student-score strong { font-size: 2.35rem; letter-spacing: -.04em; }
+.student-competency-trend { font-weight: 600; }
+.student-competency-trend.is-up { color: var(--success-strong); }
+.student-competency-trend.is-down { color: var(--danger-strong); }
+.student-competency-trend.is-flat { color: var(--muted); }
+.student-competency-history { margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--border); }
+.student-history-label { display:flex; justify-content:space-between; gap:10px; margin-bottom:8px; color:var(--muted); font-size:.72rem; }
+.student-competency-bars { height: 46px; display:flex; align-items:flex-end; gap:5px; }
+.student-competency-bar { flex:1; min-width:10px; max-width:24px; height:100%; display:flex; align-items:flex-end; background: var(--surface-muted, var(--border)); border-radius:4px 4px 2px 2px; overflow:hidden; }
+.student-competency-bar span { display:block; width:100%; background:var(--brand); border-radius:4px 4px 2px 2px; min-height:3px; }
+.student-competency-empty { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:48px 24px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); text-align:center; }
+.student-competency-empty strong { color:var(--text); }
+@media (max-width: 1050px) {
+  .student-competency-controls { grid-template-columns: 1fr; }
+  .student-sort { justify-content:flex-end; }
+}
+@media (max-width: 600px) {
+  .student-competency-panel { padding: 16px; }
+  .student-competency-list { grid-template-columns: 1fr; }
+  .student-competency-card { padding: 15px; }
+}
+html.dark-mode .student-competency-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.24); }
