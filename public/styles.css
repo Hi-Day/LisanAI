@@ -3524,3 +3524,18 @@ html.dark-mode .ai-stream-panel {
 .meter-fill { background: var(--brand); }
 .ob-hist-bar { background: linear-gradient(90deg, var(--brand), var(--ai)); }
 .ob-split-prompt { background: var(--brand); }
+
+
+.lo-map-stack { display: flex; flex-direction: column; gap: 8px; }
+.lo-map-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) 90px; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.lo-map-question, .lo-map-target { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lo-map-question span, .lo-map-target span { color: var(--muted); font-size: .82rem; }
+.lo-map-score { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.lo-map-score strong { font-size: 1.05rem; }
+.lo-map-score span { color: var(--muted); font-size: .75rem; }
+.lo-map-score small { color: var(--muted); }
+.lo-competency-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.lo-competency-card { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.lo-competency-card > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lo-competency-card span { color: var(--muted); font-size: .78rem; }
+@media (max-width: 760px) { .lo-map-row { grid-template-columns: 1fr; } .lo-map-score { align-items: flex-start; text-align: left; } }
