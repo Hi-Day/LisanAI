@@ -220,7 +220,7 @@ export function buildCompetencyProfile(assessments, submissions) {
       const criterionId = String(c.criterionId || def?.id || c.name || "").trim();
       const criterionKey = normKey(c.criterionId || c.name || "");
       let los = Number.isInteger(c.answerIndex) ? (questionLO.get(c.answerIndex) || []) : [];
-      if (!lo && criterionKey) {
+      if (!los.length && criterionKey) {
         const questionKeys = (item) => (item && Array.isArray(item.criteria) ? item.criteria : [])
           .map((x) => normKey(typeof x === "object" && x ? x.id || x.criterionId || x.name || "" : x))
           .filter(Boolean);
