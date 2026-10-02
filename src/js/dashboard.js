@@ -310,13 +310,13 @@ function renderAssessmentDetail(ctx, submission) {
   const criteriaHtml = criteria.length
     ? `<div class="analytics-panel">
         <div class="panel-head-row">
-          <h3 style="margin:0;">Criterion</h3>
-          <span class="metric-pill">${criteria.length} kriteria</span>
+          <h3 style="margin:0;">Indikator</h3>
+          <span class="metric-pill">${criteria.length} indikator</span>
         </div>
-        <p class="panel-hint">Skor per kriteria rubrik, dengan bukti yang dapat ditelusuri ke jawaban siswa.</p>
+        <p class="panel-hint">Skor per indikator penilaian, dengan bukti yang dapat ditelusuri ke jawaban siswa.</p>
         <div class="criterion-stack">${criteria.map((c, i) => renderCriterion(c, i, rubricNameMap(assessment))).join("")}</div>
       </div>`
-    : `<div class="analytics-panel"><h3>Criterion</h3><div class="empty-state">Belum ada data kriteria — gunakan evaluasi berbasis rubrik (AI Harness).</div></div>`;
+    : `<div class="analytics-panel"><h3>Indikator</h3><div class="empty-state">Belum ada data indikator — gunakan evaluasi berbasis rubrik (AI Harness).</div></div>`;
 
   const traceHtml = `
     <div class="analytics-panel">
@@ -483,9 +483,9 @@ function resolveCriterionName(c, index, nameMap) {
   const byName = c.name ? nameMap.get(`name:${normalizeKey(c.name)}`) : undefined;
   if (byName) return byName;
   if (c.name && looksLikeRubricDump(c.name)) {
-    return prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
+    return prettifyId(c.criterionId) || `Indikator ${index + 1}`;
   }
-  return c.name || prettifyId(c.criterionId) || `Kriteria ${index + 1}`;
+  return c.name || prettifyId(c.criterionId) || `Indikator ${index + 1}`;
 }
 
 /** Heuristic: the stored "name" is actually a serialized rubric structure. */
