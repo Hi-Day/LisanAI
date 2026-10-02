@@ -11,7 +11,7 @@ function isSupportedAction(action) {
 
 async function assertCanEvaluate(action, payload, auth) {
   if (action !== "evaluate" || auth.user.role !== "student") return;
-  await submissionService.assertCanSubmit(auth, payload.assessment.id);
+  await submissionService.assertCanSubmit(auth, payload.assessment.id, payload.assessment.deliveryClassId || payload.assessment.classId || null);
 }
 
 async function evaluate(payload, auth, onProgress = null) {
