@@ -26,7 +26,7 @@ const { parseRubricText } = require("./plugins/rubric");
 const RUBRIC_VERSION = "v1";
 
 /**
- * Deterministic slug for a criterion id from its name. Collision-safe by
+ * Deterministic slug for a indikator id from its name. Collision-safe by
  * suffixing a counter when a name maps to the same slug within one rubric.
  */
 function slugify(name) {
@@ -54,7 +54,7 @@ function canonicalStringify(value) {
 }
 
 /**
- * Normalize + validate a single criterion entry.
+ * Normalize + validate a single indikator entry.
  * @returns {{id,name,description,weight}} or throws on invalid weight/id.
  */
 function normalizeCriterion(entry, index, seenIds) {
@@ -63,13 +63,13 @@ function normalizeCriterion(entry, index, seenIds) {
   const rawWeight = src.weight == null ? 0 : Number(src.weight);
 
   if (!name) {
-    throw new Error(`Criterion #${index + 1} wajib memiliki nama`);
+    throw new Error(`Indikator #${index + 1} wajib memiliki nama`);
   }
   if (!Number.isFinite(rawWeight)) {
-    throw new Error(`Criterion '${name}' memiliki weight yang tidak valid (${src.weight})`);
+    throw new Error(`Indikator '${name}' memiliki weight yang tidak valid (${src.weight})`);
   }
   if (rawWeight < 0) {
-    throw new Error(`Criterion '${name}' memiliki weight negatif (${rawWeight})`);
+    throw new Error(`Indikator '${name}' memiliki weight negatif (${rawWeight})`);
   }
 
   const explicit = !!(src.id || src.criterionId);
@@ -80,7 +80,7 @@ function normalizeCriterion(entry, index, seenIds) {
 
   // Explicit duplicate ids are rejected (PRD: duplicate criteria ditolak).
   if (explicit && seenIds.has(id)) {
-    throw new Error(`Criterion id duplikat: '${id}'`);
+    throw new Error(`Indikator id duplikat: '${id}'`);
   }
   // Derived ids that collide (two different names normalizing to the same slug)
   // are made distinct deterministically rather than throwing.
@@ -111,7 +111,7 @@ function criteriaFromFreeText(text) {
 }
 
 /**
- * Resolve the raw criteria list (structured | free-text | fallback) and
+ * Resolve the raw indicator list (structured | free-text | fallback) and
  * normalize to { name, weight } pairs before id-assignment + weight checks.
  */
 function resolveCriteria(rubric) {
@@ -133,7 +133,7 @@ function resolveCriteria(rubric) {
 
 /**
  * Validate + normalize weights to sum to 1.
- * - Zero weight is allowed for an individual criterion but it cannot be the
+ * - Zero weight is allowed for an individual indikator but it cannot be the
  *   only one with weight.
  * - After normalization the total is 1 (within FP tolerance).
  */
@@ -165,13 +165,13 @@ function compileRubric({ rubric, id } = {}) {
   const seenIds = new Set();
   const normalized = rawCriteria.map((c, i) => normalizeCriterion(c, i, seenIds));
 
-  // Duplicate detection happens in normalizeCriterion via seenIds.
+  // Duplicate detection happens in normalizeIndikator via seenIds.
   const weighted = normalizeWeights(normalized);
 
-  // A zero-weight criterion is permitted but must not be the sole contributor.
+  // A zero-weight indikator is permitted but must not be the sole contributor.
   const nonZero = weighted.filter((c) => c.weight > 0);
   if (nonZero.length === 0) {
-    throw new Error("Rubric tidak memiliki kriteria berbobot > 0");
+    throw new Error("Rubric tidak memiliki indikator berbobot > 0");
   }
 
   // Hash is computed over criteria SORTED BY ID so that a semantically-identical
