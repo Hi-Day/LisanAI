@@ -275,9 +275,9 @@ function renderRubric(els, data) {
   const coverage = data && data.criterionCoverage ? data.criterionCoverage : 0;
   els.researchRubricPanel.innerHTML = n
     ? `
-      <p>Rata-rata criterion per run: <strong>${coverage.toFixed(2)}</strong></p>
+      <p>Rata-rata indikator per run: <strong>${coverage.toFixed(2)}</strong></p>
       <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Rata-rata jumlah aspek rubrik yang dievaluasi pada tiap run evaluasi.</p>
-      <p>Total criterion rows: <strong>${data.totalCriterionRows || 0}</strong></p>
+      <p>Total baris indikator: <strong>${data.totalCriterionRows || 0}</strong></p>
       <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Total seluruh penilaian aspek rubrik yang dicatat di semua run.</p>
       <p>Jumlah run: <strong>${n}</strong></p>
       <p class="metric-hint" style="font-size:0.75rem;color:var(--muted);margin-top:-4px;">Banyaknya evaluasi (run) yang pernah dijalankan oleh sistem.</p>`
@@ -288,11 +288,11 @@ function renderRubric(els, data) {
 const reliabilityDimensionDefs = {
   evidenceGrounding: {
     label: "Grounded Evidence",
-    desc: "Proporsi kriteria yang skornya didukung bukti yang benar-benar ter-ground di jawaban siswa. Semakin tinggi, makin kuat dasar penilaiannya.",
+    desc: "Proporsi indikator yang skornya didukung bukti yang benar-benar ter-ground di jawaban siswa. Semakin tinggi, makin kuat dasar penilaiannya.",
   },
   criterionCoverage: {
-    label: "Cakupan Kriteria",
-    desc: "Proporsi kriteria rubrik yang benar-benar dievaluasi pada run ini. Nilai 100% berarti seluruh aspek rubrik dinilai.",
+    label: "Cakupan Indikator",
+    desc: "Proporsi indikator penilaian yang benar-benar dievaluasi pada run ini. Nilai 100% berarti seluruh aspek rubrik dinilai.",
   },
   rubricAlignment: {
     label: "Kesesuaian Rubrik",
@@ -356,7 +356,7 @@ async function openTrace(ctx, runId) {
           ${typeof c.confidence === "number" ? `<div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">Kepercayaan: ${fmt(c.confidence * 100, 0)}%</div>` : ""}
           ${
             c.noEvidence
-              ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--warning-strong);"><strong>TANPA EVIDENCE</strong> — criterion tanpa bukti jawaban (FR-03)</div>`
+              ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--warning-strong);"><strong>TANPA EVIDENCE</strong> — indikator tanpa bukti jawaban (FR-03)</div>`
               : Array.isArray(c.evidence) && c.evidence.length
                 ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Evidence:</span><ul style="margin:4px 0 0 18px;">${c.evidence
                     .map((ev) => {
@@ -374,7 +374,7 @@ async function openTrace(ctx, runId) {
           ${c.rationale ? `<div style="margin-top:8px;font-size:0.85rem;"><span style="color:var(--muted);">Alasan:</span> ${escapeHtml(c.rationale)}</div>` : ""}
         </div>`
         )
-      .join("") || '<p class="empty-state">Tanpa criterion</p>';
+      .join("") || '<p class="empty-state">Tanpa indikator</p>';
 
     // Question ↔ rubric mapping (P0): which rubric category each question falls
     // into, stamped at generation time and persisted with the trace.
