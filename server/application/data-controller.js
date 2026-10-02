@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
 
     if (action === "save-assessment") {
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-      await saveAssessment(auth, payload); return sendJson(res, 201, { assessment: payload });
+      const saved = await saveAssessment(auth, payload); return sendJson(res, 201, { assessment: saved });
     }
     if (action === "update-assessment") {
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
