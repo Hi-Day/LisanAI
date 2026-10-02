@@ -311,7 +311,7 @@ export function renderClasses(ctx) {
     installClassMultiSelect(els.classSelect);
     const currentValues = [...els.classSelect.selectedOptions].map((option) => option.value);
     els.classSelect.innerHTML = ctx.state.classes.length
-      ? ctx.state.classes.map((item) => `<option value="\${escapeHtml(item.id)}">\${escapeHtml(classOptionLabel(item))}</option>`).join("")
+      ? ctx.state.classes.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(classOptionLabel(item))}</option>`).join("")
       : `<option value="">Belum ada kelas</option>`;
     currentValues.forEach((value) => {
       const option = [...els.classSelect.options].find((item) => item.value === value);
@@ -324,8 +324,8 @@ export function renderClasses(ctx) {
         .filter((option) => option.value)
         .map((option) => `
           <label class="class-multi-select-option">
-            <input type="checkbox" data-class-value="\${escapeHtml(option.value)}" />
-            <span>\${escapeHtml(option.textContent.trim())}</span>
+            <input type="checkbox" data-class-value="${escapeHtml(option.value)}" />
+            <span>${escapeHtml(option.textContent.trim())}</span>
           </label>
         `).join("") || `<div class="class-multi-select-empty">Belum ada kelas</div>`;
 
