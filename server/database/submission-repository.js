@@ -22,7 +22,14 @@ async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
   const assessment = await db.get("SELECT id, class_id, status, payload FROM assessments WHERE id = ? AND tenant_id = ?", assessmentId, tenantId);
   if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
   if (assessment.status !== "published") throw Object.assign(new Error("Assessment belum tersedia untuk dikerjakan"), { status: 403 });
-  const membership = await db.get(`SELECT id FROM class_memberships WHERE tenant_id = ? AND class_id = ? AND student_id = ? AND status = 'approved'`, tenantId, assessment.class_id, userId);
+  const membership = await db.get(
+    `SELECT cm.id
+     FROM assessment_classes ac
+     JOIN class_memberships cm ON cm.class_id = ac.class_id
+       AND cm.tenant_id = ac.tenant_id AND cm.student_id = ? AND cm.status = 'approved'
+     WHERE ac.tenant_id = ? AND ac.assessment_id = ? AND ac.status = 'published'`,
+    userId, tenantId, assessmentId,
+  );
   if (!membership) throw Object.assign(new Error("Siswa belum disetujui di kelas assessment ini"), { status: 403 });
   const payload = JSON.parse(assessment.payload);
   if (payload.allowRetakes === true) return;
@@ -65,7 +72,14 @@ async function getSubmissionDetail(db, auth, submissionId) {
   if (auth.user.role === "student") {
     if (!row.user_id || row.user_id !== auth.user.id) throw Object.assign(new Error("Siswa hanya dapat buka submission miliknya"), { status: 403 });
   } else if (auth.user.role === "teacher") {
-    const classroom = row.assessment_id ? await db.get(`SELECT teacher_id FROM classes WHERE id = (SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?)`, row.assessment_id, auth.tenant.id) : null;
+    const classroom = row.assessment_id ? await db.get(
+      `SELECT c.teacher_id
+       FROM assessment_classes ac
+       JOIN classes c ON c.id = ac.class_id AND c.tenant_id = ac.tenant_id
+       WHERE ac.tenant_id = ? AND ac.assessment_id = ? AND ac.class_id = COALESCE(?, ac.class_id)
+         AND c.teacher_id = ? LIMIT 1`,
+      auth.tenant.id, row.assessment_id, (() => { try { return JSON.parse(row.payload || "{}").classId || null; } catch { return null; } })(), auth.user.id,
+    ) : null;
     if (!classroom || classroom.teacher_id !== auth.user.id) throw Object.assign(new Error("Guru hanya bisa buka submission miliknya"), { status: 403 });
   }
   return JSON.parse(row.payload);
@@ -75,9 +89,17 @@ async function getSubmissionForUpdate(db, auth, submissionId) {
   const row = await db.get("SELECT * FROM submissions WHERE id = ? AND tenant_id = ?", submissionId, auth.tenant.id);
   if (!row) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
   if (auth.user.role === "teacher") {
-    const assessment = row.assessment_id ? await db.get("SELECT class_id FROM assessments WHERE id = ? AND tenant_id = ?", row.assessment_id, auth.tenant.id) : null;
+    const assessment = row.assessment_id ? await db.get("SELECT id FROM assessments WHERE id = ? AND tenant_id = ?", row.assessment_id, auth.tenant.id) : null;
     if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
-    const classroom = await db.get("SELECT teacher_id FROM classes WHERE id = ? AND tenant_id = ?", assessment.class_id, auth.tenant.id);
+    let submissionClassId = null;
+    try { submissionClassId = JSON.parse(row.payload || "{}").classId || null; } catch {}
+    const classroom = await db.get(
+      `SELECT c.teacher_id FROM assessment_classes ac
+       JOIN classes c ON c.id = ac.class_id AND c.tenant_id = ac.tenant_id
+       WHERE ac.tenant_id = ? AND ac.assessment_id = ? AND ac.class_id = COALESCE(?, ac.class_id)
+       LIMIT 1`,
+      auth.tenant.id, assessment.id, submissionClassId,
+    );
     if (!classroom || classroom.teacher_id !== auth.user.id) throw Object.assign(new Error("Guru hanya boleh mengoreksi kelas miliknya"), { status: 403 });
   }
   return row;
