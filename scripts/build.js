@@ -105,7 +105,7 @@ async function main() {
     target: ["es2020"],
     logLevel: "info",
     banner: {
-      js: `import("/js/learning-outcome-trend.js").catch(() => {});import("/js/probing-gate.js").then(m=>m.installSubmissionFeedback()).catch(()=>{});import("/js/pedagogical-gate.js").catch(()=>{});import("/js/assessment-outcomes-ux.js").catch(()=>{});import("/js/assessment-outcomes-ai.js").catch(()=>{});${assessmentUxEnhancement}${uiPolishEnhancement}`,
+      js: `import("/js/learning-outcome-trend.js").catch(() => {});import("/js/submission-feedback.js").then(m=>m.installSubmissionFeedback()).catch(()=>{});import("/js/pedagogical-gate.js").catch(()=>{});import("/js/assessment-outcomes-ux.js").catch(()=>{});import("/js/assessment-outcomes-ai.js").catch(()=>{});${assessmentUxEnhancement}${uiPolishEnhancement}`,
     },
   });
 
