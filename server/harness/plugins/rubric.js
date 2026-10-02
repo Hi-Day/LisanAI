@@ -21,7 +21,7 @@ function parseRubricText(text) {
       if (p.version === "2" && Array.isArray(p.criteria) && p.criteria.length > 0) {
         return p.criteria.map((c, i) => ({
           id: slugify(c.name) || `c${i + 1}`,
-          name: c.name || `Kriteria ${i + 1}`,
+          name: c.name || `Indikator ${i + 1}`,
           weight: (c.weight || 0) / 100,
           scale: 100,
         }));
@@ -74,10 +74,10 @@ function parseConcatenatedJsonRubrics(text) {
   }
   if (blocks.length === 0) return null;
 
-  // Same criterion name may appear across many per-question blocks. Merge them
+  // Same indikator name may appear across many per-question blocks. Merge them
   // by averaging their (already per-block normalized) weight so duplicates
   // collapse instead of doubling the total weight past 1. Record which source
-  // question indices each merged criterion came from, so an unanswered question
+  // question indices each merged indikator came from, so an unanswered question
   // can later be assigned a default zero score for its own criteria.
   const merged = new Map();
   blocks.forEach((block, questionIndex) => {
@@ -126,7 +126,7 @@ function legacyParse(text) {
   }
 
   if (criteria.length === 0) {
-    // Fallback single criterion so evaluation remains valid.
+    // Fallback single indikator so evaluation remains valid.
     return [{ id: "overall", name: "Penilaian Keseluruhan", weight: 1, scale: 100 }];
   }
 
@@ -149,7 +149,7 @@ function parseRubricItem(item) {
   // "40% Nama"
   m = s.match(/^(\d+(?:\.\d+)?)\s*%?\s+(.+)$/);
   if (m) return { name: cleanName(m[2]), weight: Number(m[1]) / 100 };
-  // No weight — just a criterion name.
+  // No weight — just a indikator name.
   if (/[a-zA-Z]{3,}/.test(s) && !/^\d+(\.\d+)?\s*%?$/.test(s)) {
     return { name: cleanName(s), weight: 0 };
   }
@@ -169,7 +169,7 @@ function distributeWeights(criteria) {
   if (withWeight.length === criteria.length && Math.abs(withWeight.reduce((a, c) => a + c.weight, 0) - 1) < 1e-6) {
     return criteria;
   }
-  // Any criterion without a weight shares equally with the others.
+  // Any indikator without a weight shares equally with the others.
   if (withWeight.length > 0 && withWeight.length < criteria.length) {
     // Keep explicit weights; give the remaining share to the unweighted ones equally.
     const explicitSum = withWeight.reduce((a, c) => a + c.weight, 0);
