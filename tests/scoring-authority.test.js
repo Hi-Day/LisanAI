@@ -158,11 +158,11 @@ test("computeFinalScore: criteria must be an array", () => {
 test("computeFinalScore: non-numeric score throws", () => {
   assert.throws(
     () => computeFinalScore({ rubric: { criteria: [{ id: "a", weight: 1 }] }, criteria: [{ criterionId: "a", score: "abc" }] }),
-    /Skor criterion tidak valid/
+    /Skor indikator tidak valid/
   );
   assert.throws(
     () => computeFinalScore({ rubric: { criteria: [{ id: "a", weight: 1 }] }, criteria: [{ criterionId: "a", score: null }] }),
-    /Skor criterion tidak valid/
+    /Skor indikator tidak valid/
   );
 });
 
