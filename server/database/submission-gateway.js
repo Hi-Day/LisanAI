@@ -2,8 +2,8 @@ const { getDb } = require("./client");
 const repository = require("./submission-repository");
 
 module.exports = {
-  assertCanSubmitAssessment: (tenantId, userId, assessmentId) =>
-    repository.assertCanSubmitAssessment(getDb(), tenantId, userId, assessmentId),
+  assertCanSubmitAssessment: (tenantId, userId, assessmentId, classId = null) =>
+    repository.assertCanSubmitAssessment(getDb(), tenantId, userId, assessmentId, classId),
   saveStudentSubmission: (tenantId, userId, submission) =>
     repository.saveSubmission(getDb(), tenantId, userId, submission),
   getSubmissionForUpdate: (auth, submissionId) =>
