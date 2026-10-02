@@ -842,8 +842,8 @@ function buildHarnessInsight(evaluation) {
     .filter((c) => Number.isFinite(Number(c.score)))
     .sort((a, b) => Number(b.score) - Number(a.score))[0];
   const parts = [];
-  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "kriteria terkuat"}.`);
-  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "kriteria terlemah"}.`);
+  if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "indikator terkuat"}.`);
+  if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "indikator terlemah"}.`);
   return parts.join(" ").trim();
 }
 
@@ -854,7 +854,7 @@ function sanitizeAssessmentForEvaluation(assessment) {
     questions: assessment.questions.map((question) => ({
       prompt: question?.prompt || "",
       focus: question?.focus || "",
-      // Pertahankan rubrik & pemetaan kriteria PER SOAL. Criteria penilaian
+      // Pertahankan rubrik & pemetaan indikator PER SOAL. Criteria penilaian
       // harus diambil dari rubrik per soal, bukan dari rubrik topik yang
       // digabung — ini yang membuat evaluasi konsisten dengan substansi soal.
       rubric: question?.rubric || "",
