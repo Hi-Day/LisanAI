@@ -19,7 +19,7 @@ function calculateFinalScore(criteria, rubric) {
   // excluded (not invented), so this only makes the strict wrapper consistent.
   const knownCriteria = [];
   const unknownProvided = [];
-  for (const indikator of criteria) {
+  for (const criterion of criteria) {
     if (byId.get(String(criterion.criterionId))) knownCriteria.push(criterion);
     else unknownProvided.push(criterion.criterionId);
   }
