@@ -31,7 +31,7 @@ test.describe("Student assessment flow", () => {
     await expect(page.locator("#studentHistoryView")).toBeVisible();
   });
 
-  test("student can complete a written assessment and teacher can see the evaluated submission", async ({ page }) => {
+  test("student can complete a written assessment and see competency state updated", async ({ page }) => {
     const card = page.locator(`.assessment-card[data-id='${WRITTEN_ID}']`);
     await expect(card).toBeVisible();
     await card.locator(".start-assessment-btn").click();
@@ -61,6 +61,11 @@ test.describe("Student assessment flow", () => {
     await expect(page.locator("#resultPanel .close-result-btn").first()).toBeVisible();
 
     await page.locator("#resultPanel .close-result-btn").first().click();
+    await page.click("button[data-view='studentCompetencyView']");
+    await expect(page.locator("#studentCompetencyList")).toContainText("Siswa mampu menjelaskan konsep dasar.");
+    await expect(page.locator("#studentCompetencyCount")).not.toHaveText("0");
+    await expect(page.locator("#studentCompetencyList .competency-card")).toHaveCount(1);
+
     await page.click("#logoutButton");
     await expect(page.locator("#authView")).toBeVisible({ timeout: 10_000 });
 
