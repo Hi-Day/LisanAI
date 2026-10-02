@@ -230,22 +230,110 @@ export function bindClassManagementEvents(ctx) {
 }
 
 function classOptionLabel(classroom) {
-  const code = classroom.join_code || classroom.joinCode;
-  return code ? `${classroom.name} (${code})` : classroom.name;
+  return classroom.name || classroom.class_name || "Kelas tanpa nama";
+}
+
+function syncClassDropdown(select) {
+  const wrapper = select?.closest(".class-multi-select");
+  if (!wrapper) return;
+  const button = wrapper.querySelector(".class-multi-select-trigger");
+  const menu = wrapper.querySelector(".class-multi-select-menu");
+  if (!button || !menu) return;
+
+  const selected = [...select.selectedOptions]
+    .filter((option) => option.value)
+    .map((option) => ({ value: option.value, label: option.textContent.trim() }));
+
+  button.querySelector(".class-multi-select-label").textContent = selected.length
+    ? selected.map((item) => item.label).join(", ")
+    : "Pilih kelas";
+
+  menu.querySelectorAll("input[type=checkbox][data-class-value]").forEach((checkbox) => {
+    checkbox.checked = selected.some((item) => item.value === checkbox.dataset.classValue);
+  });
+}
+
+function installClassMultiSelect(select) {
+  if (!select || select.dataset.multiDropdownInstalled === "1") {
+    if (select) syncClassDropdown(select);
+    return;
+  }
+
+  select.dataset.multiDropdownInstalled = "1";
+  const wrapper = document.createElement("div");
+  wrapper.className = "class-multi-select";
+  select.parentNode.insertBefore(wrapper, select);
+  wrapper.appendChild(select);
+  select.classList.add("class-multi-select-source");
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "class-multi-select-trigger";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.innerHTML = \`<span class="class-multi-select-label">Pilih kelas</span><span class="class-multi-select-chevron" aria-hidden="true">⌄</span>\`;
+
+  const menu = document.createElement("div");
+  menu.className = "class-multi-select-menu";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("aria-multiselectable", "true");
+
+  trigger.addEventListener("click", () => {
+    const open = wrapper.classList.toggle("is-open");
+    trigger.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  select.addEventListener("change", () => syncClassDropdown(select));
+
+  document.addEventListener("click", (event) => {
+    if (!wrapper.contains(event.target)) {
+      wrapper.classList.remove("is-open");
+      trigger.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  const form = select.closest("form");
+  form?.addEventListener("reset", () => {
+    window.setTimeout(() => syncClassDropdown(select), 0);
+  });
+
+  wrapper.append(trigger, menu);
 }
 
 export function renderClasses(ctx) {
   const { els } = ctx;
 
   if (els.classSelect) {
+    installClassMultiSelect(els.classSelect);
     const currentValues = [...els.classSelect.selectedOptions].map((option) => option.value);
     els.classSelect.innerHTML = ctx.state.classes.length
-      ? ctx.state.classes.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(classOptionLabel(item))}</option>`).join("")
-      : `<option value="">Belum ada kelas</option>`;
+      ? ctx.state.classes.map((item) => \`<option value="\${escapeHtml(item.id)}">\${escapeHtml(classOptionLabel(item))}</option>\`).join("")
+      : \`<option value="">Belum ada kelas</option>\`;
     currentValues.forEach((value) => {
       const option = [...els.classSelect.options].find((item) => item.value === value);
       if (option) option.selected = true;
     });
+
+    const menu = els.classSelect.closest(".class-multi-select")?.querySelector(".class-multi-select-menu");
+    if (menu) {
+      menu.innerHTML = [...els.classSelect.options]
+        .filter((option) => option.value)
+        .map((option) => \`
+          <label class="class-multi-select-option">
+            <input type="checkbox" data-class-value="\${escapeHtml(option.value)}" />
+            <span>\${escapeHtml(option.textContent.trim())}</span>
+          </label>
+        \`).join("") || \`<div class="class-multi-select-empty">Belum ada kelas</div>\`;
+
+      menu.querySelectorAll("input[type=checkbox][data-class-value]").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          const option = [...els.classSelect.options].find((item) => item.value === checkbox.dataset.classValue);
+          if (option) option.selected = checkbox.checked;
+          els.classSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      });
+      syncClassDropdown(els.classSelect);
+    }
   }
 
   if (!ctx.state.classes.length) {
