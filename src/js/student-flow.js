@@ -41,6 +41,9 @@ export function bindStudentFlowEvents(ctx) {
         return;
       }
 
+      // Simpan kelas publikasi yang dipilih/ditampilkan agar submission tercatat
+      // pada section yang benar ketika satu assessment dipakai lintas kelas.
+      assessment.deliveryClassId = btn.dataset.classId || assessment.classId;
       // Soal dan timer belum jalan di sini: siswa harus lewat modal persiapan dulu.
       openPreExamModal(ctx, assessment, btn);
     });
