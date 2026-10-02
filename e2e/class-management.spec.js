@@ -75,10 +75,18 @@ test.describe("Class and membership workflow", () => {
     await expect(page.locator("#bulkAddClassSelect option", { hasText: firstName })).toHaveCount(1);
     await expect(page.locator("#bulkAddClassSelect option", { hasText: secondName })).toHaveCount(1);
 
-    // Bug C: the wizard dropdown must list both classes, distinguishable by join code.
+    // Bug C: the wizard uses a checkbox dropdown and displays class names, not join codes.
     await page.click("#mainNav .nav-sub-item[data-nav-view='teacherView']");
-    await expect(page.locator("#classSelect option", { hasText: `${firstName} (${firstCode})` })).toHaveCount(1);
-    await expect(page.locator("#classSelect option", { hasText: `${secondName} (${secondCode})` })).toHaveCount(1);
+    const classDropdown = page.locator(".class-multi-select");
+    await expect(classDropdown).toBeVisible();
+    await classDropdown.locator(".class-multi-select-trigger").click();
+    await expect(classDropdown.locator(".class-multi-select-option", { hasText: firstName })).toHaveCount(1);
+    await expect(classDropdown.locator(".class-multi-select-option", { hasText: secondName })).toHaveCount(1);
+    await expect(classDropdown.locator(".class-multi-select-option", { hasText: firstCode })).toHaveCount(0);
+    await expect(classDropdown.locator(".class-multi-select-option", { hasText: secondCode })).toHaveCount(0);
+    await classDropdown.locator(".class-multi-select-option", { hasText: firstName }).locator("input").check();
+    await classDropdown.locator(".class-multi-select-option", { hasText: secondName }).locator("input").check();
+    await expect(page.locator("#classSelect option:checked")).toHaveCount(2);
   });
 
   test("submitting the create-class form twice only creates one class", async ({ page }) => {
