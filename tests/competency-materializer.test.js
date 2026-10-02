@@ -19,6 +19,13 @@ test("student competency service reads materialized state before raw submissions
   assert.match(source, /replaceStudentCompetencyStates/);
 });
 
+test("submission persistence refreshes competency state", () => {
+  const source = fs.readFileSync(path.join(root, "server", "database", "submission-repository.js"), "utf8");
+  assert.match(source, /require\("\.\.\/competency-materializer"\)/);
+  assert.match(source, /await refreshCompetencyState\(db, tenantId, userId, submission\)/);
+  assert.match(source, /updateSubmissionFeedback[\s\S]*refreshCompetencyState/);
+});
+
 test("materialized competency state has student and outcome indexes", () => {
   const source = fs.readFileSync(path.join(root, "server", "migrations", "017_competency_state.sql"), "utf8");
   assert.match(source, /PRIMARY KEY \(tenant_id, student_id, learning_outcome_id, learning_outcome\)/);
