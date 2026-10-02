@@ -12,8 +12,8 @@ for (const file of files) {
   source = source.replace(/Kompetensi \/ capaian pembelajaran/g, "Capaian Pembelajaran");
   source = source.replace(/Learning outcome \(kompetensi yang diukur\)/g, "Capaian Pembelajaran (kompetensi yang diukur)");
   source = source.replace(/Learning outcome/g, "Capaian Pembelajaran");
-  source = source.replace(/Rubrik yang diukur soal ini:/g, "Kriteria rubrik yang diukur soal ini:");
+  source = source.replace(/Rubrik yang diukur soal ini:/g, "Indikator penilaian yang diukur soal ini:");
   fs.writeFileSync(file, source, "utf8");
 }
 
-console.log("Applied canonical terminology: Capaian Pembelajaran vs Kriteria Rubrik.");
+console.log("Applied canonical terminology: Capaian Pembelajaran vs Indikator Penilaian.");
