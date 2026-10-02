@@ -50,7 +50,7 @@ export function bindAssessmentWizardEvents(ctx) {
     if (isHidden) { builder.dataset.qIndex = index; renderRubrikBuilder(builder, ctx.pendingQuestions[index]?.rubric || ""); }
     else { const preview = toggle.closest("label")?.querySelector(".rubrik-preview"); if (preview && ctx.pendingQuestions[index]?.rubric) preview.innerHTML = renderRubricTable(ctx.pendingQuestions[index].rubric); }
   });
-  if (els.wizardToQuestions) els.wizardToQuestions.addEventListener("click", () => { const config = readAssessmentForm(els); if (!config.topic) { showToast("Isi topik atau materi terlebih dahulu."); els.topic.focus(); return; } if (!config.outcomes) { showToast("Isi kompetensi / capaian pembelajaran terlebih dahulu."); els.outcomes.focus(); return; } if (!config.classId) { showToast("Pilih kelas tujuan terlebih dahulu."); els.classSelect.focus(); return; } ctx.pendingAssessmentConfig = config; goToWizardStep(ctx, 2); });
+  if (els.wizardToQuestions) els.wizardToQuestions.addEventListener("click", () => { const config = readAssessmentForm(els); if (!config.topic) { showToast("Isi topik atau materi terlebih dahulu."); els.topic.focus(); return; } if (!config.outcomes) { showToast("Isi kompetensi / capaian pembelajaran terlebih dahulu."); els.outcomes.focus(); return; } if (!config.classIds?.length) { showToast("Pilih minimal satu kelas tujuan terlebih dahulu."); els.classSelect.focus(); return; } ctx.pendingAssessmentConfig = config; goToWizardStep(ctx, 2); });
   if (els.wizardBackToContext) els.wizardBackToContext.addEventListener("click", () => goToWizardStep(ctx, 1));
   if (els.wizardToReview) els.wizardToReview.addEventListener("click", () => { if (!ctx.pendingAssessmentConfig) { showToast("Buat atau buka penilaian dulu sebelum meninjau."); return; } syncQuestionsFromEditor(ctx); goToWizardStep(ctx, 3); });
   if (els.wizardBackToQuestions) els.wizardBackToQuestions.addEventListener("click", () => goToWizardStep(ctx, 2));
@@ -61,7 +61,7 @@ export function bindAssessmentWizardEvents(ctx) {
 }
 
 export async function handleAssessmentSubmit(ctx, event) {
-  event.preventDefault(); const { els } = ctx; const config = readAssessmentForm(els); if (!config.classId) { showToast("Pilih kelas tujuan terlebih dahulu."); return; }
+  event.preventDefault(); const { els } = ctx; const config = readAssessmentForm(els); if (!config.classIds?.length) { showToast("Pilih minimal satu kelas tujuan terlebih dahulu."); return; }
   setButtonLoading(event.submitter, true, "Menghubungi AI...", "Buat soal dengan AI"); showQuestionStreamPlaceholder(ctx);
   try { const questions = await generateQuestionsWithFallback(ctx, config); ctx.pendingAssessmentConfig = config; ctx.pendingQuestions = questions.map((q) => ({ ...q, rubric: q.rubric ? convertLegacyRubricToJson(q.rubric) : "" })); finishQuestionStream(ctx); await new Promise((resolve) => setTimeout(resolve, 600)); hideStreamPanel(ctx, els.aiStreamPanel); renderQuestionEditor(ctx); goToWizardStep(ctx, 2); }
   finally { setButtonLoading(event.submitter, false, "Menghubungi AI...", "Buat soal dengan AI"); }
