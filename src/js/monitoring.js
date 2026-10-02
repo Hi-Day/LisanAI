@@ -194,12 +194,12 @@ export function bindMonitoringEvents(ctx) {
         : "Belum ada siswa yang mengumpulkan. Siswa tidak akan bisa memulai penilaian ini.";
       const proceed = await showConfirmDialog(`Tutup akses siswa para penilaian ini?\n\n${impact}\n\nAnda bisa membukanya kembali kapan saja.`, "Tutup Penilaian");
       if (!proceed) return;
-      await updateAssessment(id, { status: "closed", classId: assessment.classId });
+      await updateAssessment(id, { status: "closed", classIds: assessment.classIds || [assessment.classId] });
       await reloadState(ctx);
       await renderCurrentState(ctx);
       showToast("Akses siswa ditutup. Siswa tidak bisa memulai penilaian ini.", "success");
     } else if (event.target.classList.contains("reopen-assessment")) {
-      await updateAssessment(id, { status: "published", classId: assessment.classId });
+      await updateAssessment(id, { status: "published", classIds: assessment.classIds || [assessment.classId] });
       await reloadState(ctx);
       await renderCurrentState(ctx);
       showToast("Akses siswa dibuka kembali.", "success");
@@ -217,6 +217,8 @@ export function bindMonitoringEvents(ctx) {
           allowRetakes: !!assessment.allowRetakes,
         };
         ctx.pendingQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
+        const classIds = assessment.classIds || [assessment.classId].filter(Boolean);
+        [...(els.classSelect?.options || [])].forEach((option) => { option.selected = classIds.includes(option.value); });
         const { goToWizardStep } = await import("./assessment-wizard-tail.js");
         const { renderQuestionEditor } = await import("./assessment-wizard.js");
         renderQuestionEditor(ctx);
