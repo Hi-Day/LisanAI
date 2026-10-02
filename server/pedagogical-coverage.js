@@ -32,7 +32,7 @@ function normalizeQuestion(question, criterion) {
   return {
     id: question.id || `q-ai-${Date.now()}`,
     prompt,
-    focus: String(question.focus || indikator || "").trim(),
+    focus: String(question.focus || criterion || "").trim(),
     outcome: String(question.outcome || "").trim(),
     rubric: String(question.rubric || "").trim(),
     ideal: String(question.ideal || "").trim(),
