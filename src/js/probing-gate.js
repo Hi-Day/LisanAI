@@ -4,6 +4,7 @@ let installed = false;
 let originalFetch = null;
 let teacherReady = false;
 let activeAssessmentId = null;
+let teacherPollTimer = null;
 
 export function installProbingGate() {
   if (installed || typeof window === "undefined") return;
@@ -167,7 +168,14 @@ async function bootTeacherPanel() {
     teacherReady = true;
     ensureTeacherPanel();
     refreshTeacherPanel();
-    window.setInterval(refreshTeacherPanel, POLL_MS);
+    if (!teacherPollTimer) {
+      teacherPollTimer = window.setInterval(() => {
+        if (document.visibilityState !== "visible") return;
+        const monitorView = document.getElementById("monitorView");
+        if (!monitorView) return;
+        refreshTeacherPanel();
+      }, POLL_MS);
+    }
   } catch {}
 }
 
