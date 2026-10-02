@@ -5,7 +5,7 @@ import { escapeHtml, prettifyId } from "./utils.js";
  *
  * Pedagogical hierarchy:
  *   Learning Outcome = class competency / intended construct
- *   Criterion       = observable evidence dimension
+ *   Indikator       = observable evidence dimension
  *   Question        = instrument that elicits the evidence
  *
  * Criteria are shown only as supporting evidence beneath an LO; they are not
@@ -193,8 +193,8 @@ function levelScore(score, levels) {
 
 /**
  * Build LO-first competency profiles from evaluated submissions.
- * Criterion scores are traced through answerIndex -> question -> LO whenever
- * possible. A criterion without an LO path is intentionally excluded rather
+ * Indikator scores are traced through answerIndex -> question -> LO whenever
+ * possible. A indikator without an LO path is intentionally excluded rather
  * than silently becoming a fake competency.
  */
 export function buildCompetencyProfile(assessments, submissions) {
@@ -358,7 +358,7 @@ export function renderCompetencyClass(comps) {
           <div class="competency-info">
             <strong>${escapeHtml(c.id)} — ${escapeHtml(c.name)}</strong>
             <span class="rubrik-muted">${c.records.length} evidence · ${c.assessmentIds.length} assessment</span>
-            ${c.criteria?.length ? `<span class="rubrik-muted">Kriteria pendukung: ${c.criteria.slice(0, 3).map((x) => `${escapeHtml(x.name)} (${Math.round(x.avg)})`).join(" · ")}</span>` : ""}
+            ${c.criteria?.length ? `<span class="rubrik-muted">Indikator pendukung: ${c.criteria.slice(0, 3).map((x) => `${escapeHtml(x.name)} (${Math.round(x.avg)})`).join(" · ")}</span>` : ""}
           </div>
           <div class="rubrik-skor">
             <span class="rubrik-score-badge ${scoreClass(c.achieved?.score || 1)}">${Math.round(c.avg)}</span>
