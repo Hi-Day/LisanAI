@@ -64,7 +64,7 @@ test.describe("Student assessment flow", () => {
     await page.click("button[data-view='studentCompetencyView']");
     await expect(page.locator("#studentCompetencyList")).toContainText("Siswa mampu menjelaskan konsep dasar.");
     await expect(page.locator("#studentCompetencyCount")).not.toHaveText("0");
-    await expect(page.locator("#studentCompetencyList .competency-card")).toHaveCount(1);
+    await expect(page.locator("#studentCompetencyList .student-competency-card")).toHaveCount(1);
 
     await page.click("#logoutButton");
     await expect(page.locator("#authView")).toBeVisible({ timeout: 10_000 });
