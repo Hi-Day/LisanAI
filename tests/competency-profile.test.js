@@ -33,3 +33,13 @@ test("competency profile contributes one question to every mapped learning outco
   assert.equal(profile.find((x) => x.id === "LO1").avg, 90);
   assert.equal(profile.find((x) => x.id === "LO2").avg, 90);
 });
+
+test("learning outcome resolver returns every explicitly mapped LO", async () => {
+  const { resolveLearningOutcomes } = await import("../src/js/competency-profile.js");
+  const outcomes = [
+    { id: "LO1", text: "Menjelaskan konsep" },
+    { id: "LO2", text: "Menerapkan konsep" },
+  ];
+  const mapped = resolveLearningOutcomes({ learningOutcomeIds: ["LO1", "LO2"] }, outcomes);
+  assert.deepEqual(mapped.map((x) => x.id), ["LO1", "LO2"]);
+});
