@@ -275,7 +275,7 @@ function installClassMultiSelect(select) {
   trigger.className = "class-multi-select-trigger";
   trigger.setAttribute("aria-haspopup", "listbox");
   trigger.setAttribute("aria-expanded", "false");
-  trigger.innerHTML = \`<span class="class-multi-select-label">Pilih kelas</span><span class="class-multi-select-chevron" aria-hidden="true">⌄</span>\`;
+  trigger.innerHTML = `<span class="class-multi-select-label">Pilih kelas</span><span class="class-multi-select-chevron" aria-hidden="true">⌄</span>`;
 
   const menu = document.createElement("div");
   menu.className = "class-multi-select-menu";
@@ -311,8 +311,8 @@ export function renderClasses(ctx) {
     installClassMultiSelect(els.classSelect);
     const currentValues = [...els.classSelect.selectedOptions].map((option) => option.value);
     els.classSelect.innerHTML = ctx.state.classes.length
-      ? ctx.state.classes.map((item) => \`<option value="\${escapeHtml(item.id)}">\${escapeHtml(classOptionLabel(item))}</option>\`).join("")
-      : \`<option value="">Belum ada kelas</option>\`;
+      ? ctx.state.classes.map((item) => `<option value="\${escapeHtml(item.id)}">\${escapeHtml(classOptionLabel(item))}</option>`).join("")
+      : `<option value="">Belum ada kelas</option>`;
     currentValues.forEach((value) => {
       const option = [...els.classSelect.options].find((item) => item.value === value);
       if (option) option.selected = true;
@@ -322,12 +322,12 @@ export function renderClasses(ctx) {
     if (menu) {
       menu.innerHTML = [...els.classSelect.options]
         .filter((option) => option.value)
-        .map((option) => \`
+        .map((option) => `
           <label class="class-multi-select-option">
             <input type="checkbox" data-class-value="\${escapeHtml(option.value)}" />
             <span>\${escapeHtml(option.textContent.trim())}</span>
           </label>
-        \`).join("") || \`<div class="class-multi-select-empty">Belum ada kelas</div>\`;
+        `).join("") || `<div class="class-multi-select-empty">Belum ada kelas</div>`;
 
       menu.querySelectorAll("input[type=checkbox][data-class-value]").forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
