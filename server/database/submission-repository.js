@@ -1,6 +1,19 @@
 // Bound teacher/admin state payloads to the newest submissions so the state
 // response cannot grow without limit (each row carries a large JSON payload).
 const SUBMISSION_FETCH_LIMIT = 500;
+const { materializeSubmission } = require("../competency-materializer");
+
+async function refreshCompetencyState(db, tenantId, studentId, submission) {
+  if (!studentId || !submission?.assessmentId) return;
+  try {
+    await materializeSubmission(db, tenantId, studentId, submission);
+  } catch (error) {
+    // Submission persistence must remain successful even if the derived
+    // competency projection temporarily fails. The next competency read can
+    // rebuild the projection from canonical submission data.
+    console.warn("[competency-materializer] materialization skipped:", error.message);
+  }
+}
 
 async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
   // A missing assessmentId is legitimate for flows where submissions are not
@@ -36,6 +49,7 @@ async function saveSubmission(db, tenantId, userId, submission, bypassCheck = fa
     }
     throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
   }
+  await refreshCompetencyState(db, tenantId, userId, submission);
   return submission;
 }
 
@@ -96,8 +110,6 @@ async function updateSubmissionAudio(db, tenantId, submissionId, { index, kind }
   let sql;
   let params;
   if (kind === "probing") {
-    // Extract the probing OBJECT (not .probing.audio) so re-patching an existing
-    // probing audio stays valid JSON; COALESCE + json('{}') creates it when null.
     const probingPath = "'$.questionScores[' || CAST(? AS INTEGER) || '].probing'";
     sql = `UPDATE submissions SET payload = json_set(payload, ${probingPath}, json_set(COALESCE(json_extract(payload, ${probingPath}), json('{}')), '$.audio', ?)) WHERE ${clauses.join(" AND ")}`;
     params = [index, index, audio, ...args];
@@ -120,6 +132,9 @@ async function updateSubmissionFeedback(db, tenantId, submissionId, fields) {
     tenantId
   );
   if (!result.changes) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+  const row = await db.get("SELECT user_id, payload FROM submissions WHERE id = ? AND tenant_id = ?", submissionId, tenantId);
+  if (!row?.user_id) return;
+  await refreshCompetencyState(db, tenantId, row.user_id, JSON.parse(row.payload || "{}"));
 }
 
 function stripSubmissionAudio(submission) {
