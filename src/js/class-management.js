@@ -260,6 +260,10 @@ function installClassMultiSelect(select) {
   }
 
   select.dataset.multiDropdownInstalled = "1";
+  // Native validation would try to focus the visually hidden multi-select.
+  // Validation is handled by the assessment wizard/custom trigger instead.
+  select.required = false;
+  select.setAttribute("aria-required", "true");
   const wrapper = document.createElement("div");
   wrapper.className = "class-multi-select";
   select.parentNode.insertBefore(wrapper, select);
