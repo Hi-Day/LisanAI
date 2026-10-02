@@ -1,7 +1,7 @@
 const submissionGateway = require("../database/submission-gateway");
 
-async function assertCanSubmit(auth, assessmentId) {
-  return submissionGateway.assertCanSubmitAssessment(auth.tenant.id, auth.user.id, assessmentId);
+async function assertCanSubmit(auth, assessmentId, classId = null) {
+  return submissionGateway.assertCanSubmitAssessment(auth.tenant.id, auth.user.id, assessmentId, classId);
 }
 
 async function saveStudentSubmission(auth, submission) {
