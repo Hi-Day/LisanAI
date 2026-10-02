@@ -6,7 +6,7 @@ import {
   renderStatusBadge,
 } from "./status.js";
 import { renderAssessmentItem, renderRubricTable } from "./render.js";
-import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria, parseLearningOutcomes, resolveLearningOutcome } from "./competency-profile.js";
+import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria, parseLearningOutcomes, resolveLearningOutcome, resolveLearningOutcomes } from "./competency-profile.js";
 import { switchView } from "./app-context.js";
 import { getSubmissionDetail } from "./api.js";
 
@@ -348,7 +348,7 @@ function renderAssessmentOutcomeMap(assessment, submission) {
   }
 
   const rows = questions.map((q, index) => {
-    const lo = resolveLearningOutcome(q, outcomes);
+    const los = resolveLearningOutcomes(q, outcomes);
     const score = scores[index]?.score;
     const evidenceCount = Array.isArray(scores[index]?.evidence) ? scores[index].evidence.length : 0;
     return `
@@ -358,10 +358,9 @@ function renderAssessmentOutcomeMap(assessment, submission) {
           <span>${escapeHtml(compactText(q.prompt || "", 140))}</span>
         </div>
         <div class="lo-map-target">
-          ${lo
-            ? `<strong>${escapeHtml(lo.id)}</strong><span>${escapeHtml(lo.text)}</span>`
-            : `<span class="tag-warn">Belum terpetakan</span>`}
-        </div>
+          ${los.length
+            ? los.map((lo) => `<div class="lo-map-target-item"><strong>${escapeHtml(lo.id)}</strong><span>${escapeHtml(lo.text)}</span></div>`).join("")
+            : `<span class="tag-warn">Belum terpetakan</span>`}        </div>
         <div class="lo-map-score">
           ${Number.isFinite(Number(score)) ? `<strong>${Number(score)}</strong><span>/100</span>` : "—"}
           ${evidenceCount ? `<small>${evidenceCount} evidence</small>` : ""}
