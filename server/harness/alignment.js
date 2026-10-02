@@ -71,7 +71,7 @@ function buildQuestionRubricText(question, allCriteria) {
 
 function syncRubricWithGroundedCriteria(question, allCriteria) {
   if (!question || !Array.isArray(question.criteria)) return question;
-  const selectedIds = new Set(question.criteria.map((criterion) => String(typeof indikator === "object" ? criterion.id || criterion.name : criterion)));
+  const selectedIds = new Set(question.criteria.map((criterion) => String(typeof criterion === "object" ? criterion.id || criterion.name : criterion)));
   if (selectedIds.size === 0) return { ...question, rubric: "" };
 
   const sourceRubric = String(question.rubric || "").trim();
