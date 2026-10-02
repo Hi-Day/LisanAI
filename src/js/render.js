@@ -119,7 +119,7 @@ export function renderStudentArea(els, state, session) {
               </div>
             </div>
             <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
-            ${studentAssessment.classAssignments?.length ? `<span class="tag" style="width: fit-content;">Kelas: ${escapeHtml(studentAssessment.classAssignments.find((item) => item.classId === deliveryClassId)?.classCode || "-")}</span>` : ""}
+            ${studentAssessment.classAssignments?.length ? `<span class="tag" style="width: fit-content;">Kelas: ${escapeHtml(studentAssessment.classAssignments.find((item) => item.classId === deliveryClassId)?.className || "-")}</span>` : ""}
             <div class="assessment-meta">
               <span>📝 ${assessment.questions.length} soal</span>
               <span>${timeText}</span>
@@ -400,7 +400,7 @@ export function renderAssessmentItem(assessment) {
           ${statusBadge}
         </div>
         <p>${escapeHtml(compactText(assessment.outcomes))}</p>
-        ${assessment.classAssignments?.length ? `<div class="assessment-class-tags"><strong>Kelas:</strong> ${assessment.classAssignments.map((item) => escapeHtml(item.classCode || item.className || "-")).join(" · ")}</div>` : ""}
+        ${assessment.classAssignments?.length ? `<div class="assessment-class-tags"><strong>Kelas:</strong> ${assessment.classAssignments.map((item) => escapeHtml(item.className || item.classCode || "-")).join(" · ")}</div>` : ""}
         <div class="item-actions">
           <button type="button" class="action-button edit-assessment">Edit Soal</button>
           <button type="button" class="action-button download-grades-assessment">Download Nilai</button>
