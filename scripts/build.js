@@ -110,7 +110,7 @@ async function main() {
   });
 
   fs.copyFileSync(path.join(ROOT, "src", "js", "learning-outcome-trend.js"), path.join(ROOT, "public", "js", "learning-outcome-trend.js"));
-  fs.copyFileSync(path.join(ROOT, "src", "js", "probing-gate.js"), path.join(ROOT, "public", "js", "probing-gate.js"));
+  fs.copyFileSync(path.join(ROOT, "src", "js", "submission-feedback.js"), path.join(ROOT, "public", "js", "submission-feedback.js"));
   fs.copyFileSync(path.join(ROOT, "src", "js", "pedagogical-gate.js"), path.join(ROOT, "public", "js", "pedagogical-gate.js"));
   fs.copyFileSync(path.join(ROOT, "src", "js", "assessment-outcomes-ux.js"), path.join(ROOT, "public", "js", "assessment-outcomes-ux.js"));
   fs.copyFileSync(path.join(ROOT, "src", "js", "assessment-outcomes-ai.js"), path.join(ROOT, "public", "js", "assessment-outcomes-ai.js"));
