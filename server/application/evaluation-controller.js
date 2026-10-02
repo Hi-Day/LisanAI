@@ -26,17 +26,53 @@ async function handleStreamingAction(res, auth, action, payload) {
 module.exports = async (req, res) => {
   try {
     await ensureDatabase();
-    if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
     const security = await requireAuthenticatedRequest(req, res, {
       rateLimit: "evaluation",
-      rateLimitOptions: { limit: 30, windowMs: 60_000 },
+      rateLimitOptions: { limit: 60, windowMs: 60_000 },
     });
     if (!security) return;
     const { auth } = security;
     if (!requireRoles(res, auth, ["admin", "teacher", "student"])) return;
 
+    // Probing gate has its own CRUD contract but shares this Vercel boundary.
+    // GET is used by teacher polling/status checks; POST is used to create/decide.
+    if (req.method === "GET") {
+      const params = new URL(req.url || "", "http://localhost").searchParams;
+      const action = params.get("action");
+      const probingGate = require("../probing-gate");
+      if (action === "pending") {
+        const probes = await probingGate.listPendingForTeacher(auth);
+        return sendJson(res, 200, { probes });
+      }
+      if (action === "status") {
+        const id = String(params.get("id") || "").trim();
+        if (!id) return sendJson(res, 400, { error: "Probe id is required" });
+        const probe = await probingGate.getProbeForStudent(auth, id);
+        return sendJson(res, 200, { probe });
+      }
+      return sendJson(res, 404, { error: "Probing action not found" });
+    }
+
+    if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+
     const body = await readJson(req);
     const { action, payload, stream } = body;
+
+    if (action === "create" || action === "decide") {
+      const probingGate = require("../probing-gate");
+      if (action === "create") {
+        const probe = await probingGate.createProbe(auth, payload || {});
+        return sendJson(res, 200, { probe });
+      }
+      const probe = await probingGate.decideProbe(
+        auth,
+        payload?.id,
+        payload?.decision,
+        payload?.editedPrompt,
+        payload?.note,
+      );
+      return sendJson(res, 200, { probe });
+    }
     if (!evaluationService.isSupportedAction(action)) return sendJson(res, 404, { error: "Action not found" });
     if (payload) {
       payload.tenantId = auth.tenant.id;
