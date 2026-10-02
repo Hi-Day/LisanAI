@@ -210,6 +210,46 @@ test("saveAssessment and getState expose the assessment to the teacher", async (
   assert.equal(found.topic, assessment.topic);
 });
 
+test("one assessment can be assigned to multiple classes and students submit under their class", async () => {
+  const { tenant, teacher, student, teacherAuth } = context;
+  const classA = context.approvedClass;
+  const classB = {
+    id: "class-services-second",
+    name: "Kelas Services B",
+    joinCode: "SERVICES2",
+    createdAt: new Date().toISOString(),
+  };
+  await createClass(tenant.id, teacher.id, classB);
+  await requestJoinClass(tenant.id, student.id, classB.joinCode, {
+    id: "member-services-second",
+    requestedAt: new Date().toISOString(),
+  });
+  await approveMembership(tenant.id, teacher.id, "member-services-second");
+
+  const assessment = createAssessment("assessment-multi-class", classA.id, {
+    classIds: [classA.id, classB.id],
+  });
+  await saveAssessment(teacherAuth, assessment);
+
+  const teacherState = await getState(teacherAuth);
+  const teacherAssessment = teacherState.assessments.find((item) => item.id === assessment.id);
+  assert.deepEqual(teacherAssessment.classIds, [classA.id, classB.id]);
+  assert.deepEqual(teacherAssessment.classCodes.sort(), [classA.joinCode, classB.joinCode].sort());
+
+  const studentAuth = { tenant, user: student };
+  const studentState = await getState(studentAuth);
+  const studentAssessment = studentState.assessments.find((item) => item.id === assessment.id);
+  assert.ok(studentAssessment);
+  assert.equal(studentAssessment.classAssignments.length, 2);
+
+  await saveSubmission(tenant.id, student.id, {
+    ...createSubmission(assessment.id, "sub-multi-class"),
+    classId: classB.id,
+  });
+  const saved = await getDb().get("SELECT payload FROM submissions WHERE id = ?", "sub-multi-class");
+  assert.equal(JSON.parse(saved.payload).classId, classB.id);
+});
+
 test("updateAssessment changes status and persists", async () => {
   const assessment = createAssessment("assessment-crud-2", context.approvedClass.id);
   await saveAssessment(context.teacherAuth, assessment);
