@@ -158,6 +158,7 @@ function resolveQuestionOutcomes(question, outcomes) {
     });
   }
   return [];
+}
 
 function collectRubric(assessments, assessmentId) {
   const byId = new Map();
