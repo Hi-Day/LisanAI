@@ -34,25 +34,6 @@ module.exports = async (req, res) => {
     const { auth } = security;
     if (!requireRoles(res, auth, ["admin", "teacher", "student"])) return;
 
-    // Probing gate has its own CRUD contract but shares this Vercel boundary.
-    // GET is used by teacher polling/status checks; POST is used to create/decide.
-    if (req.method === "GET") {
-      const params = new URL(req.url || "", "http://localhost").searchParams;
-      const action = params.get("action");
-      const probingGate = require("../probing-gate");
-      if (action === "pending") {
-        const probes = await probingGate.listPendingForTeacher(auth);
-        return sendJson(res, 200, { probes });
-      }
-      if (action === "status") {
-        const id = String(params.get("id") || "").trim();
-        if (!id) return sendJson(res, 400, { error: "Probe id is required" });
-        const probe = await probingGate.getProbeForStudent(auth, id);
-        return sendJson(res, 200, { probe });
-      }
-      return sendJson(res, 404, { error: "Probing action not found" });
-    }
-
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
 
     const body = await readJson(req);
