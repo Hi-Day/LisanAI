@@ -136,3 +136,12 @@ test("runExperiment with repeats=1 has no consistency block", async () => {
   const exp = await runExperiment({ dataset: "sample-bench-smoke", mode: "baseline" });
   assert.equal(exp.consistency, null);
 });
+
+test("calibrationMetrics reports weighted calibration error and signed bias", async () => {
+  const { calibrationMetrics } = require("../server/evaluation/benchmark/experiment-metrics");
+  const result = calibrationMetrics([20, 30, 80, 90], [10, 40, 70, 100], 4);
+  assert.equal(result.n, 4);
+  assert.ok(Number.isFinite(result.expectedCalibrationError));
+  assert.ok(Number.isFinite(result.meanBias));
+  assert.equal(result.bins.length, 4);
+});
