@@ -7,20 +7,20 @@ const { groundQuestionsAgainstRubric } = require("./question-grounding");
 // ---------------------------------------------------------------------------
 // Soal ↔ Rubrik Alignment Harness
 // ---------------------------------------------------------------------------
-// Tugas: menjaga agar setiap soal hanya dinilai terhadap kriteria rubrik yang
+// Tugas: menjaga agar setiap soal hanya dinilai terhadap indikator penilaian yang
 // BENAR-BENAR diukur oleh substansi soal tersebut. Kalibrasi dilakukan via AI
-// (menentukan subset kriteria per soal, dan bila perlu menulis ulang substansi
+// (menentukan subset indikator per soal, dan bila perlu menulis ulang substansi
 // soal agar selaras rubrik), lalu selalu ditutup oleh enforcement deterministik
 // sehingga penilaian tidak "under-estimate": soal "sebutkan" tidak dihukum oleh
-// kriteria yang butuh analisis/sebab-akibat/penerapan yang tidak pernah diminta.
+// indikator yang butuh analisis/sebab-akibat/penerapan yang tidak pernah diminta.
 
-/** Parse rubric teacher menjadi daftar kriteria terstruktur. */
+/** Parse rubric teacher menjadi daftar indikator terstruktur. */
 function parseRubricCriteria(payload) {
   const rubric = payload && payload.rubric;
   if (rubric && Array.isArray(rubric.criteria)) {
-    return rubric.criteria.map((c, i) => ({ id: String(c.id || c.criterionId || `k${i + 1}`), name: String(c.name || c.label || c.id || `Kriteria ${i + 1}`).trim(), weight: Number(c.weight || 0) })).filter((c) => c.name);
+    return rubric.criteria.map((c, i) => ({ id: String(c.id || c.criterionId || `k${i + 1}`), name: String(c.name || c.label || c.id || `Indikator ${i + 1}`).trim(), weight: Number(c.weight || 0) })).filter((c) => c.name);
   }
-  if (Array.isArray(rubric)) return rubric.map((c, i) => ({ id: String(c.id || c.criterionId || `k${i + 1}`), name: String(c.name || c.label || c.id || `Kriteria ${i + 1}`).trim(), weight: Number(c.weight || 0) })).filter((c) => c.name);
+  if (Array.isArray(rubric)) return rubric.map((c, i) => ({ id: String(c.id || c.criterionId || `k${i + 1}`), name: String(c.name || c.label || c.id || `Indikator ${i + 1}`).trim(), weight: Number(c.weight || 0) })).filter((c) => c.name);
   if (typeof rubric === "string" && rubric.trim()) return parseRubricText(rubric).map((c) => ({ id: c.id, name: c.name, weight: Number(c.weight || 0) }));
   return [];
 }
@@ -71,7 +71,7 @@ function buildQuestionRubricText(question, allCriteria) {
 
 function syncRubricWithGroundedCriteria(question, allCriteria) {
   if (!question || !Array.isArray(question.criteria)) return question;
-  const selectedIds = new Set(question.criteria.map((criterion) => String(typeof criterion === "object" ? criterion.id || criterion.name : criterion)));
+  const selectedIds = new Set(question.criteria.map((criterion) => String(typeof indikator === "object" ? criterion.id || criterion.name : criterion)));
   if (selectedIds.size === 0) return { ...question, rubric: "" };
 
   const sourceRubric = String(question.rubric || "").trim();
@@ -151,12 +151,12 @@ function buildAlignMessages(payload, questions) {
   const outcomes = learningOutcomeAlignment.parseLearningOutcomes(payload?.outcomes);
   const current = (questions || []).map((q, index) => ({ index, prompt: String(q.prompt || "").trim(), focus: String(q.focus || "").trim(), learningOutcomeId: String(q.learningOutcomeId || "").trim(), outcome: String(q.outcome || "").trim(), criteria: Array.isArray(q.criteria) ? q.criteria.map((c) => (typeof c === "object" ? c.name || c.id : c)) : [] }));
   return [{ role: "user", content: JSON.stringify({
-    tugas: "Kalibrasi penyelarasan assessment secara pedagogis: setiap Learning Outcome harus terukur oleh minimal satu soal, setiap soal harus memetakan ke tepat satu Learning Outcome utama, dan setiap soal hanya dinilai terhadap kriteria yang benar-benar menghasilkan evidence untuk LO tersebut.",
+    tugas: "Kalibrasi penyelarasan assessment secara pedagogis: setiap Learning Outcome harus terukur oleh minimal satu soal, setiap soal harus memetakan ke tepat satu Learning Outcome utama, dan setiap soal hanya dinilai terhadap indikator yang benar-benar menghasilkan evidence untuk LO tersebut.",
     topik: payload.topic,
     learning_outcomes: outcomes.map((lo) => ({ id: lo.id, text: lo.text })),
     rubrik: payload.rubric,
     kriteria_rubrik_yang_tersedia: rubricCriteria.map((c) => ({ id: c.id, nama: c.name, bobot: c.weight })),
-    aturan_penyelarasan: ["Untuk setiap soal, tentukan tepat satu learningOutcomeId dari daftar learning_outcomes.", "Question harus benar-benar memberi kesempatan siswa mendemonstrasikan kemampuan pada Learning Outcome tersebut, bukan hanya menyebut topiknya.", "Kata kerja tuntutan soal harus selaras dengan tuntutan kognitif Learning Outcome.", "Untuk setiap soal, tentukan SUBSET kriteria rubrik yang BENAR-BENAR diukur oleh substansi soal itu.", "Soal tidak boleh memetakan kriteria yang tidak dapat dibuktikan dari jawaban.", "Seluruh learning outcome wajib tercakup oleh minimal satu soal.", "Seluruh kriteria yang memang dimaksudkan untuk dinilai harus memiliki jalur Question -> Criterion -> Learning Outcome.", "Pertahankan jumlah dan urutan soal persis sama dengan input."].join(". "),
+    aturan_penyelarasan: ["Untuk setiap soal, tentukan tepat satu learningOutcomeId dari daftar learning_outcomes.", "Question harus benar-benar memberi kesempatan siswa mendemonstrasikan kemampuan pada Learning Outcome tersebut, bukan hanya menyebut topiknya.", "Kata kerja tuntutan soal harus selaras dengan tuntutan kognitif Learning Outcome.", "Untuk setiap soal, tentukan SUBSET indikator penilaian yang BENAR-BENAR diukur oleh substansi soal itu.", "Soal tidak boleh memetakan indikator yang tidak dapat dibuktikan dari jawaban.", "Seluruh learning outcome wajib tercakup oleh minimal satu soal.", "Seluruh indikator yang memang dimaksudkan untuk dinilai harus memiliki jalur Question -> Indikator -> Learning Outcome.", "Pertahankan jumlah dan urutan soal persis sama dengan input."].join(". "),
     jumlah_dan_urutan_hasil: "harus sama persis dengan input",
     questions: current,
   }) }];
