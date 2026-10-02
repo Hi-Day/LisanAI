@@ -15,7 +15,7 @@ async function refreshCompetencyState(db, tenantId, studentId, submission) {
   }
 }
 
-async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
+async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId, requestedClassId = null) {
   // A missing assessmentId is legitimate for flows where submissions are not
   // bound to an assessment (see migration 010_submissions_nullable_assessment).
   if (assessmentId == null) return;
@@ -23,12 +23,15 @@ async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
   if (!assessment) throw Object.assign(new Error("Assessment tidak ditemukan"), { status: 404 });
   if (assessment.status !== "published") throw Object.assign(new Error("Assessment belum tersedia untuk dikerjakan"), { status: 403 });
   const membership = await db.get(
-    `SELECT cm.id
+    `SELECT cm.id, cm.class_id
      FROM assessment_classes ac
      JOIN class_memberships cm ON cm.class_id = ac.class_id
        AND cm.tenant_id = ac.tenant_id AND cm.student_id = ? AND cm.status = 'approved'
-     WHERE ac.tenant_id = ? AND ac.assessment_id = ? AND ac.status = 'published'`,
-    userId, tenantId, assessmentId,
+     WHERE ac.tenant_id = ? AND ac.assessment_id = ? AND ac.status = 'published'
+       AND (? IS NULL OR ac.class_id = ?)
+     ORDER BY ac.class_id
+     LIMIT 1`,
+    userId, tenantId, assessmentId, requestedClassId || null, requestedClassId || null,
   );
   if (!membership) throw Object.assign(new Error("Siswa belum disetujui di kelas assessment ini"), { status: 403 });
   const payload = JSON.parse(assessment.payload);
@@ -36,10 +39,14 @@ async function assertCanSubmitAssessment(db, tenantId, userId, assessmentId) {
   const maxAttempts = Math.max(1, Number(payload.maxAttempts) || 1);
   const existing = await db.get("SELECT COUNT(*) AS cnt FROM submissions WHERE tenant_id = ? AND assessment_id = ? AND user_id = ?", tenantId, assessmentId, userId);
   if (Number(existing?.cnt || 0) >= maxAttempts) throw Object.assign(new Error(`Batas percobaan tercapai (${maxAttempts} dari ${maxAttempts})`), { status: 409 });
+  return membership.class_id;
 }
 
 async function saveSubmission(db, tenantId, userId, submission, bypassCheck = false) {
-  if (userId && !bypassCheck) await assertCanSubmitAssessment(db, tenantId, userId, submission.assessmentId);
+  if (userId && !bypassCheck) {
+    const classId = await assertCanSubmitAssessment(db, tenantId, userId, submission.assessmentId, submission.classId || null);
+    if (classId) submission = { ...submission, classId };
+  }
   const insert = (assessmentId) => db.run(`INSERT OR REPLACE INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, submission.id, tenantId, assessmentId, submission.studentName, userId, submission.finalScore, JSON.stringify(submission), submission.submittedAt);
   try { await insert(submission.assessmentId); }
