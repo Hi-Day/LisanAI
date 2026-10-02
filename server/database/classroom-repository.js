@@ -20,6 +20,7 @@ async function updateClass(db, auth, classId, patch) {
 
 async function deleteClass(db, auth, classId) {
   await getWritableClass(db, auth, classId);
+  await db.run("DELETE FROM assessment_classes WHERE tenant_id = ? AND class_id = ?", auth.tenant.id, classId);
   await db.run("DELETE FROM classes WHERE id = ? AND tenant_id = ?", classId, auth.tenant.id);
 }
 
@@ -56,6 +57,7 @@ async function clearData(db, tenantId) {
   await db.run("DELETE FROM evaluation_runs WHERE tenant_id = ?", tenantId);
   await db.run("DELETE FROM ai_logs WHERE tenant_id = ?", tenantId);
   await db.run("DELETE FROM submissions WHERE tenant_id = ?", tenantId);
+  await db.run("DELETE FROM assessment_classes WHERE tenant_id = ?", tenantId);
   await db.run("DELETE FROM assessments WHERE tenant_id = ?", tenantId);
   await db.run("DELETE FROM question_bank WHERE tenant_id = ?", tenantId);
 }
