@@ -44,7 +44,7 @@ export function renderStudentArea(els, state, session) {
   const studentFilter = document.querySelector("[data-student-filter].active")?.dataset?.studentFilter || "all";
   let visibleAssessments = state.assessments.filter(a => a.status !== "closed");
   if (selectedClassId) {
-    visibleAssessments = visibleAssessments.filter(a => a.classId === selectedClassId);
+    visibleAssessments = visibleAssessments.filter(a => (a.classIds || [a.classId]).includes(selectedClassId));
   }
   if (studentFilter === "tryout") {
     visibleAssessments = visibleAssessments.filter(a => a.isTryout);
@@ -59,6 +59,10 @@ export function renderStudentArea(els, state, session) {
     els.studentEmpty?.classList.add("hidden");
     if (els.studentAssessmentGrid) {
       els.studentAssessmentGrid.innerHTML = visibleAssessments.map(assessment => {
+        const deliveryClassId = selectedClassId && (assessment.classIds || [assessment.classId]).includes(selectedClassId)
+          ? selectedClassId
+          : (assessment.classIds || [assessment.classId])[0] || assessment.classId;
+        const studentAssessment = { ...assessment, deliveryClassId };
         const studentSubmissions = state.submissions.filter(s => s.assessmentId === assessment.id);
         const hasSubmitted = studentSubmissions.length > 0;
         let buttonText = 'Mulai Kerjakan';
@@ -106,7 +110,7 @@ export function renderStudentArea(els, state, session) {
         }
 
         return `
-          <div class="assessment-card" data-id="${assessment.id}" tabindex="0" role="button" aria-label="${escapeHtml(assessment.topic)} - ${assessment.difficulty} - ${assessment.questions.length} soal">
+          <div class="assessment-card" data-id="${assessment.id}" data-class-id="${escapeHtml(deliveryClassId || "")}" tabindex="0" role="button" aria-label="${escapeHtml(assessment.topic)} - ${assessment.difficulty} - ${assessment.questions.length} soal">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
               <h4>${escapeHtml(assessment.topic)}</h4>
               <div style="display:flex; gap:4px; align-items:center;">
@@ -115,13 +119,14 @@ export function renderStudentArea(els, state, session) {
               </div>
             </div>
             <span class="tag badge-published" style="width: fit-content;">${escapeHtml(assessment.difficulty)}</span>
+            ${studentAssessment.classAssignments?.length ? `<span class="tag" style="width: fit-content;">Kelas: ${escapeHtml(studentAssessment.classAssignments.find((item) => item.classId === deliveryClassId)?.classCode || "-")}</span>` : ""}
             <div class="assessment-meta">
               <span>📝 ${assessment.questions.length} soal</span>
               <span>${timeText}</span>
               <span>🔄 ${attemptsText}</span>
             </div>
             ${scoreHtml}
-            <button type="button" class="${buttonClass}" data-id="${assessment.id}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
+            <button type="button" class="${buttonClass}" data-id="${assessment.id}" data-class-id="${escapeHtml(deliveryClassId || "")}" style="margin-top: auto;" ${isLocked ? "disabled" : ""}>${buttonText}</button>
           </div>
         `;
       }).join("");
@@ -395,6 +400,7 @@ export function renderAssessmentItem(assessment) {
           ${statusBadge}
         </div>
         <p>${escapeHtml(compactText(assessment.outcomes))}</p>
+        ${assessment.classAssignments?.length ? `<div class="assessment-class-tags"><strong>Kelas:</strong> ${assessment.classAssignments.map((item) => escapeHtml(item.classCode || item.className || "-")).join(" · ")}</div>` : ""}
         <div class="item-actions">
           <button type="button" class="action-button edit-assessment">Edit Soal</button>
           <button type="button" class="action-button download-grades-assessment">Download Nilai</button>
