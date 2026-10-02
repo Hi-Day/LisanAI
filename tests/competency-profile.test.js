@@ -43,3 +43,25 @@ test("learning outcome resolver returns every explicitly mapped LO", async () =>
   const mapped = resolveLearningOutcomes({ learningOutcomeIds: ["LO1", "LO2"] }, outcomes);
   assert.deepEqual(mapped.map((x) => x.id), ["LO1", "LO2"]);
 });
+
+test("competency profile resolves LO from criterion mapping when answerIndex is unavailable", async () => {
+  const { buildCompetencyProfile } = await import("../src/js/competency-profile.js");
+  const assessment = {
+    id: "a1",
+    outcomes: [{ id: "LO1", text: "Menjelaskan konsep" }],
+    questions: [{
+      learningOutcomeId: "LO1",
+      prompt: "q1",
+      criteria: [{ id: "c1", name: "Ketepatan konsep" }],
+    }],
+  };
+  const profile = buildCompetencyProfile([assessment], [{
+    id: "s1",
+    assessmentId: "a1",
+    studentName: "S",
+    criteria: [{ criterionId: "c1", score: 85 }],
+  }]);
+  assert.equal(profile.length, 1);
+  assert.equal(profile[0].id, "LO1");
+  assert.equal(profile[0].avg, 85);
+});
