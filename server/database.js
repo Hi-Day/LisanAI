@@ -44,7 +44,7 @@ module.exports = {
   updateAssessment: (auth, assessmentId, patch) => assessment.updateAssessment(getDb(), auth, assessmentId, patch),
   updateClass: (auth, classId, patch) => classroom.updateClass(getDb(), auth, classId, patch),
   updateMembershipStatus: (auth, membershipId, status) => membership.updateMembershipStatus(getDb(), auth, membershipId, status),
-  assertCanSubmitAssessment: (tenantId, userId, assessmentId) => submission.assertCanSubmitAssessment(getDb(), tenantId, userId, assessmentId),
+  assertCanSubmitAssessment: (tenantId, userId, assessmentId, classId = null) => submission.assertCanSubmitAssessment(getDb(), tenantId, userId, assessmentId, classId),
   stripSubmissionAudio: submission.stripSubmissionAudio,
   saveQuestionToBank: (auth, question) => questionBank.saveQuestionToBank(getDb(), auth, question),
   listQuestionBank: (auth, filter) => questionBank.listQuestionBank(getDb(), auth, filter),
