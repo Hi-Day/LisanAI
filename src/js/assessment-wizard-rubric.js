@@ -12,7 +12,7 @@ export const DEFAULT_LEVELS = [
 ];
 
 function fillLevelDescriptors(criterionName, levels) {
-  const name = criterionName || "Kriteria";
+  const name = criterionName || "Indikator";
   const templates = [
     `${name} sangat baik, lengkap, dan tepat`,
     `${name} baik dan memadai`,
@@ -126,13 +126,13 @@ export function renderRubrikBuilder(el, rubricText, ctx) {
   el.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
       <strong style="font-size:0.9rem;">Rubrik dengan Gradasi</strong>
-      <button type="button" class="secondary-button rubrik-add" style="padding:4px 12px; font-size:0.85rem;">+ Tambah Kriteria</button>
+      <button type="button" class="secondary-button rubrik-add" style="padding:4px 12px; font-size:0.85rem;">+ Tambah Indikator</button>
     </div>
     <div class="rubrik-gradation-wrap">
       <table class="rubrik-gradation">
         <thead>
           <tr>
-            <th style="min-width:140px;">Kriteria</th>
+            <th style="min-width:140px;">Indikator</th>
             <th style="min-width:40px;">Bobot</th>
             ${levels.map((level) => `<th class="rubrik-level-${level.score}">${escapeHtml(level.label)} (${level.score})</th>`).join("")}
             <th style="width:32px;"></th>
@@ -172,7 +172,7 @@ export function renderRubrikBuilder(el, rubricText, ctx) {
 function rubrikGradationRow(criterion, index, levels) {
   return `
     <tr class="rubrik-row">
-      <td><input type="text" class="rubrik-name" placeholder="Nama kriteria" value="${escapeHtml(criterion.name || "")}" style="width:100%;" /></td>
+      <td><input type="text" class="rubrik-name" placeholder="Nama indikator" value="${escapeHtml(criterion.name || "")}" style="width:100%;" /></td>
       <td><input type="number" class="rubrik-weight" min="0" max="100" step="1" value="${criterion.weight}" aria-label="Bobot %" style="width:50px;" />%</td>
       ${levels.map((level, levelIndex) => `
         <td class="rubrik-level-cell rubrik-level-${level.score}">
