@@ -40,6 +40,51 @@ function agreementMetrics(aiScores, humanScores) {
     exactAgreement: exactAgreement(aiScores, humanScores),
     plus5: adjacentAgreement(aiScores, humanScores, 5),
     plus10: adjacentAgreement(aiScores, humanScores, 10),
+    calibration: calibrationMetrics(aiScores, humanScores),
+  };
+}
+
+/**
+ * Calibration metrics for continuous 0–100 scores.
+ *
+ * Scores are grouped into equal-width bins by predicted score. The reported
+ * calibration error is the weighted mean absolute gap between the mean
+ * predicted and mean human score in each non-empty bin. Bias is signed
+ * (prediction - human), so positive values indicate systematic over-scoring.
+ */
+function calibrationMetrics(aiScores, humanScores, binCount = 10) {
+  if (!Array.isArray(aiScores) || !Array.isArray(humanScores) ||
+      aiScores.length === 0 || aiScores.length !== humanScores.length) return null;
+  const bins = Math.max(2, Math.min(20, Number(binCount) || 10));
+  const groups = Array.from({ length: bins }, () => ({ predicted: [], human: [] }));
+  aiScores.forEach((score, i) => {
+    const predicted = Number(score);
+    const human = Number(humanScores[i]);
+    if (!Number.isFinite(predicted) || !Number.isFinite(human)) return;
+    const index = Math.min(bins - 1, Math.max(0, Math.floor((predicted / 100) * bins)));
+    groups[index].predicted.push(predicted);
+    groups[index].human.push(human);
+  });
+  const populated = groups.map((g, index) => {
+    if (!g.predicted.length) return null;
+    const predictedMean = mean(g.predicted);
+    const humanMean = mean(g.human);
+    return {
+      bin: index,
+      count: g.predicted.length,
+      predictedMean,
+      humanMean,
+      gap: predictedMean - humanMean,
+      absoluteGap: Math.abs(predictedMean - humanMean),
+    };
+  }).filter(Boolean);
+  const total = populated.reduce((sum, b) => sum + b.count, 0);
+  if (!total) return null;
+  return {
+    n: total,
+    bins: populated,
+    expectedCalibrationError: populated.reduce((sum, b) => sum + (b.count / total) * b.absoluteGap, 0),
+    meanBias: populated.reduce((sum, b) => sum + b.count * b.gap, 0) / total,
   };
 }
 
@@ -192,6 +237,7 @@ function summarizeExperimentMetrics(exp) {
 module.exports = {
   agreementMetrics,
   consistencyMetrics,
+  calibrationMetrics,
   groundingMetrics,
   complianceMetrics,
   interRaterAggregation,
