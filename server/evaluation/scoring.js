@@ -12,19 +12,19 @@ function calculateFinalScore(criteria, rubric) {
   }
 
   const byId = new Map(rubric.criteria.map((c) => [String(c.id), c]));
-  // A model may hallucinate a criterion that is NOT in the rubric. Scoring is
+  // A model may hallucinate a indikator that is NOT in the rubric. Scoring is
   // the deterministic authority — it must never be blocked by such noise, and
-  // it must never let an invented criterion influence the score. Filter them
+  // it must never let an invented indikator influence the score. Filter them
   // out and continue; computeFinalScore already treats unknown criteria as
   // excluded (not invented), so this only makes the strict wrapper consistent.
   const knownCriteria = [];
   const unknownProvided = [];
-  for (const criterion of criteria) {
+  for (const indikator of criteria) {
     if (byId.get(String(criterion.criterionId))) knownCriteria.push(criterion);
     else unknownProvided.push(criterion.criterionId);
   }
   if (unknownProvided.length > 0) {
-    console.warn(`[scoring] Membuang criterion di luar rubrik (hallucination): ${unknownProvided.join(", ")}`);
+    console.warn(`[scoring] Membuang indikator di luar rubrik (hallucination): ${unknownProvided.join(", ")}`);
   }
 
   const result = computeFinalScore({
@@ -44,7 +44,7 @@ function calculateFinalScore(criteria, rubric) {
 }
 
 const DEFAULT_OPTIONS = {
-  // Renormalize effective weights over the applicable criterion subset (a
+  // Renormalize effective weights over the applicable indikator subset (a
   // per-question / aligned set) so it always sums to 1 and stays on 0-100.
   renormalize: true,
   excludedCriterionIds: [],
@@ -53,7 +53,7 @@ const DEFAULT_OPTIONS = {
 /**
  * THE deterministic, pure scoring authority.
  *
- * Computes finalScore exclusively from criterion scores × effective rubric
+ * Computes finalScore exclusively from indikator scores × effective rubric
  * weights. It never accepts a model-provided finalScore as input, never invents
  * missing criteria, and always reports completeness/coverage.
  *
@@ -86,7 +86,7 @@ function computeFinalScore({ criteria, rubric, options = {} }) {
   // never silently clamped).
   for (const c of rubricCriteria) {
     if (!Number.isFinite(c.weight) || c.weight < 0) {
-      throw new Error(`Criterion '${c.id}' memiliki weight yang tidak valid (${c.weight})`);
+      throw new Error(`Indikator '${c.id}' memiliki weight yang tidak valid (${c.weight})`);
     }
   }
 
@@ -99,7 +99,7 @@ function computeFinalScore({ criteria, rubric, options = {} }) {
 
   for (const item of criteria) {
     const id = String(item == null ? "" : item.criterionId || "").trim();
-    if (!id) throw new Error("Setiap kriteria wajib memiliki criterionId");
+    if (!id) throw new Error("Setiap indikator wajib memiliki criterionId");
     const def = rubricById.get(id);
     if (!def) {
       // Unknown to the rubric: cannot be scored, reported — never invented.
@@ -176,7 +176,7 @@ function computeFinalScore({ criteria, rubric, options = {} }) {
 
 /**
  * Normalize the rubric into an array of { id, name, label, weight }.
- * Throws when there is no non-empty criteria list (nothing to compute without a
+ * Throws when there is no non-empty indicator list (nothing to compute without a
  * reference). Weight NaN/negative is validated by computeFinalScore.
  */
 function normalizeRubric(rubric) {
@@ -188,19 +188,19 @@ function normalizeRubric(rubric) {
     const src = c || {};
     return {
       id: String(src.id || src.criterionId || `k${i + 1}`),
-      name: String(src.name || src.label || `Kriteria ${i + 1}`).trim(),
+      name: String(src.name || src.label || `Indikator ${i + 1}`).trim(),
       label: String(src.label || ""),
       weight: src.weight == null ? 0 : Number(src.weight),
     };
   });
   for (const c of out) {
-    if (!c.id) throw new Error("Setiap criterion rubric wajib punya id");
+    if (!c.id) throw new Error("Setiap indikator rubric wajib punya id");
   }
   return out;
 }
 
 /**
- * Validate + clamp a criterion score.
+ * Validate + clamp a indikator score.
  * - Non-finite / NaN / non-numeric   -> throw (validation error).
  * - Numeric outside [0, 100]         -> clamped (preserve existing semantics).
  */
@@ -208,11 +208,11 @@ function safeScore(value) {
   // Unlike bare Number(), null/undefined/empty must not coerce to 0 — a missing
   // score is a validation error, not a silent zero.
   if (value == null || value === "" || value === true || value === false) {
-    throw new Error(`Skor criterion tidak valid: ${JSON.stringify(value)}`);
+    throw new Error(`Skor indikator tidak valid: ${JSON.stringify(value)}`);
   }
   const score = Number(value);
   if (!Number.isFinite(score)) {
-    throw new Error(`Skor criterion tidak valid: ${JSON.stringify(value)}`);
+    throw new Error(`Skor indikator tidak valid: ${JSON.stringify(value)}`);
   }
   return clamp(score, 0, 100);
 }
