@@ -1099,7 +1099,7 @@ export function renderRubricTable(rubricText) {
           <table class="rubrik-display">
             <thead>
               <tr>
-                <th>Kriteria</th>
+                <th>Indikator</th>
                 <th>Bobot</th>
                 ${levels.map((l) => `<th class="rubrik-lev-${l.score}">${escapeHtml(l.label)}</th>`).join("")}
               </tr>
@@ -1127,7 +1127,7 @@ export function renderRubricTable(rubricText) {
       <table class="rubrik-display">
         <thead>
           <tr>
-            <th>Kriteria</th>
+            <th>Indikator</th>
             <th>Bobot</th>
           </tr>
         </thead>
