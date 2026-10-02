@@ -238,13 +238,14 @@ export function renderClasses(ctx) {
   const { els } = ctx;
 
   if (els.classSelect) {
-    const currentValue = els.classSelect.value;
+    const currentValues = [...els.classSelect.selectedOptions].map((option) => option.value);
     els.classSelect.innerHTML = ctx.state.classes.length
       ? ctx.state.classes.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(classOptionLabel(item))}</option>`).join("")
       : `<option value="">Belum ada kelas</option>`;
-    if (currentValue && ctx.state.classes.some((item) => item.id === currentValue)) {
-      els.classSelect.value = currentValue;
-    }
+    currentValues.forEach((value) => {
+      const option = [...els.classSelect.options].find((item) => item.value === value);
+      if (option) option.selected = true;
+    });
   }
 
   if (!ctx.state.classes.length) {
