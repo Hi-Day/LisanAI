@@ -6,7 +6,7 @@ import {
   renderStatusBadge,
 } from "./status.js";
 import { renderAssessmentItem, renderRubricTable } from "./render.js";
-import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria, parseLearningOutcomes, resolveLearningOutcome, resolveLearningOutcomes } from "./competency-profile.js";
+import { buildCompetencyProfile, renderCompetencyClass, renderCompetencyStudent, parseRubricToCriteria, parseLearningOutcomes, resolveLearningOutcomes } from "./competency-profile.js";
 import { switchView } from "./app-context.js";
 import { getSubmissionDetail } from "./api.js";
 
