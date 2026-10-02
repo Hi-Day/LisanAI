@@ -194,6 +194,19 @@ function installStyles() {
     .assessment-outcome-add { margin-top: 10px; width: 100%; min-height: 42px; }
     .assessment-outcomes-validation { margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(180, 35, 24, .25); border-radius: 10px; background: rgba(180, 35, 24, .06); color: #8f1d15; font-size: .88rem; line-height: 1.45; }
     .assessment-advanced-settings { margin-top: 24px; }
+    .class-multi-select { position: relative; width: 100%; }
+    .class-multi-select-source { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; opacity: 0 !important; pointer-events: none !important; }
+    .class-multi-select-trigger { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color .18s ease, box-shadow .18s ease; }
+    .class-multi-select-trigger:hover, .class-multi-select.is-open .class-multi-select-trigger { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, .10); }
+    .class-multi-select-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .class-multi-select-chevron { flex: 0 0 auto; color: var(--muted); font-size: 1.05rem; transition: transform .18s ease; }
+    .class-multi-select.is-open .class-multi-select-chevron { transform: rotate(180deg); }
+    .class-multi-select-menu { position: absolute; z-index: 1000; top: calc(100% + 6px); left: 0; right: 0; display: none; max-height: 240px; overflow-y: auto; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-subtle, 0 12px 30px rgba(0,0,0,.12)); }
+    .class-multi-select.is-open .class-multi-select-menu { display: grid; gap: 2px; }
+    .class-multi-select-option { display: flex !important; align-items: center; gap: 10px; margin: 0 !important; padding: 10px 9px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    .class-multi-select-option:hover { background: rgba(99, 102, 241, .07); }
+    .class-multi-select-option input { width: 17px; height: 17px; margin: 0; flex: 0 0 auto; accent-color: var(--primary); }
+    .class-multi-select-empty { padding: 12px 10px; color: var(--muted); font-size: .88rem; }
     @media (max-width: 639px) {
       .wizard-panel[data-wizard-panel="1"] { padding: 22px 18px 24px; }
       .wizard-panel[data-wizard-panel="1"] .assessment-core-grid { gap: 12px; }
