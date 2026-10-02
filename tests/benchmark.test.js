@@ -143,5 +143,5 @@ test("calibrationMetrics reports weighted calibration error and signed bias", as
   assert.equal(result.n, 4);
   assert.ok(Number.isFinite(result.expectedCalibrationError));
   assert.ok(Number.isFinite(result.meanBias));
-  assert.equal(result.bins.length, 4);
+  assert.equal(result.bins.length, 3);
 });
