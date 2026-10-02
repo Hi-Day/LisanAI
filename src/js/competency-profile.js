@@ -136,26 +136,28 @@ function resolveLearningOutcomes(question, outcomes) {
   });
 }
 
-export function resolveLearningOutcome(question, outcomes) { return resolveQuestionOutcome(question, outcomes); }
+export function resolveLearningOutcomes(question, outcomes) { return resolveQuestionOutcomes(question, outcomes); }
+export function resolveLearningOutcome(question, outcomes) { return resolveQuestionOutcomes(question, outcomes)[0] || null; }
 
-function resolveQuestionOutcome(question, outcomes) {
-  const explicitId = String(question?.learningOutcomeId || question?.outcomeId || "").trim();
-  if (explicitId) {
-    const byId = outcomes.find((lo) => normalize(lo.id) === normalize(explicitId));
-    if (byId) return byId;
+function resolveQuestionOutcomes(question, outcomes) {
+  const list = Array.isArray(outcomes) ? outcomes : [];
+  const ids = Array.isArray(question?.learningOutcomeIds) ? question.learningOutcomeIds : [];
+  const explicit = String(question?.learningOutcomeId || question?.outcomeId || "").trim();
+  const explicitIds = [...new Set([...ids.map(String), explicit].map((value) => value.trim()).filter(Boolean))];
+  if (explicitIds.length) {
+    const mapped = explicitIds.map((id) => list.find((lo) => normalize(lo.id) === normalize(id))).filter(Boolean);
+    if (mapped.length) return mapped;
   }
   const text = normalizeOutcome(question?.outcome || "");
   if (text) {
-    const exact = outcomes.find((lo) => normalizeOutcome(lo.text) === text);
-    if (exact) return exact;
-    const contains = outcomes.find((lo) => {
+    const exact = list.filter((lo) => normalizeOutcome(lo.text) === text);
+    if (exact.length) return exact;
+    return list.filter((lo) => {
       const a = normalizeOutcome(lo.text);
       return a && (a.includes(text) || text.includes(a));
     });
-    if (contains) return contains;
   }
-  return null;
-}
+  return [];
 
 function collectRubric(assessments, assessmentId) {
   const byId = new Map();
