@@ -21,9 +21,7 @@ async function assertCanEvaluate(action, payload, auth) {
     const error = Object.assign(new Error("attemptId wajib untuk assessment resmi"), { status: 400, code: "ATTEMPT_REQUIRED" });
     throw error;
   }
-  if (process.env.HARNESS_PROVIDER !== "openrouter") {
-    throw Object.assign(new Error("Asesor AI resmi belum tersedia. Assessment tidak dapat dinilai."), { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" });
-  }
+  // Production student assessments are fail-closed: only OpenRouter may publish\n  // an official score. E2E explicitly opts into the deterministic MockProvider\n  // through a server-only test flag; this flag is never enabled in production.\n  const testMockEvaluation = process.env.E2E_ALLOW_MOCK_EVALUATION === "true";\n  if (process.env.HARNESS_PROVIDER !== "openrouter" && !testMockEvaluation) {\n    throw Object.assign(new Error("Asesor AI resmi belum tersedia. Assessment tidak dapat dinilai."), { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" });\n  }
   const attempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
   if (attempt.assessment_id !== payload.assessmentId) {
     throw Object.assign(new Error("Attempt tidak cocok dengan assessment"), { status: 409, code: "ATTEMPT_ASSESSMENT_MISMATCH" });
