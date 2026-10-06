@@ -32,6 +32,10 @@ async function beginAttemptEvaluation(auth, attemptId, answers, assessmentId) {
   return submissionGateway.beginAttemptEvaluation(auth, attemptId, answers, assessmentId);
 }
 
+async function saveEvaluatedSubmission(auth, submission) {
+  return submissionGateway.saveEvaluatedSubmission(auth, submission);
+}
+
 async function finalizeAssessmentAttempt(auth, attemptId, submission, hashes) {
   if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat menyelesaikan attempt"), { status: 403 });
   return submissionGateway.finalizeAssessmentAttempt(auth, attemptId, submission, hashes);
@@ -69,4 +73,4 @@ async function saveSubmissionAudio(auth, patch = {}) {
   return { ok: true };
 }
 
-module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };
+module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, saveEvaluatedSubmission, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };
