@@ -95,6 +95,8 @@ module.exports = async (req, res) => {
 
     if (action === "save-submission") {
       if (isStudent) {
+        // submissionService.saveStudentSubmission is intentionally NOT called:
+        // official submissions are server-authoritative after evaluation.
         // Score-bearing student writes are intentionally forbidden. Official
         // submissions are persisted only by the server-side evaluation path,
         // after an authenticated attempt and verification gate.
