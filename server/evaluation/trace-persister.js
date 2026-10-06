@@ -36,6 +36,8 @@ async function persistEvaluationTrace(snapshot) {
   const attemptId = meta.attemptId || null;
   const assessmentHash = meta.assessmentHash || null;
   const answerHash = meta.answerHash || null;
+  const assessmentRow = assessmentId ? await db.get("SELECT id FROM assessments WHERE id = ?", assessmentId) : null;
+  const persistedAssessmentId = assessmentRow ? assessmentId : null;
 
   // Upsert run metadata. If the assessmentId does not exist in the assessments
   // table (e.g. ad-hoc evaluation), the FK would reject the insert. Keep the
@@ -62,7 +64,7 @@ async function persistEvaluationTrace(snapshot) {
       runId,
       meta.tenantId || null,
       meta.userId || null,
-      assessmentId,
+      persistedAssessmentId,
       result ? result.submissionId || null : null,
       model || "unknown",
       versioning.promptVersion || promptVersion || "v1",
