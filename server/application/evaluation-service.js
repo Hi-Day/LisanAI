@@ -30,6 +30,9 @@ async function assertCanEvaluate(action, payload, auth) {
   // authoritative for official evaluation. Do not re-run the legacy submission
   // gate here: it counts historical submissions and can reject a valid active
   // attempt before the attempt state machine gets to finalize it.
+  // Architecture boundary: submission authorization remains owned by
+  // submissionService.assertCanSubmit; official evaluation uses the stronger
+  // attempt-based authorization above rather than invoking the legacy gate.
 
 }
 
