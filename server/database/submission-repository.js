@@ -159,6 +159,7 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
     const existing = await db.get("SELECT payload FROM submissions WHERE id = ? AND tenant_id = ?", row.submission_id, auth.tenant.id);
     if (existing) return { attempt: row, existingSubmission: JSON.parse(existing.payload) };
   }
+  if (row.status === "SUBMITTING") throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
   if (row.status === "EXPIRED") throw attemptError("Attempt sudah kedaluwarsa", 409, "ATTEMPT_EXPIRED");
   if (row.status === "CANCELLED") throw attemptError("Attempt sudah dibatalkan", 409, "ATTEMPT_CANCELLED");
   if (row.deadline_at && Date.now() > Date.parse(row.deadline_at)) {
