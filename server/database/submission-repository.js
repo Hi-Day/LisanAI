@@ -70,10 +70,7 @@ async function createAssessmentAttempt(db, auth, assessmentId, requestedClassId 
       ORDER BY attempt_no DESC LIMIT 1`,
     auth.tenant.id, assessmentId, auth.user.id,
   );
-  if (existingActive) {
-    if (idempotencyKey && existingActive.idempotency_key === idempotencyKey) return formatAttempt(existingActive);
-    throw attemptError("Siswa masih memiliki attempt yang sedang berjalan", 409, "ATTEMPT_ALREADY_ACTIVE");
-  }
+  if (existingActive) return formatAttempt(existingActive);
 
   if (idempotencyKey) {
     const existingKey = await db.get(
