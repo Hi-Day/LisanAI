@@ -127,6 +127,7 @@ async function evaluate(payload, auth, onProgress = null) {
 
   // Canonical persistence happens only on the server. The browser never gets
   // an opportunity to submit or alter the authoritative score.
+  await submissionService.saveEvaluatedSubmission(auth, submission);
   await submissionService.finalizeAssessmentAttempt(auth, payload.attemptId, submission, {
     assessmentHash,
     rubricHash: expectedAttempt.rubric_hash,
