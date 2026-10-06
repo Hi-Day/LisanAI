@@ -56,7 +56,6 @@ async function persistEvaluationTrace(snapshot) {
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
           attempt_id, assessment_hash, answer_hash,
-          attempt_id, assessment_hash, answer_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
