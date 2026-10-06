@@ -171,6 +171,13 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
   return { attempt: row };
 }
 
+async function releaseAttemptEvaluation(db, auth, attemptId) {
+  await db.run(
+    "UPDATE assessment_attempts SET status = 'STARTED' WHERE id = ? AND tenant_id = ? AND user_id = ? AND status = 'SUBMITTING'",
+    attemptId, auth.tenant.id, auth.user.id,
+  );
+}
+
 async function finalizeAssessmentAttempt(db, auth, attemptId, submission, hashes = {}) {
   const row = await getAssessmentAttempt(db, auth, attemptId);
   if (row.status === "FINALIZED" && row.submission_id) {
@@ -370,4 +377,4 @@ function stripSubmissionAudio(submission) {
   return out;
 }
 
-module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
+module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
