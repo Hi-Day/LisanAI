@@ -21,6 +21,9 @@ async function assertCanEvaluate(action, payload, auth) {
     const error = Object.assign(new Error("attemptId wajib untuk assessment resmi"), { status: 400, code: "ATTEMPT_REQUIRED" });
     throw error;
   }
+  if (process.env.HARNESS_PROVIDER !== "openrouter") {
+    throw Object.assign(new Error("Asesor AI resmi belum tersedia. Assessment tidak dapat dinilai."), { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" });
+  }
   const attempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
   if (attempt.assessment_id !== payload.assessmentId) {
     throw Object.assign(new Error("Attempt tidak cocok dengan assessment"), { status: 409, code: "ATTEMPT_ASSESSMENT_MISMATCH" });
@@ -71,7 +74,7 @@ async function evaluate(payload, auth, onProgress = null) {
   const submissionId = randomId("sub");
   let result;
   try {
-    const result = await evaluateWithHarness({
+    result = await evaluateWithHarness({
       ...payload,
       assessmentId,
       assessment,
@@ -92,11 +95,9 @@ async function evaluate(payload, auth, onProgress = null) {
   }
 
   // Official assessment is fail-closed: fallback/mock results are never final.
-  if (result.evaluationSource === "fallback" || process.env.HARNESS_PROVIDER !== "openrouter") {
-    throw Object.assign(
-      new Error("Asesor AI resmi tidak tersedia. Assessment tidak diberi nilai dan dapat dicoba kembali."),
-      { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" },
-    );
+  if (result.evaluationSource === "fallback") {
+    await submissionService.releaseAttemptEvaluation(auth, payload.attemptId).catch(() => {});
+    throw Object.assign(new Error("Evaluasi fallback tidak boleh menjadi nilai assessment resmi."), { status: 503, code: "OFFICIAL_FALLBACK_FORBIDDEN" });
   }
 
   const submission = {
