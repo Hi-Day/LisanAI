@@ -105,7 +105,7 @@ async function persistEvaluationTrace(snapshot) {
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
           attempt_id, assessment_hash, answer_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -157,7 +157,7 @@ async function persistEvaluationTrace(snapshot) {
   if (result) {
     await db.run(
       `INSERT INTO evaluation_results (run_id, evaluation_id, criteria_json, result_json, weighted_json)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?)`,
       runId,
       result.evaluationId || "",
       JSON.stringify(result.criteria || []),
@@ -168,7 +168,7 @@ async function persistEvaluationTrace(snapshot) {
     await db.run(
       `INSERT INTO evaluation_versions
          (run_id, model_version, prompt_version, rubric_version, harness_version, engine_version)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       runId,
       result.versioning?.modelVersion || model || "unknown",
       result.versioning?.promptVersion || promptVersion || "v1",
@@ -184,7 +184,7 @@ async function persistEvaluationTrace(snapshot) {
       await db.run(
         `INSERT INTO evaluation_criteria
            (run_id, criterion_id, score, weight, rationale, confidence, evidence_json)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         runId,
         c.criterionId,
         c.score,
