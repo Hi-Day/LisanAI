@@ -46,9 +46,6 @@ async function evaluate(payload, auth, onProgress = null) {
   const assessmentId = String(payload?.assessmentId || payload?.assessment?.id || "").trim();
   if (!assessmentId) throw Object.assign(new Error("assessmentId wajib"), { status: 400 });
 
-  const attempt = await submissionService.beginAttemptEvaluation(auth, payload.attemptId, payload.answers || [], assessmentId);
-  if (attempt.existingSubmission) return { ...attempt.existingSubmission, alreadyFinalized: true };
-
   const canonical = await submissionService.getCanonicalAssessmentForStudent(
     auth, assessmentId, payload?.classId || payload?.assessment?.deliveryClassId || null,
   );
@@ -65,12 +62,16 @@ async function evaluate(payload, auth, onProgress = null) {
   }
 
   const assessmentHash = assessmentSnapshotHash(assessment);
-  const expectedAttempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
-  if (expectedAttempt.assessment_hash !== assessmentHash) {
+  const expectedBeforeStart = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
+  if (expectedBeforeStart.assessment_hash !== assessmentHash) {
     throw Object.assign(new Error("Assessment berubah setelah attempt dimulai"), { status: 409, code: "ASSESSMENT_SNAPSHOT_MISMATCH" });
   }
 
   const answerHash = answersHash(answers);
+  const attempt = await submissionService.beginAttemptEvaluation(auth, payload.attemptId, answers, assessmentId);
+  if (attempt.existingSubmission) return { ...attempt.existingSubmission, alreadyFinalized: true };
+
+  const expectedAttempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
   const submissionId = randomId("sub");
   let result;
   try {
@@ -94,7 +95,6 @@ async function evaluate(payload, auth, onProgress = null) {
     throw error;
   }
 
-  // Official assessment is fail-closed: fallback/mock results are never final.
   if (result.evaluationSource === "fallback") {
     await submissionService.releaseAttemptEvaluation(auth, payload.attemptId).catch(() => {});
     throw Object.assign(new Error("Evaluasi fallback tidak boleh menjadi nilai assessment resmi."), { status: 503, code: "OFFICIAL_FALLBACK_FORBIDDEN" });
@@ -135,8 +135,6 @@ async function evaluate(payload, auth, onProgress = null) {
     },
   };
 
-  // Canonical persistence happens only on the server. The browser never gets
-  // an opportunity to submit or alter the authoritative score.
   await submissionService.saveEvaluatedSubmission(auth, submission);
   await submissionService.finalizeAssessmentAttempt(auth, payload.attemptId, submission, {
     assessmentHash,
@@ -146,7 +144,6 @@ async function evaluate(payload, auth, onProgress = null) {
 
   return submission;
 }
-
 function buildHarnessInsight(evaluation) {
   const criteria = Array.isArray(evaluation.criteria) ? evaluation.criteria : [];
   if (!criteria.length) return "";
