@@ -781,12 +781,24 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
       },
     });
 
-    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => ({
-      ...qs,
-      audio: answers[idx]?.audio || null,
-      duration: answers[idx]?.duration || 0,
-      probing: answers[idx]?.probing || null,
-    }));
+    const transcriptMetadata = Array.isArray(data.evaluation.transcriptMetadata)
+      ? data.evaluation.transcriptMetadata
+      : [];
+    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => {
+      const transcript = transcriptMetadata[idx];
+      return {
+        ...qs,
+        // answer is the transcript actually assessed. Keep browser STT output
+        // separately so the original evidence remains auditable.
+        rawTranscript: transcript?.rawTranscript ?? answers[idx]?.text ?? "",
+        cleanTranscript: transcript?.cleanTranscript ?? qs.answer ?? answers[idx]?.text ?? "",
+        transcriptPolishing: transcript?.polishing || "disabled",
+        transcriptVerified: transcript?.verified !== false,
+        audio: answers[idx]?.audio || null,
+        duration: answers[idx]?.duration || 0,
+        probing: answers[idx]?.probing || null,
+      };
+    });
 
     const evaluation = data.evaluation;
     return createSubmission({
