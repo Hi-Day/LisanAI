@@ -69,21 +69,27 @@ async function evaluate(payload, auth, onProgress = null) {
 
   const answerHash = answersHash(answers);
   const submissionId = randomId("sub");
-  const result = await evaluateWithHarness({
-    ...payload,
-    assessmentId,
-    assessment,
-    answers,
-    studentName: auth.user.name,
-    tenantId: auth.tenant.id,
-    userId: auth.user.id,
-    submissionId,
-    attemptId: payload.attemptId,
-    assessmentHash,
-    answerHash,
-    rubricHash: expectedAttempt.rubric_hash,
-    onProgress,
-  });
+  let result;
+  try {
+    const result = await evaluateWithHarness({
+      ...payload,
+      assessmentId,
+      assessment,
+      answers,
+      studentName: auth.user.name,
+      tenantId: auth.tenant.id,
+      userId: auth.user.id,
+      submissionId,
+      attemptId: payload.attemptId,
+      assessmentHash,
+      answerHash,
+      rubricHash: expectedAttempt.rubric_hash,
+      onProgress,
+    });
+  } catch (error) {
+    await submissionService.releaseAttemptEvaluation(auth, payload.attemptId).catch(() => {});
+    throw error;
+  }
 
   // Official assessment is fail-closed: fallback/mock results are never final.
   if (result.evaluationSource === "fallback" || process.env.HARNESS_PROVIDER !== "openrouter") {
