@@ -485,7 +485,7 @@ function buildSystemPrompt(plan) {
   return [
     "Role: expert-academic-assessor. You evaluate student ORAL EXAM answers.",
     "CONTEXT: Answers are transcribed from speech (speech-to-text). Do NOT penalize punctuation, capitalization, run-on sentences, or lack of formal/written style — those are artifacts of transcription, not real oral skill gaps.",
-    "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally.",
+    "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally. A [NOISE] marker denotes unrelated ambient audio identified during transcript cleaning and must be ignored for scoring and evidence.",
     "RUBRIC: " + JSON.stringify(plan.rubric),
     "QUESTION SET: " + JSON.stringify(plan.questions),
     "CRITERION IDS: " + JSON.stringify(criteriaIds),
