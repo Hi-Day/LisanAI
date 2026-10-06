@@ -102,6 +102,16 @@ export async function saveSubmissionToDatabase(submission) {
   await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
 }
 
+export async function createAssessmentAttempt(assessmentId, classId = null) {
+  const idempotencyKey = `client-${assessmentId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const data = await postJson(
+    "/api/evaluation",
+    { action: "create-attempt", payload: { assessmentId, classId, idempotencyKey } },
+    "Gagal memulai attempt assessment",
+  );
+  return data.attempt;
+}
+
 export async function saveSubmissionAudio(submissionId, { index, kind, audio }) {
   await postJson(
     "/api/database",
