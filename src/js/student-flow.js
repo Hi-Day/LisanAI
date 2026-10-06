@@ -1,6 +1,7 @@
 import {
   saveSubmissionToDatabase,
   saveSubmissionAudio,
+  createAssessmentAttempt,
   streamAssessmentAction,
 } from "./api.js";
 import { createSubmission } from "./assessment-factory.js";
@@ -311,6 +312,20 @@ async function startExamFromModal(ctx) {
 export async function startExam(ctx, assessmentId) {
   const { els } = ctx;
   ctx.recorder.stop();
+  const assessment = ctx.state.assessments.find((item) => item.id === assessmentId);
+  if (!assessment) {
+    showToast("Assessment tidak ditemukan.", "error");
+    return;
+  }
+  try {
+    const attempt = await createAssessmentAttempt(assessmentId, assessment.deliveryClassId || assessment.classId || null);
+    ctx.assessmentAttempt = attempt;
+    ctx.attemptId = attempt.id;
+    ctx.attemptDeadlineAt = attempt.deadlineAt || null;
+  } catch (error) {
+    showToast(`Tidak dapat memulai assessment: ${error.message}`, "error");
+    return;
+  }
   ctx.session.selectAssessment(assessmentId);
   resetProbingState(ctx);
   els.resultPanel.classList.add("hidden");
@@ -733,10 +748,10 @@ export async function handleFinishAssessment(ctx) {
       ? ctx.auth.user.name
       : els.studentName.value.trim() || "Siswa tanpa nama";
     const submission = await evaluateWithFallback(ctx, assessment, studentName);
-    // Skip DB persistence for tryout/practice assessments
+    // Official results are already persisted atomically by the server-side
+    // evaluation service. The browser may only update its local view.
+    const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
     if (!assessment.isTryout) {
-      const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
-      await saveSubmissionToDatabase(savedSubmission);
       ctx.state.submissions.push(savedSubmission);
       if (SAVE_SUBMISSION_AUDIO) {
         uploadSubmissionAudio(savedSubmission, uploads)
@@ -746,7 +761,7 @@ export async function handleFinishAssessment(ctx) {
       showToast("Hasil penilaian tersimpan.", "success");
     } else {
       submission.isTryout = true;
-      showToast("Hasil tryout ditampilkan di sini (tidak disimpan ke database)", "info");
+      showToast("Hasil tryout ditampilkan di sini.", "info");
     }
     renderMonitoring(els, ctx.state);
     renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
@@ -768,66 +783,29 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
   const answers = ctx.session.currentAnswers;
   try {
     const textAnswers = answers.map((a) => combineAnswerWithProbing(a).text);
-    const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
-
     const data = await streamAssessmentAction({
       action: "evaluate",
-      payload: { assessment: safeAssessment, answers: textAnswers, studentName },
-      onChunk: (text) => {
-        // Server mengirim status tahap yang natural (bukan raw JSON). Tampilkan
-        // sebagai teks progres singkat; preview soal+jawaban & skeleton nilai
-        // tetap di modal (tidak ada redundansi JSON mentah).
-        updateEvaluationProgress(ctx.els, text);
+      payload: {
+        assessmentId: assessment.id,
+        classId: assessment.deliveryClassId || assessment.classId || null,
+        attemptId: ctx.attemptId,
+        answers: textAnswers,
       },
+      onChunk: (text) => updateEvaluationProgress(ctx.els, text),
     });
 
-    const transcriptMetadata = Array.isArray(data.evaluation.transcriptMetadata)
-      ? data.evaluation.transcriptMetadata
-      : [];
-    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => {
-      const transcript = transcriptMetadata[idx];
-      return {
-        ...qs,
-        // answer is the transcript actually assessed. Keep browser STT output
-        // separately so the original evidence remains auditable.
-        rawTranscript: transcript?.rawTranscript ?? answers[idx]?.text ?? "",
-        cleanTranscript: transcript?.cleanTranscript ?? qs.answer ?? answers[idx]?.text ?? "",
-        transcriptPolishing: transcript?.polishing || "disabled",
-        transcriptVerified: transcript?.verified !== false,
-        audio: answers[idx]?.audio || null,
-        duration: answers[idx]?.duration || 0,
-        probing: answers[idx]?.probing || null,
-      };
-    });
-
-    const evaluation = data.evaluation;
-    return createSubmission({
-      assessment,
-      studentName,
-      finalScore: evaluation.finalScore,
-      questionScores: questionScoresWithMetadata,
-      feedback: evaluation.feedback,
-      status: evaluation.requiresHumanReview ? "NEEDS_REVIEW" : "EVALUATED",
-      verification: evaluation.verification || null,
-      criteria: evaluation.criteria || [],
-      evaluationRunId: evaluation.evaluationRunId || null,
-      evaluationId: evaluation.evaluationId || null,
-      evaluationSource: "harness",
-      insight: buildHarnessInsight(evaluation),
-    });
+    // Server is authoritative: this is the already-persisted official result.
+    return data.evaluation;
   } catch (error) {
-    showToast("AI sedang tidak dapat diakses, penilaian memakai evaluasi lokal yang tetap valid.", "info");
-    const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
-    const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
-    return {
-      ...fallback,
-      evaluationSource: "fallback",
-      verification: null,
-      criteria: [],
-    };
+    if (assessment.isTryout) {
+      showToast("AI resmi tidak tersedia; tryout memakai evaluasi lokal.", "info");
+      const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
+      const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
+      return { ...fallback, evaluationSource: "fallback", verification: null, criteria: [] };
+    }
+    throw error;
   }
 }
-
 /**
  * Gabungkan jawaban utama dengan jawaban probing (bila ada) menjadi satu teks
  * jawaban per soal, sehingga evaluasi berbasis rubrik turut menilai bukti dari
