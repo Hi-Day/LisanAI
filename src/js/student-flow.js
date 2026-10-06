@@ -1,5 +1,4 @@
 import {
-  saveSubmissionToDatabase,
   saveSubmissionAudio,
   createAssessmentAttempt,
   streamAssessmentAction,
@@ -838,22 +837,6 @@ function buildHarnessInsight(evaluation) {
   if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "indikator terkuat"}.`);
   if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "indikator terlemah"}.`);
   return parts.join(" ").trim();
-}
-
-function sanitizeAssessmentForEvaluation(assessment) {
-  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
-  return {
-    ...assessment,
-    questions: assessment.questions.map((question) => ({
-      prompt: question?.prompt || "",
-      focus: question?.focus || "",
-      // Pertahankan rubrik & pemetaan indikator PER SOAL. Criteria penilaian
-      // harus diambil dari rubrik per soal, bukan dari rubrik topik yang
-      // digabung — ini yang membuat evaluasi konsisten dengan substansi soal.
-      rubric: question?.rubric || "",
-      criteria: Array.isArray(question?.criteria) ? question.criteria : [],
-    })),
-  };
 }
 
 export function stopQuestionTimer(ctx) {
