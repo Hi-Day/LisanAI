@@ -22,6 +22,26 @@ async function saveComplaint(auth, submissionId, questionIndex, reason) {
   return submissionGateway.saveComplaint(auth, submissionId, questionIndex, reason);
 }
 
+async function createAssessmentAttempt(auth, assessmentId, classId = null, idempotencyKey = null) {
+  if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat memulai assessment"), { status: 403 });
+  return submissionGateway.createAssessmentAttempt(auth, assessmentId, classId, idempotencyKey);
+}
+
+async function beginAttemptEvaluation(auth, attemptId, answers, assessmentId) {
+  if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat mengevaluasi attempt"), { status: 403 });
+  return submissionGateway.beginAttemptEvaluation(auth, attemptId, answers, assessmentId);
+}
+
+async function finalizeAssessmentAttempt(auth, attemptId, submission, hashes) {
+  if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat menyelesaikan attempt"), { status: 403 });
+  return submissionGateway.finalizeAssessmentAttempt(auth, attemptId, submission, hashes);
+}
+
+async function getCanonicalAssessmentForStudent(auth, assessmentId, classId = null) {
+  if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat mengambil snapshot assessment"), { status: 403 });
+  return submissionGateway.getCanonicalAssessmentForStudent(auth, assessmentId, classId);
+}
+
 const MAX_AUDIO_CHARS = 3_000_000;
 const MAX_QUESTION_INDEX = 100;
 
@@ -49,4 +69,4 @@ async function saveSubmissionAudio(auth, patch = {}) {
   return { ok: true };
 }
 
-module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, getSubmission, saveComplaint, saveSubmissionAudio };
+module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };
