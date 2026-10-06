@@ -9,7 +9,7 @@ process.env.TURSO_DATABASE_URL = `file:${E2E_DB}`;
 process.env.ENABLE_DEMO_SIMULATION = "false";
 // One shared server serves the whole suite; login rate limits would fail
 // legitimate sequential test logins.
-process.env.E2E_DISABLE_RATE_LIMIT = "true";
+process.env.E2E_DISABLE_RATE_LIMIT = "true";\n// E2E-only: allow the deterministic MockProvider to exercise the full\n// server-authoritative evaluation lifecycle without an external API key.\nprocess.env.E2E_ALLOW_MOCK_EVALUATION = "true";
 process.env.PORT = "4174";
 
 const { loadEnv } = require("../server/config");
