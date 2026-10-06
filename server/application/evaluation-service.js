@@ -26,13 +26,11 @@ async function assertCanEvaluate(action, payload, auth) {
   if (attempt.assessment_id !== payload.assessmentId) {
     throw Object.assign(new Error("Attempt tidak cocok dengan assessment"), { status: 409, code: "ATTEMPT_ASSESSMENT_MISMATCH" });
   }
-  // Legacy authorization remains a defense-in-depth check; the attempt is the
-  // authoritative lifecycle boundary for official evaluation.
-  await submissionService.assertCanSubmit(
-    auth,
-    payload.assessmentId,
-    payload.classId || payload.assessment?.deliveryClassId || null,
-  );
+  // The canonical assessment + attempt ownership/lifecycle checks above are
+  // authoritative for official evaluation. Do not re-run the legacy submission
+  // gate here: it counts historical submissions and can reject a valid active
+  // attempt before the attempt state machine gets to finalize it.
+
 }
 
 async function createAttempt(payload, auth) {
