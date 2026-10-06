@@ -21,7 +21,10 @@ async function assertCanEvaluate(action, payload, auth) {
     const error = Object.assign(new Error("attemptId wajib untuk assessment resmi"), { status: 400, code: "ATTEMPT_REQUIRED" });
     throw error;
   }
-  await submissionService.beginAttemptEvaluation(auth, payload.attemptId, payload.answers || [], payload.assessmentId);
+  const attempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
+  if (attempt.assessment_id !== payload.assessmentId) {
+    throw Object.assign(new Error("Attempt tidak cocok dengan assessment"), { status: 409, code: "ATTEMPT_ASSESSMENT_MISMATCH" });
+  }
 }
 
 async function createAttempt(payload, auth) {
