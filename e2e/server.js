@@ -13,6 +13,9 @@ process.env.E2E_DISABLE_RATE_LIMIT = "true";
 // E2E-only: allow the deterministic MockProvider to exercise the full
 // server-authoritative evaluation lifecycle without an external API key.
 process.env.E2E_ALLOW_MOCK_EVALUATION = "true";
+// CI E2E uses the deterministic provider; the dedicated OpenRouter suite
+// explicitly opts into the real provider via its own runner.
+process.env.HARNESS_PROVIDER = "mock";
 process.env.PORT = "4174";
 
 const { loadEnv } = require("../server/config");
