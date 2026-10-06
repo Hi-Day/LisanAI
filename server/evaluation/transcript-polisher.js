@@ -16,7 +16,8 @@ function tokenize(text) {
     .normalize("NFKC")
     .split(/\s+/)
     .map(normalizeToken)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((token) => token !== "noise");
 }
 
 /**
@@ -108,7 +109,7 @@ async function polishTranscripts(answers, options = {}) {
       "Do not add any word that is not present in the source transcript.",
       "Do not reorder words.",
       "If unsure whether text is noise or student content, KEEP IT.",
-      "Return strict JSON only: {\"transcripts\":[{\"index\":0,\"cleanTranscript\":\"...\"}]}",
+      "Return strict JSON only: {\"transcripts\":[{\"index\":0,\"cleanTranscript\":\"...\",\"noiseDetected\":false}]}",
     ].join("\n"),
     userMessage: JSON.stringify({
       task: "Polish these transcripts conservatively.",
