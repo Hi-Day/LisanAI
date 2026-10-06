@@ -4,6 +4,7 @@ const { WRITTEN_ID, loginAsStudent } = require("./seed-assessment");
 // Run this spec only through `npm run test:e2e:openrouter`.
 // The runner requires a real OPENROUTER_API_KEY and forces HARNESS_PROVIDER=openrouter.
 test.describe("Student AI evaluation via OpenRouter", () => {
+  test.skip(!process.env.OPENROUTER_API_KEY, "Requires OPENROUTER_API_KEY; run via npm run test:e2e:openrouter.");
   test.beforeEach(async ({ page }) => {
     await loginAsStudent(page);
     await expect(page.locator("#appShell")).toBeVisible({ timeout: 10_000 });
