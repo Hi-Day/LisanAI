@@ -1,6 +1,198 @@
 // Bound teacher/admin state payloads to the newest submissions so the state
 // response cannot grow without limit (each row carries a large JSON payload).
 const SUBMISSION_FETCH_LIMIT = 500;
+const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require("../security/assessment-integrity");
+const crypto = require("node:crypto");
+
+function randomId(prefix) { return `${prefix}_${crypto.randomUUID().replace(/-/g, "")}`; }
+
+function attemptError(message, status = 400, code = null) {
+  const error = Object.assign(new Error(message), { status });
+  if (code) error.code = code;
+  return error;
+}
+
+function parseAssessment(row) {
+  try { return JSON.parse(row?.payload || "{}"); }
+  catch { throw attemptError("Data assessment tidak valid", 500); }
+}
+
+function buildAttemptSnapshot(assessment) {
+  const snapshot = JSON.parse(JSON.stringify(assessment));
+  // Student attempt snapshots must never carry teacher-only ideal answers.
+  snapshot.questions = (snapshot.questions || []).map((q) => {
+    const copy = { ...q };
+    delete copy.ideal;
+    return copy;
+  });
+  return snapshot;
+}
+
+function attemptDurationSeconds(assessment) {
+  const questions = Array.isArray(assessment?.questions) ? assessment.questions : [];
+  const perQuestion = Math.max(0, Number(assessment?.timeLimit) || 0);
+  if (!perQuestion) return null;
+  const timedSegments = questions.reduce((sum, q) => sum + 1 + (q?.probing ? 1 : 0), 0);
+  return Math.max(perQuestion, timedSegments * perQuestion);
+}
+
+async function getCanonicalAssessmentForStudent(db, tenantId, userId, assessmentId, requestedClassId = null) {
+  const row = await db.get(
+    "SELECT * FROM assessments WHERE id = ? AND tenant_id = ?",
+    assessmentId, tenantId,
+  );
+  if (!row) throw attemptError("Assessment tidak ditemukan", 404, "ASSESSMENT_NOT_FOUND");
+  if (row.status !== "published") throw attemptError("Assessment belum tersedia untuk dikerjakan", 403, "ASSESSMENT_NOT_PUBLISHED");
+  const membership = await db.get(
+    `SELECT cm.class_id
+       FROM assessment_classes ac
+       JOIN class_memberships cm ON cm.class_id = ac.class_id
+        AND cm.tenant_id = ac.tenant_id AND cm.student_id = ? AND cm.status = 'approved'
+      WHERE ac.tenant_id = ? AND ac.assessment_id = ? AND ac.status = 'published'
+        AND (? IS NULL OR ac.class_id = ?)
+      ORDER BY ac.class_id LIMIT 1`,
+    userId, tenantId, assessmentId, requestedClassId || null, requestedClassId || null,
+  );
+  if (!membership) throw attemptError("Siswa belum disetujui di kelas assessment ini", 403, "ASSESSMENT_ACCESS_DENIED");
+  const assessment = parseAssessment(row);
+  assessment.classId = membership.class_id;
+  return { row, assessment };
+}
+
+async function createAssessmentAttempt(db, auth, assessmentId, requestedClassId = null, idempotencyKey = null) {
+  const { row, assessment } = await getCanonicalAssessmentForStudent(db, auth.tenant.id, auth.user.id, assessmentId, requestedClassId);
+  const allowRetakes = assessment.allowRetakes === true;
+  const maxAttempts = Math.max(1, Number(assessment.maxAttempts) || 1);
+  const existingActive = await db.get(
+    `SELECT * FROM assessment_attempts
+      WHERE tenant_id = ? AND assessment_id = ? AND user_id = ?
+        AND status IN ('STARTED','SUBMITTING')
+      ORDER BY attempt_no DESC LIMIT 1`,
+    auth.tenant.id, assessmentId, auth.user.id,
+  );
+  if (existingActive) {
+    if (idempotencyKey && existingActive.idempotency_key === idempotencyKey) return formatAttempt(existingActive);
+    throw attemptError("Siswa masih memiliki attempt yang sedang berjalan", 409, "ATTEMPT_ALREADY_ACTIVE");
+  }
+
+  if (idempotencyKey) {
+    const existingKey = await db.get(
+      "SELECT * FROM assessment_attempts WHERE tenant_id = ? AND assessment_id = ? AND user_id = ? AND idempotency_key = ?",
+      auth.tenant.id, assessmentId, auth.user.id, idempotencyKey,
+    );
+    if (existingKey) return formatAttempt(existingKey);
+  }
+
+  let attemptNo = 1;
+  const latest = await db.get(
+    "SELECT MAX(attempt_no) AS max_no FROM assessment_attempts WHERE tenant_id = ? AND assessment_id = ? AND user_id = ?",
+    auth.tenant.id, assessmentId, auth.user.id,
+  );
+  attemptNo = Number(latest?.max_no || 0) + 1;
+  if (!allowRetakes && attemptNo > maxAttempts) throw attemptError(`Batas percobaan tercapai (${maxAttempts} dari ${maxAttempts})`, 409, "ATTEMPT_LIMIT_REACHED");
+  if (allowRetakes === false && attemptNo > maxAttempts) throw attemptError("Batas percobaan tercapai", 409, "ATTEMPT_LIMIT_REACHED");
+
+  const snapshot = buildAttemptSnapshot(assessment);
+  const assessmentHash = assessmentSnapshotHash(snapshot);
+  const snapshotRubricHash = rubricHash(snapshot);
+  const startedAt = new Date();
+  const duration = attemptDurationSeconds(snapshot);
+  const deadlineAt = duration == null ? null : new Date(startedAt.getTime() + duration * 1000).toISOString();
+  const attemptId = randomId("attempt");
+
+  try {
+    await db.run(
+      `INSERT INTO assessment_attempts
+       (id, tenant_id, assessment_id, user_id, attempt_no, status, assessment_hash, rubric_hash,
+        snapshot_json, started_at, deadline_at, idempotency_key, created_at)
+       VALUES (?, ?, ?, ?, ?, 'STARTED', ?, ?, ?, ?, ?, ?, ?)`,
+      attemptId, auth.tenant.id, assessmentId, auth.user.id, attemptNo, assessmentHash,
+      snapshotRubricHash, JSON.stringify(snapshot), startedAt.toISOString(), deadlineAt,
+      idempotencyKey || null, startedAt.toISOString(),
+    );
+  } catch (error) {
+    if (String(error.message || "").includes("UNIQUE")) {
+      const retry = await db.get(
+        "SELECT * FROM assessment_attempts WHERE tenant_id = ? AND assessment_id = ? AND user_id = ? AND status IN ('STARTED','SUBMITTING') ORDER BY attempt_no DESC LIMIT 1",
+        auth.tenant.id, assessmentId, auth.user.id,
+      );
+      if (retry) return formatAttempt(retry);
+    }
+    throw error;
+  }
+
+  return {
+    id: attemptId,
+    assessmentId,
+    attemptNo,
+    status: "STARTED",
+    startedAt: startedAt.toISOString(),
+    deadlineAt,
+    assessmentHash,
+    rubricHash: snapshotRubricHash,
+    assessment: snapshot,
+  };
+}
+
+function formatAttempt(row) {
+  return {
+    id: row.id, assessmentId: row.assessment_id, attemptNo: Number(row.attempt_no),
+    status: row.status, startedAt: row.started_at, deadlineAt: row.deadline_at,
+    assessmentHash: row.assessment_hash, rubricHash: row.rubric_hash,
+    submissionId: row.submission_id || null,
+  };
+}
+
+async function getAssessmentAttempt(db, auth, attemptId) {
+  const row = await db.get(
+    "SELECT * FROM assessment_attempts WHERE id = ? AND tenant_id = ? AND user_id = ?",
+    attemptId, auth.tenant.id, auth.user.id,
+  );
+  if (!row) throw attemptError("Attempt tidak ditemukan", 404, "ATTEMPT_NOT_FOUND");
+  return row;
+}
+
+async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAssessmentId) {
+  const row = await getAssessmentAttempt(db, auth, attemptId);
+  if (row.assessment_id !== expectedAssessmentId) throw attemptError("Attempt tidak cocok dengan assessment", 409, "ATTEMPT_ASSESSMENT_MISMATCH");
+  if (row.status === "FINALIZED" && row.submission_id) {
+    const existing = await db.get("SELECT payload FROM submissions WHERE id = ? AND tenant_id = ?", row.submission_id, auth.tenant.id);
+    if (existing) return { attempt: row, existingSubmission: JSON.parse(existing.payload) };
+  }
+  if (row.status === "EXPIRED") throw attemptError("Attempt sudah kedaluwarsa", 409, "ATTEMPT_EXPIRED");
+  if (row.status === "CANCELLED") throw attemptError("Attempt sudah dibatalkan", 409, "ATTEMPT_CANCELLED");
+  if (row.deadline_at && Date.now() > Date.parse(row.deadline_at)) {
+    await db.run("UPDATE assessment_attempts SET status = 'EXPIRED' WHERE id = ? AND status IN ('STARTED','SUBMITTING')", attemptId);
+    throw attemptError("Waktu assessment telah habis", 409, "ATTEMPT_EXPIRED");
+  }
+  if (!["STARTED", "SUBMITTING"].includes(row.status)) throw attemptError("Status attempt tidak dapat dievaluasi", 409, "ATTEMPT_INVALID_STATE");
+  await db.run("UPDATE assessment_attempts SET status = 'SUBMITTING' WHERE id = ? AND status = 'STARTED'", attemptId);
+  return { attempt: row };
+}
+
+async function finalizeAssessmentAttempt(db, auth, attemptId, submission, hashes = {}) {
+  const row = await getAssessmentAttempt(db, auth, attemptId);
+  if (row.status === "FINALIZED" && row.submission_id) {
+    const existing = await db.get("SELECT payload FROM submissions WHERE id = ? AND tenant_id = ?", row.submission_id, auth.tenant.id);
+    return existing ? JSON.parse(existing.payload) : submission;
+  }
+  const now = new Date().toISOString();
+  await db.run(
+    `UPDATE assessment_attempts
+       SET status = 'FINALIZED', submitted_at = ?, submission_id = ?
+     WHERE id = ? AND tenant_id = ? AND user_id = ? AND status IN ('STARTED','SUBMITTING')`,
+    now, submission.id, attemptId, auth.tenant.id, auth.user.id,
+  );
+  await db.run(
+    `UPDATE submissions
+       SET attempt_id = ?, assessment_hash = ?, rubric_hash = ?, submission_hash = ?, evaluation_status = ?
+     WHERE id = ? AND tenant_id = ?`,
+    attemptId, hashes.assessmentHash || row.assessment_hash, hashes.rubricHash || row.rubric_hash,
+    hashes.submissionHash || hashObject(submission), submission.status || "EVALUATED",
+    submission.id, auth.tenant.id,
+  );
+  return submission;
+}
 const { materializeSubmission } = require("../competency-materializer");
 
 async function refreshCompetencyState(db, tenantId, studentId, submission) {
@@ -177,4 +369,4 @@ function stripSubmissionAudio(submission) {
   return out;
 }
 
-module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback };
+module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
