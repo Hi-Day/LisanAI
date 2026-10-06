@@ -24,6 +24,8 @@ module.exports = {
     repository.getAssessmentAttempt(getDb(), auth, attemptId),
   beginAttemptEvaluation: (auth, attemptId, answers, assessmentId) =>
     repository.beginAttemptEvaluation(getDb(), auth, attemptId, answers, assessmentId),
+  releaseAttemptEvaluation: (auth, attemptId) =>
+    repository.releaseAttemptEvaluation(getDb(), auth, attemptId),
   finalizeAssessmentAttempt: (auth, attemptId, submission, hashes) =>
     repository.finalizeAssessmentAttempt(getDb(), auth, attemptId, submission, hashes),
   getCanonicalAssessmentForStudent: (auth, assessmentId, classId) =>
