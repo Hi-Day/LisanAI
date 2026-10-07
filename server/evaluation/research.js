@@ -1,5 +1,6 @@
 const researchRepository = require("../database/research-repository");
 const { computeMetrics: evaluateMetrics, expectedCalibrationError, brierScore, calibrationBins, adjacentAgreement, std, scoreStability } = require("./metrics");
+const { assessResearchValidity } = require("./research-validity");
 
 /**
  * Research service (PRD §20, §33).
@@ -91,6 +92,28 @@ async function compareCalibration(assessmentId, tenantId, opts = {}) {
 }
 
 const MIN_CALIBRATION_N = 30;
+
+async function validityReport(assessmentId, tenantId, opts = {}) {
+  const rows = await researchRepository.listCalibrationRows(assessmentId, tenantId);
+  const scopedRuns = await researchRepository.listAssessmentValidityRows(assessmentId, tenantId);
+  const confidence = rows.map((r) => (Number.isFinite(r.avg_conf) ? r.avg_conf : 0));
+  const correctness = rows.map((r) => Math.abs(Number(r.ai_score) - Number(r.human_score)) <= Number(opts.tolerance ?? 5) ? 1 : 0);
+  const aiScores = rows.map((r) => Number(r.ai_score));
+  const humanScores = rows.map((r) => Number(r.human_score));
+  const repeatability = await repeatabilitySummary(tenantId, assessmentId);
+  const evidenceValidity = scopedRuns.length
+    ? scopedRuns.filter((r) => r.verification_status !== "FAIL").length / scopedRuns.length
+    : null;
+  return assessResearchValidity({
+    aiScores,
+    humanScores,
+    confidence,
+    correctness,
+    repeatability,
+    evidenceValidity,
+    ...opts,
+  });
+}
 
 async function reliabilityDashboard(tenantId) {
   const [scored, runs, aiStats, latRows] = await Promise.all([
@@ -232,6 +255,7 @@ module.exports = {
   recordTeacherScoreChange,
   rubricCompliance,
   compareCalibration,
+  validityReport,
   reliabilityDashboard,
   detectDrift,
   repeatabilitySummary,
