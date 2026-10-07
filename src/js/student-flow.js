@@ -683,18 +683,21 @@ export async function confirmAndFinishAssessment(ctx) {
   handleFinishAssessment(ctx);
 }
 
-function splitSubmissionAudio(submission) {
+function splitSubmissionAudio(submission, answers = []) {
   const uploads = [];
   const questionScores = (submission.questionScores || []).map((item, index) => {
     const { audio, ...rest } = item || {};
+    const localAnswer = answers[index] || {};
+    const mainAudio = audio || localAnswer.audio || null;
     const probing = item?.probing ? { ...item.probing } : item?.probing;
-    let probingAudio = null;
-    if (probing && probing.audio) {
-      probingAudio = probing.audio;
-      delete probing.audio;
-    }
-    if (audio) uploads.push({ index, kind: "main", audio });
+    let probingAudio = probing?.audio || localAnswer.probing?.audio || null;
+
+    // Audio is evidence owned by the client-side recording session. Keep it
+    // out of the server-authoritative score payload and upload it separately.
+    if (mainAudio) uploads.push({ index, kind: "main", audio: mainAudio });
     if (probingAudio) uploads.push({ index, kind: "probing", audio: probingAudio });
+
+    if (probing && probing.audio) delete probing.audio;
     return { ...rest, probing };
   });
   return { submission: { ...submission, questionScores }, uploads };
@@ -755,7 +758,7 @@ export async function handleFinishAssessment(ctx) {
     // from seeing a successfully produced score.
     showResult(els, submission, ctx.auth);
 
-    const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
+    const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission, ctx.session.currentAnswers);
 
     if (!assessment.isTryout) {
       ctx.state.submissions.push(savedSubmission);
