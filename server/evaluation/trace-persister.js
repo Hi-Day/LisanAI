@@ -128,7 +128,7 @@ async function persistEvaluationTrace(snapshot) {
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
           attempt_id, assessment_hash, answer_hash, evaluation_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
