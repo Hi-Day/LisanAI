@@ -27,6 +27,11 @@ async function createAssessmentAttempt(auth, assessmentId, classId = null, idemp
   return submissionGateway.createAssessmentAttempt(auth, assessmentId, classId, idempotencyKey);
 }
 
+async function getAssessmentAttempt(auth, attemptId) {
+  if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat mengambil attempt"), { status: 403 });
+  return submissionGateway.getAssessmentAttempt(auth, attemptId);
+}
+
 async function beginAttemptEvaluation(auth, attemptId, answers, assessmentId) {
   if (auth.user.role !== "student") throw Object.assign(new Error("Hanya siswa yang dapat mengevaluasi attempt"), { status: 403 });
   return submissionGateway.beginAttemptEvaluation(auth, attemptId, answers, assessmentId);
@@ -77,4 +82,4 @@ async function saveSubmissionAudio(auth, patch = {}) {
   return { ok: true };
 }
 
-module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, saveEvaluatedSubmission, releaseAttemptEvaluation, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };
+module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, saveEvaluatedSubmission, releaseAttemptEvaluation, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };
