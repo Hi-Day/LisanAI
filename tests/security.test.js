@@ -277,7 +277,8 @@ test("API endpoints require valid CSRF token for POST requests", async () => {
   assert.equal(resAssNoCsrf.statusCode, 403);
   assert.equal(resAssNoCsrf.body.error, "CSRF token tidak valid");
 
-  // 3. Database API: Valid CSRF header should succeed (returns 201)
+  // 3. Database API: Valid CSRF is necessary but no longer sufficient:
+  // score-bearing student submissions are now server-authoritative.
   const authContext = { sessionId: session.sessionId, tenant, user: student };
   const csrfToken = createCsrfToken(authContext);
   const resDbValidCsrf = await callHandler(databaseApi, {
@@ -286,7 +287,8 @@ test("API endpoints require valid CSRF token for POST requests", async () => {
     body: { action: "save-submission", payload: createSubmission(retakeAssessment.id, "sub-csrf-ok") },
     headers: { ...headers, "x-csrf-token": csrfToken }
   });
-  assert.equal(resDbValidCsrf.statusCode, 201);
+  assert.equal(resDbValidCsrf.statusCode, 403);
+  assert.equal(resDbValidCsrf.body.code, "SERVER_AUTHORITATIVE_SUBMISSION");
 });
 
 test("assessment evaluate endpoint enforces student authorization checks", async () => {

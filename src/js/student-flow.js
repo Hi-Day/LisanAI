@@ -1,6 +1,7 @@
 import {
-  saveSubmissionToDatabase,
   saveSubmissionAudio,
+  createAssessmentAttempt,
+  postJson,
   streamAssessmentAction,
 } from "./api.js";
 import { createSubmission } from "./assessment-factory.js";
@@ -311,6 +312,20 @@ async function startExamFromModal(ctx) {
 export async function startExam(ctx, assessmentId) {
   const { els } = ctx;
   ctx.recorder.stop();
+  const assessment = ctx.state.assessments.find((item) => item.id === assessmentId);
+  if (!assessment) {
+    showToast("Assessment tidak ditemukan.", "error");
+    return;
+  }
+  try {
+    const attempt = await createAssessmentAttempt(assessmentId, assessment.deliveryClassId || assessment.classId || null);
+    ctx.assessmentAttempt = attempt;
+    ctx.attemptId = attempt.id;
+    ctx.attemptDeadlineAt = attempt.deadlineAt || null;
+  } catch (error) {
+    showToast(`Tidak dapat memulai assessment: ${error.message}`, "error");
+    return;
+  }
   ctx.session.selectAssessment(assessmentId);
   resetProbingState(ctx);
   els.resultPanel.classList.add("hidden");
@@ -668,18 +683,21 @@ export async function confirmAndFinishAssessment(ctx) {
   handleFinishAssessment(ctx);
 }
 
-function splitSubmissionAudio(submission) {
+function splitSubmissionAudio(submission, answers = []) {
   const uploads = [];
   const questionScores = (submission.questionScores || []).map((item, index) => {
     const { audio, ...rest } = item || {};
+    const localAnswer = answers[index] || {};
+    const mainAudio = audio || localAnswer.audio || null;
     const probing = item?.probing ? { ...item.probing } : item?.probing;
-    let probingAudio = null;
-    if (probing && probing.audio) {
-      probingAudio = probing.audio;
-      delete probing.audio;
-    }
-    if (audio) uploads.push({ index, kind: "main", audio });
+    let probingAudio = probing?.audio || localAnswer.probing?.audio || null;
+
+    // Audio is evidence owned by the client-side recording session. Keep it
+    // out of the server-authoritative score payload and upload it separately.
+    if (mainAudio) uploads.push({ index, kind: "main", audio: mainAudio });
     if (probingAudio) uploads.push({ index, kind: "probing", audio: probingAudio });
+
+    if (probing && probing.audio) delete probing.audio;
     return { ...rest, probing };
   });
   return { submission: { ...submission, questionScores }, uploads };
@@ -733,10 +751,16 @@ export async function handleFinishAssessment(ctx) {
       ? ctx.auth.user.name
       : els.studentName.value.trim() || "Siswa tanpa nama";
     const submission = await evaluateWithFallback(ctx, assessment, studentName);
-    // Skip DB persistence for tryout/practice assessments
+    // Official results are already persisted atomically by the server-side
+    // evaluation service. The browser may only update its local view.
+    // Open the authoritative result immediately after evaluation. Any
+    // secondary normalization/upload work must never prevent the student
+    // from seeing a successfully produced score.
+    showResult(els, submission, ctx.auth);
+
+    const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission, ctx.session.currentAnswers);
+
     if (!assessment.isTryout) {
-      const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
-      await saveSubmissionToDatabase(savedSubmission);
       ctx.state.submissions.push(savedSubmission);
       if (SAVE_SUBMISSION_AUDIO) {
         uploadSubmissionAudio(savedSubmission, uploads)
@@ -746,16 +770,23 @@ export async function handleFinishAssessment(ctx) {
       showToast("Hasil penilaian tersimpan.", "success");
     } else {
       submission.isTryout = true;
-      showToast("Hasil tryout ditampilkan di sini (tidak disimpan ke database)", "info");
+      showToast("Hasil tryout ditampilkan di sini.", "info");
     }
-    renderMonitoring(els, ctx.state);
-    renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
-    showResult(els, submission, ctx.auth);
-    if (ctx.auth.user.role === "student") {
-      ctx.session.currentAssessmentId = null;
-      await renderStudentState(ctx);
+
+    try {
+      renderMonitoring(els, ctx.state);
+      renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+      if (ctx.auth.user.role === "student") {
+        ctx.session.currentAssessmentId = null;
+        await renderStudentState(ctx);
+      }
+    } catch (renderError) {
+      // The score modal is already visible; secondary dashboard rendering must
+      // not turn a successful assessment into an apparently failed submission.
+      console.error("Gagal menyegarkan tampilan pasca-evaluasi", renderError);
     }
   } catch (error) {
+    console.error("[student-evaluation] client evaluation failure", error);
     showToast(`Gagal menyimpan hasil: ${error.message}`);
   } finally {
     ctx.isEvaluating = false;
@@ -768,54 +799,76 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
   const answers = ctx.session.currentAnswers;
   try {
     const textAnswers = answers.map((a) => combineAnswerWithProbing(a).text);
-    const safeAssessment = sanitizeAssessmentForEvaluation(assessment);
-
     const data = await streamAssessmentAction({
       action: "evaluate",
-      payload: { assessment: safeAssessment, answers: textAnswers, studentName },
-      onChunk: (text) => {
-        // Server mengirim status tahap yang natural (bukan raw JSON). Tampilkan
-        // sebagai teks progres singkat; preview soal+jawaban & skeleton nilai
-        // tetap di modal (tidak ada redundansi JSON mentah).
-        updateEvaluationProgress(ctx.els, text);
+      payload: {
+        assessmentId: assessment.id,
+        classId: assessment.deliveryClassId || assessment.classId || null,
+        attemptId: ctx.attemptId,
+        answers: textAnswers,
       },
+      onChunk: (text) => updateEvaluationProgress(ctx.els, text),
     });
 
-    const questionScoresWithMetadata = data.evaluation.questionScores.map((qs, idx) => ({
-      ...qs,
-      audio: answers[idx]?.audio || null,
-      duration: answers[idx]?.duration || 0,
-      probing: answers[idx]?.probing || null,
-    }));
+    // Server is authoritative: this is the already-persisted official result.
+    if (data?.evaluation) return data.evaluation;
 
-    const evaluation = data.evaluation;
-    return createSubmission({
-      assessment,
-      studentName,
-      finalScore: evaluation.finalScore,
-      questionScores: questionScoresWithMetadata,
-      feedback: evaluation.feedback,
-      status: evaluation.requiresHumanReview ? "NEEDS_REVIEW" : "EVALUATED",
-      verification: evaluation.verification || null,
-      criteria: evaluation.criteria || [],
-      evaluationRunId: evaluation.evaluationRunId || null,
-      evaluationId: evaluation.evaluationId || null,
-      evaluationSource: "harness",
-      insight: buildHarnessInsight(evaluation),
-    });
+    // Recovery path: the evaluation may have been finalized server-side even
+    // when the streaming transport failed to deliver its terminal result event.
+    // Reuse the same attempt so the server's idempotent finalized-attempt path
+    // returns the canonical submission instead of evaluating twice.
+    const recovery = await postJson(
+      "/api/evaluation",
+      {
+        action: "evaluate",
+        payload: {
+          assessmentId: assessment.id,
+          classId: assessment.deliveryClassId || assessment.classId || null,
+          attemptId: ctx.attemptId,
+          answers: textAnswers,
+        },
+        stream: false,
+      },
+      "Hasil evaluasi tidak diterima dari server",
+    );
+    if (recovery?.evaluation) return recovery.evaluation;
+    throw new Error("Server tidak mengembalikan hasil evaluasi.");
+
   } catch (error) {
-    showToast("AI sedang tidak dapat diakses, penilaian memakai evaluasi lokal yang tetap valid.", "info");
+    if (!assessment.isTryout) {
+      // The server may have finalized the attempt even if the SSE transport
+      // failed. A single non-stream retry is safe because attempt finalization
+      // is idempotent and returns the existing canonical submission.
+      try {
+        const textAnswers = answers.map((a) => combineAnswerWithProbing(a).text);
+        const recovery = await postJson(
+          "/api/evaluation",
+          {
+            action: "evaluate",
+            payload: {
+              assessmentId: assessment.id,
+              classId: assessment.deliveryClassId || assessment.classId || null,
+              attemptId: ctx.attemptId,
+              answers: textAnswers,
+            },
+            stream: false,
+          },
+          "Hasil evaluasi tidak diterima dari server",
+        );
+        if (recovery?.evaluation) return recovery.evaluation;
+      } catch (recoveryError) {
+        recoveryError.cause = error;
+        throw recoveryError;
+      }
+      throw error;
+    }
+
+    showToast("AI resmi tidak tersedia; tryout memakai evaluasi lokal.", "info");
     const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
     const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
-    return {
-      ...fallback,
-      evaluationSource: "fallback",
-      verification: null,
-      criteria: [],
-    };
+    return { ...fallback, evaluationSource: "fallback", verification: null, criteria: [] };
   }
 }
-
 /**
  * Gabungkan jawaban utama dengan jawaban probing (bila ada) menjadi satu teks
  * jawaban per soal, sehingga evaluasi berbasis rubrik turut menilai bukti dari
@@ -848,22 +901,6 @@ function buildHarnessInsight(evaluation) {
   if (strongest) parts.push(`Kekuatan utama pada ${strongest.name || prettifyId(strongest.criterionId) || "indikator terkuat"}.`);
   if (weakest) parts.push(`Area yang perlu diperkuat: ${weakest.name || prettifyId(weakest.criterionId) || "indikator terlemah"}.`);
   return parts.join(" ").trim();
-}
-
-function sanitizeAssessmentForEvaluation(assessment) {
-  if (!assessment || !Array.isArray(assessment.questions)) return assessment;
-  return {
-    ...assessment,
-    questions: assessment.questions.map((question) => ({
-      prompt: question?.prompt || "",
-      focus: question?.focus || "",
-      // Pertahankan rubrik & pemetaan indikator PER SOAL. Criteria penilaian
-      // harus diambil dari rubrik per soal, bukan dari rubrik topik yang
-      // digabung — ini yang membuat evaluasi konsisten dengan substansi soal.
-      rubric: question?.rubric || "",
-      criteria: Array.isArray(question?.criteria) ? question.criteria : [],
-    })),
-  };
 }
 
 export function stopQuestionTimer(ctx) {

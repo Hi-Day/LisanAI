@@ -33,6 +33,11 @@ async function persistEvaluationTrace(snapshot) {
 
   const assessmentId =
     (result && result.assessmentId) || context.assessmentId || null;
+  const attemptId = meta.attemptId || null;
+  const assessmentHash = meta.assessmentHash || null;
+  const answerHash = meta.answerHash || null;
+  const assessmentRow = assessmentId ? await db.get("SELECT id FROM assessments WHERE id = ?", assessmentId) : null;
+  const persistedAssessmentId = assessmentRow ? assessmentId : null;
 
   // Upsert run metadata. If the assessmentId does not exist in the assessments
   // table (e.g. ad-hoc evaluation), the FK would reject the insert. Keep the
@@ -52,13 +57,14 @@ async function persistEvaluationTrace(snapshot) {
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
+          attempt_id, assessment_hash, answer_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
       meta.userId || null,
-      assessmentId,
+      persistedAssessmentId,
       result ? result.submissionId || null : null,
       model || "unknown",
       versioning.promptVersion || promptVersion || "v1",
@@ -75,6 +81,9 @@ async function persistEvaluationTrace(snapshot) {
       repro.configHash || null,
       published,
       requiresHumanReview,
+      attemptId,
+      assessmentHash,
+      answerHash,
       versioning.contextHash || null,
       versioning.contextVersion || null,
       risk.score != null ? risk.score : null,
@@ -96,8 +105,9 @@ async function persistEvaluationTrace(snapshot) {
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
+          attempt_id, assessment_hash, answer_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -118,6 +128,9 @@ async function persistEvaluationTrace(snapshot) {
       repro.configHash || null,
       published,
       requiresHumanReview,
+      attemptId,
+      assessmentHash,
+      answerHash,
       versioning.contextHash || null,
       versioning.contextVersion || null,
       risk.score != null ? risk.score : null,

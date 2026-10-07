@@ -95,12 +95,15 @@ module.exports = async (req, res) => {
 
     if (action === "save-submission") {
       if (isStudent) {
-        await submissionService.saveStudentSubmission(auth, payload);
-        try {
-          const { broadcast } = require("../../api/notifications");
-          broadcast({ type: "submission", title: "Penilaian baru", message: `${auth.user.name} mengumpulkan "${payload.assessmentTitle || "penilaian"}"`, assessmentId: payload.assessmentId, tenantId: auth.tenant.id });
-        } catch { /* non-fatal */ }
-        return sendJson(res, 201, { submission: payload });
+        // submissionService.saveStudentSubmission is intentionally NOT called:
+        // official submissions are server-authoritative after evaluation.
+        // Score-bearing student writes are intentionally forbidden. Official
+        // submissions are persisted only by the server-side evaluation path,
+        // after an authenticated attempt and verification gate.
+        return sendJson(res, 403, {
+          error: "Submission hasil assessment hanya dapat dibuat oleh server setelah evaluasi resmi.",
+          code: "SERVER_AUTHORITATIVE_SUBMISSION",
+        });
       }
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
       const existing = await submissionService.saveTeacherSubmission(auth, payload);

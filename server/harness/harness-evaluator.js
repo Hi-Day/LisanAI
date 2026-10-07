@@ -5,6 +5,7 @@ const { instrumentProvider } = require("../ai/instrumented-provider");
 const { parse } = require("../ai/response-parser");
 const { persistEvaluationTrace } = require("../evaluation/trace-persister");
 const { parseRubricText } = require("./plugins/rubric");
+const { polishTranscripts } = require("../evaluation/transcript-polisher");
 
 async function evaluateWithHarness(payload) {
   const harness = createHarness(payload.harnessConfig || {});
@@ -20,8 +21,33 @@ async function evaluateWithHarness(payload) {
 
   const assessment = payload.assessment || {};
   const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
-  const answers = Array.isArray(payload.answers) ? payload.answers : [];
-  const rubric = structuredRubric(payload, assessment, questions.length);
+  const rawAnswers = Array.isArray(payload.answers) ? payload.answers.map((answer) => String(answer || "")) : [];
+  let transcriptMetadata = rawAnswers.map((rawTranscript, index) => ({
+    index,
+    rawTranscript,
+    cleanTranscript: rawTranscript.trim(),
+    polishing: "disabled",
+    verified: true,
+  }));
+  let answers = rawAnswers;
+  if (process.env.HARNESS_PROVIDER === "openrouter" && rawAnswers.some((answer) => answer.trim())) {
+    if (typeof payload.onProgress === "function") payload.onProgress("Membersihkan artefak transkripsi sebelum penilaian...");
+    try {
+      const polished = await polishTranscripts(rawAnswers);
+      answers = polished.answers;
+      transcriptMetadata = polished.metadata;
+    } catch (error) {
+      console.warn("[transcript-polisher] polishing unavailable, using raw transcripts:", error.message);
+      transcriptMetadata = rawAnswers.map((rawTranscript, index) => ({
+        index,
+        rawTranscript,
+        cleanTranscript: rawTranscript.trim(),
+        polishing: "error-fallback",
+        verified: false,
+      }));
+    }
+  }
+  const rubric = structuredRubric({ ...payload, answers }, assessment, questions.length);
 
   const result = await harness.evaluate({
     assessmentId: assessment.id || payload.assessmentId,
@@ -70,6 +96,7 @@ async function evaluateWithHarness(payload) {
     finalScore,
     feedback: result.feedback || `Evaluasi lisan selesai. Skor akhir ${finalScore} dari 100.`,
     questionScores,
+    transcriptMetadata,
     published: result.published !== false && status !== "FAIL",
     requiresHumanReview: status === "REVIEW" || result.requiresHumanReview === true,
     evaluationRunId: result.evaluationRunId,
