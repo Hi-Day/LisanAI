@@ -750,11 +750,12 @@ export async function handleFinishAssessment(ctx) {
     const submission = await evaluateWithFallback(ctx, assessment, studentName);
     // Official results are already persisted atomically by the server-side
     // evaluation service. The browser may only update its local view.
-    const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
-    // Open the authoritative result immediately after evaluation. Rendering
-    // dashboards/history is secondary UI work and must never prevent the
-    // student from seeing the score.
+    // Open the authoritative result immediately after evaluation. Any
+    // secondary normalization/upload work must never prevent the student
+    // from seeing a successfully produced score.
     showResult(els, submission, ctx.auth);
+
+    const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
 
     if (!assessment.isTryout) {
       ctx.state.submissions.push(savedSubmission);
