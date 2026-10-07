@@ -1,6 +1,7 @@
 // Bound teacher/admin state payloads to the newest submissions so the state
 // response cannot grow without limit (each row carries a large JSON payload).
 const SUBMISSION_FETCH_LIMIT = 500;
+const ATTEMPT_EVALUATION_LEASE_MS = 15 * 60 * 1000;
 const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require("../security/assessment-integrity");
 const crypto = require("node:crypto");
 
@@ -159,7 +160,16 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
     const existing = await db.get("SELECT payload FROM submissions WHERE id = ? AND tenant_id = ?", row.submission_id, auth.tenant.id);
     if (existing) return { attempt: row, existingSubmission: JSON.parse(existing.payload) };
   }
-  if (row.status === "SUBMITTING") throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
+  if (row.status === "SUBMITTING") {
+    const leaseStarted = row.evaluation_started_at ? Date.parse(row.evaluation_started_at) : NaN;
+    const leaseExpired = !Number.isFinite(leaseStarted) || Date.now() - leaseStarted > ATTEMPT_EVALUATION_LEASE_MS;
+    if (!leaseExpired) throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
+    if (row.deadline_at && Date.now() > Date.parse(row.deadline_at)) {
+      await db.run("UPDATE assessment_attempts SET status = 'EXPIRED' WHERE id = ? AND status = 'SUBMITTING'", attemptId);
+      throw attemptError("Waktu assessment telah habis", 409, "ATTEMPT_EXPIRED");
+    }
+    await db.run("UPDATE assessment_attempts SET status = 'STARTED', evaluation_started_at = NULL WHERE id = ? AND status = 'SUBMITTING'", attemptId);
+  }
   if (row.status === "EXPIRED") throw attemptError("Attempt sudah kedaluwarsa", 409, "ATTEMPT_EXPIRED");
   if (row.status === "CANCELLED") throw attemptError("Attempt sudah dibatalkan", 409, "ATTEMPT_CANCELLED");
   if (row.deadline_at && Date.now() > Date.parse(row.deadline_at)) {
@@ -167,13 +177,18 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
     throw attemptError("Waktu assessment telah habis", 409, "ATTEMPT_EXPIRED");
   }
   if (!["STARTED", "SUBMITTING"].includes(row.status)) throw attemptError("Status attempt tidak dapat dievaluasi", 409, "ATTEMPT_INVALID_STATE");
-  await db.run("UPDATE assessment_attempts SET status = 'SUBMITTING' WHERE id = ? AND status = 'STARTED'", attemptId);
-  return { attempt: row };
+  const evaluationStartedAt = new Date().toISOString();
+  const claimed = await db.run(
+    "UPDATE assessment_attempts SET status = 'SUBMITTING', evaluation_started_at = ? WHERE id = ? AND status = 'STARTED'",
+    evaluationStartedAt, attemptId,
+  );
+  if (!claimed.changes) throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
+  return { attempt: { ...row, status: "SUBMITTING", evaluation_started_at: evaluationStartedAt } };
 }
 
 async function releaseAttemptEvaluation(db, auth, attemptId) {
   await db.run(
-    "UPDATE assessment_attempts SET status = 'STARTED' WHERE id = ? AND tenant_id = ? AND user_id = ? AND status = 'SUBMITTING'",
+    "UPDATE assessment_attempts SET status = 'STARTED', evaluation_started_at = NULL WHERE id = ? AND tenant_id = ? AND user_id = ? AND status = 'SUBMITTING'",
     attemptId, auth.tenant.id, auth.user.id,
   );
 }
@@ -187,7 +202,7 @@ async function finalizeAssessmentAttempt(db, auth, attemptId, submission, hashes
   const now = new Date().toISOString();
   await db.run(
     `UPDATE assessment_attempts
-       SET status = 'FINALIZED', submitted_at = ?, submission_id = ?
+       SET status = 'FINALIZED', submitted_at = ?, submission_id = ?, evaluation_started_at = NULL
      WHERE id = ? AND tenant_id = ? AND user_id = ? AND status IN ('STARTED','SUBMITTING')`,
     now, submission.id, attemptId, auth.tenant.id, auth.user.id,
   );
