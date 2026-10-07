@@ -751,6 +751,11 @@ export async function handleFinishAssessment(ctx) {
     // Official results are already persisted atomically by the server-side
     // evaluation service. The browser may only update its local view.
     const { submission: savedSubmission, uploads } = splitSubmissionAudio(submission);
+    // Open the authoritative result immediately after evaluation. Rendering
+    // dashboards/history is secondary UI work and must never prevent the
+    // student from seeing the score.
+    showResult(els, submission, ctx.auth);
+
     if (!assessment.isTryout) {
       ctx.state.submissions.push(savedSubmission);
       if (SAVE_SUBMISSION_AUDIO) {
@@ -763,16 +768,19 @@ export async function handleFinishAssessment(ctx) {
       submission.isTryout = true;
       showToast("Hasil tryout ditampilkan di sini.", "info");
     }
-    renderMonitoring(els, ctx.state);
-    renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
-    if (ctx.auth.user.role === "student") {
-      ctx.session.currentAssessmentId = null;
-      await renderStudentState(ctx);
+
+    try {
+      renderMonitoring(els, ctx.state);
+      renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
+      if (ctx.auth.user.role === "student") {
+        ctx.session.currentAssessmentId = null;
+        await renderStudentState(ctx);
+      }
+    } catch (renderError) {
+      // The score modal is already visible; secondary dashboard rendering must
+      // not turn a successful assessment into an apparently failed submission.
+      console.error("Gagal menyegarkan tampilan pasca-evaluasi", renderError);
     }
-    // Refresh the student state before opening the result modal. The modal is
-    // a terminal UI state for this submission and must be the last render
-    // operation so a dashboard/workspace refresh cannot hide it again.
-    showResult(els, submission, ctx.auth);
   } catch (error) {
     showToast(`Gagal menyimpan hasil: ${error.message}`);
   } finally {
