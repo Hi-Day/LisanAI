@@ -783,6 +783,19 @@ export async function handleFinishAssessment(ctx) {
       console.error("Gagal menyegarkan tampilan pasca-evaluasi", renderError);
     }
   } catch (error) {
+    console.error("[student-evaluation] client evaluation failure", error);
+    const isLocalE2E =
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "localhost";
+    if (isLocalE2E && els.resultPanel) {
+      els.resultPanel.classList.remove("hidden");
+      els.resultPanel.innerHTML = `
+        <div class="result-modal-content">
+          <h3>Evaluasi gagal</h3>
+          <p data-e2e-evaluation-error>${escapeHtml(error?.message || "Unknown client error")}</p>
+        </div>
+      `;
+    }
     showToast(`Gagal menyimpan hasil: ${error.message}`);
   } finally {
     ctx.isEvaluating = false;
