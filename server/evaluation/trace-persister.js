@@ -1,4 +1,5 @@
 const { getDb } = require("../database");
+const { evaluationHash } = require("../security/evaluation-integrity");
 
 /**
  * Persists evaluation trace (append-only) to the evaluation_* tables.
@@ -50,6 +51,7 @@ async function persistEvaluationTrace(snapshot) {
     result && typeof result.requiresHumanReview === "boolean" ? (result.requiresHumanReview ? 1 : 0) : null;
   const versioning = (result && result.versioning) || {};
   const risk = (result && result.risk) || {};
+  const immutableEvaluationHash = result ? evaluationHash(result) : null;
   try {
     await db.run(
       `INSERT INTO evaluation_runs
@@ -57,7 +59,7 @@ async function persistEvaluationTrace(snapshot) {
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
-          attempt_id, assessment_hash, answer_hash,
+          attempt_id, assessment_hash, answer_hash, evaluation_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
@@ -84,6 +86,7 @@ async function persistEvaluationTrace(snapshot) {
       attemptId,
       assessmentHash,
       answerHash,
+      immutableEvaluationHash,
       versioning.contextHash || null,
       versioning.contextVersion || null,
       risk.score != null ? risk.score : null,
@@ -105,7 +108,7 @@ async function persistEvaluationTrace(snapshot) {
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
-          attempt_id, assessment_hash, answer_hash,
+          attempt_id, assessment_hash, answer_hash, evaluation_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
@@ -131,6 +134,7 @@ async function persistEvaluationTrace(snapshot) {
       attemptId,
       assessmentHash,
       answerHash,
+      immutableEvaluationHash,
       versioning.contextHash || null,
       versioning.contextVersion || null,
       risk.score != null ? risk.score : null,
