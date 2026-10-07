@@ -764,11 +764,14 @@ export async function handleFinishAssessment(ctx) {
     }
     renderMonitoring(els, ctx.state);
     renderStudentHistory(els, ctx.state.submissions, ctx.auth.user.name);
-    showResult(els, submission, ctx.auth);
     if (ctx.auth.user.role === "student") {
       ctx.session.currentAssessmentId = null;
       await renderStudentState(ctx);
     }
+    // Refresh the student state before opening the result modal. The modal is
+    // a terminal UI state for this submission and must be the last render
+    // operation so a dashboard/workspace refresh cannot hide it again.
+    showResult(els, submission, ctx.auth);
   } catch (error) {
     showToast(`Gagal menyimpan hasil: ${error.message}`);
   } finally {
