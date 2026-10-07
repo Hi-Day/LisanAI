@@ -167,11 +167,22 @@ async function listDriftRows(tenantId) {
   );
 }
 
-async function listRepeatabilityRows(tenantId) {
+
+async function listAssessmentValidityRows(assessmentId, tenantId) {
+  return getDb().all(
+    `SELECT verification_status, requires_human_review, final_score, input_hash
+       FROM evaluation_runs
+      WHERE assessment_id = $1 AND tenant_id = $2`,
+    assessmentId || null,
+    tenantId || null
+  );
+}
+
+async function listRepeatabilityRows(tenantId, assessmentId = null) {
   return getDb().all(
     `SELECT input_hash, final_score, created_at
        FROM evaluation_runs
-      WHERE tenant_id = $1 AND input_hash IS NOT NULL AND final_score IS NOT NULL
+      WHERE tenant_id = $1 AND ($2 IS NULL OR assessment_id = $2) AND input_hash IS NOT NULL AND final_score IS NOT NULL
       ORDER BY input_hash, created_at ASC`,
     tenantId || null
   );
@@ -191,4 +202,5 @@ module.exports = {
   listAiLogLatencies,
   listDriftRows,
   listRepeatabilityRows,
+  listAssessmentValidityRows,
 };
