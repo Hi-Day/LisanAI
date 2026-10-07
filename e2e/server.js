@@ -15,6 +15,7 @@ process.env.E2E_DISABLE_RATE_LIMIT = "true";
 // Default E2E to the deterministic provider, but preserve an explicit
 // HARNESS_PROVIDER=openrouter from the dedicated real-provider runner.
 if (!process.env.HARNESS_PROVIDER) process.env.HARNESS_PROVIDER = "mock";
+if (!process.env.AI_PROVIDER) process.env.AI_PROVIDER = "mock";
 if (process.env.HARNESS_PROVIDER === "mock") {
   process.env.E2E_ALLOW_MOCK_EVALUATION = "true";
 }
