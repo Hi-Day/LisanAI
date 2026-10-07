@@ -822,13 +822,38 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
     throw new Error("Server tidak mengembalikan hasil evaluasi.");
 
   } catch (error) {
-    if (assessment.isTryout) {
-      showToast("AI resmi tidak tersedia; tryout memakai evaluasi lokal.", "info");
-      const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
-      const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
-      return { ...fallback, evaluationSource: "fallback", verification: null, criteria: [] };
+    if (!assessment.isTryout) {
+      // The server may have finalized the attempt even if the SSE transport
+      // failed. A single non-stream retry is safe because attempt finalization
+      // is idempotent and returns the existing canonical submission.
+      try {
+        const textAnswers = answers.map((a) => combineAnswerWithProbing(a).text);
+        const recovery = await postJson(
+          "/api/evaluation",
+          {
+            action: "evaluate",
+            payload: {
+              assessmentId: assessment.id,
+              classId: assessment.deliveryClassId || assessment.classId || null,
+              attemptId: ctx.attemptId,
+              answers: textAnswers,
+            },
+            stream: false,
+          },
+          "Hasil evaluasi tidak diterima dari server",
+        );
+        if (recovery?.evaluation) return recovery.evaluation;
+      } catch (recoveryError) {
+        recoveryError.cause = error;
+        throw recoveryError;
+      }
+      throw error;
     }
-    throw error;
+
+    showToast("AI resmi tidak tersedia; tryout memakai evaluasi lokal.", "info");
+    const combinedAnswers = answers.map((a) => combineAnswerWithProbing(a));
+    const fallback = evaluateFallbackAssessment(assessment, combinedAnswers, studentName, createSubmission);
+    return { ...fallback, evaluationSource: "fallback", verification: null, criteria: [] };
   }
 }
 /**
