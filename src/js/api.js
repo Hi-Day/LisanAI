@@ -175,39 +175,63 @@ export async function streamAssessmentAction({ action, payload, onChunk, onResul
   let buffer = "";
   let resultData = null;
 
+  const processEvent = (event) => {
+    const dataLine = event
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("");
+
+    if (!dataLine) return;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(dataLine);
+    } catch {
+      // A malformed/incomplete SSE event must not corrupt the remainder of
+      // the stream; the caller will continue buffering subsequent events.
+      return;
+    }
+
+    if (parsed.type === "chunk" && typeof parsed.text === "string") {
+      if (onChunk) onChunk(parsed.text);
+    } else if (parsed.type === "result") {
+      resultData = parsed.data || {};
+      if (onResult) onResult(resultData);
+    } else if (parsed.type === "error") {
+      const message = parsed.message || "Terjadi kesalahan";
+      if (onError) onError(message);
+      throw new Error(message);
+    }
+  };
+
+  const processBuffer = (flush = false) => {
+    const normalized = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const events = normalized.split("\n\n");
+    if (!flush) {
+      buffer = events.pop() || "";
+    } else {
+      buffer = "";
+    }
+    for (const event of events) {
+      if (event.trim()) processEvent(event);
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const events = buffer.split("\n\n");
-    buffer = events.pop() || "";
-
-    for (const event of events) {
-      const dataLine = event
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .join("");
-
-      if (!dataLine) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(dataLine);
-      } catch {
-        continue;
-      }
-
-      if (parsed.type === "chunk" && typeof parsed.text === "string") {
-        if (onChunk) onChunk(parsed.text);
-      } else if (parsed.type === "result") {
-        resultData = parsed.data || {};
-        if (onResult) onResult(resultData);
-      } else if (parsed.type === "error") {
-        if (onError) onError(parsed.message || "Terjadi kesalahan");
-        throw new Error(parsed.message || "Terjadi kesalahan");
-      }
+    if (value) buffer += decoder.decode(value, { stream: done });
+    if (done) {
+      processBuffer(true);
+      break;
     }
+    processBuffer(false);
+  }
+
+  if (!resultData) {
+    throw new Error("Evaluasi selesai tanpa menerima hasil dari server.");
   }
 
   return resultData;
