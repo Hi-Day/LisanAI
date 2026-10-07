@@ -89,8 +89,11 @@ async function createAssessmentAttempt(db, auth, assessmentId, requestedClassId 
   if (!allowRetakes && attemptNo > maxAttempts) throw attemptError(`Batas percobaan tercapai (${maxAttempts} dari ${maxAttempts})`, 409, "ATTEMPT_LIMIT_REACHED");
   if (allowRetakes === false && attemptNo > maxAttempts) throw attemptError("Batas percobaan tercapai", 409, "ATTEMPT_LIMIT_REACHED");
 
+  // Bind the attempt to the full canonical assessment hash. The persisted
+  // student snapshot remains sanitized (without teacher-only ideal answers),
+  // but its integrity hash must represent the canonical source used at scoring.
   const snapshot = buildAttemptSnapshot(assessment);
-  const assessmentHash = assessmentSnapshotHash(snapshot);
+  const assessmentHash = assessmentSnapshotHash(assessment);
   const snapshotRubricHash = rubricHash(snapshot);
   const startedAt = new Date();
   const duration = attemptDurationSeconds(snapshot);
