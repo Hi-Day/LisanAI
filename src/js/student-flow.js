@@ -1,6 +1,7 @@
 import {
   saveSubmissionAudio,
   createAssessmentAttempt,
+  postJson,
   streamAssessmentAction,
 } from "./api.js";
 import { createSubmission } from "./assessment-factory.js";
@@ -797,7 +798,29 @@ export async function evaluateWithFallback(ctx, assessment, studentName) {
     });
 
     // Server is authoritative: this is the already-persisted official result.
-    return data.evaluation;
+    if (data?.evaluation) return data.evaluation;
+
+    // Recovery path: the evaluation may have been finalized server-side even
+    // when the streaming transport failed to deliver its terminal result event.
+    // Reuse the same attempt so the server's idempotent finalized-attempt path
+    // returns the canonical submission instead of evaluating twice.
+    const recovery = await postJson(
+      "/api/evaluation",
+      {
+        action: "evaluate",
+        payload: {
+          assessmentId: assessment.id,
+          classId: assessment.deliveryClassId || assessment.classId || null,
+          attemptId: ctx.attemptId,
+          answers: textAnswers,
+        },
+        stream: false,
+      },
+      "Hasil evaluasi tidak diterima dari server",
+    );
+    if (recovery?.evaluation) return recovery.evaluation;
+    throw new Error("Server tidak mengembalikan hasil evaluasi.");
+
   } catch (error) {
     if (assessment.isTryout) {
       showToast("AI resmi tidak tersedia; tryout memakai evaluasi lokal.", "info");
