@@ -16,6 +16,24 @@ async function persistEvaluationTrace(snapshot) {
     return readRun(snapshot.runId);
   }
 
+  // Seal mode: bind the final, post-processed evaluation result to the
+  // append-only trace. This runs after harness post-processing has produced
+  // the exact score/evidence payload stored in the official submission.
+  if (snapshot && snapshot.mode === "seal") {
+    const runId = snapshot.runId;
+    const tenantId = snapshot.tenantId || null;
+    const result = snapshot.result || {};
+    const evaluationHash = require("../security/evaluation-integrity").evaluationHash(result);
+    const updated = await db.run(
+      "UPDATE evaluation_runs SET evaluation_hash = ?, final_score = ? WHERE run_id = ? AND tenant_id = ?",
+      evaluationHash, result.finalScore ?? null, runId, tenantId,
+    );
+    if (!updated.changes) {
+      throw Object.assign(new Error("Evaluation trace tidak ditemukan untuk sealing"), { status: 409, code: "EVALUATION_TRACE_NOT_FOUND" });
+    }
+    return { runId, evaluationHash, sealed: true };
+  }
+
   const {
     runId,
     meta = {},
