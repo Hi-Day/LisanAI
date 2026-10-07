@@ -184,7 +184,8 @@ async function listRepeatabilityRows(tenantId, assessmentId = null) {
        FROM evaluation_runs
       WHERE tenant_id = $1 AND ($2 IS NULL OR assessment_id = $2) AND input_hash IS NOT NULL AND final_score IS NOT NULL
       ORDER BY input_hash, created_at ASC`,
-    tenantId || null
+    tenantId || null,
+    assessmentId || null
   );
 }
 
