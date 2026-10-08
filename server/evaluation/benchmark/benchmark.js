@@ -150,8 +150,12 @@ async function runSampleBaseline(provider, parser, sample, opts = {}) {
  *   repeats feeds consistencyMetrics.
  * @returns {Promise<object>}
  */
-async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1, raterMap }) {
+async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1, raterMap, sampleLimit }) {
   const loaded = loadDataset(dataset);
+  const requestedLimit = Number(sampleLimit);
+  if (Number.isFinite(requestedLimit) && requestedLimit > 0) {
+    loaded.samples = loaded.samples.slice(0, Math.min(Math.floor(requestedLimit), loaded.samples.length));
+  }
   const validation = validateDataset(loaded.samples);
   const modes = (Array.isArray(mode) ? mode : [mode || "baseline"]).filter(Boolean);
   if (modes.length === 0) modes.push("baseline");
