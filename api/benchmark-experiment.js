@@ -31,6 +31,10 @@ function validateBenchmarkRequest(payload = {}) {
   if (!Number.isInteger(repeats) || repeats < 1 || repeats > MAX_REPEATS) {
     return { valid: false, error: `Repeated runs harus 1–${MAX_REPEATS}` };
   }
+  const methodCount = mode === "both" ? 2 : 1;
+  if (sampleLimit * repeats * methodCount > 30) {
+    return { valid: false, error: "Konfigurasi melebihi 30 evaluasi model per eksperimen; kurangi sampel/repeats atau pilih satu metode" };
+  }
   return { valid: true, dataset, mode, provider, sampleLimit, repeats };
 }
 
