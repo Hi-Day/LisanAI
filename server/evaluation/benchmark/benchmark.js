@@ -3,7 +3,7 @@ const { createHarness } = require("../../harness");
 const { MockProvider } = require("../../ai/mock-provider");
 const { OpenRouterProvider } = require("../../ai/openrouter-provider");
 const { parse } = require("../../ai/response-parser");
-const { summarizeExperimentMetrics } = require("./experiment-metrics");
+const { summarizeExperimentMetrics, pairedComparison } = require("./experiment-metrics");
 
 /**
  * Deterministic single-prompt baseline provider — returns { score } (0-100).
@@ -193,17 +193,14 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
     }
   }
 
-  // Pair baseline vs harness for human agreement when both modes ran.
+  // Pair baseline vs harness on the SAME sample. When repeats > 1, collapse
+  // repeats to one mean per sample so repeated evaluations do not inflate the
+  // effective sample size of the comparative statistical test.
   let pairs = null;
+  let comparison = null;
   if (new Set(modes).size > 1) {
-    const baselineBy = keyBy(results.filter((r) => r.evaluationMode === "baseline"));
-    const harnessBy = keyBy(results.filter((r) => r.evaluationMode === "harness"));
-    pairs = Object.keys(harnessBy).map((sid) => ({
-      sampleId: sid,
-      baselineScore: baselineBy[sid] ? baselineBy[sid].score : null,
-      harnessScore: harnessBy[sid] ? harnessBy[sid].score : null,
-      humanScore: harnessBy[sid] ? harnessBy[sid].humanScore : null,
-    }));
+    pairs = buildPairedRows(perRun, loaded.samples);
+    comparison = pairedComparison(pairs);
   }
 
   return {
@@ -214,6 +211,7 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
     repeats,
     results,
     pairs,
+    comparison,
     metrics: summarizeExperimentMetrics({ results, raterMap: resolvedRaterMap }),
     raterMap: resolvedRaterMap && Object.keys(resolvedRaterMap).length >= 2 ? resolvedRaterMap : null,
     // Consistency of repeated runs (PRD §22). Present only when repeats > 1.
@@ -227,6 +225,27 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
  * flat `raterId` + `humanScore`). Returns { raterId: score[] } aligned to
  * sample order, or null when <2 raters are present across the dataset.
  */
+/**
+ * Build one paired observation per dataset sample. Repeated model runs are
+ * averaged within sample before comparative inference to avoid pseudo-
+ * replication. Human score comes from the dataset, not from either model.
+ */
+function buildPairedRows(perRun, samples) {
+  const baseline = perRun.baseline || {};
+  const harness = perRun.harness || {};
+  return (samples || []).map((sample) => {
+    const b = (baseline[sample.sampleId] || []).filter(Number.isFinite);
+    const h = (harness[sample.sampleId] || []).filter(Number.isFinite);
+    return {
+      sampleId: sample.sampleId,
+      baselineScore: b.length ? b.reduce((a, v) => a + v, 0) / b.length : null,
+      harnessScore: h.length ? h.reduce((a, v) => a + v, 0) / h.length : null,
+      humanScore: Number.isFinite(sample.humanScore) ? sample.humanScore : null,
+      repeats: Math.max(b.length, h.length),
+    };
+  }).filter((p) => Number.isFinite(p.baselineScore) && Number.isFinite(p.harnessScore));
+}
+
 function buildRaterMap(samples) {
   const map = {};
   let any = false;
@@ -298,5 +317,6 @@ module.exports = {
   resolveBaselineProvider,
   BaselineMockProvider,
   buildRaterMap,
+  buildPairedRows,
   clamp,
 };
