@@ -28,4 +28,5 @@ test("benchmark request rejects unsupported modes, providers, and excessive runs
   assert.match(validateBenchmarkRequest({ dataset: "safe", provider: "local-shell" }).error, /Provider/);
   assert.match(validateBenchmarkRequest({ dataset: "safe", sampleLimit: 21 }).error, /sampel/);
   assert.match(validateBenchmarkRequest({ dataset: "safe", repeats: 4 }).error, /Repeated runs/);
+  assert.match(validateBenchmarkRequest({ dataset: "safe", mode: "both", sampleLimit: 20, repeats: 1 }).error, /30 evaluasi model/);
 });
