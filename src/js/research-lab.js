@@ -211,6 +211,12 @@ export function bindResearchLabEvents() {
       status.classList.add("lab-error");
       return;
     }
+    const estimatedCalls = payload.sampleLimit * payload.repeats * (payload.mode === "both" ? 2 : 1);
+    if (estimatedCalls > 30) {
+      status.textContent = "Kombinasi ini melebihi 30 evaluasi model. Kurangi jumlah sampel/repeats atau pilih satu metode.";
+      status.classList.add("lab-error");
+      return;
+    }
 
     runButton.disabled = true;
     runButton.textContent = "Eksperimen berjalan…";
