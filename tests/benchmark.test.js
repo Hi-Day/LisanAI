@@ -110,6 +110,8 @@ test("runExperiment runs both modes over the smoke dataset and pairs them", asyn
   assert.equal(exp.results.length, 4);
   assert.ok(exp.pairs, "pairs must be present when both modes ran");
   assert.equal(exp.pairs.length, 2);
+  assert.ok(exp.comparison, "paired comparison must be present");
+  assert.equal(exp.comparison.n, 2);
   for (const p of exp.pairs) {
     assert.ok(typeof p.baselineScore === "number");
     assert.ok(typeof p.harnessScore === "number");
@@ -144,4 +146,16 @@ test("calibrationMetrics reports weighted calibration error and signed bias", as
   assert.ok(Number.isFinite(result.expectedCalibrationError));
   assert.ok(Number.isFinite(result.meanBias));
   assert.equal(result.bins.length, 3);
+});
+
+
+test("runExperiment with repeats keeps comparative n at dataset sample count", async () => {
+  const exp = await runExperiment({
+    dataset: "sample-bench-smoke",
+    mode: ["baseline", "harness"],
+    repeats: 3,
+  });
+  assert.equal(exp.pairs.length, 2);
+  assert.equal(exp.comparison.n, 2);
+  assert.equal(exp.pairs[0].repeats, 3);
 });
