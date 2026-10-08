@@ -166,10 +166,6 @@ async function loadDatasets() {
   samples.max = String(Math.min(20, Number(select.selectedOptions[0]?.dataset.count) || 20));
   panel.querySelector("#labProvider option[value='openrouter']").textContent =
     `OpenRouter — ${data.configuredModel || "model server"}`;
-  panel.querySelector("#labDataset").addEventListener("change", () => {
-    samples.max = String(Math.min(20, Number(select.selectedOptions[0]?.dataset.count) || 20));
-    if (Number(samples.value) > Number(samples.max)) samples.value = samples.max;
-  });
 }
 
 export function bindResearchLabEvents() {
@@ -179,6 +175,11 @@ export function bindResearchLabEvents() {
   const form = panel.querySelector("#researchLabForm");
   const status = panel.querySelector("#researchLabStatus");
   const runButton = panel.querySelector("#runResearchLabBtn");
+  panel.querySelector("#labDataset").addEventListener("change", () => {
+    const samples = panel.querySelector("#labSamples");
+    samples.max = String(Math.min(20, Number(panel.querySelector("#labDataset").selectedOptions[0]?.dataset.count) || 20));
+    if (Number(samples.value) > Number(samples.max)) samples.value = samples.max;
+  });
 
   panel.querySelector("#refreshResearchLabBtn").addEventListener("click", async () => {
     try {
