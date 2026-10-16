@@ -4,6 +4,8 @@ const { evaluateWithHarness } = require("../harness/harness-evaluator");
 const submissionService = require("./submission-service");
 const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require("../security/assessment-integrity");
 const crypto = require("node:crypto");
+const { evaluationHash } = require("../security/evaluation-integrity");
+const { persistEvaluationTrace } = require("../evaluation/trace-persister");
 
 const ACTIONS = ["evaluate", "generate-probing", "create-attempt"];
 
@@ -131,20 +133,18 @@ async function evaluate(payload, auth, onProgress = null) {
       assessmentHash,
       rubricHash: expectedAttempt.rubric_hash,
       answerHash,
-      evaluationHash: hashObject({
-        evaluationId: result.evaluationId || null,
-        evaluationRunId: result.evaluationRunId || null,
-        finalScore: result.finalScore,
-        criteria: result.criteria || [],
-      }),
+      evaluationHash: evaluationHash(result),
       attemptId: payload.attemptId,
     },
   };
 
+  await persistEvaluationTrace({ mode: "seal", runId: submission.evaluationRunId, tenantId: auth.tenant.id, result: submission });
   await submissionService.saveEvaluatedSubmission(auth, submission);
   await submissionService.finalizeAssessmentAttempt(auth, payload.attemptId, submission, {
     assessmentHash,
     rubricHash: expectedAttempt.rubric_hash,
+    answerHash,
+    evaluationHash: submission.integrity.evaluationHash,
     submissionHash: hashObject(submission),
   });
 
