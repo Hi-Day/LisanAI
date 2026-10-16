@@ -199,6 +199,19 @@ async function finalizeAssessmentAttempt(db, auth, attemptId, submission, hashes
     const existing = await db.get("SELECT payload FROM submissions WHERE id = ? AND tenant_id = ?", row.submission_id, auth.tenant.id);
     return existing ? JSON.parse(existing.payload) : submission;
   }
+  if (hashes.evaluationHash) {
+    const run = await db.get(
+      "SELECT attempt_id, assessment_hash, answer_hash, rubric_hash, evaluation_hash FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
+      submission.evaluationRunId || null, auth.tenant.id,
+    );
+    if (!run || run.attempt_id !== attemptId ||
+        run.assessment_hash !== (hashes.assessmentHash || row.assessment_hash) ||
+        run.answer_hash !== hashes.answerHash ||
+        run.rubric_hash !== (hashes.rubricHash || row.rubric_hash) ||
+        run.evaluation_hash !== hashes.evaluationHash) {
+      throw attemptError("Evaluation trace tidak konsisten dengan submission", 409, "EVALUATION_INTEGRITY_MISMATCH");
+    }
+  }
   const now = new Date().toISOString();
   await db.run(
     `UPDATE assessment_attempts

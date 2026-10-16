@@ -1,4 +1,5 @@
 const { getDb } = require("../database");
+const { evaluationHash } = require("../security/evaluation-integrity");
 
 /**
  * Persists evaluation trace (append-only) to the evaluation_* tables.
@@ -13,6 +14,24 @@ async function persistEvaluationTrace(snapshot) {
   // Read mode: reconstruct a run.
   if (snapshot && snapshot.mode === "read") {
     return readRun(snapshot.runId);
+  }
+
+  // Seal mode: bind the final, post-processed evaluation result to the
+  // append-only trace. This runs after harness post-processing has produced
+  // the exact score/evidence payload stored in the official submission.
+  if (snapshot && snapshot.mode === "seal") {
+    const runId = snapshot.runId;
+    const tenantId = snapshot.tenantId || null;
+    const result = snapshot.result || {};
+    const evaluationHash = require("../security/evaluation-integrity").evaluationHash(result);
+    const updated = await db.run(
+      "UPDATE evaluation_runs SET evaluation_hash = ?, final_score = ? WHERE run_id = ? AND tenant_id = ?",
+      evaluationHash, result.finalScore ?? null, runId, tenantId,
+    );
+    if (!updated.changes) {
+      throw Object.assign(new Error("Evaluation trace tidak ditemukan untuk sealing"), { status: 409, code: "EVALUATION_TRACE_NOT_FOUND" });
+    }
+    return { runId, evaluationHash, sealed: true };
   }
 
   const {
@@ -50,6 +69,7 @@ async function persistEvaluationTrace(snapshot) {
     result && typeof result.requiresHumanReview === "boolean" ? (result.requiresHumanReview ? 1 : 0) : null;
   const versioning = (result && result.versioning) || {};
   const risk = (result && result.risk) || {};
+  const immutableEvaluationHash = result ? evaluationHash(result) : null;
   try {
     await db.run(
       `INSERT INTO evaluation_runs
@@ -57,9 +77,9 @@ async function persistEvaluationTrace(snapshot) {
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
-          attempt_id, assessment_hash, answer_hash,
+          attempt_id, assessment_hash, answer_hash, evaluation_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -84,6 +104,7 @@ async function persistEvaluationTrace(snapshot) {
       attemptId,
       assessmentHash,
       answerHash,
+      immutableEvaluationHash,
       versioning.contextHash || null,
       versioning.contextVersion || null,
       risk.score != null ? risk.score : null,
@@ -105,9 +126,9 @@ async function persistEvaluationTrace(snapshot) {
           prompt_version, rubric_version, harness_version, engine_version,
           final_score, verification_valid, verification_status, verification_issues,
           input_hash, rubric_hash, prompt_hash, config_hash, published, requires_human_review,
-          attempt_id, assessment_hash, answer_hash,
+          attempt_id, assessment_hash, answer_hash, evaluation_hash,
           context_hash, context_version, risk_score, risk_level, policy_applied, created_at)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(run_id) DO NOTHING`,
       runId,
       meta.tenantId || null,
@@ -131,6 +152,7 @@ async function persistEvaluationTrace(snapshot) {
       attemptId,
       assessmentHash,
       answerHash,
+      immutableEvaluationHash,
       versioning.contextHash || null,
       versioning.contextVersion || null,
       risk.score != null ? risk.score : null,
