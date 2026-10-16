@@ -73,11 +73,10 @@ test.describe("Student oral recording flow", () => {
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
 
-    // Regression: the main submission must not carry base64 audio; audio is
-    // uploaded separately, and the evidence-feedback write must not erase it.
-    const saveRequest = dbRequests.find((item) => item.action === "save-submission");
-    expect(saveRequest, "main save-submission request captured").toBeTruthy();
-    expect(saveRequest.hasAudio).toBe(false);
+    // Regression: official score persistence is server-authoritative; the
+    // browser must not issue a score-bearing save-submission write. Audio,
+    // when explicitly enabled, remains a separate optional upload.
+    expect(dbRequests.some((item) => item.action === "save-submission")).toBe(false);
     const audioRequest = dbRequests.find((item) => item.action === "save-submission-audio");
     expect(audioRequest, "audio upload request captured").toBeTruthy();
     expect(audioRequest.hasAudio).toBe(true);
@@ -147,10 +146,10 @@ test.describe("Student oral recording flow", () => {
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
 
-    // Main save always happens without audio; no separate audio upload occurs.
-    const saveRequest = dbRequests.find((item) => item.action === "save-submission");
-    expect(saveRequest, "main save-submission request captured").toBeTruthy();
-    expect(saveRequest.hasAudio).toBe(false);
+    // Score persistence remains server-authoritative. With audio persistence
+    // disabled, the browser must not issue either a score-bearing save or an
+    // audio upload request.
+    expect(dbRequests.some((item) => item.action === "save-submission")).toBe(false);
     expect(dbRequests.some((item) => item.action === "save-submission-audio")).toBe(false);
 
     await page.waitForTimeout(3000);

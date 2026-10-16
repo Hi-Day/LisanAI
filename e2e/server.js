@@ -10,6 +10,15 @@ process.env.ENABLE_DEMO_SIMULATION = "false";
 // One shared server serves the whole suite; login rate limits would fail
 // legitimate sequential test logins.
 process.env.E2E_DISABLE_RATE_LIMIT = "true";
+// E2E-only: allow the deterministic MockProvider to exercise the full
+// server-authoritative evaluation lifecycle without an external API key.
+// Default E2E to the deterministic provider, but preserve an explicit
+// HARNESS_PROVIDER=openrouter from the dedicated real-provider runner.
+if (!process.env.HARNESS_PROVIDER) process.env.HARNESS_PROVIDER = "mock";
+if (!process.env.AI_PROVIDER) process.env.AI_PROVIDER = "mock";
+if (process.env.HARNESS_PROVIDER === "mock") {
+  process.env.E2E_ALLOW_MOCK_EVALUATION = "true";
+}
 process.env.PORT = "4174";
 
 const { loadEnv } = require("../server/config");
