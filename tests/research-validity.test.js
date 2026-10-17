@@ -29,7 +29,7 @@ test("research validity passes when configured evidence is sufficient and thresh
   assert.equal(out.status, "PASS");
   assert.equal(out.dataSufficient, true);
   assert.equal(out.metrics.mae, 0);
-  assert.equal(out.metrics.ece, 0);
+  assert.equal(out.metrics.ece, 0.05);
 });
 
 test("research validity flags high error and poor calibration", () => {

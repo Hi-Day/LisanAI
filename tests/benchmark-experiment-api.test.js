@@ -7,7 +7,7 @@ test("benchmark request accepts a bounded valid config", () => {
     dataset: "sample-bench-smoke",
     mode: "both",
     provider: "mock",
-    sampleLimit: 10,
+    sampleLimit: 7,
     repeats: 2,
   }), {
     valid: true,
