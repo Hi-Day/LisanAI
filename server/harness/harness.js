@@ -137,6 +137,7 @@ class AssessmentHarness {
           attemptId: input.attemptId || null,
           assessmentHash: input.assessmentHash || null,
           answerHash: input.answerHash || null,
+          attemptRubricHash: input.rubricHash || null,
         },
         model: this.config.model.model,
         provider: (this.provider && this.provider.name) || null,
