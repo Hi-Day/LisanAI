@@ -234,6 +234,154 @@ function summarizeExperimentMetrics(exp) {
   return report;
 }
 
+
+/**
+ * Paired baseline-vs-harness comparison.
+ *
+ * Uses paired observations on the same samples. The primary effect is
+ * harnessScore - baselineScore, so positive values mean the harness scores
+ * higher. Confidence intervals are deterministic percentile bootstrap CIs;
+ * p-value is a paired sign-flip permutation test (exact for small n).
+ *
+ * This is a research statistic, not a production scoring decision.
+ */
+function pairedComparison(pairs, opts = {}) {
+  const rows = (pairs || []).filter((p) =>
+    Number.isFinite(p.baselineScore) && Number.isFinite(p.harnessScore)
+  );
+  if (!rows.length) return null;
+
+  const baseline = rows.map((p) => Number(p.baselineScore));
+  const harness = rows.map((p) => Number(p.harnessScore));
+  const deltas = harness.map((v, i) => v - baseline[i]);
+  const meanDelta = mean(deltas);
+  const medianDelta = median(deltas);
+  const deltaStd = std(deltas);
+  const effectSize = deltaStd === 0 ? (meanDelta === 0 ? 0 : Infinity) : meanDelta / deltaStd;
+
+  const bootstrapSamples = Math.max(1000, Math.min(20000, Number(opts.bootstrapSamples) || 5000));
+  const seed = Number.isFinite(opts.seed) ? opts.seed : 1337;
+  const ci = bootstrapMeanDifferenceCI(deltas, bootstrapSamples, seed);
+
+  const maeBaseline = rows
+    .filter((p) => Number.isFinite(p.humanScore))
+    .map((p) => Math.abs(p.baselineScore - p.humanScore));
+  const maeHarness = rows
+    .filter((p) => Number.isFinite(p.humanScore))
+    .map((p) => Math.abs(p.harnessScore - p.humanScore));
+
+  const pairedMae = maeBaseline.length === maeHarness.length && maeBaseline.length
+    ? pairedDifferenceStats(maeBaseline, maeHarness, bootstrapSamples, seed + 1)
+    : null;
+
+  return {
+    n: rows.length,
+    meanDelta,
+    medianDelta,
+    sdDelta: deltaStd,
+    effectSizeCohenDz: effectSize,
+    confidenceInterval95: ci,
+    permutationPValue: pairedSignFlipPValue(deltas),
+    direction: meanDelta > 0 ? "HARNESS_HIGHER" : meanDelta < 0 ? "HARNESS_LOWER" : "NO_MEAN_DIFFERENCE",
+    pairedMae: pairedMae
+      ? {
+          n: pairedMae.n,
+          baselineMae: mean(maeBaseline),
+          harnessMae: mean(maeHarness),
+          meanDelta: pairedMae.meanDelta,
+          confidenceInterval95: pairedMae.confidenceInterval95,
+          permutationPValue: pairedMae.permutationPValue,
+        }
+      : null,
+  };
+}
+
+function median(xs) {
+  if (!xs.length) return NaN;
+  const sorted = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function pairedDifferenceStats(a, b, bootstrapSamples, seed) {
+  const deltas = b.map((v, i) => v - a[i]);
+  return {
+    n: deltas.length,
+    meanDelta: mean(deltas),
+    confidenceInterval95: bootstrapMeanDifferenceCI(deltas, bootstrapSamples, seed),
+    permutationPValue: pairedSignFlipPValue(deltas),
+  };
+}
+
+function bootstrapMeanDifferenceCI(deltas, samples = 5000, seed = 1337) {
+  if (!deltas.length) return null;
+  let state = (Math.abs(Math.trunc(seed)) >>> 0) || 1;
+  const rand = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+  const means = new Array(samples);
+  for (let b = 0; b < samples; b += 1) {
+    let sum = 0;
+    for (let i = 0; i < deltas.length; i += 1) {
+      sum += deltas[Math.floor(rand() * deltas.length)];
+    }
+    means[b] = sum / deltas.length;
+  }
+  means.sort((a, b) => a - b);
+  return {
+    lower: quantile(means, 0.025),
+    upper: quantile(means, 0.975),
+    method: "percentile-bootstrap",
+    samples,
+    seed,
+  };
+}
+
+function quantile(sorted, q) {
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+function pairedSignFlipPValue(deltas) {
+  const nonZero = deltas.filter((d) => d !== 0);
+  const n = nonZero.length;
+  if (n === 0) return 1;
+  const observed = Math.abs(mean(nonZero));
+  if (n <= 16) {
+    const total = 2 ** n;
+    let extreme = 0;
+    for (let mask = 0; mask < total; mask += 1) {
+      let sum = 0;
+      for (let i = 0; i < n; i += 1) sum += ((mask >> i) & 1) ? nonZero[i] : -nonZero[i];
+      if (Math.abs(sum / n) >= observed - 1e-12) extreme += 1;
+    }
+    return extreme / total;
+  }
+
+  // Deterministic Monte Carlo for larger samples; avoids a hidden RNG dependency.
+  const samples = 20000;
+  let state = 0x9e3779b9;
+  const rand = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+  let extreme = 0;
+  for (let s = 0; s < samples; s += 1) {
+    let sum = 0;
+    for (const d of nonZero) sum += rand() < 0.5 ? d : -d;
+    if (Math.abs(sum / n) >= observed - 1e-12) extreme += 1;
+  }
+  return (extreme + 1) / (samples + 1);
+}
+
 module.exports = {
   agreementMetrics,
   consistencyMetrics,
@@ -241,5 +389,6 @@ module.exports = {
   groundingMetrics,
   complianceMetrics,
   interRaterAggregation,
+  pairedComparison,
   summarizeExperimentMetrics,
 };

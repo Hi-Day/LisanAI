@@ -89,6 +89,7 @@ export function getElements() {
     preExamPlayback: document.querySelector("#preExamPlayback"),
     preExamMicDiagnostics: document.querySelector("#preExamMicDiagnostics"),
     preExamStartNote: document.querySelector("#preExamStartNote"),
+    preExamFullscreenStatus: document.querySelector("#preExamFullscreenStatus"),
     preExamStart: document.querySelector("#preExamStart"),
     preExamCancel: document.querySelector("#preExamCancel"),
     preExamClose: document.querySelector("#preExamClose"),

@@ -7,6 +7,7 @@ const {
   groundingMetrics,
   complianceMetrics,
   summarizeExperimentMetrics,
+  pairedComparison,
 } = require("../server/evaluation/benchmark/experiment-metrics");
 const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
 
@@ -95,4 +96,27 @@ test("full experiment exposes metrics alongside results", async () => {
   assert.ok(exp.metrics.agreement.harness);
   assert.ok(exp.metrics.grounding);
   assert.ok(exp.metrics.compliance);
+});
+
+test("pairedComparison reports paired effect, CI, p-value, and MAE delta", () => {
+  const pairs = [
+    { sampleId: "1", baselineScore: 60, harnessScore: 70, humanScore: 72 },
+    { sampleId: "2", baselineScore: 70, harnessScore: 75, humanScore: 74 },
+    { sampleId: "3", baselineScore: 80, harnessScore: 78, humanScore: 80 },
+    { sampleId: "4", baselineScore: 50, harnessScore: 65, humanScore: 64 },
+  ];
+  const r = pairedComparison(pairs, { bootstrapSamples: 1000, seed: 42 });
+  assert.equal(r.n, 4);
+  assert.equal(r.meanDelta, 7);
+  assert.equal(r.medianDelta, 7.5);
+  assert.ok(Number.isFinite(r.effectSizeCohenDz));
+  assert.ok(r.confidenceInterval95.lower <= r.meanDelta);
+  assert.ok(r.confidenceInterval95.upper >= r.meanDelta);
+  assert.ok(r.permutationPValue >= 0 && r.permutationPValue <= 1);
+  assert.ok(r.pairedMae);
+  assert.ok(Number.isFinite(r.pairedMae.meanDelta));
+});
+
+test("pairedComparison returns null without complete paired scores", () => {
+  assert.equal(pairedComparison([{ baselineScore: 70 }]), null);
 });

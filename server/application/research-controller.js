@@ -19,6 +19,7 @@ module.exports = async function researchController(req, res) {
       if (action === "metrics") return sendJson(res, 200, await research.compareAiVsHuman(assessmentId, auth.tenant.id));
       if (action === "rubric") return sendJson(res, 200, await research.rubricCompliance(assessmentId, auth.tenant.id));
       if (action === "calibration") return sendJson(res, 200, await research.compareCalibration(assessmentId, auth.tenant.id));
+      if (action === "validity") return sendJson(res, 200, await research.validityReport(assessmentId, auth.tenant.id));
       if (action === "reliability") return sendJson(res, 200, await research.reliabilityDashboard(auth.tenant.id));
       if (action === "drift") return sendJson(res, 200, await research.detectDrift(auth.tenant.id));
       if (action === "repeatability") return sendJson(res, 200, await research.repeatabilitySummary(auth.tenant.id));

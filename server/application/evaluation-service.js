@@ -4,6 +4,8 @@ const { evaluateWithHarness } = require("../harness/harness-evaluator");
 const submissionService = require("./submission-service");
 const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require("../security/assessment-integrity");
 const crypto = require("node:crypto");
+const { evaluationHash } = require("../security/evaluation-integrity");
+const { persistEvaluationTrace } = require("../evaluation/trace-persister");
 
 const ACTIONS = ["evaluate", "generate-probing", "create-attempt"];
 
@@ -21,7 +23,13 @@ async function assertCanEvaluate(action, payload, auth) {
     const error = Object.assign(new Error("attemptId wajib untuk assessment resmi"), { status: 400, code: "ATTEMPT_REQUIRED" });
     throw error;
   }
-  // Production student assessments are fail-closed: only OpenRouter may publish\n  // an official score. E2E explicitly opts into the deterministic MockProvider\n  // through a server-only test flag; this flag is never enabled in production.\n  const testMockEvaluation = process.env.E2E_ALLOW_MOCK_EVALUATION === "true";\n  if (process.env.HARNESS_PROVIDER !== "openrouter" && !testMockEvaluation) {\n    throw Object.assign(new Error("Asesor AI resmi belum tersedia. Assessment tidak dapat dinilai."), { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" });\n  }
+  // Production student assessments are fail-closed: only OpenRouter may publish
+  // an official score. E2E explicitly opts into the deterministic MockProvider
+  // through a server-only test flag; this flag is never enabled in production.
+  const testMockEvaluation = process.env.NODE_ENV !== "production" && process.env.E2E_ALLOW_MOCK_EVALUATION === "true";
+  if (process.env.HARNESS_PROVIDER !== "openrouter" && !testMockEvaluation) {
+    throw Object.assign(new Error("Asesor AI resmi belum tersedia. Assessment tidak dapat dinilai."), { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" });
+  }
   const attempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
   if (attempt.assessment_id !== payload.assessmentId) {
     throw Object.assign(new Error("Attempt tidak cocok dengan assessment"), { status: 409, code: "ATTEMPT_ASSESSMENT_MISMATCH" });
@@ -131,20 +139,21 @@ async function evaluate(payload, auth, onProgress = null) {
       assessmentHash,
       rubricHash: expectedAttempt.rubric_hash,
       answerHash,
-      evaluationHash: hashObject({
-        evaluationId: result.evaluationId || null,
-        evaluationRunId: result.evaluationRunId || null,
-        finalScore: result.finalScore,
-        criteria: result.criteria || [],
-      }),
+      evaluationHash: null,
       attemptId: payload.attemptId,
     },
   };
+  // The hash snapshot is computed after initialization (it intentionally excludes
+  // integrity metadata), avoiding a temporal-dead-zone ReferenceError.
+  submission.integrity.evaluationHash = evaluationHash(submission);
 
+  await persistEvaluationTrace({ mode: "seal", runId: submission.evaluationRunId, tenantId: auth.tenant.id, result: submission });
   await submissionService.saveEvaluatedSubmission(auth, submission);
   await submissionService.finalizeAssessmentAttempt(auth, payload.attemptId, submission, {
     assessmentHash,
     rubricHash: expectedAttempt.rubric_hash,
+    answerHash,
+    evaluationHash: submission.integrity.evaluationHash,
     submissionHash: hashObject(submission),
   });
 

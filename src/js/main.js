@@ -36,6 +36,7 @@ const ROLE_FEATURES = {
     monitoring: () => import("./monitoring.js"),
     apiKeys: () => import("./api-keys.js"),
     research: () => import("./research.js"),
+    researchLab: () => import("./research-lab.js"),
     observability: () => import("./observability.js"),
     questionBank: () => import("./question-bank.js"),
     notifications: () => import("./notifications.js"),
@@ -69,6 +70,7 @@ function bindAdminFeatures(ctx, modules) {
   modules.monitoring?.bindMonitoringEvents(ctx);
   modules.apiKeys?.bindApiKeyEvents(ctx);
   modules.research?.bindResearchEvents(ctx);
+  modules.researchLab?.bindResearchLabEvents(ctx);
   modules.observability?.bindObservabilityEvents(ctx);
   modules.questionBank?.bindQuestionBankEvents(ctx);
   modules.notifications?.startNotificationListener(ctx);

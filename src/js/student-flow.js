@@ -56,6 +56,7 @@ export function bindStudentFlowEvents(ctx) {
     els.backToDashboard.addEventListener("click", async () => {
       ctx.recorder.stop();
       stopQuestionTimer(ctx);
+      stopExamFocusMonitoring(ctx);
       resetProbingState(ctx);
       ctx.session.currentAssessmentId = null;
       await renderStudentState(ctx);
@@ -134,6 +135,10 @@ export function openPreExamModal(ctx, assessment, trigger = null) {
   if (els.preExamTitle) els.preExamTitle.textContent = assessment.topic || "Penilaian";
   if (els.preExamMeta) els.preExamMeta.innerHTML = buildPreExamMeta(ctx, assessment);
   resetPreExamMicUi(ctx);
+  if (els.preExamFullscreenStatus) {
+    els.preExamFullscreenStatus.textContent = "Sebelum ujian dimulai, layar penuh dan fokus jendela akan diperiksa.";
+    els.preExamFullscreenStatus.classList.remove("ok", "error");
+  }
 
   const isOralExam = assessment.oralExamEnabled !== false;
   els.preExamMicSection?.classList.toggle("hidden", !isOralExam);
@@ -301,16 +306,27 @@ async function startExamFromModal(ctx) {
   ctx.isStartingExam = true;
   if (ctx.els.preExamStart) ctx.els.preExamStart.disabled = true;
   try {
+    // requestFullscreen must happen directly in the user's click gesture.
+    if (!(await ensureExamFullscreen(ctx))) return;
     closePreExamModal(ctx, { returnFocus: false });
     await startExam(ctx, assessmentId);
   } finally {
     ctx.isStartingExam = false;
+    if (ctx.els.preExamStart && ctx.pendingExamAssessmentId) {
+      ctx.els.preExamStart.disabled = false;
+    }
   }
 }
 
 /** Titik tunggal yang benar-benar memulai ujian: soal tampil dan timer berjalan. */
 export async function startExam(ctx, assessmentId) {
   const { els } = ctx;
+  ctx.isAutoFinishingExam = false;
+  // Defense in depth: no attempt or timer may start outside fullscreen/focus.
+  if (!(await ensureExamFullscreen(ctx))) {
+    if (els.preExamModal) els.preExamModal.classList.remove("hidden");
+    return;
+  }
   ctx.recorder.stop();
   const assessment = ctx.state.assessments.find((item) => item.id === assessmentId);
   if (!assessment) {
@@ -331,10 +347,19 @@ export async function startExam(ctx, assessmentId) {
   els.resultPanel.classList.add("hidden");
   await renderStudentState(ctx);
   await startRecorderForCurrentAssessment(ctx);
-  startQuestionTimer(ctx);
   ctx.questionStartTime = Date.now();
 
-  // Warn before closing tab during active exam.
+  // Start monitoring before the timer and re-check after async setup, so a
+  // focus change during rendering cannot slip through the readiness gate.
+  startExamFocusMonitoring(ctx);
+  if (!document.fullscreenElement || document.visibilityState !== "visible" || !document.hasFocus()) {
+    if (!document.fullscreenElement) ctx.examFocusMonitoring?.onFullscreenChange();
+    else ctx.examFocusMonitoring?.onBlur();
+    return;
+  }
+  startQuestionTimer(ctx);
+
+  // Warn before closing tab during active exam and enforce focus/fullscreen.
   window.addEventListener("beforeunload", beforeUnloadHandler);
 }
 
@@ -546,6 +571,88 @@ function renderProbing(ctx, probing) {
   if (els.saveAnswer) els.saveAnswer.textContent = "Simpan & lanjut";
 }
 
+async function ensureExamFullscreen(ctx) {
+  const status = ctx.els.preExamFullscreenStatus;
+  const setStatus = (message, ready = false) => {
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle("ok", ready);
+    status.classList.toggle("error", !ready);
+  };
+
+  if (document.visibilityState !== "visible" || !document.hasFocus()) {
+    setStatus("Jendela browser belum aktif. Klik kembali ke jendela ujian, lalu coba mulai lagi.");
+    setPreExamNote(ctx, "Ujian tidak dapat dimulai saat jendela browser tidak aktif.", true);
+    return false;
+  }
+
+  try {
+    if (!document.fullscreenElement) {
+      if (typeof document.documentElement.requestFullscreen !== "function") {
+        throw new Error("Browser ini tidak mendukung Fullscreen API.");
+      }
+      await document.documentElement.requestFullscreen();
+    }
+  } catch (error) {
+    setStatus("Layar penuh belum aktif. Izinkan mode layar penuh, lalu tekan Mulai lagi.");
+    setPreExamNote(ctx, "Ujian wajib dimulai dalam mode layar penuh. Izinkan permintaan fullscreen dari browser.", true);
+    return false;
+  }
+
+  const ready = Boolean(document.fullscreenElement)
+    && document.visibilityState === "visible"
+    && document.hasFocus();
+  setStatus(
+    ready
+      ? "✓ Layar penuh aktif dan jendela ujian sedang fokus."
+      : "Layar penuh dan fokus jendela belum terpenuhi. Aktifkan kembali jendela ujian.",
+    ready,
+  );
+  if (!ready) setPreExamNote(ctx, "Ujian tidak dapat dimulai sebelum layar penuh aktif dan jendela ujian fokus.", true);
+  return ready;
+}
+
+function stopExamFocusMonitoring(ctx) {
+  const monitor = ctx.examFocusMonitoring;
+  if (!monitor) return;
+  window.removeEventListener("blur", monitor.onBlur);
+  document.removeEventListener("visibilitychange", monitor.onVisibilityChange);
+  document.removeEventListener("fullscreenchange", monitor.onFullscreenChange);
+  ctx.examFocusMonitoring = null;
+}
+
+function startExamFocusMonitoring(ctx) {
+  stopExamFocusMonitoring(ctx);
+  const violate = (reason) => {
+    if (!ctx.examFocusMonitoring || ctx.isEvaluating || ctx.isAutoFinishingExam) return;
+    ctx.isAutoFinishingExam = true;
+    stopExamFocusMonitoring(ctx);
+    stopQuestionTimer(ctx);
+    ctx.recorder.stop();
+    showToast(
+      reason === "fullscreen"
+        ? "Ujian diakhiri otomatis karena Anda keluar dari mode layar penuh."
+        : "Ujian diakhiri otomatis karena jendela ujian kehilangan fokus.",
+      "error",
+    );
+    // No confirmation dialog: preserve the current answer and submit immediately.
+    void handleFinishAssessment(ctx);
+  };
+  const monitor = {
+    onBlur: () => violate("focus"),
+    onVisibilityChange: () => {
+      if (document.visibilityState !== "visible") violate("focus");
+    },
+    onFullscreenChange: () => {
+      if (!document.fullscreenElement) violate("fullscreen");
+    },
+  };
+  ctx.examFocusMonitoring = monitor;
+  window.addEventListener("blur", monitor.onBlur);
+  document.addEventListener("visibilitychange", monitor.onVisibilityChange);
+  document.addEventListener("fullscreenchange", monitor.onFullscreenChange);
+}
+
 function beforeUnloadHandler(e) {
   e.preventDefault();
   e.returnValue = "";
@@ -732,6 +839,7 @@ export async function handleFinishAssessment(ctx) {
   const { els } = ctx;
   if (ctx.isEvaluating) return;
   clearBeforeUnload();
+  stopExamFocusMonitoring(ctx);
   const assessment = ctx.session.getCurrentAssessment();
   if (!assessment) return;
 

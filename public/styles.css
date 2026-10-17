@@ -3738,3 +3738,24 @@ html.dark-mode .ai-stream-panel {
   .student-competency-card { padding: 15px; }
 }
 html.dark-mode .student-competency-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.24); }
+
+
+/* Fullscreen/focus status in the pre-exam readiness dialog. */
+.pre-exam-fullscreen-status {
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+.pre-exam-fullscreen-status.ok {
+  border-color: #16a34a;
+  color: #166534;
+  background: #f0fdf4;
+}
+.pre-exam-fullscreen-status.error {
+  border-color: #dc2626;
+  color: #991b1b;
+  background: #fef2f2;
+}

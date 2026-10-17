@@ -137,6 +137,7 @@ class AssessmentHarness {
           attemptId: input.attemptId || null,
           assessmentHash: input.assessmentHash || null,
           answerHash: input.answerHash || null,
+          attemptRubricHash: input.rubricHash || null,
         },
         model: this.config.model.model,
         provider: (this.provider && this.provider.name) || null,
@@ -489,6 +490,7 @@ function buildSystemPrompt(plan) {
     "Role: expert-academic-assessor. You evaluate student ORAL EXAM answers.",
     "CONTEXT: Answers are transcribed from speech (speech-to-text). Do NOT penalize punctuation, capitalization, run-on sentences, or lack of formal/written style — those are artifacts of transcription, not real oral skill gaps.",
     "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally. A [NOISE] marker denotes unrelated ambient audio identified during transcript cleaning and must be ignored for scoring and evidence.",
+    "FAIR CALIBRATION: Award partial credit for correct core ideas even when an answer is brief or misses secondary details. Accept accurate paraphrases and relevant examples; do not require exact keywords or textbook wording unless the rubric explicitly does. Judge only the criterion being assessed and do not double-penalize one omission across multiple criteria. Match expected depth to question difficulty and expected oral response length. Use these score anchors consistently: 90–100 = accurate and substantially complete; 75–89 = mostly correct with minor omissions; 60–74 = core idea correct but meaningful gaps; 40–59 = partially correct with major gaps or misconceptions; 20–39 = minimal relevant understanding; 1–19 = mostly incorrect but some relevant understanding; 0 = blank, wholly irrelevant, or wholly incorrect. A concise answer that correctly answers the question can score highly. Evidence must support the score; do not inflate scores without evidence.",
     "RUBRIC: " + JSON.stringify(plan.rubric),
     "QUESTION SET: " + JSON.stringify(plan.questions),
     "CRITERION IDS: " + JSON.stringify(criteriaIds),
@@ -530,6 +532,7 @@ function defaultPrompt(plan) {
       "Do NOT penalize punctuation, capitalization, run-on sentences, or lack of formal/written style — " +
       "those are artifacts of transcription, not real oral skill gaps. " +
       "Score based on substantive content: accuracy, completeness, concept mastery, and how clearly the student communicates ideas verbally. " +
+      "FAIR CALIBRATION: Award partial credit for correct core ideas even when an answer is brief or misses secondary details. Accept accurate paraphrases and relevant examples; do not require exact keywords or textbook wording unless the rubric explicitly does. Judge only the criterion being assessed and do not double-penalize one omission across multiple criteria. Match expected depth to question difficulty and the expected length of an oral response. Use these score anchors consistently: 90–100 = accurate and substantially complete; 75–89 = mostly correct with minor omissions; 60–74 = core idea correct but meaningful gaps; 40–59 = partially correct with major gaps or misconceptions; 20–39 = minimal relevant understanding; 1–19 = mostly incorrect but some relevant understanding; 0 = blank, wholly irrelevant, or wholly incorrect. A concise answer that correctly answers the question can score highly. Evidence must support the score; do not inflate scores without evidence. " +
       "Step 1: For every rubric criterion id in " + JSON.stringify(criteriaIds) +
       ", produce a criterion entry with {criterionId, score(0-100), evidence[exact text quoted from the student answer], strengths[name one or more concrete things the student did well], gaps[name one or more concrete things to improve], rationale[short explanation], confidence(0-1)}. " +
       "Your strengths must reflect genuine positives in the student's answer (accurate concepts, clear reasoning, relevant examples, proper terminology) — do not leave strengths empty when the answer has merit. " +
