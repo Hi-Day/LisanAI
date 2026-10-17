@@ -32,6 +32,8 @@ test("evaluation application service owns evaluation and probing orchestration",
   assert.match(source, /async function executeStreamingAction/);
   assert.match(source, /buildAdaptiveProbe/);
   assert.match(source, /assertCanEvaluate/);
+  assert.match(source, /process\.env\.NODE_ENV !== ["']production["']/);
+  assert.match(source, /E2E_ALLOW_MOCK_EVALUATION/);
   assert.doesNotMatch(source, /getDb\s*\(/);
   assert.doesNotMatch(source, /\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
 });

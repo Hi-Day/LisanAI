@@ -26,7 +26,7 @@ async function assertCanEvaluate(action, payload, auth) {
   // Production student assessments are fail-closed: only OpenRouter may publish
   // an official score. E2E explicitly opts into the deterministic MockProvider
   // through a server-only test flag; this flag is never enabled in production.
-  const testMockEvaluation = process.env.E2E_ALLOW_MOCK_EVALUATION === "true";
+  const testMockEvaluation = process.env.NODE_ENV !== "production" && process.env.E2E_ALLOW_MOCK_EVALUATION === "true";
   if (process.env.HARNESS_PROVIDER !== "openrouter" && !testMockEvaluation) {
     throw Object.assign(new Error("Asesor AI resmi belum tersedia. Assessment tidak dapat dinilai."), { status: 503, code: "OFFICIAL_EVALUATION_UNAVAILABLE" });
   }
