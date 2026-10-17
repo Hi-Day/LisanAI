@@ -135,6 +135,10 @@ export function openPreExamModal(ctx, assessment, trigger = null) {
   if (els.preExamTitle) els.preExamTitle.textContent = assessment.topic || "Penilaian";
   if (els.preExamMeta) els.preExamMeta.innerHTML = buildPreExamMeta(ctx, assessment);
   resetPreExamMicUi(ctx);
+  if (els.preExamFullscreenStatus) {
+    els.preExamFullscreenStatus.textContent = "Sebelum ujian dimulai, layar penuh dan fokus jendela akan diperiksa.";
+    els.preExamFullscreenStatus.classList.remove("ok", "error");
+  }
 
   const isOralExam = assessment.oralExamEnabled !== false;
   els.preExamMicSection?.classList.toggle("hidden", !isOralExam);
