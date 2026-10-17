@@ -12,7 +12,7 @@ const { initDatabase, getDb } = require("../server/database");
 const { evaluateWithHarness, structuredRubric, splitFeedback, buildQuestionScores, calculateAlignedFinalScore } = require("../server/harness/harness-evaluator");
 const { persistEvaluationTrace } = require("../server/evaluation/trace-persister");
 const { createHarness } = require("../server/harness");
-const { defaultPrompt } = require("../server/harness/harness");
+const { defaultPrompt, buildSystemPrompt } = require("../server/harness/harness");
 const { MockProvider } = require("../server/ai/mock-provider");
 const { parse } = require("../server/ai/response-parser");
 
@@ -428,4 +428,10 @@ test("LLM judge prompt uses fair score anchors and awards justified partial cred
   assert.match(prompt.instruction, /FAIR CALIBRATION/);
   assert.match(prompt.instruction, /75–89 = mostly correct with minor omissions/);
   assert.match(prompt.instruction, /A concise answer that correctly answers the question can score highly/);
+  const liveSystemPrompt = buildSystemPrompt({
+    rubric: { criteria: [{ id: "concept", name: "Pemahaman konsep", weight: 1 }] },
+    questions: [{ prompt: "Jelaskan konsep" }],
+  });
+  assert.match(liveSystemPrompt, /FAIR CALIBRATION/);
+  assert.match(liveSystemPrompt, /75–89 = mostly correct with minor omissions/);
 });

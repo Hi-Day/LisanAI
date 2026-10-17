@@ -317,6 +317,7 @@ async function startExamFromModal(ctx) {
 /** Titik tunggal yang benar-benar memulai ujian: soal tampil dan timer berjalan. */
 export async function startExam(ctx, assessmentId) {
   const { els } = ctx;
+  ctx.isAutoFinishingExam = false;
   // Defense in depth: no attempt or timer may start outside fullscreen/focus.
   if (!(await ensureExamFullscreen(ctx))) {
     if (els.preExamModal) els.preExamModal.classList.remove("hidden");
