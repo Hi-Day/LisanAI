@@ -35,7 +35,7 @@ function verifyPersistedEvaluation({ submission, run }) {
   if (!integrity.answerHash || integrity.answerHash !== run.answer_hash) {
     issues.push({ type: "ANSWER_HASH_MISMATCH", message: "Answer hash submission berbeda dari evaluation run." });
   }
-  if (!integrity.rubricHash || integrity.rubricHash !== run.rubric_hash) {
+  if (!integrity.rubricHash || integrity.rubricHash !== run.attempt_rubric_hash) {
     issues.push({ type: "RUBRIC_HASH_MISMATCH", message: "Rubric hash submission berbeda dari evaluation run." });
   }
   if (!integrity.evaluationHash || !run.evaluation_hash || integrity.evaluationHash !== run.evaluation_hash) {
