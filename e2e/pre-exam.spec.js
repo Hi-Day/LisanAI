@@ -19,6 +19,21 @@ test.describe("Pre-exam readiness modal", () => {
     await expect(page.locator("#preExamStart")).toBeDisabled();
   });
 
+  test("exam starts in fullscreen and leaving fullscreen automatically submits", async ({ page }) => {
+    await page.click(`.assessment-card[data-id='${WRITTEN_ID}'] .start-assessment-btn`);
+    await expect(page.locator("#preExamModal")).toBeVisible();
+    await page.click("#preExamStart");
+    await expect(page.locator("#studentWorkspace")).toBeVisible();
+    expect(await page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+
+    await page.fill("#answerText", "Fotosintesis mengubah energi cahaya menjadi energi kimia.");
+    await page.evaluate(async () => {
+      if (document.fullscreenElement) await document.exitFullscreen();
+    });
+    await expect(page.locator("#evaluationLoadingModal")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 30_000 });
+  });
+
   test("closing the modal keeps the student on the dashboard", async ({ page }) => {
     await page.click(`.assessment-card[data-id='${ORAL_ID}'] .start-assessment-btn`);
     await expect(page.locator("#preExamModal")).toBeVisible();

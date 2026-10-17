@@ -343,12 +343,20 @@ export async function startExam(ctx, assessmentId) {
   els.resultPanel.classList.add("hidden");
   await renderStudentState(ctx);
   await startRecorderForCurrentAssessment(ctx);
-  startQuestionTimer(ctx);
   ctx.questionStartTime = Date.now();
+
+  // Start monitoring before the timer and re-check after async setup, so a
+  // focus change during rendering cannot slip through the readiness gate.
+  startExamFocusMonitoring(ctx);
+  if (!document.fullscreenElement || document.visibilityState !== "visible" || !document.hasFocus()) {
+    if (!document.fullscreenElement) ctx.examFocusMonitoring?.onFullscreenChange();
+    else ctx.examFocusMonitoring?.onBlur();
+    return;
+  }
+  startQuestionTimer(ctx);
 
   // Warn before closing tab during active exam and enforce focus/fullscreen.
   window.addEventListener("beforeunload", beforeUnloadHandler);
-  startExamFocusMonitoring(ctx);
 }
 
 /** Bersihkan status probing agar tidak bocor antar sesi/soal. */
