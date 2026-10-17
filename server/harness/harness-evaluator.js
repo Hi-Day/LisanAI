@@ -57,6 +57,7 @@ async function evaluateWithHarness(payload) {
     studentName: payload.studentName,
     tenantId: payload.tenantId || (payload.auth && payload.auth.tenant && payload.auth.tenant.id),
     userId: payload.userId || (payload.auth && payload.auth.user && payload.auth.user.id),
+    rubricHash: payload.rubricHash || null,
     meta: { route: "harness", source: "assessment-api" },
   });
 
