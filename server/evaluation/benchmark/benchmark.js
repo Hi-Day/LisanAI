@@ -71,6 +71,9 @@ async function runSampleHarness(harness, sample, opts = {}) {
     assessment: {
       id: opts.assessmentId || `bench-${sid}`,
       topic: sample.question ? String(sample.question).slice(0, 60) : null,
+      // The judge needs the actual question, not only its topic, to score the
+      // answer against the intended learning objective.
+      questions: [{ id: `q-${sid}`, prompt: sample.question, question: sample.question }],
     },
     rubric: sample.rubric,
     answers: Array.isArray(sample.studentAnswers) ? sample.studentAnswers : [sample.studentAnswers],
