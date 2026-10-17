@@ -57,6 +57,12 @@ async function evaluateWithHarness(payload) {
     studentName: payload.studentName,
     tenantId: payload.tenantId || (payload.auth && payload.auth.tenant && payload.auth.tenant.id),
     userId: payload.userId || (payload.auth && payload.auth.user && payload.auth.user.id),
+    // Preserve the official assessment-attempt bindings in the persisted trace.
+    // The reproducibility rubric hash is a separate field and must not replace this one.
+    submissionId: payload.submissionId || null,
+    attemptId: payload.attemptId || null,
+    assessmentHash: payload.assessmentHash || null,
+    answerHash: payload.answerHash || null,
     rubricHash: payload.rubricHash || null,
     meta: { route: "harness", source: "assessment-api" },
   });
