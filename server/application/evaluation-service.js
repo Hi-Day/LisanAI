@@ -139,10 +139,13 @@ async function evaluate(payload, auth, onProgress = null) {
       assessmentHash,
       rubricHash: expectedAttempt.rubric_hash,
       answerHash,
-      evaluationHash: evaluationHash(submission),
+      evaluationHash: null,
       attemptId: payload.attemptId,
     },
   };
+  // The hash snapshot is computed after initialization (it intentionally excludes
+  // integrity metadata), avoiding a temporal-dead-zone ReferenceError.
+  submission.integrity.evaluationHash = evaluationHash(submission);
 
   await persistEvaluationTrace({ mode: "seal", runId: submission.evaluationRunId, tenantId: auth.tenant.id, result: submission });
   await submissionService.saveEvaluatedSubmission(auth, submission);
