@@ -201,13 +201,13 @@ async function finalizeAssessmentAttempt(db, auth, attemptId, submission, hashes
   }
   if (hashes.evaluationHash) {
     const run = await db.get(
-      "SELECT attempt_id, assessment_hash, answer_hash, rubric_hash, evaluation_hash FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
+      "SELECT attempt_id, assessment_hash, answer_hash, attempt_rubric_hash, evaluation_hash FROM evaluation_runs WHERE run_id = ? AND tenant_id = ?",
       submission.evaluationRunId || null, auth.tenant.id,
     );
     if (!run || run.attempt_id !== attemptId ||
         run.assessment_hash !== (hashes.assessmentHash || row.assessment_hash) ||
         run.answer_hash !== hashes.answerHash ||
-        run.rubric_hash !== (hashes.rubricHash || row.rubric_hash) ||
+        run.attempt_rubric_hash !== (hashes.rubricHash || row.rubric_hash) ||
         run.evaluation_hash !== hashes.evaluationHash) {
       throw attemptError("Evaluation trace tidak konsisten dengan submission", 409, "EVALUATION_INTEGRITY_MISMATCH");
     }
