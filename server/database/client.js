@@ -60,6 +60,7 @@ async function initDatabase() {
   await ensureColumn("submissions", "user_id", "TEXT");
   await ensureColumn("evaluation_runs", "input_hash", "TEXT");
   await ensureColumn("evaluation_runs", "rubric_hash", "TEXT");
+  await ensureColumn("evaluation_runs", "attempt_rubric_hash", "TEXT");
   await ensureColumn("evaluation_runs", "prompt_hash", "TEXT");
   await ensureColumn("evaluation_runs", "config_hash", "TEXT");
   await ensureColumn("evaluation_runs", "published", "INTEGER");
