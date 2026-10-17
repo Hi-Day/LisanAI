@@ -50,7 +50,8 @@ test("persisted evaluation passes when all integrity bindings match", () => {
     attempt_id: "attempt_1",
     assessment_hash: "assessment_hash",
     answer_hash: "answer_hash",
-    rubric_hash: "rubric_hash",
+    rubric_hash: "research_rubric_hash",
+    attempt_rubric_hash: "rubric_hash",
     evaluation_hash: hash,
   };
   assert.deepEqual(verifyPersistedEvaluation({ submission, run }).status, "PASS");
@@ -72,12 +73,30 @@ test("tampered evaluation hash fails integrity verification", () => {
     attempt_id: "attempt_1",
     assessment_hash: "assessment_hash",
     answer_hash: "answer_hash",
-    rubric_hash: "rubric_hash",
+    rubric_hash: "research_rubric_hash",
+    attempt_rubric_hash: "rubric_hash",
     evaluation_hash: evaluationHash(result),
   };
   const out = verifyPersistedEvaluation({ submission, run });
   assert.equal(out.status, "FAIL");
   assert.ok(out.issues.some((issue) => issue.type === "EVALUATION_HASH_MISMATCH"));
+});
+
+test("attempt rubric binding is independent from research reproducibility rubric hash", () => {
+  const result = sampleResult();
+  const hash = evaluationHash(result);
+  const out = verifyPersistedEvaluation({
+    submission: {
+      integrity: { attemptId: "attempt_1", assessmentHash: "assessment_hash", answerHash: "answer_hash", rubricHash: "official_rubric_hash", evaluationHash: hash },
+      criteria: result.criteria,
+    },
+    run: {
+      attempt_id: "attempt_1", assessment_hash: "assessment_hash", answer_hash: "answer_hash",
+      rubric_hash: "research_reproducibility_hash", attempt_rubric_hash: "different_official_rubric_hash", evaluation_hash: hash,
+    },
+  });
+  assert.equal(out.status, "FAIL");
+  assert.ok(out.issues.some((issue) => issue.type === "RUBRIC_HASH_MISMATCH"));
 });
 
 test("tampered attempt binding fails integrity verification", () => {
@@ -92,7 +111,8 @@ test("tampered attempt binding fails integrity verification", () => {
       attempt_id: "attempt_owner",
       assessment_hash: "assessment_hash",
       answer_hash: "answer_hash",
-      rubric_hash: "rubric_hash",
+      rubric_hash: "research_rubric_hash",
+      attempt_rubric_hash: "rubric_hash",
       evaluation_hash: hash,
     },
   });
