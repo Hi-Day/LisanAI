@@ -13,9 +13,61 @@ const hasOpenRouterKey = Boolean(
 );
 
 const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+const criterionIdOf = (criterion) => String(
+  criterion && (criterion.criterionId || criterion.id || criterion.name) || ""
+).trim();
+const criterionScoreOf = (criterion) => {
+  const score = Number(criterion && criterion.score);
+  return Number.isFinite(score) ? score : null;
+};
+
+function logCriterionDiagnostics(sample, result) {
+  const rubricCriteria = sample.rubric.criteria || [];
+  const referenceScores = sample.humanCriterionScores || {};
+  const predictedById = new Map((result.criteria || []).map((criterion) => [
+    criterionIdOf(criterion),
+    criterion,
+  ]));
+  const expectedIds = rubricCriteria.map((criterion) => String(criterion.id));
+  const actualIds = [...predictedById.keys()];
+  const missingIds = expectedIds.filter((id) => !predictedById.has(id));
+  const unexpectedIds = actualIds.filter((id) => !expectedIds.includes(id));
+
+  console.log(`  Criterion coverage: expected=${expectedIds.length} | returned=${actualIds.length} | missing=${missingIds.length ? missingIds.join(",") : "none"} | unexpected=${unexpectedIds.length ? unexpectedIds.join(",") : "none"}`);
+
+  let weightedReference = 0;
+  let weightedPredicted = 0;
+  let comparableCriteria = 0;
+
+  for (const rubricCriterion of rubricCriteria) {
+    const id = String(rubricCriterion.id);
+    const weight = Number(rubricCriterion.weight || 0);
+    const reference = Number(referenceScores[id]);
+    const predicted = criterionScoreOf(predictedById.get(id));
+    const hasReference = Number.isFinite(reference);
+    const hasPrediction = Number.isFinite(predicted);
+    const referenceContribution = hasReference ? reference * weight : null;
+    const predictedContribution = hasPrediction ? predicted * weight : null;
+    const delta = hasReference && hasPrediction ? predicted - reference : null;
+    const contributionDelta = delta === null ? null : delta * weight;
+
+    if (hasReference) weightedReference += referenceContribution;
+    if (hasPrediction) weightedPredicted += predictedContribution;
+    if (hasReference && hasPrediction) comparableCriteria += 1;
+
+    const fmt = (value, digits = 1) => value === null ? "N/A" : value.toFixed(digits);
+    console.log(
+      `    ${id} | weight=${fmt(weight * 100, 0)}% | ref=${fmt(hasReference ? reference : null, 0)} | llm=${fmt(predicted, 0)} | delta=${delta === null ? "N/A" : (delta > 0 ? "+" : "") + fmt(delta, 0)} | weightedRef=${fmt(referenceContribution, 2)} | weightedLLM=${fmt(predictedContribution, 2)} | weightedDelta=${contributionDelta === null ? "N/A" : (contributionDelta > 0 ? "+" : "") + fmt(contributionDelta, 2)}`
+    );
+  }
+
+  console.log(
+    `  Criterion subtotal: reference=${weightedReference.toFixed(2)} | llm=${weightedPredicted.toFixed(2)} | comparable=${comparableCriteria}/${rubricCriteria.length} | note=weighted subtotals can be partial when criteria are missing`
+  );
+}
 
 async function main() {
-  console.log("\n========== LisanAI LLM Judge Calibration ==========");
+  console.log("\\n========== LisanAI LLM Judge Calibration ==========");
   console.log(`Dataset: ${datasetName} | samples: ${dataset.samples.length} | version: ${dataset.version || "unspecified"}`);
   console.log(`Schema validation: ${validation.valid ? "PASS" : "FAIL"} | invalid: ${validation.invalidCount || 0}`);
   assert.equal(validation.valid, true, JSON.stringify(validation));
@@ -38,7 +90,7 @@ async function main() {
       return;
     }
     console.log("Result: fixture valid; live evaluation skipped for this local build.");
-    console.log("===================================================\n");
+    console.log("===================================================\\n");
     return;
   }
 
@@ -71,6 +123,8 @@ async function main() {
       predicted: result.score,
       delta: result.score - sample.humanScore,
       absDelta: Math.abs(result.score - sample.humanScore),
+      result,
+      sample,
     };
   });
 
@@ -78,19 +132,29 @@ async function main() {
   const rmse = Math.sqrt(mean(comparable.map((row) => row.delta ** 2)));
   const withinFive = comparable.filter((row) => row.absDelta <= 5).length;
 
-  console.log("\nPer-case live results (positive delta = model over-scored):");
+  console.log("\\nPer-case live results (positive delta = model over-scored):");
   for (const row of comparable) {
     console.log(
       `  ${row.sampleId} | reference=${String(row.reference).padStart(3)} | llm=${String(row.predicted).padStart(3)} | delta=${String(row.delta).padStart(4)} | absDelta=${String(row.absDelta).padStart(3)}`
     );
   }
+
+  console.log("\\n========== PER-CRITERION DIAGNOSTICS ==========");
+  console.log("Each weightedDelta is the criterion's contribution to the overall score gap (LLM minus synthetic reference).");
+  console.log("Evidence/rationale are not printed to keep build logs compact and avoid leaking student response details.");
+  for (const row of comparable) {
+    console.log(`\\n[${row.sampleId}] overall reference=${row.reference} | llm=${row.predicted} | delta=${row.delta} | case=${row.sample.caseLabel || "unspecified"}`);
+    logCriterionDiagnostics(row.sample, row.result);
+  }
+  console.log("========== END PER-CRITERION DIAGNOSTICS ==========");
+
   console.log(`Live samples scored: ${comparable.length}/${dataset.samples.length}`);
   console.log(`MAE: ${mae.toFixed(2)} points`);
   console.log(`RMSE: ${rmse.toFixed(2)} points`);
   console.log(`Within ±5 points: ${withinFive}/${comparable.length} (${(100 * withinFive / comparable.length).toFixed(1)}%)`);
   console.log(`Target MAE <= 5: ${mae <= 5 ? "MET" : "NOT MET"} (informational; synthetic labels)`);
   console.log("Interpretation: these metrics are diagnostic only until the reference scores are validated by lecturers.");
-  console.log("===================================================\n");
+  console.log("===================================================\\n");
 }
 
 main().catch((error) => {
