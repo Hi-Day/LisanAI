@@ -67,7 +67,7 @@ function logCriterionDiagnostics(sample, result) {
 }
 
 async function main() {
-  console.log("\\n========== LisanAI LLM Judge Calibration ==========");
+  console.log("\n========== LisanAI LLM Judge Calibration ==========");
   console.log(`Dataset: ${datasetName} | samples: ${dataset.samples.length} | version: ${dataset.version || "unspecified"}`);
   console.log(`Schema validation: ${validation.valid ? "PASS" : "FAIL"} | invalid: ${validation.invalidCount || 0}`);
   assert.equal(validation.valid, true, JSON.stringify(validation));
@@ -90,7 +90,7 @@ async function main() {
       return;
     }
     console.log("Result: fixture valid; live evaluation skipped for this local build.");
-    console.log("===================================================\\n");
+    console.log("===================================================\n");
     return;
   }
 
@@ -132,18 +132,18 @@ async function main() {
   const rmse = Math.sqrt(mean(comparable.map((row) => row.delta ** 2)));
   const withinFive = comparable.filter((row) => row.absDelta <= 5).length;
 
-  console.log("\\nPer-case live results (positive delta = model over-scored):");
+  console.log("\nPer-case live results (positive delta = model over-scored):");
   for (const row of comparable) {
     console.log(
       `  ${row.sampleId} | reference=${String(row.reference).padStart(3)} | llm=${String(row.predicted).padStart(3)} | delta=${String(row.delta).padStart(4)} | absDelta=${String(row.absDelta).padStart(3)}`
     );
   }
 
-  console.log("\\n========== PER-CRITERION DIAGNOSTICS ==========");
+  console.log("\n========== PER-CRITERION DIAGNOSTICS ==========");
   console.log("Each weightedDelta is the criterion's contribution to the overall score gap (LLM minus synthetic reference).");
   console.log("Evidence/rationale are not printed to keep build logs compact and avoid leaking student response details.");
   for (const row of comparable) {
-    console.log(`\\n[${row.sampleId}] overall reference=${row.reference} | llm=${row.predicted} | delta=${row.delta} | case=${row.sample.caseLabel || "unspecified"}`);
+    console.log(`\n[${row.sampleId}] overall reference=${row.reference} | llm=${row.predicted} | delta=${row.delta} | case=${row.sample.caseLabel || "unspecified"}`);
     logCriterionDiagnostics(row.sample, row.result);
   }
   console.log("========== END PER-CRITERION DIAGNOSTICS ==========");
@@ -154,7 +154,7 @@ async function main() {
   console.log(`Within ±5 points: ${withinFive}/${comparable.length} (${(100 * withinFive / comparable.length).toFixed(1)}%)`);
   console.log(`Target MAE <= 5: ${mae <= 5 ? "MET" : "NOT MET"} (informational; synthetic labels)`);
   console.log("Interpretation: these metrics are diagnostic only until the reference scores are validated by lecturers.");
-  console.log("===================================================\\n");
+  console.log("===================================================\n");
 }
 
 main().catch((error) => {
