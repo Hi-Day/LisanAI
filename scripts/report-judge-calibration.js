@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const { loadDataset, validateDataset } = require("../server/evaluation/benchmark/dataset");
 const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
 
-const datasetName = "lisanai-calibration-v2";
+const datasetName = "lisanai-calibration-v3";
 const dataset = loadDataset(datasetName);
 const validation = validateDataset(dataset.samples);
 const isVercelBuild = process.env.VERCEL === "1";
@@ -69,6 +69,15 @@ function logCriterionDiagnostics(sample, result) {
 async function main() {
   console.log("\n========== LisanAI LLM Judge Calibration ==========");
   console.log(`Dataset: ${datasetName} | samples: ${dataset.samples.length} | version: ${dataset.version || "unspecified"}`);
+  console.log("Rubric policy: explicit distinction between correct, incomplete, omitted, and contradicted evidence.");
+  console.log("Reference scores: unchanged from v2; still synthetic and not lecturer-validated.");
+  const labelAuditCases = (dataset.metadata && dataset.metadata.label_audit && dataset.metadata.label_audit.cases) || [];
+  if (labelAuditCases.length) {
+    console.log("Provisional reference-label audit (scores intentionally unchanged):");
+    for (const auditCase of labelAuditCases) {
+      console.log(`  ${auditCase.sampleId} | ${auditCase.status} | ${auditCase.concern}`);
+    }
+  }
   console.log(`Schema validation: ${validation.valid ? "PASS" : "FAIL"} | invalid: ${validation.invalidCount || 0}`);
   assert.equal(validation.valid, true, JSON.stringify(validation));
   assert.equal(dataset.samples.length, 12, "Expected 12 calibration cases");
