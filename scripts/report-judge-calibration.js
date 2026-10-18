@@ -4,6 +4,7 @@ const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
 
 const datasetName = "lisanai-calibration-v3";
 const dataset = loadDataset(datasetName);
+const priorDataset = loadDataset("lisanai-calibration-v2");
 const validation = validateDataset(dataset.samples);
 const isVercelBuild = process.env.VERCEL === "1";
 const hasOpenRouterKey = Boolean(
@@ -81,6 +82,17 @@ async function main() {
   console.log(`Schema validation: ${validation.valid ? "PASS" : "FAIL"} | invalid: ${validation.invalidCount || 0}`);
   assert.equal(validation.valid, true, JSON.stringify(validation));
   assert.equal(dataset.samples.length, 12, "Expected 12 calibration cases");
+  assert.equal(priorDataset.samples.length, dataset.samples.length, "v2/v3 sample count must match");
+  const priorById = new Map(priorDataset.samples.map((sample) => [sample.sampleId, sample]));
+  for (const sample of dataset.samples) {
+    const prior = priorById.get(sample.sampleId);
+    assert.ok(prior, `v3 sample missing from v2: ${sample.sampleId}`);
+    assert.equal(sample.humanScore, prior.humanScore, `v3 must preserve v2 overall reference score: ${sample.sampleId}`);
+    assert.deepEqual(sample.humanCriterionScores, prior.humanCriterionScores, `v3 must preserve v2 criterion references: ${sample.sampleId}`);
+    assert.ok(sample.rubric.criteria.every((criterion) => criterion.description.includes("Evidence-state rule:")), `Missing evidence-state guidance: ${sample.sampleId}`);
+  }
+  console.log("Reference preservation: PASS | v3 overall and criterion labels match v2 exactly.");
+  console.log("Evidence-state rubric guidance: PASS | all criteria include the explicit evidence-state rule.");
 
   for (const sample of dataset.samples) {
     assert.ok(Number.isFinite(sample.humanScore), `Missing reference score: ${sample.sampleId}`);
