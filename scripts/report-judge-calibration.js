@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const { loadDataset, validateDataset } = require("../server/evaluation/benchmark/dataset");
 const { runExperiment } = require("../server/evaluation/benchmark/benchmark");
 
-const datasetName = "lisanai-calibration-v1";
+const datasetName = "lisanai-calibration-v2";
 const dataset = loadDataset(datasetName);
 const validation = validateDataset(dataset.samples);
 const isVercelBuild = process.env.VERCEL === "1";
