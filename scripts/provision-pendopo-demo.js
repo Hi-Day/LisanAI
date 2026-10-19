@@ -8,12 +8,13 @@ const { seedDemoData } = require("../server/seed-demo");
 
 const DEFAULTS = {
   tenantName: "Pendopo",
-  password: "Pendopo2026!",
   admin: { name: "Admin Pendopo", email: "admin@pendopo.lisan.ai", role: "admin" },
   teacher: { name: "Dosen Pendopo", email: "dosen@pendopo.lisan.ai", role: "teacher" },
   student1: { name: "Mahasiswa 1", email: "mahasiswa1@pendopo.lisan.ai", role: "student" },
   student2: { name: "Mahasiswa 2", email: "mahasiswa2@pendopo.lisan.ai", role: "student" },
 };
+
+let demoPassword = "";
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("base64url");
@@ -36,7 +37,7 @@ async function ensureTenantAndAdmin(db) {
       tenantName: DEFAULTS.tenantName,
       name: DEFAULTS.admin.name,
       email: DEFAULTS.admin.email,
-      password: DEFAULTS.password,
+      password: demoPassword,
     });
     return { tenant: result.tenant, admin: result.user };
   }
@@ -59,7 +60,7 @@ async function ensureTenantAndAdmin(db) {
       tenant.id,
       DEFAULTS.admin.name,
       DEFAULTS.admin.email,
-      await hashPassword(DEFAULTS.password),
+      await hashPassword(demoPassword),
       new Date().toISOString()
     );
     admin = await db.get("SELECT * FROM users WHERE id = ?", id);
@@ -67,7 +68,7 @@ async function ensureTenantAndAdmin(db) {
     await db.run(
       "UPDATE users SET name = ?, role = 'admin', password_hash = ? WHERE id = ? AND tenant_id = ?",
       DEFAULTS.admin.name,
-      await hashPassword(DEFAULTS.password),
+      await hashPassword(demoPassword),
       admin.id,
       tenant.id
     );
@@ -84,7 +85,7 @@ async function migrateAccount(db, tenantId, source, target) {
     target.name,
     target.email,
     target.role,
-    await hashPassword(DEFAULTS.password),
+    await hashPassword(demoPassword),
     source.id,
     tenantId
   );
@@ -119,7 +120,7 @@ async function normalizePendopoAccounts(db, tenantId) {
     await db.run(
       "UPDATE users SET name = ?, role = 'teacher', password_hash = ? WHERE id = ? AND tenant_id = ?",
       DEFAULTS.teacher.name,
-      await hashPassword(DEFAULTS.password),
+      await hashPassword(demoPassword),
       teacher.id,
       tenantId
     );
@@ -172,7 +173,7 @@ async function normalizePendopoAccounts(db, tenantId) {
       await db.run(
         "UPDATE users SET name = ?, role = 'student', password_hash = ? WHERE id = ? AND tenant_id = ?",
         desired[i].name,
-        await hashPassword(DEFAULTS.password),
+        await hashPassword(demoPassword),
         source.id,
         tenantId
       );
@@ -253,6 +254,9 @@ async function main() {
     return;
   }
 
+  demoPassword = process.env.PENDOPO_DEMO_PASSWORD || "";
+  if (!demoPassword) throw new Error("PENDOPO_DEMO_PASSWORD must be configured before Pendopo demo provisioning.");
+
   await initDatabase();
   const db = getDb();
   const { tenant, admin } = await ensureTenantAndAdmin(db);
@@ -273,7 +277,6 @@ async function main() {
 
   console.log("\n=== PENDOPO DEMO ===");
   console.log(`Tenant     : ${DEFAULTS.tenantName}`);
-  console.log(`Password   : ${DEFAULTS.password}`);
   console.log(`Admin      : ${DEFAULTS.admin.email}`);
   console.log(`Dosen      : ${DEFAULTS.teacher.email}`);
   console.log(`Mahasiswa 1: ${DEFAULTS.student1.email}`);

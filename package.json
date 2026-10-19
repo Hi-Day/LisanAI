@@ -1,5 +1,5 @@
 {
-  "name": "new-project",
+  "name": "lisanai-platform",
   "version": "1.0.0",
   "scripts": {
     "build": "node scripts/build.js && echo \"Static build ready\"",
@@ -15,10 +15,17 @@
     "seed:pendopo": "node scripts/provision-pendopo-demo.js",
     "seed:competency": "node scripts/repair-showcase-competency.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": [
+    "ai",
+    "oral-assessment",
+    "education",
+    "assessment",
+    "llm",
+    "speech"
+  ],
+  "author": "Hi-Day",
+  "license": "MIT",
+  "description": "AI-powered oral assessment platform for educators and students.",
   "dependencies": {
     "@libsql/client": "^0.17.3",
     "sqlite": "^5.1.1",
