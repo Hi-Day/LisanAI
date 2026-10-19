@@ -19,7 +19,7 @@ npm ci
 cp .env.example .env
 ```
 
-For local development without paid provider calls, configure the documented mock harness mode where appropriate. Use real provider credentials only in your local environment or a secure CI secret store; never paste them into issues or pull requests. Production showcase provisioning requires a unique, strong `SHOWCASE_ADMIN_PASSWORD` environment variable. Do not use a default/shared demo password; configure it in the deployment secret store, not in Git. The live deployment configuration must be verified before enabling showcase provisioning.
+For local development without paid provider calls, configure the documented mock harness mode where appropriate. Use real provider credentials only in your local environment or a secure CI secret store; never paste them into issues or pull requests. Production showcase provisioning requires a unique, strong `SHOWCASE_ADMIN_PASSWORD` environment variable, and Pendopo demo provisioning requires `PENDOPO_DEMO_PASSWORD`. Do not use default/shared demo passwords; configure them in the deployment secret store, not in Git. The live deployment configuration must be verified before enabling either provisioning path. The Pendopo build-time provisioning runs in production builds, so configure its secret before deploying this branch.
 
 Start the application:
 
