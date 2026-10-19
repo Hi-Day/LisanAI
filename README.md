@@ -1,5 +1,14 @@
 # Lisan.ai
 
+[![CI](https://github.com/Hi-Day/LisanAI/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Hi-Day/LisanAI/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![Open Issues](https://img.shields.io/github/issues/Hi-Day/LisanAI)](https://github.com/Hi-Day/LisanAI/issues)
+[![Open PRs](https://img.shields.io/github/issues-pr/Hi-Day/LisanAI)](https://github.com/Hi-Day/LisanAI/pulls)
+[![Last Commit](https://img.shields.io/github/last-commit/Hi-Day/LisanAI/master)](https://github.com/Hi-Day/LisanAI/commits/master)
+
+> Badge CI mengikuti branch `master`. Badge ini bersifat dinamis dan bukan jaminan bahwa semua pengujian atau deployment produksi berhasil. Coverage, versi rilis, dan statistik unduhan tidak ditampilkan karena belum ada sumber metrik terverifikasi.
+
 Platform assessment lisan berbasis AI untuk guru dan siswa dengan multi-tenant, kelas, approval join, speech input, evaluasi berbasis rubrik terverifikasi, dan dashboard riset.
 
 ## Fitur Utama
