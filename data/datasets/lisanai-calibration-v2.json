@@ -1,0 +1,613 @@
+{
+  "version": "lisanai-calibration-v2",
+  "metadata": {
+    "purpose": "Calibration set with multiple questions and per-question rubrics shaped like LisanAI-generated rubric criteria (id, name, description, weight).",
+    "language": "id",
+    "reference_scores_are_synthetic": true,
+    "design": "Four distinct questions; three response patterns each: strong, partial, and misconception/incorrect reasoning.",
+    "scoring_policy": "Score conceptual evidence, not exact wording. Accept valid paraphrases and equivalent notation. Do not penalize spelling, punctuation, grammar, capitalization, or speech-to-text artifacts unless meaning changes. Award criterion-level partial credit for correct components even when the overall answer is incomplete.",
+    "note": "All reference scores are provisional synthetic labels, not lecturer-validated ground truth. Review and calibrate with subject-matter lecturers before using for research claims."
+  },
+  "samples": [
+    {
+      "sampleId": "cal2-01",
+      "questionId": "q-photosynthesis",
+      "caseLabel": "Lengkap dan akurat",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai identifikasi air dan karbon dioksida sebagai bahan fotosintesis. 90–100: keduanya tepat; 60–89: satu bahan benar atau ada kekurangan kecil; 30–59: hanya menyebut bahan secara samar; 1–29: mayoritas keliru; 0: tidak ada bukti yang relevan. Terima istilah H2O/CO2 dan parafrasa yang maknanya tepat."
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa energi cahaya digunakan tumbuhan untuk mengubah bahan menjadi senyawa organik. 90–100: hubungan energi cahaya dan proses dijelaskan tepat; 60–89: inti benar tetapi mekanisme kurang lengkap; 30–59: hanya menyebut cahaya/proses tanpa hubungan jelas; 1–29: miskonsepsi dominan; 0: tidak relevan."
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai penyebutan glukosa/gula sebagai hasil dan oksigen sebagai produk yang dilepas. 90–100: keduanya tepat; 60–89: satu hasil tepat; 30–59: hasil disebut samar; 1–29: hasil utama keliru; 0: tidak ada bukti relevan. Jangan mensyaratkan istilah ilmiah persis jika maknanya jelas."
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan hubungan sebab-akibat",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai koherensi ilmiah dan hubungan antara bahan, energi, proses, dan hasil. 90–100: konsisten dan terhubung; 60–89: sebagian besar benar dengan celah minor; 30–59: daftar fakta tanpa hubungan atau ada kontradiksi; 1–29: miskonsepsi besar; 0: tidak ada jawaban relevan. Jangan kurangi nilai untuk ejaan, tanda baca, atau artefak transkripsi yang tidak mengubah makna."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tumbuhan menggunakan air dari tanah dan karbon dioksida dari udara. Klorofil menangkap energi cahaya untuk membantu mengubah keduanya menjadi glukosa, dan oksigen dilepaskan."
+      ],
+      "humanScore": 99,
+      "humanCriterionScores": {
+        "inputs": 100,
+        "process": 100,
+        "outputs": 100,
+        "concept": 95
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-02",
+      "questionId": "q-photosynthesis",
+      "caseLabel": "Jawaban parsial",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai identifikasi air dan karbon dioksida sebagai bahan fotosintesis. 90–100: keduanya tepat; 60–89: satu bahan benar atau ada kekurangan kecil; 30–59: hanya menyebut bahan secara samar; 1–29: mayoritas keliru; 0: tidak ada bukti yang relevan. Terima istilah H2O/CO2 dan parafrasa yang maknanya tepat."
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa energi cahaya digunakan tumbuhan untuk mengubah bahan menjadi senyawa organik. 90–100: hubungan energi cahaya dan proses dijelaskan tepat; 60–89: inti benar tetapi mekanisme kurang lengkap; 30–59: hanya menyebut cahaya/proses tanpa hubungan jelas; 1–29: miskonsepsi dominan; 0: tidak relevan."
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai penyebutan glukosa/gula sebagai hasil dan oksigen sebagai produk yang dilepas. 90–100: keduanya tepat; 60–89: satu hasil tepat; 30–59: hasil disebut samar; 1–29: hasil utama keliru; 0: tidak ada bukti relevan. Jangan mensyaratkan istilah ilmiah persis jika maknanya jelas."
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan hubungan sebab-akibat",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai koherensi ilmiah dan hubungan antara bahan, energi, proses, dan hasil. 90–100: konsisten dan terhubung; 60–89: sebagian besar benar dengan celah minor; 30–59: daftar fakta tanpa hubungan atau ada kontradiksi; 1–29: miskonsepsi besar; 0: tidak ada jawaban relevan. Jangan kurangi nilai untuk ejaan, tanda baca, atau artefak transkripsi yang tidak mengubah makna."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tumbuhan memakai sinar matahari untuk membuat makanan. Saya tahu air dibutuhkan, tetapi tidak ingat bahan gasnya atau hasil selain makanan."
+      ],
+      "humanScore": 61,
+      "humanCriterionScores": {
+        "inputs": 55,
+        "process": 75,
+        "outputs": 45,
+        "concept": 65
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-03",
+      "questionId": "q-photosynthesis",
+      "caseLabel": "Miskonsepsi hasil",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai identifikasi air dan karbon dioksida sebagai bahan fotosintesis. 90–100: keduanya tepat; 60–89: satu bahan benar atau ada kekurangan kecil; 30–59: hanya menyebut bahan secara samar; 1–29: mayoritas keliru; 0: tidak ada bukti yang relevan. Terima istilah H2O/CO2 dan parafrasa yang maknanya tepat."
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa energi cahaya digunakan tumbuhan untuk mengubah bahan menjadi senyawa organik. 90–100: hubungan energi cahaya dan proses dijelaskan tepat; 60–89: inti benar tetapi mekanisme kurang lengkap; 30–59: hanya menyebut cahaya/proses tanpa hubungan jelas; 1–29: miskonsepsi dominan; 0: tidak relevan."
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai penyebutan glukosa/gula sebagai hasil dan oksigen sebagai produk yang dilepas. 90–100: keduanya tepat; 60–89: satu hasil tepat; 30–59: hasil disebut samar; 1–29: hasil utama keliru; 0: tidak ada bukti relevan. Jangan mensyaratkan istilah ilmiah persis jika maknanya jelas."
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan hubungan sebab-akibat",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai koherensi ilmiah dan hubungan antara bahan, energi, proses, dan hasil. 90–100: konsisten dan terhubung; 60–89: sebagian besar benar dengan celah minor; 30–59: daftar fakta tanpa hubungan atau ada kontradiksi; 1–29: miskonsepsi besar; 0: tidak ada jawaban relevan. Jangan kurangi nilai untuk ejaan, tanda baca, atau artefak transkripsi yang tidak mengubah makna."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tumbuhan menyerap oksigen dan mengubahnya menjadi karbon dioksida dengan bantuan matahari. Hasil fotosintesisnya adalah air."
+      ],
+      "humanScore": 14,
+      "humanCriterionScores": {
+        "inputs": 20,
+        "process": 20,
+        "outputs": 0,
+        "concept": 10
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-04",
+      "questionId": "q-fractions",
+      "caseLabel": "Prosedur dan hasil benar",
+      "question": "Hitung 3/4 + 1/2. Jelaskan langkah yang kamu gunakan dan sederhanakan hasilnya jika perlu.",
+      "rubric": {
+        "id": "fraction-addition-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "method",
+            "name": "Strategi penjumlahan pecahan",
+            "weight": 0.4,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa penyebut perlu disamakan sebelum menjumlahkan pecahan. 90–100: strategi benar dan dijelaskan; 60–89: strategi benar tetapi langkah tidak lengkap; 30–59: ada langkah relevan namun keliru; 1–29: strategi utama salah; 0: tidak ada langkah relevan."
+          },
+          {
+            "id": "conversion",
+            "name": "Konversi ke penyebut yang sama",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Untuk 3/4 + 1/2, nilai konversi 1/2 menjadi 2/4 atau strategi ekuivalen. 90–100: konversi benar; 60–89: memahami ide tetapi ada kesalahan hitung minor; 30–59: mencoba konversi tetapi salah; 1–29: tidak menunjukkan pemahaman; 0: tidak ada bukti."
+          },
+          {
+            "id": "answer",
+            "name": "Hasil akhir dan penyederhanaan",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Hasil yang benar adalah 5/4 atau 1 1/4. 90–100: hasil ekuivalen benar; 60–89: nilai ekuivalen benar tetapi notasi kurang jelas; 30–59: hasil sebagian benar karena langkah sebelumnya; 1–29: jawaban akhir salah tanpa dukungan; 0: kosong/tidak relevan. Berikan kredit parsial jika prosedur benar meskipun ada kesalahan aritmetika."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Samakan penyebut menjadi empat. Tiga per empat ditambah dua per empat sama dengan lima per empat, yaitu satu seperempat."
+      ],
+      "humanScore": 100,
+      "humanCriterionScores": {
+        "method": 100,
+        "conversion": 100,
+        "answer": 100
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-05",
+      "questionId": "q-fractions",
+      "caseLabel": "Strategi benar, hitung akhir keliru",
+      "question": "Hitung 3/4 + 1/2. Jelaskan langkah yang kamu gunakan dan sederhanakan hasilnya jika perlu.",
+      "rubric": {
+        "id": "fraction-addition-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "method",
+            "name": "Strategi penjumlahan pecahan",
+            "weight": 0.4,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa penyebut perlu disamakan sebelum menjumlahkan pecahan. 90–100: strategi benar dan dijelaskan; 60–89: strategi benar tetapi langkah tidak lengkap; 30–59: ada langkah relevan namun keliru; 1–29: strategi utama salah; 0: tidak ada langkah relevan."
+          },
+          {
+            "id": "conversion",
+            "name": "Konversi ke penyebut yang sama",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Untuk 3/4 + 1/2, nilai konversi 1/2 menjadi 2/4 atau strategi ekuivalen. 90–100: konversi benar; 60–89: memahami ide tetapi ada kesalahan hitung minor; 30–59: mencoba konversi tetapi salah; 1–29: tidak menunjukkan pemahaman; 0: tidak ada bukti."
+          },
+          {
+            "id": "answer",
+            "name": "Hasil akhir dan penyederhanaan",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Hasil yang benar adalah 5/4 atau 1 1/4. 90–100: hasil ekuivalen benar; 60–89: nilai ekuivalen benar tetapi notasi kurang jelas; 30–59: hasil sebagian benar karena langkah sebelumnya; 1–29: jawaban akhir salah tanpa dukungan; 0: kosong/tidak relevan. Berikan kredit parsial jika prosedur benar meskipun ada kesalahan aritmetika."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Penyebutnya harus sama. Saya ubah 1/2 menjadi 2/4, lalu menjumlahkan pembilangnya tetapi menulis hasil 4/4."
+      ],
+      "humanScore": 77,
+      "humanCriterionScores": {
+        "method": 90,
+        "conversion": 100,
+        "answer": 35
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-06",
+      "questionId": "q-fractions",
+      "caseLabel": "Miskonsepsi operasi pecahan",
+      "question": "Hitung 3/4 + 1/2. Jelaskan langkah yang kamu gunakan dan sederhanakan hasilnya jika perlu.",
+      "rubric": {
+        "id": "fraction-addition-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "method",
+            "name": "Strategi penjumlahan pecahan",
+            "weight": 0.4,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa penyebut perlu disamakan sebelum menjumlahkan pecahan. 90–100: strategi benar dan dijelaskan; 60–89: strategi benar tetapi langkah tidak lengkap; 30–59: ada langkah relevan namun keliru; 1–29: strategi utama salah; 0: tidak ada langkah relevan."
+          },
+          {
+            "id": "conversion",
+            "name": "Konversi ke penyebut yang sama",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Untuk 3/4 + 1/2, nilai konversi 1/2 menjadi 2/4 atau strategi ekuivalen. 90–100: konversi benar; 60–89: memahami ide tetapi ada kesalahan hitung minor; 30–59: mencoba konversi tetapi salah; 1–29: tidak menunjukkan pemahaman; 0: tidak ada bukti."
+          },
+          {
+            "id": "answer",
+            "name": "Hasil akhir dan penyederhanaan",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Hasil yang benar adalah 5/4 atau 1 1/4. 90–100: hasil ekuivalen benar; 60–89: nilai ekuivalen benar tetapi notasi kurang jelas; 30–59: hasil sebagian benar karena langkah sebelumnya; 1–29: jawaban akhir salah tanpa dukungan; 0: kosong/tidak relevan. Berikan kredit parsial jika prosedur benar meskipun ada kesalahan aritmetika."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tiga per empat ditambah satu per dua menjadi empat per enam karena pembilang dijumlahkan dan penyebut juga dijumlahkan."
+      ],
+      "humanScore": 3,
+      "humanCriterionScores": {
+        "method": 0,
+        "conversion": 0,
+        "answer": 10
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-07",
+      "questionId": "q-binary-search",
+      "caseLabel": "Penjelasan lengkap",
+      "question": "Jelaskan cara kerja binary search untuk mencari target pada array yang terurut, termasuk kondisi berhenti dan kompleksitas waktunya.",
+      "rubric": {
+        "id": "binary-search-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "precondition",
+            "name": "Prasyarat data terurut",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai penyebutan bahwa binary search mensyaratkan data terurut. 90–100: menyatakan prasyarat dengan tepat; 60–89: tersirat jelas; 30–59: hanya menyebut urutan tanpa menjelaskan; 1–29: menunjukkan pemahaman yang keliru; 0: tidak ada bukti."
+          },
+          {
+            "id": "procedure",
+            "name": "Prosedur membagi ruang pencarian",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai pemilihan elemen tengah dan pembuangan setengah rentang berdasarkan perbandingan dengan target. 90–100: langkah inti benar; 60–89: benar tetapi ada detail yang hilang; 30–59: hanya sebagian langkah benar; 1–29: prosedur dominan salah; 0: tidak relevan."
+          },
+          {
+            "id": "termination",
+            "name": "Kondisi berhenti dan hasil pencarian",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai kondisi target ditemukan atau rentang pencarian habis/tidak ada elemen tersisa. 90–100: kondisi berhenti tepat; 60–89: sebagian tepat; 30–59: pemahaman parsial; 1–29: kondisi berhenti salah; 0: tidak ada bukti."
+          },
+          {
+            "id": "complexity",
+            "name": "Kompleksitas waktu",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai kompleksitas waktu O(log n) dan alasan ruang pencarian dibagi dua. 90–100: kompleksitas dan alasan tepat; 60–89: O(log n) benar tanpa penjelasan; 30–59: menyebut efisiensi tetapi notasi salah; 1–29: kompleksitas utama salah; 0: tidak ada bukti."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Binary search hanya digunakan pada data terurut. Periksa elemen tengah; jika target lebih kecil, lanjutkan ke separuh kiri, jika lebih besar ke separuh kanan. Berhenti ketika target ditemukan atau rentang kosong. Karena rentang dibagi dua setiap langkah, waktunya O(log n)."
+      ],
+      "humanScore": 100,
+      "humanCriterionScores": {
+        "precondition": 100,
+        "procedure": 100,
+        "termination": 100,
+        "complexity": 100
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-08",
+      "questionId": "q-binary-search",
+      "caseLabel": "Memahami inti, detail hilang",
+      "question": "Jelaskan cara kerja binary search untuk mencari target pada array yang terurut, termasuk kondisi berhenti dan kompleksitas waktunya.",
+      "rubric": {
+        "id": "binary-search-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "precondition",
+            "name": "Prasyarat data terurut",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai penyebutan bahwa binary search mensyaratkan data terurut. 90–100: menyatakan prasyarat dengan tepat; 60–89: tersirat jelas; 30–59: hanya menyebut urutan tanpa menjelaskan; 1–29: menunjukkan pemahaman yang keliru; 0: tidak ada bukti."
+          },
+          {
+            "id": "procedure",
+            "name": "Prosedur membagi ruang pencarian",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai pemilihan elemen tengah dan pembuangan setengah rentang berdasarkan perbandingan dengan target. 90–100: langkah inti benar; 60–89: benar tetapi ada detail yang hilang; 30–59: hanya sebagian langkah benar; 1–29: prosedur dominan salah; 0: tidak relevan."
+          },
+          {
+            "id": "termination",
+            "name": "Kondisi berhenti dan hasil pencarian",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai kondisi target ditemukan atau rentang pencarian habis/tidak ada elemen tersisa. 90–100: kondisi berhenti tepat; 60–89: sebagian tepat; 30–59: pemahaman parsial; 1–29: kondisi berhenti salah; 0: tidak ada bukti."
+          },
+          {
+            "id": "complexity",
+            "name": "Kompleksitas waktu",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai kompleksitas waktu O(log n) dan alasan ruang pencarian dibagi dua. 90–100: kompleksitas dan alasan tepat; 60–89: O(log n) benar tanpa penjelasan; 30–59: menyebut efisiensi tetapi notasi salah; 1–29: kompleksitas utama salah; 0: tidak ada bukti."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Lihat elemen tengah lalu pilih sisi yang mungkin berisi target. Ulangi sampai ketemu. Cara ini lebih cepat daripada memeriksa semua elemen, tetapi saya lupa notasi kompleksitasnya."
+      ],
+      "humanScore": 68,
+      "humanCriterionScores": {
+        "precondition": 65,
+        "procedure": 85,
+        "termination": 70,
+        "complexity": 35
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-09",
+      "questionId": "q-binary-search",
+      "caseLabel": "Miskonsepsi pembagian ruang",
+      "question": "Jelaskan cara kerja binary search untuk mencari target pada array yang terurut, termasuk kondisi berhenti dan kompleksitas waktunya.",
+      "rubric": {
+        "id": "binary-search-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "precondition",
+            "name": "Prasyarat data terurut",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai penyebutan bahwa binary search mensyaratkan data terurut. 90–100: menyatakan prasyarat dengan tepat; 60–89: tersirat jelas; 30–59: hanya menyebut urutan tanpa menjelaskan; 1–29: menunjukkan pemahaman yang keliru; 0: tidak ada bukti."
+          },
+          {
+            "id": "procedure",
+            "name": "Prosedur membagi ruang pencarian",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai pemilihan elemen tengah dan pembuangan setengah rentang berdasarkan perbandingan dengan target. 90–100: langkah inti benar; 60–89: benar tetapi ada detail yang hilang; 30–59: hanya sebagian langkah benar; 1–29: prosedur dominan salah; 0: tidak relevan."
+          },
+          {
+            "id": "termination",
+            "name": "Kondisi berhenti dan hasil pencarian",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai kondisi target ditemukan atau rentang pencarian habis/tidak ada elemen tersisa. 90–100: kondisi berhenti tepat; 60–89: sebagian tepat; 30–59: pemahaman parsial; 1–29: kondisi berhenti salah; 0: tidak ada bukti."
+          },
+          {
+            "id": "complexity",
+            "name": "Kompleksitas waktu",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai kompleksitas waktu O(log n) dan alasan ruang pencarian dibagi dua. 90–100: kompleksitas dan alasan tepat; 60–89: O(log n) benar tanpa penjelasan; 30–59: menyebut efisiensi tetapi notasi salah; 1–29: kompleksitas utama salah; 0: tidak ada bukti."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Binary search memeriksa setiap elemen dari indeks pertama sampai akhir satu per satu. Data tidak perlu diurutkan dan kompleksitasnya selalu O(1)."
+      ],
+      "humanScore": 5,
+      "humanCriterionScores": {
+        "precondition": 0,
+        "procedure": 0,
+        "termination": 20,
+        "complexity": 0
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-10",
+      "questionId": "q-proclamation",
+      "caseLabel": "Penjelasan kontekstual dan tepat",
+      "question": "Jelaskan konteks menjelang Proklamasi Kemerdekaan Indonesia, peran tokoh yang terlibat, dan makna proklamasi bagi Indonesia.",
+      "rubric": {
+        "id": "proclamation-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "context",
+            "name": "Konteks menjelang proklamasi",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai penjelasan konteks kekalahan Jepang dan momentum berakhirnya Perang Dunia II di Asia. 90–100: konteks utama tepat; 60–89: sebagian konteks benar; 30–59: hanya menyebut peristiwa tanpa hubungan; 1–29: konteks dominan salah; 0: tidak relevan."
+          },
+          {
+            "id": "actors",
+            "name": "Peran tokoh dan kelompok terkait",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai pemahaman peran Soekarno, Hatta, dan golongan muda dalam proses menuju proklamasi. 90–100: peran utama dijelaskan tepat; 60–89: tokoh benar tetapi peran kurang lengkap; 30–59: hanya menyebut nama; 1–29: peran tertukar/keliru; 0: tidak ada bukti."
+          },
+          {
+            "id": "event",
+            "name": "Peristiwa proklamasi 17 Agustus 1945",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai tanggal, pernyataan kemerdekaan, dan makna peristiwa. 90–100: fakta inti benar; 60–89: sebagian fakta benar; 30–59: penjelasan umum tanpa fakta cukup; 1–29: fakta utama keliru; 0: tidak relevan."
+          },
+          {
+            "id": "significance",
+            "name": "Makna bagi kemerdekaan Indonesia",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa proklamasi menyatakan kemerdekaan dan menjadi dasar pembentukan negara merdeka. 90–100: makna tepat; 60–89: inti benar tetapi kurang berkembang; 30–59: makna samar; 1–29: salah memahami dampaknya; 0: tidak ada bukti."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Menjelang akhir Perang Dunia II, Jepang menyerah kepada Sekutu sehingga muncul momentum untuk menyatakan kemerdekaan. Soekarno dan Hatta memproklamasikan kemerdekaan pada 17 Agustus 1945 setelah melalui pembahasan dengan golongan muda. Proklamasi menyatakan Indonesia merdeka dan menjadi dasar pembentukan negara."
+      ],
+      "humanScore": 97,
+      "humanCriterionScores": {
+        "context": 95,
+        "actors": 95,
+        "event": 100,
+        "significance": 100
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-11",
+      "questionId": "q-proclamation",
+      "caseLabel": "Sebagian benar, konteks terbatas",
+      "question": "Jelaskan konteks menjelang Proklamasi Kemerdekaan Indonesia, peran tokoh yang terlibat, dan makna proklamasi bagi Indonesia.",
+      "rubric": {
+        "id": "proclamation-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "context",
+            "name": "Konteks menjelang proklamasi",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai penjelasan konteks kekalahan Jepang dan momentum berakhirnya Perang Dunia II di Asia. 90–100: konteks utama tepat; 60–89: sebagian konteks benar; 30–59: hanya menyebut peristiwa tanpa hubungan; 1–29: konteks dominan salah; 0: tidak relevan."
+          },
+          {
+            "id": "actors",
+            "name": "Peran tokoh dan kelompok terkait",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai pemahaman peran Soekarno, Hatta, dan golongan muda dalam proses menuju proklamasi. 90–100: peran utama dijelaskan tepat; 60–89: tokoh benar tetapi peran kurang lengkap; 30–59: hanya menyebut nama; 1–29: peran tertukar/keliru; 0: tidak ada bukti."
+          },
+          {
+            "id": "event",
+            "name": "Peristiwa proklamasi 17 Agustus 1945",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai tanggal, pernyataan kemerdekaan, dan makna peristiwa. 90–100: fakta inti benar; 60–89: sebagian fakta benar; 30–59: penjelasan umum tanpa fakta cukup; 1–29: fakta utama keliru; 0: tidak relevan."
+          },
+          {
+            "id": "significance",
+            "name": "Makna bagi kemerdekaan Indonesia",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa proklamasi menyatakan kemerdekaan dan menjadi dasar pembentukan negara merdeka. 90–100: makna tepat; 60–89: inti benar tetapi kurang berkembang; 30–59: makna samar; 1–29: salah memahami dampaknya; 0: tidak ada bukti."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Indonesia merdeka pada 17 Agustus 1945. Soekarno membacakan proklamasi bersama Hatta. Proklamasi penting karena Indonesia ingin menjadi negara sendiri, tetapi saya tidak tahu banyak tentang peristiwa sebelum itu."
+      ],
+      "humanScore": 72,
+      "humanCriterionScores": {
+        "context": 45,
+        "actors": 75,
+        "event": 95,
+        "significance": 80
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    },
+    {
+      "sampleId": "cal2-12",
+      "questionId": "q-proclamation",
+      "caseLabel": "Fakta dan hubungan sebab-akibat keliru",
+      "question": "Jelaskan konteks menjelang Proklamasi Kemerdekaan Indonesia, peran tokoh yang terlibat, dan makna proklamasi bagi Indonesia.",
+      "rubric": {
+        "id": "proclamation-rubric-v2",
+        "version": "v2",
+        "criteria": [
+          {
+            "id": "context",
+            "name": "Konteks menjelang proklamasi",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai penjelasan konteks kekalahan Jepang dan momentum berakhirnya Perang Dunia II di Asia. 90–100: konteks utama tepat; 60–89: sebagian konteks benar; 30–59: hanya menyebut peristiwa tanpa hubungan; 1–29: konteks dominan salah; 0: tidak relevan."
+          },
+          {
+            "id": "actors",
+            "name": "Peran tokoh dan kelompok terkait",
+            "weight": 0.3,
+            "scale": 100,
+            "description": "Nilai pemahaman peran Soekarno, Hatta, dan golongan muda dalam proses menuju proklamasi. 90–100: peran utama dijelaskan tepat; 60–89: tokoh benar tetapi peran kurang lengkap; 30–59: hanya menyebut nama; 1–29: peran tertukar/keliru; 0: tidak ada bukti."
+          },
+          {
+            "id": "event",
+            "name": "Peristiwa proklamasi 17 Agustus 1945",
+            "weight": 0.25,
+            "scale": 100,
+            "description": "Nilai tanggal, pernyataan kemerdekaan, dan makna peristiwa. 90–100: fakta inti benar; 60–89: sebagian fakta benar; 30–59: penjelasan umum tanpa fakta cukup; 1–29: fakta utama keliru; 0: tidak relevan."
+          },
+          {
+            "id": "significance",
+            "name": "Makna bagi kemerdekaan Indonesia",
+            "weight": 0.15,
+            "scale": 100,
+            "description": "Nilai pemahaman bahwa proklamasi menyatakan kemerdekaan dan menjadi dasar pembentukan negara merdeka. 90–100: makna tepat; 60–89: inti benar tetapi kurang berkembang; 30–59: makna samar; 1–29: salah memahami dampaknya; 0: tidak ada bukti."
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Proklamasi terjadi pada 1949 setelah Belanda memberikan kemerdekaan. Jepang dan golongan muda tidak berperan, dan proklamasi hanya berarti pergantian presiden."
+      ],
+      "humanScore": 10,
+      "humanCriterionScores": {
+        "context": 10,
+        "actors": 10,
+        "event": 10,
+        "significance": 10
+      },
+      "humanFeedback": "Synthetic diagnostic reference only; requires lecturer validation before research claims.",
+      "annotatorId": "synthetic-reference-v2"
+    }
+  ]
+}

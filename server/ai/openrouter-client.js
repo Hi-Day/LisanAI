@@ -31,6 +31,14 @@ function buildHeaders() {
   };
 }
 
+function buildResponseFormat() {
+  // OpenRouter JSON mode constrains the model to a valid JSON object. It can
+  // be disabled for providers/models that do not support response_format.
+  return process.env.OPENROUTER_JSON_MODE === "false"
+    ? {}
+    : { response_format: { type: "json_object" } };
+}
+
 function buildMessages(messages, schemaHint) {
   return [
     {
@@ -61,6 +69,7 @@ async function requestModel(model, messages, schemaHint, gen = {}) {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
+          ...buildResponseFormat(),
           model,
           temperature: gen.temperature ?? 0.25,
           top_p: gen.topP ?? 1,
@@ -117,6 +126,7 @@ async function streamModel(model, messages, schemaHint, gen = {}, onChunk) {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
+          ...buildResponseFormat(),
           model,
           temperature: gen.temperature ?? 0.25,
           top_p: gen.topP ?? 1,
