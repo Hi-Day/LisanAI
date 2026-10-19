@@ -4,6 +4,7 @@ const { execFileSync } = require("node:child_process");
 const { build } = require("esbuild");
 
 const ROOT = path.join(__dirname, "..");
+const isProductionBuild = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
 
 function runProductionProvisioning() {
   if (process.env.VERCEL_ENV !== "production") return;
@@ -99,8 +100,8 @@ async function main() {
     chunkNames: "chunks/[name]-[hash]",
     bundle: true,
     splitting: true,
-    minify: false,
-    sourcemap: true,
+    minify: isProductionBuild,
+    sourcemap: !isProductionBuild,
     format: "esm",
     target: ["es2020"],
     logLevel: "info",
@@ -114,7 +115,9 @@ async function main() {
   fs.copyFileSync(path.join(ROOT, "src", "js", "pedagogical-gate.js"), path.join(ROOT, "public", "js", "pedagogical-gate.js"));
   fs.copyFileSync(path.join(ROOT, "src", "js", "assessment-outcomes-ux.js"), path.join(ROOT, "public", "js", "assessment-outcomes-ux.js"));
   fs.copyFileSync(path.join(ROOT, "src", "js", "assessment-outcomes-ai.js"), path.join(ROOT, "public", "js", "assessment-outcomes-ai.js"));
-  console.log("Frontend bundle built successfully (unminified debug build).");
+  console.log(isProductionBuild
+    ? "Frontend production bundle built successfully (minified, without source maps)."
+    : "Frontend bundle built successfully (unminified debug build with source maps).");
   runProductionProvisioning();
   return result;
 }
