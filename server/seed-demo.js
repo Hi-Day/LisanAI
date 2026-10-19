@@ -267,7 +267,7 @@ async function ensureStudents(db, tenantId, classroomId, count = 6) {
         const created = await createTenantUser(tenantId, {
           name,
           email,
-          password: "password123",
+          password: crypto.randomBytes(32).toString("base64url"),
           role: "student",
         });
         studentId = created.id;
@@ -796,7 +796,7 @@ async function seedDemoData(auth, target) {
       const created = await createTenantUser(tenantId, {
         name: "Guru Demo",
         email: teacherEmail,
-        password: "password123",
+        password: crypto.randomBytes(32).toString("base64url"),
         role: "teacher",
       });
       teacherId = created.id;
