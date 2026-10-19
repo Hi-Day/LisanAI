@@ -11,7 +11,6 @@ const DEFAULTS = {
   teacherEmail: "dosen@lisan.ai",
   studentName: "Student Demo Lisan.ai",
   studentEmail: "student@lisan.ai",
-  password: "LisanDemo2026!",
 };
 
 let promise = null;
@@ -91,8 +90,12 @@ async function ensureReadyOrProvision() {
 }
 
 async function provision() {
+  const password = process.env.SHOWCASE_ADMIN_PASSWORD;
+  if (!password) {
+    throw new Error("SHOWCASE_ADMIN_PASSWORD must be configured before production showcase accounts can be provisioned.");
+  }
+
   const db = getDb();
-  const password = process.env.SHOWCASE_ADMIN_PASSWORD || DEFAULTS.password;
   const adminEmail = process.env.SHOWCASE_ADMIN_EMAIL || DEFAULTS.adminEmail;
 
   let admin = await db.get("SELECT * FROM users WHERE email = ?", adminEmail);
@@ -110,7 +113,7 @@ async function provision() {
   if (!tenantId) throw new Error("Showcase tenant tidak ditemukan.");
 
   await seedDemoData(
-    { tenant: { id: tenantId }, user: { id: admin.id, role: "admin" } },
+    { tenant: { id: admin.id, tenant: tenantId }, user: { id: admin.id, role: "admin" } },
     "admin"
   );
 
@@ -161,7 +164,7 @@ async function provision() {
     `UPDATE submissions
         SET user_id = ?, student_name = ?
       WHERE tenant_id = ?
-        AND assessment_id IN (SELECT id FROM assessments WHERE tenant_id = ?)` ,
+        AND assessment_id IN (SELECT id FROM assessments WHERE tenant_id = ?)`,
     student.id,
     student.name,
     tenantId,
