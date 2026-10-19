@@ -19,7 +19,7 @@ npm ci
 cp .env.example .env
 ```
 
-For local development without paid provider calls, configure the documented mock harness mode where appropriate. Use real provider credentials only in your local environment or a secure CI secret store; never paste them into issues or pull requests.
+For local development without paid provider calls, configure the documented mock harness mode where appropriate. Use real provider credentials only in your local environment or a secure CI secret store; never paste them into issues or pull requests. Production showcase provisioning requires a unique, strong `SHOWCASE_ADMIN_PASSWORD` environment variable. Do not use a default/shared demo password; configure it in the deployment secret store, not in Git. The live deployment configuration must be verified before enabling showcase provisioning.
 
 Start the application:
 
