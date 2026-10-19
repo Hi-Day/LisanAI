@@ -113,7 +113,7 @@ async function provision() {
   if (!tenantId) throw new Error("Showcase tenant tidak ditemukan.");
 
   await seedDemoData(
-    { tenant: { id: admin.id, tenant: tenantId }, user: { id: admin.id, role: "admin" } },
+    { tenant: { id: tenantId }, user: { id: admin.id, role: "admin" } },
     "admin"
   );
 
