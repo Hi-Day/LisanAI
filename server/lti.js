@@ -14,7 +14,11 @@ function normalizeParameters(parameters) {
     const values = Array.isArray(raw) ? raw : [raw];
     for (const value of values) pairs.push([encode(key), encode(value)]);
   }
-  pairs.sort((a, b) => a[0] === b[0] ? a[1].localeCompare(b[1]) : a[0].localeCompare(b[0]));
+  pairs.sort((a, b) => {
+    const left = a[0] === b[0] ? a[1] : a[0];
+    const right = a[0] === b[0] ? b[1] : b[0];
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
   return pairs.map((p) => p[0] + "=" + p[1]).join("&");
 }
 function normalizedBaseUrl(rawUrl) {
@@ -23,7 +27,14 @@ function normalizedBaseUrl(rawUrl) {
   return u.protocol.toLowerCase() + "//" + u.hostname.toLowerCase() + port + (u.pathname || "/");
 }
 function calculateOAuthSignature({ method = "POST", url, parameters, consumerSecret }) {
-  const base = [String(method).toUpperCase(), encode(normalizedBaseUrl(url)), encode(normalizeParameters(parameters))].join("&");
+  const signedParameters = { ...(parameters || {}) };
+  const query = new URL(url).searchParams;
+  for (const [key, value] of query.entries()) {
+    if (Object.prototype.hasOwnProperty.call(signedParameters, key)) {
+      signedParameters[key] = Array.isArray(signedParameters[key]) ? signedParameters[key].concat(value) : [signedParameters[key], value];
+    } else signedParameters[key] = value;
+  }
+  const base = [String(method).toUpperCase(), encode(normalizedBaseUrl(url)), encode(normalizeParameters(signedParameters))].join("&");
   return crypto.createHmac("sha1", encode(consumerSecret) + "&").update(base).digest("base64");
 }
 function safeEqual(a, b) {
