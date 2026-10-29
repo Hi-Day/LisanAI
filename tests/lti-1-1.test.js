@@ -6,6 +6,7 @@ const {
   normalizedBaseUrl,
   parseForm,
   roleFromLti,
+  retryDelayMs,
   verifyLaunch,
 } = require("../server/lti");
 
@@ -39,4 +40,11 @@ test("LTI roles map known instructor and learner vocabularies only", () => {
   assert.equal(roleFromLti("Instructor"), "teacher");
   assert.equal(roleFromLti("urn:lti:role:ims/lis/Learner"), "student");
   assert.throws(() => roleFromLti("Administrator"), /Role LTI tidak dikenali/);
+});
+
+test("LTI outcome retry backoff is bounded and increases after repeated failures", () => {
+  assert.equal(retryDelayMs(0), 30_000);
+  assert.equal(retryDelayMs(1), 60_000);
+  assert.equal(retryDelayMs(2), 120_000);
+  assert.equal(retryDelayMs(20), 6 * 60 * 60 * 1000);
 });
