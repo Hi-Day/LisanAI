@@ -57,7 +57,7 @@ Run these tests against the actual BINUS Maya test configuration, using non-prod
 1. Confirm the exact BINUS Maya LTI 1.1 profile, role strings, launch URL, and whether launch occurs in an iframe or new tab.
 2. Confirm how instructors select an LisanAI assessment. A resource-selection flow may still be required.
 3. Validate the durable local outbox retry behavior for temporary LMS failures and decide how operations will monitor pending deliveries.
-4. Confirm the assessment mapping convention with the LMS administrator.
+4. Configure `custom_lisan_assessment_id=<exact LisanAI assessment ID>` on every BINUS Maya resource link that should pass grades back. This mapping is required whenever the launch includes Outcomes Service fields; launches with missing or incomplete mappings are rejected before identity/session creation. Confirm how instructors select the correct assessment and how IDs are maintained across course copies.
 5. Confirm whether institutional policy permits student answer/transcript content to be sent to OpenRouter for evaluation.
 
 ## LTI 1.1 scope
