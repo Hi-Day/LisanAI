@@ -146,14 +146,15 @@ async function processLaunch(parameters, requestUrl, req, res) {
   }
   const role = roleFromLti(parameters.roles);
   const identity = await db.get(
-    "SELECT u.id, u.tenant_id FROM lti_identities i JOIN users u ON u.id = i.user_id WHERE i.consumer_key = ? AND i.context_id = ? AND i.lti_user_id = ?",
-    consumerKey, contextId, ltiUserId
+    "SELECT u.id, u.tenant_id FROM lti_identities i JOIN users u ON u.id = i.user_id WHERE i.consumer_key = ? AND i.lti_user_id = ?",
+    consumerKey, ltiUserId
   );
   let appUserId;
   if (identity) {
     if (identity.tenant_id !== tenantId) throw Object.assign(new Error("Identitas LTI terhubung ke tenant berbeda"), { status: 403 });
+    const existingRole = await db.get("SELECT role FROM users WHERE id = ?", identity.id);
+    if (!existingRole || existingRole.role !== role) throw Object.assign(new Error("Role LTI berbeda dari role akun yang sudah ditautkan; minta administrator melakukan pemetaan role secara eksplisit"), { status: 403 });
     appUserId = identity.id;
-    await db.run("UPDATE users SET role = ? WHERE id = ? AND tenant_id = ?", role, appUserId, tenantId);
   } else {
     const email = String(parameters.lis_person_contact_email_primary || parameters.lis_person_email_primary || "").trim().toLowerCase()
       || "lti-" + crypto.createHash("sha256").update(consumerKey + ":" + contextId + ":" + ltiUserId).digest("hex").slice(0, 24) + "@lti.invalid";
