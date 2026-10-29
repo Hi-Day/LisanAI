@@ -6,6 +6,7 @@ const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require(
 const crypto = require("node:crypto");
 const { evaluationHash } = require("../security/evaluation-integrity");
 const { persistEvaluationTrace } = require("../evaluation/trace-persister");
+const { syncOutcomeForSubmission } = require("../lti");
 
 const ACTIONS = ["evaluate", "generate-probing", "create-attempt"];
 
@@ -156,6 +157,18 @@ async function evaluate(payload, auth, onProgress = null) {
     evaluationHash: submission.integrity.evaluationHash,
     submissionHash: hashObject(submission),
   });
+
+  // LMS outages must not roll back an already-finalized assessment. Only
+  // scores explicitly published by the trustworthy harness are sent to LTI.
+  if (result.published === true && result.requiresHumanReview !== true && submission.status === "EVALUATED") {
+    syncOutcomeForSubmission({
+      tenantId: auth.tenant.id,
+      userId: auth.user.id,
+      assessmentId,
+      submissionId: submission.id,
+      score: submission.finalScore,
+    }).catch((error) => console.error("[lti] Outcome queue could not persist:", error.message));
+  }
 
   return submission;
 }
