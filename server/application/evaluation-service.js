@@ -165,8 +165,9 @@ async function evaluate(payload, auth, onProgress = null) {
       tenantId: auth.tenant.id,
       userId: auth.user.id,
       assessmentId,
+      submissionId: submission.id,
       score: submission.finalScore,
-    }).catch((error) => console.error("[lti] Outcome sync could not complete:", error.message));
+    }).catch((error) => console.error("[lti] Outcome queue could not persist:", error.message));
   }
 
   return submission;
