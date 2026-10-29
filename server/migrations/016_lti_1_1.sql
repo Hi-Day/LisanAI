@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS lti_identities (
   lti_user_id TEXT NOT NULL,
   user_id TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
-  PRIMARY KEY (consumer_key, context_id, lti_user_id),
+  PRIMARY KEY (consumer_key, lti_user_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
