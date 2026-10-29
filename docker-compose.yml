@@ -1,0 +1,35 @@
+services:
+  lisanai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lisanai-onprem:latest
+    container_name: lisanai
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4173
+      TURSO_DATABASE_URL: file:/app/data/lisan_ai.db
+      LTI_PUBLIC_ORIGIN: \${LTI_PUBLIC_ORIGIN:-https://lisanai.example.edu}
+      LTI_LAUNCH_URL: \${LTI_LAUNCH_URL:-https://lisanai.example.edu/api/lti}
+    ports:
+      # Keep the app private on the host; terminate TLS in the campus reverse proxy.
+      - "127.0.0.1:4173:4173"
+    volumes:
+      - lisanai_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  lisanai_data:
+    name: lisanai_data
