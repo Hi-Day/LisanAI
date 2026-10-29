@@ -4,7 +4,7 @@ This branch adds an LTI 1.1 basic launch endpoint and foundational Basic Outcome
 
 ## Launch URL
 
-- Tool launch URL: https://lisan-ai-assessment.vercel.app/api/lti
+- Tool launch URL: https://lisanai.binus.ac.id/api/lti
 - HTTP method: POST
 - Content type: application/x-www-form-urlencoded
 - LTI version: LTI-1p0
@@ -13,15 +13,15 @@ This branch adds an LTI 1.1 basic launch endpoint and foundational Basic Outcome
 
 ## Required environment variables
 
-Configure these in Vercel for the intended environment. Never commit consumer secrets.
+Configure these on the on-premise host using a protected `.env` or institutional secret store. Never commit consumer secrets.
 
-- LTI_LAUNCH_URL=https://lisan-ai-assessment.vercel.app/api/lti
-- LTI_PUBLIC_ORIGIN=https://lisan-ai-assessment.vercel.app
-- LTI_DEFAULT_REDIRECT_URL=/
-- LTI_TENANT_ID=<existing LisanAI tenant id for BINUS>
-- LTI_CONSUMERS_JSON={"<BINUS_MAYA_CONSUMER_KEY>":"<long-random-shared-secret>"}
-- LTI_OUTCOME_HOSTS=<exact LMS outcome-service hostname(s), comma-separated>
-- LTI_FRAME_ANCESTORS=<exact HTTPS BINUS Maya origin(s), comma-separated>
+- `LTI_LAUNCH_URL=https://lisanai.binus.ac.id/api/lti`
+- `LTI_PUBLIC_ORIGIN=https://lisanai.binus.ac.id`
+- `LTI_DEFAULT_REDIRECT_URL=/`
+- `LTI_TENANT_ID=<existing LisanAI tenant id for BINUS>`
+- `LTI_CONSUMERS_JSON={"<BINUS_MAYA_CONSUMER_KEY>":"<long-random-shared-secret>"}`
+- `LTI_OUTCOME_HOSTS=<exact LMS outcome-service hostname(s), comma-separated>`
+- `LTI_FRAME_ANCESTORS=<exact HTTPS BINUS Maya origin(s), comma-separated>`
 
 Use a dedicated consumer key and high-entropy secret for the BINUS Maya instance. The Outcomes Service host allowlist must contain only exact HTTPS hostnames supplied by the LMS administrator. Do not use wildcards.
 
@@ -38,14 +38,27 @@ Use a dedicated consumer key and high-entropy secret for the BINUS Maya instance
 - Frame embedding remains denied by default; it is enabled only for explicitly configured HTTPS origins.
 - No-store responses and safe HTML error rendering.
 
+## Required BINUS Maya sandbox test matrix
+
+Run these tests against the actual BINUS Maya test configuration, using non-production accounts and a test assessment:
+
+1. Valid student launch and valid instructor launch.
+2. Tampered signature, stale timestamp, missing nonce, and duplicate nonce must be rejected.
+3. Unknown consumer key and unknown role must fail closed.
+4. Existing user with a different tenant or mismatched role must be rejected.
+5. Session behavior in iframe and top-level tab, including browsers with third-party cookies disabled.
+6. Score passback to the correct gradebook item for a published result.
+7. Unpublished result and human-review-pending result must not pass back.
+8. Outcomes Service timeout, non-2xx response, malformed response, and retry/recovery behavior.
+9. Verify assessment mapping using signed `custom_lisan_assessment_id` and verify the exact course/resource-link association.
+
 ## Remaining integration steps
 
 1. Confirm the exact BINUS Maya LTI 1.1 profile, role strings, launch URL, and whether launch occurs in an iframe or new tab.
-2. Confirm how instructors select an LisanAI assessment. The signed custom parameter custom_lisan_assessment_id is recorded for outcome mapping; an instructor-facing resource-selection flow may still be required.
-3. Add durable retry/outbox semantics for temporary LMS failures; the current score sync is best-effort and logs failures without retrying.
-4. Validate browser behavior with third-party cookies blocked. If the browser blocks third-party cookies, configure the tool to open in a top-level tab or implement an explicit top-level handoff.
-5. Run sandbox tests: valid launch, invalid signature, stale timestamp, duplicate nonce, student/instructor role, cross-tenant access, expired session, and grade passback.
-6. Confirm the assessment mapping convention: launch links must send the signed custom parameter custom_lisan_assessment_id for score return to the correct LisanAI assessment.
+2. Confirm how instructors select an LisanAI assessment. A resource-selection flow may still be required.
+3. Add durable retry/outbox semantics for temporary LMS failures; current score sync is best-effort and logs failures without retrying.
+4. Confirm the assessment mapping convention with the LMS administrator.
+5. Confirm whether institutional policy permits student answer/transcript content to be sent to OpenRouter for evaluation.
 
 ## LTI 1.1 scope
 
