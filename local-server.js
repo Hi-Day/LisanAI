@@ -80,6 +80,7 @@ if (require.main === module) {
   const server = http.createServer(requestHandler);
   initDatabase()
     .then(() => {
+      isDbInitialized = true;
       server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
         console.log(`Lisan.ai running at http://127.0.0.1:${PORT}`);
         console.log(`Using OpenRouter model: ${process.env.OPENROUTER_MODEL}`);
