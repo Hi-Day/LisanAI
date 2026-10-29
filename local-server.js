@@ -7,6 +7,7 @@ const { sendJson } = require("./server/http-utils");
 const { applySecurityHeaders } = require("./server/security-headers");
 const { serveStaticFile } = require("./server/static");
 const pricing = require("./server/ai/pricing");
+const { startLtiOutcomeWorker } = require("./server/lti");
 
 loadEnv();
 
@@ -81,6 +82,7 @@ if (require.main === module) {
   initDatabase()
     .then(() => {
       isDbInitialized = true;
+      startLtiOutcomeWorker();
       server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
         console.log(`Lisan.ai running at http://127.0.0.1:${PORT}`);
         console.log(`Using OpenRouter model: ${process.env.OPENROUTER_MODEL}`);
