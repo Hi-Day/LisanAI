@@ -29,6 +29,7 @@ const CSP = [
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy": CSP,
+  "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(self), geolocation=()",
