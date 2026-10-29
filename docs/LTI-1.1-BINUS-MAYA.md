@@ -47,7 +47,7 @@ Run these tests against the actual BINUS Maya test configuration, using non-prod
 3. Unknown consumer key and unknown role must fail closed.
 4. Existing user with a different tenant or mismatched role must be rejected.
 5. Session behavior in iframe and top-level tab, including browsers with third-party cookies disabled.
-6. Score passback to the correct gradebook item for a published result.
+6. Score passback to the correct gradebook item for a published result, including recovery after a temporary Outcomes Service outage.
 7. Unpublished result and human-review-pending result must not pass back.
 8. Outcomes Service timeout, non-2xx response, malformed response, and retry/recovery behavior.
 9. Verify assessment mapping using signed `custom_lisan_assessment_id` and verify the exact course/resource-link association.
@@ -56,7 +56,7 @@ Run these tests against the actual BINUS Maya test configuration, using non-prod
 
 1. Confirm the exact BINUS Maya LTI 1.1 profile, role strings, launch URL, and whether launch occurs in an iframe or new tab.
 2. Confirm how instructors select an LisanAI assessment. A resource-selection flow may still be required.
-3. Add durable retry/outbox semantics for temporary LMS failures; current score sync is best-effort and logs failures without retrying.
+3. Validate the durable local outbox retry behavior for temporary LMS failures and decide how operations will monitor pending deliveries.
 4. Confirm the assessment mapping convention with the LMS administrator.
 5. Confirm whether institutional policy permits student answer/transcript content to be sent to OpenRouter for evaluation.
 
