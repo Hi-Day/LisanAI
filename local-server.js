@@ -23,7 +23,22 @@ const requestHandler = async (req, res) => {
       await initDatabase();
       isDbInitialized = true;
     }
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+
+    if (url.pathname === "/api/healthz") {
+      const { applySecurityHeaders } = require("./server/security-headers");
+      applySecurityHeaders(res);
+      res.setHeader("Cache-Control", "no-store");
+      try {
+        await require("./server/database").getDb().get("SELECT 1 AS ok");
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        return res.end(JSON.stringify({ status: "ok", database: "ok" }));
+      } catch (error) {
+        console.error("[healthz] Database check failed:", error.message);
+        res.writeHead(503, { "Content-Type": "application/json; charset=utf-8" });
+        return res.end(JSON.stringify({ status: "degraded", database: "error" }));
+      }
+    }
 
     // Serve the OpenAPI JSON spec document (it is data, not a request handler).
     if (url.pathname === "/api/openapi.json") {
@@ -65,7 +80,7 @@ if (require.main === module) {
   const server = http.createServer(requestHandler);
   initDatabase()
     .then(() => {
-      server.listen(PORT, "127.0.0.1", () => {
+      server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
         console.log(`Lisan.ai running at http://127.0.0.1:${PORT}`);
         console.log(`Using OpenRouter model: ${process.env.OPENROUTER_MODEL}`);
       });
