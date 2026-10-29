@@ -13,7 +13,8 @@
     "test:e2e:openrouter": "node scripts/run-e2e-openrouter.js",
     "seed:showcase": "node scripts/provision-showcase-demo.js",
     "seed:pendopo": "node scripts/provision-pendopo-demo.js",
-    "seed:competency": "node scripts/repair-showcase-competency.js"
+    "seed:competency": "node scripts/repair-showcase-competency.js",
+    "onprem:preflight": "node scripts/onprem-preflight.js"
   },
   "keywords": [],
   "author": "",
