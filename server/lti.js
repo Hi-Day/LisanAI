@@ -119,25 +119,91 @@ async function sendBasicOutcome({ outcomeUrl, sourcedId, score, consumerKey, con
   if (!/<imsx_codeMajor>success<\/imsx_codeMajor>/i.test(body)) throw new Error("LTI Outcomes Service tidak mengonfirmasi keberhasilan");
   return { ok: true, messageId };
 }
-async function syncOutcomeForSubmission({ tenantId, userId, assessmentId, score }) {
-  if (!assessmentId || !Number.isFinite(Number(score))) return { skipped: true, reason: "missing-assessment-or-score" };
+function retryDelayMs(attempts) {
+  const exponent = Math.max(0, Math.min(Number(attempts) || 0, 10));
+  return Math.min(6 * 60 * 60 * 1000, 30_000 * (2 ** exponent));
+}
+
+let outboxWorkerPromise = null;
+async function processOutcomeOutbox({ limit = 10 } = {}) {
+  if (outboxWorkerPromise) return outboxWorkerPromise;
+  outboxWorkerPromise = (async () => {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const rows = await db.all(
+      "SELECT id, submission_id, consumer_key, tenant_id, user_id, assessment_id, outcome_url, sourced_id, score, attempts FROM lti_outcome_outbox WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at ASC LIMIT ?",
+      now, Math.max(1, Math.min(Number(limit) || 10, 100))
+    );
+    const results = [];
+    for (const row of rows) {
+      try {
+        const consumers = getConsumers();
+        const consumerSecret = consumers[row.consumer_key];
+        if (typeof consumerSecret !== "string" || !consumerSecret) throw new Error("Consumer key tidak lagi dikonfigurasi");
+        await sendBasicOutcome({
+          outcomeUrl: row.outcome_url,
+          sourcedId: row.sourced_id,
+          score: row.score,
+          consumerKey: row.consumer_key,
+          consumerSecret,
+        });
+        const sentAt = new Date().toISOString();
+        await db.run(
+          "UPDATE lti_outcome_outbox SET status = 'sent', attempts = attempts + 1, last_error = NULL, next_attempt_at = NULL, sent_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
+          sentAt, sentAt, row.id
+        );
+        results.push({ id: row.id, ok: true });
+      } catch (error) {
+        const attempts = Number(row.attempts || 0) + 1;
+        const failedAt = new Date().toISOString();
+        const nextAttemptAt = new Date(Date.now() + retryDelayMs(attempts)).toISOString();
+        const message = String(error && error.message || "LTI Outcomes delivery failed").slice(0, 500);
+        await db.run(
+          "UPDATE lti_outcome_outbox SET attempts = ?, last_error = ?, next_attempt_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
+          attempts, message, nextAttemptAt, failedAt, row.id
+        );
+        console.error("[lti] Durable outcome delivery failed; retry scheduled:", message);
+        results.push({ id: row.id, ok: false, retryAt: nextAttemptAt });
+      }
+    }
+    return { processed: rows.length, results };
+  })().finally(() => { outboxWorkerPromise = null; });
+  return outboxWorkerPromise;
+}
+
+function startLtiOutcomeWorker({ intervalMs = 15_000 } = {}) {
+  const timer = setInterval(() => {
+    processOutcomeOutbox().catch((error) => console.error("[lti] Outcome worker error:", error.message));
+  }, Math.max(5_000, Number(intervalMs) || 15_000));
+  timer.unref?.();
+  return timer;
+}
+
+async function syncOutcomeForSubmission({ tenantId, userId, assessmentId, submissionId, score }) {
+  if (!assessmentId || !submissionId || !Number.isFinite(Number(score))) return { skipped: true, reason: "missing-assessment-submission-or-score" };
   const rows = await getDb().all(
     "SELECT consumer_key, outcome_url, sourced_id FROM lti_outcome_bindings WHERE tenant_id = ? AND user_id = ? AND assessment_id = ? AND sourced_id IS NOT NULL AND outcome_url IS NOT NULL",
     tenantId, userId, assessmentId
   );
   if (!rows.length) return { skipped: true, reason: "no-lti-outcome-binding" };
-  const consumers = getConsumers();
-  const results = [];
+  const db = getDb();
+  const now = new Date().toISOString();
+  let queued = 0;
   for (const row of rows) {
-    try {
-      if (!consumers[row.consumer_key]) throw new Error("Consumer key tidak lagi dikonfigurasi");
-      results.push(await sendBasicOutcome({ outcomeUrl: row.outcome_url, sourcedId: row.sourced_id, score, consumerKey: row.consumer_key, consumerSecret: consumers[row.consumer_key] }));
-    } catch (e) {
-      console.error("[lti] Outcome sync failed:", e.message);
-      results.push({ ok: false, error: e.message });
+    if (!outcomeHostAllowed(row.outcome_url)) {
+      console.error("[lti] Refusing to queue an outcome for a non-allowlisted host");
+      continue;
     }
+    const id = crypto.createHash("sha256").update(submissionId + ":" + row.consumer_key).digest("hex");
+    await db.run(
+      "INSERT OR IGNORE INTO lti_outcome_outbox (id, submission_id, consumer_key, tenant_id, user_id, assessment_id, outcome_url, sourced_id, score, status, attempts, next_attempt_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?)",
+      id, submissionId, row.consumer_key, tenantId, userId, assessmentId, row.outcome_url, row.sourced_id, Number(score), now, now
+    );
+    queued += 1;
   }
-  return { results };
+  if (!queued) return { skipped: true, reason: "no-valid-outcome-binding" };
+  const delivery = await processOutcomeOutbox({ limit: Math.max(queued, 10) });
+  return { queued, delivery };
 }
 async function processLaunch(parameters, requestUrl, req, res) {
   const verified = verifyLaunch(parameters, requestUrl);
@@ -195,4 +261,4 @@ async function processLaunch(parameters, requestUrl, req, res) {
   res.writeHead(303, { Location: destination.toString(), "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
   return res.end();
 }
-module.exports = { CLOCK_SKEW_SECONDS, calculateOAuthSignature, normalizeParameters, normalizedBaseUrl, outcomeHostAllowed, parseForm, processLaunch, roleFromLti, sendBasicOutcome, syncOutcomeForSubmission, verifyLaunch };
+module.exports = { CLOCK_SKEW_SECONDS, calculateOAuthSignature, normalizeParameters, normalizedBaseUrl, outcomeHostAllowed, parseForm, processLaunch, processOutcomeOutbox, retryDelayMs, roleFromLti, sendBasicOutcome, startLtiOutcomeWorker, syncOutcomeForSubmission, verifyLaunch };
