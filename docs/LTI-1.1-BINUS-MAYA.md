@@ -21,6 +21,7 @@ Configure these in Vercel for the intended environment. Never commit consumer se
 - LTI_TENANT_ID=<existing LisanAI tenant id for BINUS>
 - LTI_CONSUMERS_JSON={"<BINUS_MAYA_CONSUMER_KEY>":"<long-random-shared-secret>"}
 - LTI_OUTCOME_HOSTS=<exact LMS outcome-service hostname(s), comma-separated>
+- LTI_FRAME_ANCESTORS=<exact HTTPS BINUS Maya origin(s), comma-separated>
 
 Use a dedicated consumer key and high-entropy secret for the BINUS Maya instance. The Outcomes Service host allowlist must contain only exact HTTPS hostnames supplied by the LMS administrator. Do not use wildcards.
 
@@ -33,16 +34,18 @@ Use a dedicated consumer key and high-entropy secret for the BINUS Maya instance
 - Tenant-scoped identity mapping; no automatic account linking based only on email.
 - Session cookie uses HttpOnly and SameSite=None for LMS iframe launches.
 - Outcomes host allowlist and HTTPS-only grade-passback requests.
+- Grade passback is triggered only after the official evaluation result is published and does not require human review.
+- Frame embedding remains denied by default; it is enabled only for explicitly configured HTTPS origins.
 - No-store responses and safe HTML error rendering.
 
 ## Remaining integration steps
 
 1. Confirm the exact BINUS Maya LTI 1.1 profile, role strings, launch URL, and whether launch occurs in an iframe or new tab.
 2. Confirm how instructors select an LisanAI assessment. The signed custom parameter custom_lisan_assessment_id is recorded for outcome mapping; an instructor-facing resource-selection flow may still be required.
-3. Wire syncOutcomeForSubmission({tenantId,userId,assessmentId,score}) into the authoritative assessment finalization path only after the score has passed LisanAI's publication/verification gate. Do not send draft, failed, or human-review-pending scores to the LMS.
-4. Add durable retry/outbox semantics for temporary LMS failures and test idempotent grade updates.
-5. Validate browser behavior with third-party cookies blocked. If the browser blocks third-party cookies, configure the tool to open in a top-level tab or implement an explicit top-level handoff.
-6. Run sandbox tests: valid launch, invalid signature, stale timestamp, duplicate nonce, student/instructor role, cross-tenant access, expired session, and grade passback.
+3. Add durable retry/outbox semantics for temporary LMS failures; the current score sync is best-effort and logs failures without retrying.
+4. Validate browser behavior with third-party cookies blocked. If the browser blocks third-party cookies, configure the tool to open in a top-level tab or implement an explicit top-level handoff.
+5. Run sandbox tests: valid launch, invalid signature, stale timestamp, duplicate nonce, student/instructor role, cross-tenant access, expired session, and grade passback.
+6. Confirm the assessment mapping convention: launch links must send the signed custom parameter custom_lisan_assessment_id for score return to the correct LisanAI assessment.
 
 ## LTI 1.1 scope
 
