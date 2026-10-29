@@ -72,3 +72,14 @@ jobs:
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+  docker-build:
+    name: On-premise Docker image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build production image
+        run: docker build --pull -t lisanai-onprem:test .
