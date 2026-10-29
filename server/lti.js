@@ -213,6 +213,18 @@ async function processLaunch(parameters, requestUrl, req, res) {
   const contextId = String(parameters.context_id || "").trim();
   const resourceLinkId = String(parameters.resource_link_id || "").trim();
   if (!ltiUserId || !contextId || !resourceLinkId) throw Object.assign(new Error("LTI launch wajib menyertakan user_id, context_id, dan resource_link_id"), { status: 400 });
+  const outcomeUrl = String(parameters.lis_outcome_service_url || "").trim();
+  const sourcedId = String(parameters.lis_result_sourcedid || "").trim();
+  const mappedAssessmentId = String(parameters.custom_lisan_assessment_id || "").trim();
+  if (Boolean(outcomeUrl) !== Boolean(sourcedId)) {
+    throw Object.assign(new Error("LTI Outcomes launch harus menyertakan lis_outcome_service_url dan lis_result_sourcedid bersama-sama"), { status: 400 });
+  }
+  if (outcomeUrl && sourcedId) {
+    if (!mappedAssessmentId) {
+      throw Object.assign(new Error("LTI resource belum dipetakan ke assessment LisanAI; konfigurasi custom_lisan_assessment_id pada resource link di BINUS Maya"), { status: 400 });
+    }
+    if (!outcomeHostAllowed(outcomeUrl)) throw Object.assign(new Error("Host Outcomes Service belum diizinkan melalui LTI_OUTCOME_HOSTS"), { status: 400 });
+  }
   const tenantId = String(process.env.LTI_TENANT_ID || "").trim();
   if (!tenantId) throw Object.assign(new Error("LTI_TENANT_ID belum dikonfigurasi"), { status: 503 });
   const db = getDb();
@@ -241,17 +253,7 @@ async function processLaunch(parameters, requestUrl, req, res) {
     appUserId = created.id;
     await db.run("INSERT INTO lti_identities (consumer_key, context_id, lti_user_id, user_id, created_at) VALUES (?, ?, ?, ?, ?)", consumerKey, contextId, ltiUserId, appUserId, new Date().toISOString());
   }
-  const outcomeUrl = String(parameters.lis_outcome_service_url || "").trim();
-  const sourcedId = String(parameters.lis_result_sourcedid || "").trim();
-  const mappedAssessmentId = String(parameters.custom_lisan_assessment_id || "").trim();
-  if (Boolean(outcomeUrl) !== Boolean(sourcedId)) {
-    throw Object.assign(new Error("LTI Outcomes launch harus menyertakan lis_outcome_service_url dan lis_result_sourcedid bersama-sama"), { status: 400 });
-  }
   if (outcomeUrl && sourcedId) {
-    if (!mappedAssessmentId) {
-      throw Object.assign(new Error("LTI resource belum dipetakan ke assessment LisanAI; konfigurasi custom_lisan_assessment_id pada resource link di BINUS Maya"), { status: 400 });
-    }
-    if (!outcomeHostAllowed(outcomeUrl)) throw Object.assign(new Error("Host Outcomes Service belum diizinkan melalui LTI_OUTCOME_HOSTS"), { status: 400 });
     await db.run(
       "INSERT INTO lti_outcome_bindings (consumer_key, context_id, resource_link_id, lti_user_id, user_id, tenant_id, assessment_id, outcome_url, sourced_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(consumer_key, context_id, resource_link_id, lti_user_id) DO UPDATE SET user_id=excluded.user_id, tenant_id=excluded.tenant_id, assessment_id=excluded.assessment_id, outcome_url=excluded.outcome_url, sourced_id=excluded.sourced_id, updated_at=excluded.updated_at",
       consumerKey, contextId, resourceLinkId, ltiUserId, appUserId, tenantId, mappedAssessmentId, outcomeUrl, sourcedId, new Date().toISOString()
