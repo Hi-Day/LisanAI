@@ -19,7 +19,7 @@ This deployment runs the existing Node.js application and static frontend in Doc
 - BINUS Maya administrator cooperation to configure LTI consumer credentials, exact LMS origin, and Outcomes Service hostname.
 - Confirmed existing LisanAI tenant ID for BINUS and a documented data-migration decision.
 
-The application container does not require a local GPU when evaluation calls OpenRouter. Fully local inference is a separate workstream and requires model-serving capacity plus an adapter/configuration change; setting an API URL alone is not enough.
+The application container does not require a local GPU when evaluation calls OpenRouter. A durable LTI outcome outbox stores failed score deliveries in the local database and retries them periodically while the on-prem process is running. Fully local inference is a separate workstream and requires model-serving capacity plus an adapter/configuration change; setting an API URL alone is not enough.
 
 ## Pre-deployment gate
 
@@ -122,12 +122,12 @@ Configure only the exact BINUS Maya HTTPS origin(s) in `LTI_FRAME_ANCESTORS` if 
 - [ ] Students can record and submit an assessment without losing audio or answers.
 - [ ] Official, published scores reach the correct LMS gradebook item.
 - [ ] Human-review-pending and unpublished scores are not sent to the gradebook.
-- [ ] LMS/network failure does not destroy a finalized LisanAI submission and score sync recovery behavior is documented.
+- [ ] LMS/network failure does not destroy a finalized LisanAI submission; queued score passback retries after the LMS recovers.
 - [ ] Privacy, external AI data flow, retention, and incident-response requirements are approved by the institution.
 
 ## Current limitations / explicit blockers
 
-- LTI grade passback currently uses best-effort delivery; a durable retry/outbox mechanism is not yet implemented. Treat grade passback as **not production-ready** until that is addressed or an operationally accepted alternative is tested.
+- LTI score passback now uses a local durable outbox with bounded exponential retry. Validate retry timing, duplicate/idempotent behavior, queue monitoring, and gradebook round-trip in the BINUS Maya sandbox before production.
 - Assessment mapping must be confirmed with the LMS administrator; the launch must send the signed `custom_lisan_assessment_id` parameter.
 - LTI 1.1 is a legacy standard. Prefer LTI 1.3 if BINUS Maya supports it and institutional requirements permit.
 - The current evaluation path uses OpenRouter, an external provider. Review what student content is sent and the provider's terms with the institution before go-live.
