@@ -5,6 +5,7 @@ node_modules
 .env.*
 !.env.onprem.example
 data
+!data/datasets
 coverage
 playwright-report
 test-results

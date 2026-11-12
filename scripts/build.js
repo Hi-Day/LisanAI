@@ -1,28 +1,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
 const { build } = require("esbuild");
 
 const ROOT = path.join(__dirname, "..");
 const isProductionBuild = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
-
-function runProductionProvisioning() {
-  if (process.env.VERCEL_ENV !== "production") return;
-
-  const scripts = [
-    "scripts/provision-pendopo-demo.js",
-    "scripts/verify-pendopo-demo.js",
-  ];
-
-  for (const script of scripts) {
-    console.log(`Running production database step: ${script}`);
-    execFileSync(process.execPath, [path.join(ROOT, script)], {
-      cwd: ROOT,
-      env: process.env,
-      stdio: "inherit",
-    });
-  }
-}
 
 const assessmentUxEnhancement = `
 (function enhanceAssessmentWizardUX() {
@@ -118,7 +99,6 @@ async function main() {
   console.log(isProductionBuild
     ? "Frontend production bundle built successfully (minified, without source maps)."
     : "Frontend bundle built successfully (unminified debug build with source maps).");
-  runProductionProvisioning();
   return result;
 }
 

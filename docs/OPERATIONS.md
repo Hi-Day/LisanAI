@@ -42,7 +42,6 @@ Panduan singkat untuk deploy, migrasi, backup, dan rollback.
 Tersedia di `package.json` (dengan pengaman produksi):
 
 - `npm run seed:showcase`
-- `npm run seed:pendopo`
 - `npm run seed:competency`
 
 ## Health Check
