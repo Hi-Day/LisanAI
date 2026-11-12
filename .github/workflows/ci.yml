@@ -72,3 +72,51 @@ jobs:
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+  docker-build:
+    name: On-premise Docker image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build production image
+        run: docker build --pull -t lisanai-onprem:test .
+
+      - name: Smoke test hardened container and persistent database
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker volume create lisanai-ci-data
+          start_container() {
+            docker run -d --name lisanai-ci-smoke --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --pids-limit 200 -p 127.0.0.1:4173:4173 -e NODE_ENV=production -e HOST=0.0.0.0 -e PORT=4173 -e TURSO_DATABASE_URL=file:/app/data/lisan_ai.db -v lisanai-ci-data:/app/data lisanai-onprem:test
+          }
+          wait_healthy() {
+            for attempt in $(seq 1 45); do
+              if curl --fail --silent http://127.0.0.1:4173/api/healthz; then
+                echo
+                return 0
+              fi
+              sleep 2
+            done
+            docker logs lisanai-ci-smoke
+            return 1
+          }
+          start_container
+          wait_healthy
+          before=$(docker exec lisanai-ci-smoke node -e "const {createClient}=require('@libsql/client'); (async()=>{const c=createClient({url:'file:/app/data/lisan_ai.db'}); const r=await c.execute('SELECT COUNT(*) AS count FROM schema_migrations'); console.log(r.rows[0].count); await c.close();})().catch(e=>{console.error(e);process.exit(1)});")
+          docker rm -f lisanai-ci-smoke
+          start_container
+          wait_healthy
+          after=$(docker exec lisanai-ci-smoke node -e "const {createClient}=require('@libsql/client'); (async()=>{const c=createClient({url:'file:/app/data/lisan_ai.db'}); const r=await c.execute('SELECT COUNT(*) AS count FROM schema_migrations'); console.log(r.rows[0].count); await c.close();})().catch(e=>{console.error(e);process.exit(1)});")
+          test "$before" = "$after"
+          test "$after" -ge 24
+          docker rm -f lisanai-ci-smoke
+          docker volume rm lisanai-ci-data
+
+      - name: Cleanup smoke test resources
+        if: always()
+        run: |
+          docker rm -f lisanai-ci-smoke 2>/dev/null || true
+          docker volume rm lisanai-ci-data 2>/dev/null || true

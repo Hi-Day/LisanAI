@@ -104,3 +104,7 @@ Reusable components should have consistent:
 - semantic colors
 
 See UI_COMPONENT_SPEC.md.
+
+## BINUS Maya visual alignment
+
+The current web application includes an additive BINUS Maya theme layer in `public/binus-theme.css`. It adapts primary navigation to BINUS blue/cyan and primary actions to orange while preserving LisanAI's purple AI semantics, pink voice semantics, status colors, and dark mode. See `BINUS_MAYA_THEME.md` for the initial token map and calibration caveats.

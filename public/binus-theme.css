@@ -1,0 +1,235 @@
+/* BINUS Maya visual alignment layer.
+   Loaded after styles.css so the existing LisanAI component system remains intact.
+   Palette is sampled directionally from the supplied BM Design Guide screenshots;
+   exact brand tokens should be calibrated against the exported source design file. */
+
+:root {
+  --brand: #078FCB;
+  --brand-hover: #067DAF;
+  --brand-active: #05658F;
+  --brand-soft: #E6F5FB;
+  --binus-navy: #064B70;
+  --binus-cyan: #079BD3;
+  --binus-orange: #F39200;
+  --binus-orange-hover: #DD8100;
+  --binus-orange-soft: #FFF3DF;
+  --binus-gradient: linear-gradient(120deg, #078FCB 0%, #3159A8 55%, #70439A 100%);
+  --focus-ring: 0 0 0 3px rgba(7, 143, 203, .22);
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-panel: 12px;
+  --control-height: 42px;
+  --shadow-subtle: 0 2px 8px rgba(6, 75, 112, .07);
+}
+
+html.dark-mode {
+  --brand: #35B4E8;
+  --brand-hover: #65C8F0;
+  --brand-active: #8AD8F5;
+  --brand-soft: #12394B;
+  --binus-navy: #0B2738;
+  --binus-cyan: #35B4E8;
+  --binus-orange: #FFAD33;
+  --binus-orange-hover: #FFC266;
+  --binus-orange-soft: #49351C;
+  --binus-gradient: linear-gradient(120deg, #087EAF 0%, #3159A8 55%, #70439A 100%);
+  --focus-ring: 0 0 0 3px rgba(53, 180, 232, .25);
+}
+
+body {
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4 {
+  letter-spacing: -.015em;
+}
+
+.sidebar {
+  border-right: 1px solid var(--border);
+}
+
+.sidebar .brand {
+  border-bottom-color: var(--border);
+}
+
+.nav-button,
+.nav-sub-item {
+  border-radius: 7px;
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+
+.nav-button:hover,
+.nav-sub-item:hover {
+  background: var(--brand-soft);
+  color: var(--brand-active);
+}
+
+.nav-button.active,
+.nav-sub-item.active {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+}
+
+.primary-button {
+  min-height: var(--control-height);
+  border: 1px solid var(--binus-orange);
+  border-radius: var(--radius-control);
+  background: var(--binus-orange);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--binus-orange-hover);
+  border-color: var(--binus-orange-hover);
+  transform: translateY(-1px);
+}
+
+.primary-button:active:not(:disabled) { transform: translateY(0); }
+
+.secondary-button {
+  min-height: var(--control-height);
+  border-radius: var(--radius-control);
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-active);
+}
+
+.ai-button,
+#recommendOutcomes.ai-button {
+  border-radius: var(--radius-control);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  min-height: var(--control-height);
+  border-radius: var(--radius-control);
+  border-color: var(--border-strong);
+  font: inherit;
+}
+
+textarea { min-height: 96px; }
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.analytics-panel,
+.form-panel,
+.preview-panel,
+.question-card,
+.session-panel,
+.feedback-card,
+.assessment-card,
+.modal-card,
+.wizard-panel,
+.visual-card {
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-subtle);
+}
+
+.analytics-panel,
+.form-panel,
+.preview-panel,
+.question-card,
+.session-panel,
+.feedback-card,
+.assessment-card {
+  border-color: var(--border);
+}
+
+.data-table thead th {
+  background: var(--brand-soft);
+  color: var(--binus-navy);
+  font-weight: 600;
+}
+
+html.dark-mode .data-table thead th {
+  background: #17394A;
+  color: #D9F3FF;
+}
+
+.data-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--surface));
+}
+
+.badge,
+.status-badge,
+.metric-pill,
+.tag {
+  border-radius: 6px;
+}
+
+.tab-filter-btn,
+.wizard-step {
+  border-radius: 7px;
+}
+
+.tab-filter-btn.active,
+.wizard-step.active {
+  color: var(--brand-active);
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.topbar {
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-copy {
+  background: var(--binus-gradient);
+}
+
+.auth-copy h1,
+.auth-copy p,
+.auth-copy .brand,
+.auth-copy .brand strong,
+.auth-copy .brand span {
+  color: #fff;
+}
+
+.auth-copy .brand-mark { filter: brightness(0) invert(1); }
+
+.modal-card {
+  border: 1px solid var(--border);
+}
+
+.toast,
+.more-menu-dropdown {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 12px 32px rgba(15, 40, 60, .14);
+}
+
+@media (max-width: 760px) {
+  .primary-button,
+  .secondary-button { min-height: 44px; }
+  .analytics-panel,
+  .form-panel,
+  .preview-panel { border-radius: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button,
+  .secondary-button,
+  .nav-button,
+  .nav-sub-item { transition: none; }
+}

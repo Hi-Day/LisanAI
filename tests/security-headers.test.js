@@ -7,6 +7,8 @@ const test = require("node:test");
 
 process.env.TURSO_DATABASE_URL = `file:${path.join(os.tmpdir(), `oralai-security-${Date.now()}.db`)}`;
 process.env.ENABLE_DEMO_SIMULATION = "false";
+// This file tests the secure default policy; isolate it from host-specific LTI configuration.
+process.env.LTI_FRAME_ANCESTORS = "";
 
 const { initDatabase } = require("../server/database");
 const { SECURITY_HEADERS, applySecurityHeaders } = require("../server/security-headers");
