@@ -207,7 +207,8 @@ module.exports = async (req, res) => {
           const name = String(u.name || "").trim();
           const email = String(u.email || "").trim().toLowerCase();
           if (!name || !email) throw new Error("Nama dan email wajib diisi");
-          const user = await createTenantUser(auth.tenant.id, { name, email, password: u.password || "password123", role: "student" });
+          if (typeof u.password !== "string" || !u.password.trim()) throw new Error("Password wajib diisi untuk akun siswa baru");
+          const user = await createTenantUser(auth.tenant.id, { name, email, password: u.password, role: "student" });
           await classroomService.addApprovedStudent(auth, classId, user.id, `member-${cryptoRandom()}`, new Date().toISOString());
           added.push({ id: user.id, name: user.name, email: user.email });
         } catch (err) { errors.push({ index, email: u?.email || "", message: err.message }); }

@@ -10,7 +10,6 @@ const DEFAULTS = {
   tenantName: "Lisan.ai Showcase Demo",
   adminName: "Demo Admin Lisan.ai",
   adminEmail: "demo@lisan.ai",
-  password: "LisanDemo2026!",
 };
 
 function uid(prefix) {
@@ -31,7 +30,8 @@ async function getOrCreateAdmin(db) {
   const tenantName = process.env.SHOWCASE_TENANT_NAME || DEFAULTS.tenantName;
   const adminName = process.env.SHOWCASE_ADMIN_NAME || DEFAULTS.adminName;
   const adminEmail = process.env.SHOWCASE_ADMIN_EMAIL || DEFAULTS.adminEmail;
-  const password = process.env.SHOWCASE_ADMIN_PASSWORD || DEFAULTS.password;
+  const password = process.env.SHOWCASE_ADMIN_PASSWORD;
+  if (!password) throw new Error("SHOWCASE_ADMIN_PASSWORD must be configured before showcase demo provisioning.");
 
   let admin = await db.get("SELECT * FROM users WHERE email = ?", adminEmail);
   if (admin) {

@@ -1,10 +1,13 @@
 .env
+.env.*
+!.env.example
 data/
 !data/datasets/
 node_modules/
 server.out.log
 server.err.log
 *.sqlite
+*.db
 test-results/
 playwright-report/
 *.Zone.Identifier

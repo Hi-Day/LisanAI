@@ -9,12 +9,14 @@ const { getDb, initDatabase } = require("../server/database");
 const { createTenantUser } = require("../server/auth-service");
 
 async function main() {
+  const password = process.env.SHOWCASE_ADMIN_PASSWORD;
+  if (!password) throw new Error("SHOWCASE_ADMIN_PASSWORD must be configured before showcase accounts can be provisioned.");
+
   await initDatabase();
   const db = getDb();
   const admin = await db.get("SELECT * FROM users WHERE email = ?", process.env.SHOWCASE_ADMIN_EMAIL || "demo@lisan.ai");
   if (!admin) throw new Error("Showcase admin belum tersedia.");
   const tenantId = admin.tenant_id || admin.tenantId;
-  const password = process.env.SHOWCASE_ADMIN_PASSWORD || "LisanDemo2026!";
 
   const accounts = [
     { name: "Dosen Demo Lisan.ai", email: process.env.SHOWCASE_TEACHER_EMAIL || "dosen@lisan.ai", role: "teacher" },
