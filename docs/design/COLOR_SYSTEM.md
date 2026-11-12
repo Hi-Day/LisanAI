@@ -6,9 +6,20 @@
 
 The product should feel energetic and approachable without becoming childish.
 
+## Active theme: BINUS Maya
+
+The shipped application loads `public/binus-theme.css`, which overrides the brand, neutral, and system tokens below with BINUS Maya guide values. In the running product:
+
+- Orange (`#F18700 → #F39F33`) = primary action
+- BINUS blue (`#0171A9`) = links, focus, active tabs, information; side menu `#0097DA`
+- Grey (`#999999 → #B3B3B3`) = secondary action
+
+The token blocks below are the LisanAI base values that the theme overrides. See `BINUS_MAYA_THEME.md` for the full mapping and the owner-approved accessibility exception for button and side-menu text.
+
 ## Color Roles
 
-- Indigo = LisanAI brand / primary action
+- Orange = primary action (BINUS Maya theme; Indigo in the base LisanAI palette)
+- BINUS blue = brand / navigation / links (Indigo in the base LisanAI palette)
 - Purple = AI / intelligence
 - Pink = voice / human expression
 - Green = success / progress

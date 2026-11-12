@@ -60,7 +60,7 @@ These documents are the product's visual and UX contract.
 - Do not redesign the UI based only on personal aesthetic preference.
 - Prefer semantic design tokens over hardcoded colors, spacing, radii, or typography values.
 - Preserve the established Lisan Pop color semantics:
-  - Indigo = LisanAI / primary action
+  - Orange = primary action; BINUS blue = brand / navigation / links (BINUS Maya theme, `docs/design/BINUS_MAYA_THEME.md`; Indigo in the base palette)
   - Purple = AI / intelligence
   - Pink = voice / human expression
   - Green = success / progress

@@ -1,39 +1,81 @@
-/* BINUS Maya visual alignment layer.
-   Loaded after styles.css so the existing LisanAI component system remains intact.
-   Palette is sampled directionally from the supplied BM Design Guide screenshots;
-   exact brand tokens should be calibrated against the exported source design file. */
+/* BINUS Maya theme layer, loaded after styles.css.
+   Source of truth: "BM Design Guide" (Adobe XD) — Atom - Colors, Atom - Button, layout-1.
+   Values marked (guide) are read from XD Specs mode; (derived) values fill gaps the guide does not define.
+   Owner decision: component colors follow the guide exactly, including white text on the orange/grey
+   buttons and the #0097DA side menu, which are below WCAG AA (see docs/design/BINUS_MAYA_THEME.md). */
 
 :root {
-  --brand: #078FCB;
-  --brand-hover: #067DAF;
-  --brand-active: #05658F;
-  --brand-soft: #E6F5FB;
-  --binus-navy: #064B70;
-  --binus-cyan: #079BD3;
-  --binus-orange: #F39200;
-  --binus-orange-hover: #DD8100;
-  --binus-orange-soft: #FFF3DF;
-  --binus-gradient: linear-gradient(120deg, #078FCB 0%, #3159A8 55%, #70439A 100%);
-  --focus-ring: 0 0 0 3px rgba(7, 143, 203, .22);
-  --radius-control: 8px;
-  --radius-card: 10px;
-  --radius-panel: 12px;
-  --control-height: 42px;
-  --shadow-subtle: 0 2px 8px rgba(6, 75, 112, .07);
+  font-family: 'Open Sans', system-ui, -apple-system, sans-serif; /* (guide) */
+
+  /* Neutrals (guide: Component + Neutral rows) */
+  --bg: #F5F5F5;              /* layout page background */
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --text: #333333;            /* Secondary / N110 */
+  --text-muted: #666666;      /* Tertiary / N100 */
+  --text-subtle: #999999;     /* Placeholder / N80 */
+  --border: #D9D9D9;          /* card stroke in layout-1 */
+  --border-strong: #CCCCCC;   /* Border / text field stroke */
+
+  /* Brand blue for links, focus, tabs (guide: BL70 / IF20, BL80, BL100) */
+  --brand: #0171A9;
+  --brand-hover: #016394;
+  --brand-active: #014769;
+  --brand-soft: #E6F3FA;      /* (derived) tint of BL70; guide has no soft blue surface */
+
+  /* System colors (guide: SC20, WR20, ER20, IF20). The *-strong text tokens stay at the
+     LisanAI values: the guide defines no text-on-soft pairing and SC20/WR20 fall below 4.5:1 there. */
+  --success: #53802E;
+  --warning: #A95E01;
+  --danger: #D12119;
+  --info: #0171A9;
+
+  /* Buttons (guide: Atom - Button, layout-1) */
+  --binus-primary-fill: linear-gradient(90deg, #F18700 0%, #F39F33 100%);
+  --binus-secondary-fill: linear-gradient(90deg, #999999 0%, #B3B3B3 100%);
+  --binus-button-text: #FFFFFF;
+
+  /* Side menu (guide: layout-1) */
+  --sidebar-bg: #0097DA;
+  --sidebar-hover: #0F7DB6;
+  --sidebar-selected: #075581;
+  --sidebar-text: #FFFFFF;
+  --sidebar-line: rgba(255, 255, 255, .28);
+
+  --binus-gradient: linear-gradient(120deg, #05658F 0%, #3159A8 55%, #70439A 100%); /* (derived) login panel */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand);
+  --radius-control: 6px;      /* (guide) buttons, fields, cards */
+  --radius-card: 6px;
+  --radius-panel: 6px;
+  --control-height: 40px;     /* (guide) */
+  --shadow-subtle: none;      /* guide cards use a 1px stroke, no shadow */
 }
 
+/* Dark mode is not defined by the guide; keep LisanAI dark surfaces with BINUS blue accents. */
 html.dark-mode {
   --brand: #35B4E8;
   --brand-hover: #65C8F0;
   --brand-active: #8AD8F5;
   --brand-soft: #12394B;
-  --binus-navy: #0B2738;
-  --binus-cyan: #35B4E8;
-  --binus-orange: #FFAD33;
-  --binus-orange-hover: #FFC266;
-  --binus-orange-soft: #49351C;
-  --binus-gradient: linear-gradient(120deg, #087EAF 0%, #3159A8 55%, #70439A 100%);
-  --focus-ring: 0 0 0 3px rgba(53, 180, 232, .25);
+  --sidebar-bg: var(--surface);
+  --sidebar-hover: var(--brand-soft);
+  --sidebar-selected: var(--brand-soft);
+  --sidebar-text: var(--text);
+  --sidebar-line: var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode):not(.dark-mode) {
+    --brand: #35B4E8;
+    --brand-hover: #65C8F0;
+    --brand-active: #8AD8F5;
+    --brand-soft: #12394B;
+    --sidebar-bg: var(--surface);
+    --sidebar-hover: var(--brand-soft);
+    --sidebar-selected: var(--brand-soft);
+    --sidebar-text: var(--text);
+    --sidebar-line: var(--border);
+  }
 }
 
 body {
@@ -41,69 +83,119 @@ body {
   line-height: 1.5;
 }
 
-h1, h2, h3, h4 {
-  letter-spacing: -.015em;
-}
-
+/* ---- Side menu ---- */
 .sidebar {
-  border-right: 1px solid var(--border);
+  background: var(--sidebar-bg);
+  border-right: 0;
+  box-shadow: none;
+  color: var(--sidebar-text);
 }
 
-.sidebar .brand {
-  border-bottom-color: var(--border);
-}
+.sidebar .brand { border-bottom-color: var(--sidebar-line); }
+.sidebar .brand strong,
+.sidebar .brand span { color: var(--sidebar-text); }
+.sidebar .brand-mark { background: #FFFFFF; border-radius: 6px; padding: 4px; }
+.sidebar .hamburger span { background: var(--sidebar-text); }
+
+.nav { gap: 2px; }
 
 .nav-button,
 .nav-sub-item {
-  border-radius: 7px;
-  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
+  min-height: 34px;           /* (guide) menu row height */
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sidebar-text);
+  font-size: 14px;
+  transition: background-color .16s ease, color .16s ease;
 }
+
+.nav-button span,
+.nav-button.active span { color: inherit; }
+
+.nav-sub { background: transparent; border-left-color: var(--sidebar-line); }
 
 .nav-button:hover,
 .nav-sub-item:hover {
-  background: var(--brand-soft);
-  color: var(--brand-active);
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
 }
 
 .nav-button.active,
 .nav-sub-item.active {
-  background: var(--brand);
-  color: #fff;
+  background: var(--sidebar-selected);
+  color: var(--sidebar-text);
   font-weight: 600;
 }
 
-.primary-button {
-  min-height: var(--control-height);
-  border: 1px solid var(--binus-orange);
-  border-radius: var(--radius-control);
-  background: var(--binus-orange);
-  color: #fff;
-  font-weight: 600;
-  box-shadow: none;
-  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+/* styles.css forces a soft active/hover background in explicit dark mode (!important); keep text legible. */
+html.dark-mode .nav-button.active,
+html.dark-mode .nav-sub-item.active { color: var(--brand-active); }
+
+.sidebar .dark-mode-toggle,
+.sidebar-settings .utility-button,
+.sidebar-settings .utility-button-danger {
+  border-color: var(--sidebar-line);
+  background: transparent;
+  color: var(--sidebar-text);
 }
 
-.primary-button:hover:not(:disabled) {
-  background: var(--binus-orange-hover);
-  border-color: var(--binus-orange-hover);
-  transform: translateY(-1px);
+.sidebar .dark-mode-toggle:hover,
+.sidebar-settings .utility-button:hover {
+  background: var(--sidebar-hover);
+  border-color: var(--sidebar-line);
+  color: var(--sidebar-text);
 }
 
-.primary-button:active:not(:disabled) { transform: translateY(0); }
+.sidebar-settings { border-top-color: var(--sidebar-line); }
 
+/* ---- Buttons (guide: uppercase Open Sans Semibold 14px, white text) ---- */
+.primary-button,
 .secondary-button {
   min-height: var(--control-height);
+  border: 0;
   border-radius: var(--radius-control);
-  border-color: var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
+  color: var(--binus-button-text);
+  font-size: 14px;
   font-weight: 600;
+  text-transform: uppercase;
+  box-shadow: none;
 }
 
+.primary-button { background: var(--binus-primary-fill); }
+.secondary-button { background: var(--binus-secondary-fill); }
+
+/* shortcut: hover/active shades not read from the guide's state rows; darken via filter until they are. */
+.primary-button:hover:not(:disabled),
 .secondary-button:hover:not(:disabled) {
+  color: var(--binus-button-text);
+  filter: brightness(.92);
+}
+
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled) { filter: brightness(.84); }
+
+/* Base components that put white text on --accent/--brand fills: BL70 passes AA with white. */
+.ob-tab-btn.active,
+.notif-tab-btn.active,
+.wizard-step.active .wizard-step-num,
+.simulator-login-btn:not(.active) {
+  background: var(--brand);
   border-color: var(--brand);
-  background: var(--brand-soft);
-  color: var(--brand-active);
+  color: #FFFFFF;
+}
+
+html.dark-mode .ob-tab-btn.active,
+html.dark-mode .notif-tab-btn.active,
+html.dark-mode .wizard-step.active .wizard-step-num,
+html.dark-mode .simulator-login-btn:not(.active) { color: #0B2738; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode):not(.dark-mode) .ob-tab-btn.active,
+  :root:not(.light-mode):not(.dark-mode) .notif-tab-btn.active,
+  :root:not(.light-mode):not(.dark-mode) .wizard-step.active .wizard-step-num,
+  :root:not(.light-mode):not(.dark-mode) .simulator-login-btn:not(.active) { color: #0B2738; }
 }
 
 .ai-button,
@@ -111,6 +203,7 @@ h1, h2, h3, h4 {
   border-radius: var(--radius-control);
 }
 
+/* ---- Text fields (guide: white, 1px #CCCCCC, radius 6, height 40) ---- */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 textarea,
 select {
@@ -132,6 +225,7 @@ a:focus-visible,
   box-shadow: var(--focus-ring);
 }
 
+/* ---- Cards (guide: white, 1px #D9D9D9, radius 6, no shadow) ---- */
 .analytics-panel,
 .form-panel,
 .preview-panel,
@@ -142,29 +236,28 @@ a:focus-visible,
 .modal-card,
 .wizard-panel,
 .visual-card {
+  border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-subtle);
 }
 
-.analytics-panel,
-.form-panel,
-.preview-panel,
-.question-card,
-.session-panel,
-.feedback-card,
-.assessment-card {
-  border-color: var(--border);
-}
-
+/* ---- Tables ---- */
 .data-table thead th {
-  background: var(--brand-soft);
-  color: var(--binus-navy);
+  background: #F2F2F2;        /* (guide) Component / Background */
+  color: var(--text);
   font-weight: 600;
 }
 
 html.dark-mode .data-table thead th {
   background: #17394A;
   color: #D9F3FF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode):not(.dark-mode) .data-table thead th {
+    background: #17394A;
+    color: #D9F3FF;
+  }
 }
 
 .data-table tbody tr:hover td {
@@ -180,7 +273,7 @@ html.dark-mode .data-table thead th {
 
 .tab-filter-btn,
 .wizard-step {
-  border-radius: 7px;
+  border-radius: var(--radius-control);
 }
 
 .tab-filter-btn.active,
@@ -190,6 +283,7 @@ html.dark-mode .data-table thead th {
   background: var(--brand-soft);
 }
 
+/* ---- Header (guide: white web app header) ---- */
 .topbar {
   border-bottom: 1px solid var(--border);
 }
@@ -208,10 +302,6 @@ html.dark-mode .data-table thead th {
 
 .auth-copy .brand-mark { filter: brightness(0) invert(1); }
 
-.modal-card {
-  border: 1px solid var(--border);
-}
-
 .toast,
 .more-menu-dropdown {
   border: 1px solid var(--border);
@@ -222,14 +312,9 @@ html.dark-mode .data-table thead th {
 @media (max-width: 760px) {
   .primary-button,
   .secondary-button { min-height: 44px; }
-  .analytics-panel,
-  .form-panel,
-  .preview-panel { border-radius: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .primary-button,
-  .secondary-button,
   .nav-button,
   .nav-sub-item { transition: none; }
 }

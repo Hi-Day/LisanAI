@@ -6,7 +6,7 @@ Single source of truth for visual primitives and reusable UI conventions.
 
 ## Typography
 
-Primary font: Outfit.
+Primary font: Open Sans (BINUS Maya guide; set in `public/binus-theme.css`). The base `styles.css` still declares Outfit; the theme overrides it.
 
 Recommended hierarchy:
 
@@ -107,4 +107,4 @@ See UI_COMPONENT_SPEC.md.
 
 ## BINUS Maya visual alignment
 
-The current web application includes an additive BINUS Maya theme layer in `public/binus-theme.css`. It adapts primary navigation to BINUS blue/cyan and primary actions to orange while preserving LisanAI's purple AI semantics, pink voice semantics, status colors, and dark mode. See `BINUS_MAYA_THEME.md` for the initial token map and calibration caveats.
+The web application loads the BINUS Maya theme layer `public/binus-theme.css`, calibrated against the BM Design Guide (Adobe XD). It sets Open Sans, the `#0097DA` side menu, orange gradient primary buttons, grey gradient secondary buttons, BINUS blue `#0171A9` for links/focus/active tabs, guide neutrals and system colors, and 6px radii — while preserving LisanAI's purple AI and pink voice semantics and dark mode. See `BINUS_MAYA_THEME.md` for the token map, the owner-approved accessibility exception, and what is not yet calibrated.

@@ -1,5 +1,7 @@
 # LisanAI — Visual Color System Guide
 
+> Note: the shipped application now uses the BINUS Maya theme (orange primary action, BINUS blue navigation, Open Sans). This guide describes the base LisanAI palette that the theme overrides. Current values: `docs/design/BINUS_MAYA_THEME.md`.
+
 ## 1. Purpose
 
 This document defines the visual color system for LisanAI.
