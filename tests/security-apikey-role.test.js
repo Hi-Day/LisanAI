@@ -35,7 +35,7 @@ test.before(async () => {
 
 test.after(() => {
   const dbPath = process.env.TURSO_DATABASE_URL.replace(/^file:/, "");
-  fs.rmSync(dbPath, { force: true });
+  try { fs.rmSync(dbPath, { force: true }); } catch {} // Windows keeps the open libsql file locked (EBUSY)
 });
 
 test("API-key auth yields the non-privileged api role", async () => {

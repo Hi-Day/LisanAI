@@ -18,7 +18,7 @@ test.before(async () => {
 test.after(() => {
   for (const suffix of ["", "-wal", "-shm"]) {
     const file = `${DB_FILE}${suffix}`;
-    if (fs.existsSync(file)) fs.rmSync(file, { force: true });
+    try { fs.rmSync(file, { force: true }); } catch {} // Windows keeps the open libsql file locked (EBUSY)
   }
 });
 

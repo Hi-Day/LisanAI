@@ -29,7 +29,7 @@ test.before(async () => {
 });
 
 test.after(() => {
-  fs.rmSync(dbPath, { force: true });
+  try { fs.rmSync(dbPath, { force: true }); } catch {} // Windows keeps the open libsql file locked (EBUSY)
 });
 
 test("GET /api/apikeys without a session returns 401", async () => {
