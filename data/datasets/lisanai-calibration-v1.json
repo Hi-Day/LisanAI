@@ -1,0 +1,564 @@
+{
+  "version": "lisanai-calibration-v1",
+  "metadata": {
+    "purpose": "Synthetic LLM Judge calibration set: correct concise answers, paraphrases, omissions, partial understanding, misconceptions, keyword-only answers, wrong/blank answers and noisy speech transcripts.",
+    "language": "id",
+    "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+    "reference_scores_are_synthetic": true,
+    "note": "Scores are initial synthetic reference judgments, not human-validated ground truth. A lecturer should review them before using them for research claims."
+  },
+  "samples": [
+    {
+      "sampleId": "cal-01",
+      "caseLabel": "Jawaban lengkap",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Fotosintesis adalah proses tumbuhan menggunakan energi cahaya yang ditangkap klorofil untuk mengubah air dan karbon dioksida menjadi glukosa. Proses ini berlangsung terutama di kloroplas dan menghasilkan oksigen sebagai produk samping."
+      ],
+      "humanScore": 98,
+      "humanCriterionScores": {
+        "inputs": 100,
+        "process": 100,
+        "outputs": 100,
+        "concept": 95
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-02",
+      "caseLabel": "Jawaban singkat tetapi benar",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tumbuhan memakai cahaya matahari, air, dan CO2 untuk membuat gula sebagai makanan, lalu melepaskan oksigen."
+      ],
+      "humanScore": 92,
+      "humanCriterionScores": {
+        "inputs": 95,
+        "process": 90,
+        "outputs": 95,
+        "concept": 90
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-03",
+      "caseLabel": "Parafrasa tanpa istilah baku",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Daun menangkap energi dari matahari. Energi itu dipakai untuk mengolah air dan gas karbon dioksida menjadi zat gula yang dipakai tumbuhan, dan oksigen keluar ke udara."
+      ],
+      "humanScore": 92,
+      "humanCriterionScores": {
+        "inputs": 95,
+        "process": 90,
+        "outputs": 95,
+        "concept": 90
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-04",
+      "caseLabel": "Benar dengan satu detail minor hilang",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tumbuhan menyerap air lewat akar dan karbon dioksida dari udara. Dengan bantuan cahaya, tumbuhan membuat glukosa untuk energi."
+      ],
+      "humanScore": 82,
+      "humanCriterionScores": {
+        "inputs": 90,
+        "process": 85,
+        "outputs": 70,
+        "concept": 85
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-05",
+      "caseLabel": "Inti benar tetapi kurang lengkap",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Fotosintesis adalah cara tumbuhan membuat makanannya dengan bantuan sinar matahari."
+      ],
+      "humanScore": 65,
+      "humanCriterionScores": {
+        "inputs": 40,
+        "process": 70,
+        "outputs": 55,
+        "concept": 75
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-06",
+      "caseLabel": "Sebagian benar, ada miskonsepsi hasil",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Tumbuhan memakai air dan cahaya untuk membuat makanan, tetapi oksigen yang diserap menjadi hasil utama prosesnya."
+      ],
+      "humanScore": 48,
+      "humanCriterionScores": {
+        "inputs": 60,
+        "process": 55,
+        "outputs": 30,
+        "concept": 45
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-07",
+      "caseLabel": "Menyebut kata kunci tanpa menjelaskan hubungan",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Matahari, klorofil, karbon dioksida, air, glukosa, oksigen."
+      ],
+      "humanScore": 38,
+      "humanCriterionScores": {
+        "inputs": 65,
+        "process": 20,
+        "outputs": 45,
+        "concept": 25
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-08",
+      "caseLabel": "Mayoritas salah",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Fotosintesis terjadi saat akar mengubah mineral tanah menjadi karbon dioksida, lalu tumbuhan menyerap oksigen untuk membuat cahaya."
+      ],
+      "humanScore": 12,
+      "humanCriterionScores": {
+        "inputs": 10,
+        "process": 10,
+        "outputs": 15,
+        "concept": 10
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-09",
+      "caseLabel": "Kosong",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        ""
+      ],
+      "humanScore": 0,
+      "humanCriterionScores": {
+        "inputs": 0,
+        "process": 0,
+        "outputs": 0,
+        "concept": 0
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-10",
+      "caseLabel": "Transkripsi lisan tidak rapi tetapi substansinya benar",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "ee tumbuhan pakai cahaya matahari sama air dan co dua terus jadi gula makanan tumbuhan oksigen dilepas."
+      ],
+      "humanScore": 88,
+      "humanCriterionScores": {
+        "inputs": 90,
+        "process": 85,
+        "outputs": 90,
+        "concept": 85
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-11",
+      "caseLabel": "Jawaban panjang tetapi mengandung klaim keliru",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Fotosintesis berlangsung di daun. Tumbuhan memakai cahaya dan air, lalu menghasilkan glukosa. Karbon dioksida tidak diperlukan karena tumbuhan mendapat semua karbon dari tanah, dan oksigen berasal dari gula."
+      ],
+      "humanScore": 42,
+      "humanCriterionScores": {
+        "inputs": 35,
+        "process": 50,
+        "outputs": 45,
+        "concept": 35
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    },
+    {
+      "sampleId": "cal-12",
+      "caseLabel": "Contoh analogi relevan, istilah kurang presisi",
+      "question": "Jelaskan fotosintesis: bahan yang diperlukan, proses intinya, dan hasil yang dihasilkan tumbuhan.",
+      "rubric": {
+        "id": "photosynthesis-v1",
+        "criteria": [
+          {
+            "id": "inputs",
+            "name": "Bahan yang diperlukan",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "process",
+            "name": "Proses inti fotosintesis",
+            "weight": 0.35,
+            "scale": 100
+          },
+          {
+            "id": "outputs",
+            "name": "Hasil fotosintesis",
+            "weight": 0.25,
+            "scale": 100
+          },
+          {
+            "id": "concept",
+            "name": "Ketepatan konsep dan keterkaitan penjelasan",
+            "weight": 0.15,
+            "scale": 100
+          }
+        ]
+      },
+      "studentAnswers": [
+        "Daun seperti panel surya: menangkap cahaya untuk menjalankan proses yang mengubah air dan CO2 menjadi gula. Oksigen dilepas. Saya tidak ingat nama organel tempat prosesnya."
+      ],
+      "humanScore": 84,
+      "humanCriterionScores": {
+        "inputs": 90,
+        "process": 85,
+        "outputs": 90,
+        "concept": 75
+      },
+      "humanFeedback": "Synthetic reference score for initial diagnostic only; not lecturer-validated.",
+      "annotatorId": "synthetic-reference-v1"
+    }
+  ]
+}
