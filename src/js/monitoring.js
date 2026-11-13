@@ -5,7 +5,7 @@ import {
   updateAssessment,
 } from "./api.js";
 import { renderMonitoring, renderStudentHistory, showResult } from "./render.js";
-import { showToast, showConfirmDialog } from "./toast.js";
+import { showToast, showConfirmDialog, showFormDialog } from "./toast.js";
 import { renderCurrentState, switchView } from "./app-context.js";
 
 /**
@@ -54,16 +54,18 @@ export function bindMonitoringEvents(ctx) {
       if (!submission) return;
 
       const qs = submission.questionScores[idx];
-      const newScoreStr = prompt(`Re-evaluasi Soal ${idx + 1} (skor saat ini: ${qs.score}):\nMasukkan skor baru (0-100):`, qs.score);
-      if (newScoreStr === null) return;
-      const scoreVal = parseInt(newScoreStr, 10);
-      if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
-        showToast("Skor tidak valid. Harus angka 0-100", "error");
-        return;
-      }
-
-      const response = prompt("Respon untuk siswa (penjelasan keputusan):", "");
-      if (response === null) return;
+      const review = await showFormDialog({
+        title: `Tinjau ulang Soal ${idx + 1}`,
+        description: `Skor soal saat ini: ${qs.score}. Nilai akhir dihitung ulang oleh sistem setelah disimpan.`,
+        fields: [
+          { name: "score", label: "Skor baru (0–100)", type: "number", min: 0, max: 100, value: qs.score, required: true },
+          { name: "response", label: "Penjelasan keputusan untuk mahasiswa", type: "textarea" },
+        ],
+        okLabel: "Simpan keputusan",
+      });
+      if (!review) return;
+      const scoreVal = review.score;
+      const response = review.response;
 
       qs.score = scoreVal;
       qs.complaint = {
@@ -73,9 +75,6 @@ export function bindMonitoringEvents(ctx) {
         resolvedAt: new Date().toISOString(),
       };
 
-      submission.finalScore = Math.round(
-        submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
-      );
 
       try {
         await saveSubmissionToDatabase(submission);
@@ -99,8 +98,14 @@ export function bindMonitoringEvents(ctx) {
 
       const qs = submission.questionScores[idx];
       const newScore = Math.max(0, qs.score - 20);
-      const response = prompt(`Tolak komplain untuk Soal ${idx + 1}?\n\nSkor akan dikurangi 20 poin: ${qs.score} → ${newScore}\n\nTuliskan penjelasan untuk siswa (opsional):`, "");
-      if (response === null) return;
+      const rejection = await showFormDialog({
+        title: `Tolak komplain Soal ${idx + 1}?`,
+        description: `Skor soal ini dikurangi 20 poin: ${qs.score} → ${newScore}. Mahasiswa akan melihat keputusan dan penjelasan Anda.`,
+        fields: [{ name: "response", label: "Penjelasan untuk mahasiswa", type: "textarea" }],
+        okLabel: "Tolak komplain",
+      });
+      if (!rejection) return;
+      const response = rejection.response;
 
       qs.score = newScore;
       qs.complaint = {
@@ -110,9 +115,6 @@ export function bindMonitoringEvents(ctx) {
         resolvedAt: new Date().toISOString(),
       };
 
-      submission.finalScore = Math.round(
-        submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
-      );
 
       try {
         await saveSubmissionToDatabase(submission);
@@ -134,24 +136,20 @@ export function bindMonitoringEvents(ctx) {
     if (!submission) return;
 
     const qs = submission.questionScores[idx];
-    const newScoreStr = prompt("Masukkan skor baru (0-100):", qs.score);
-    if (newScoreStr === null) return;
-
-    const scoreVal = parseInt(newScoreStr, 10);
-    if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
-      showToast("Skor tidak valid. Harus angka 0-100", "error");
-      return;
-    }
-
-    const newFeedback = prompt("Tambahkan / ubah catatan kelemahan (opsional):", qs.gaps?.join(" ") || "");
-    if (newFeedback !== null) {
-      qs.gaps = [newFeedback];
-    }
+    const correction = await showFormDialog({
+      title: `Koreksi skor Soal ${idx + 1}`,
+      description: `Skor AI saat ini: ${qs.score}. Nilai akhir dihitung ulang oleh sistem setelah disimpan.`,
+      fields: [
+        { name: "score", label: "Skor baru (0–100)", type: "number", min: 0, max: 100, value: qs.score, required: true },
+        { name: "gaps", label: "Catatan kelemahan", type: "textarea", value: qs.gaps?.join(" ") || "" },
+      ],
+      okLabel: "Simpan koreksi",
+    });
+    if (!correction) return;
+    const scoreVal = correction.score;
+    if (correction.gaps) qs.gaps = [correction.gaps];
     qs.score = scoreVal;
 
-    submission.finalScore = Math.round(
-      submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
-    );
 
     try {
       await saveSubmissionToDatabase(submission);

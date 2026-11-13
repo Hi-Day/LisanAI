@@ -6,7 +6,7 @@ import {
   updateClassroom,
   updateMembership,
 } from "./api.js";
-import { showToast, showConfirmDialog } from "./toast.js";
+import { showToast, showConfirmDialog, showFormDialog } from "./toast.js";
 import { escapeHtml } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 
@@ -118,7 +118,11 @@ export function bindClassManagementEvents(ctx) {
 
     if (event.target.classList.contains("edit-class")) {
       const currentName = ctx.state.classes.find((c) => c.id === id)?.name || "";
-      const newName = prompt("Nama kelas baru:", currentName);
+      const renamed = await showFormDialog({
+        title: "Ubah nama kelas",
+        fields: [{ name: "name", label: "Nama kelas", value: currentName, required: true }],
+      });
+      const newName = renamed?.name;
       if (newName && newName !== currentName) {
         await updateClassroom(id, { name: newName });
         await reloadState(ctx);

@@ -52,7 +52,7 @@ async function listAiVsHumanRows(assessmentId, tenantId) {
   return getDb().all(
     `SELECT r.run_id, r.final_score, h.human_score, h.human_feedback
        FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id AND COALESCE(h.source, '') <> 'validation'
        WHERE (? IS NULL OR r.assessment_id = ?)
         AND (? IS NULL OR r.tenant_id = ?)
         AND r.final_score IS NOT NULL
@@ -107,7 +107,7 @@ async function listCalibrationRows(assessmentId, tenantId) {
     `SELECT r.run_id, r.final_score AS ai_score, h.human_score,
             (SELECT AVG(c.confidence) FROM evaluation_criteria c WHERE c.run_id = r.run_id) AS avg_conf
        FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id AND COALESCE(h.source, '') <> 'validation'
       WHERE ($1 IS NULL OR r.assessment_id = $1)
         AND ($2 IS NULL OR r.tenant_id = $2)
         AND r.final_score IS NOT NULL
@@ -122,7 +122,7 @@ async function listReviewedScoreRows(tenantId) {
   return getDb().all(
     `SELECT r.final_score AS ai, h.human_score AS human
        FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id AND COALESCE(h.source, '') <> 'validation'
       WHERE r.tenant_id = $1 AND r.final_score IS NOT NULL AND h.human_score IS NOT NULL`,
     tenantId || null
   );
@@ -159,7 +159,7 @@ async function listDriftRows(tenantId) {
   return getDb().all(
     `SELECT r.created_at, r.final_score AS ai, h.human_score AS human
        FROM evaluation_runs r
-       JOIN evaluation_human_scores h ON h.run_id = r.run_id
+       JOIN evaluation_human_scores h ON h.run_id = r.run_id AND COALESCE(h.source, '') <> 'validation'
       WHERE r.tenant_id = $1
         AND r.final_score IS NOT NULL
         AND h.human_score IS NOT NULL`,

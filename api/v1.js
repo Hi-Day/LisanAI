@@ -3,18 +3,14 @@ const { getDb } = require("../server/database");
 const { readJson, sendJson } = require("../server/http-utils");
 const { authenticateApiKey } = require("../server/api-auth");
 const { generateQuestions, recommendAssessmentConfig } = require("../server/assessment-service");
-const { assertRateLimit } = require("../server/rate-limit");
+const { resolveRateLimiter } = require("../server/rate-limit");
 
 module.exports = async (req, res) => {
-  const pathname = req.url ? req.url.split("?")[0] : "";
-  if (pathname === "/api/docs" || pathname === "/api/docs/" || pathname === "/api/docs/spec" || pathname === "/api/docs/spec.json") {
-    return require("../api-internal/docs")(req, res);
-  }
   try {
     await ensureDatabase();
     const apiAuth = await authenticateApiKey(req);
     if (!apiAuth) return sendJson(res, 401, { error: "Unauthorized. Sertakan Authorization: Bearer <api_key>" });
-    assertRateLimit(`v1:${apiAuth.keyId}`, { limit: 60, windowMs: 60_000 });
+    await resolveRateLimiter()(`v1:${apiAuth.keyId}`, { limit: 60, windowMs: 60_000 });
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname.replace(/^\/api\/v1/, "");
     if (req.method === "GET" && path === "/assessments") {

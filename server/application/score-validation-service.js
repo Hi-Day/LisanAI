@@ -26,6 +26,7 @@ async function validateScores(auth, submissionIds) {
 
   const validated = [];
   const alreadyValidated = [];
+  const invalid = [];
   let queuedForLms = 0;
 
   for (const id of ids) {
@@ -37,7 +38,9 @@ async function validateScores(auth, submissionIds) {
     }
     const score = Number(submission.finalScore);
     if (!Number.isFinite(score) || score < 0 || score > 100) {
-      throw validationError(`Nilai submission ${id} tidak valid; koreksi nilai sebelum validasi`, 422, "INVALID_SCORE");
+      // One bad row must not hide the result of the rows already released in this batch.
+      invalid.push({ id, message: "Nilai tidak valid; koreksi nilai sebelum validasi" });
+      continue;
     }
 
     const release = { ...releasedBy(auth.user.id), previousStatus: submission.status || null };
@@ -47,7 +50,8 @@ async function validateScores(auth, submissionIds) {
 
     if (finalized.evaluationRunId) {
       // Research traceability must not block the release of an already-validated score.
-      await approveRun({ runId: finalized.evaluationRunId, reviewerId: auth.user.id, humanScore: score })
+      // source "validation": releasing a score is not an independent human rating.
+      await approveRun({ runId: finalized.evaluationRunId, tenantId: auth.tenant.id, reviewerId: auth.user.id, humanScore: score, source: "validation" })
         .catch((error) => console.error("[score-validation] human approval record failed:", error.message));
     }
 
@@ -63,6 +67,10 @@ async function validateScores(auth, submissionIds) {
     }
   }
 
+  if (invalid.length && !validated.length && !alreadyValidated.length) {
+    throw validationError(`Nilai submission ${invalid[0].id} tidak valid; koreksi nilai sebelum validasi`, 422, "INVALID_SCORE");
+  }
+
   // Deliver now; failures stay in the durable outbox and are retried on later requests.
   let lmsDelivery = null;
   if (queuedForLms) {
@@ -70,7 +78,23 @@ async function validateScores(auth, submissionIds) {
       .catch((error) => ({ error: error.message }));
   }
 
-  return { validated, alreadyValidated, queuedForLms, lmsDelivery };
+  return { validated, alreadyValidated, invalid, queuedForLms, lmsDelivery };
 }
 
-module.exports = { validateScores, MAX_BATCH };
+/** A score corrected after its release is queued for the LMS again, so both systems agree. */
+async function resyncReleasedScore(auth, row, previous, saved) {
+  const score = Number(saved?.finalScore);
+  if (!isScoreReleased(saved) || !Number.isFinite(score) || score === Number(previous?.finalScore)) return null;
+  if (!row?.user_id || !row?.assessment_id) return null;
+  const outcome = await enqueueOutcomeForSubmission({
+    tenantId: auth.tenant.id,
+    userId: row.user_id,
+    assessmentId: row.assessment_id,
+    submissionId: saved.id,
+    score,
+  });
+  if (outcome.queued) await processOutcomeOutbox({ limit: 10 });
+  return outcome;
+}
+
+module.exports = { validateScores, resyncReleasedScore, MAX_BATCH };

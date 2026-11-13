@@ -34,7 +34,7 @@ function readJson(req) {
       try {
         resolve(raw ? JSON.parse(raw) : {});
       } catch {
-        reject(new Error("JSON tidak valid"));
+        reject(Object.assign(new Error("JSON tidak valid"), { status: 400 }));
       }
     });
     req.on("error", (err) => {

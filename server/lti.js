@@ -216,12 +216,6 @@ async function enqueueOutcomeForSubmission({ tenantId, userId, assessmentId, sub
   return queued ? { queued } : { queued: 0, reason: "no-valid-outcome-binding" };
 }
 
-async function syncOutcomeForSubmission(params) {
-  const result = await enqueueOutcomeForSubmission(params);
-  if (!result.queued) return { skipped: true, reason: result.reason };
-  const delivery = await processOutcomeOutbox({ limit: Math.max(result.queued, 10) });
-  return { queued: result.queued, delivery };
-}
 async function processLaunch(parameters, requestUrl, req, res) {
   const verified = verifyLaunch(parameters, requestUrl);
   const consumerKey = verified.consumerKey;
@@ -482,4 +476,4 @@ function sendHtml(res, status, html) {
   res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" });
   return res.end(html);
 }
-module.exports = { CLOCK_SKEW_SECONDS, calculateOAuthSignature, enqueueOutcomeForSubmission, mappingToken, normalizeParameters, normalizedBaseUrl, outcomeHostAllowed, parseForm, processLaunch, processMapping, processOutcomeOutbox, renderPage, sendHtml, retryDelayMs, roleFromLti, sendBasicOutcome, startLtiOutcomeWorker, syncOutcomeForSubmission, verifyLaunch };
+module.exports = { CLOCK_SKEW_SECONDS, calculateOAuthSignature, enqueueOutcomeForSubmission, mappingToken, normalizeParameters, normalizedBaseUrl, outcomeHostAllowed, parseForm, processLaunch, processMapping, processOutcomeOutbox, renderPage, sendHtml, retryDelayMs, roleFromLti, sendBasicOutcome, startLtiOutcomeWorker, verifyLaunch };

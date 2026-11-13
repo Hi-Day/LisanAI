@@ -46,9 +46,13 @@ async function queueForApproval({ runId, tenantId, finalScore }) {
  * When a custom humanScore is provided it is recorded as the human score;
  * otherwise the AI score snapshot is treated as approved as-is.
  */
-async function approveRun({ runId, reviewerId, humanScore, humanFeedback }) {
+async function approveRun({ runId, tenantId = null, reviewerId, humanScore, humanFeedback, source = null }) {
   const db = getDb();
-  const run = await db.get("SELECT run_id FROM evaluation_runs WHERE run_id = ?", runId);
+  // tenantId scopes the run to the caller's tenant; null is for trusted internal callers only.
+  const run = await db.get(
+    "SELECT run_id, final_score FROM evaluation_runs WHERE run_id = ? AND (? IS NULL OR tenant_id = ?)",
+    runId, tenantId, tenantId
+  );
   if (!run) throw Object.assign(new Error("Evaluation run tidak ditemukan"), { status: 404 });
   const existing = await db.get("SELECT * FROM human_approvals WHERE run_id = ?", runId);
   const aiScore = existing?.final_score ?? run.final_score ?? humanScore;
@@ -86,6 +90,7 @@ async function approveRun({ runId, reviewerId, humanScore, humanFeedback }) {
     humanFeedback,
     reviewerId,
     reviewedAt: appliedAt,
+    source,
   });
 
   return {
@@ -96,17 +101,19 @@ async function approveRun({ runId, reviewerId, humanScore, humanFeedback }) {
   };
 }
 
-async function saveHumanScoreInternal({ runId, humanScore, humanFeedback, reviewerId, reviewedAt }) {
+async function saveHumanScoreInternal({ runId, humanScore, humanFeedback, reviewerId, reviewedAt, source = null }) {
   const db = getDb();
+  // A release ("validation") never overwrites an independent human rating already on record.
   await db.run(
-    `INSERT OR REPLACE INTO evaluation_human_scores
-       (run_id, human_score, human_feedback, reviewed_at, reviewer_id)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT OR ${source === "validation" ? "IGNORE" : "REPLACE"} INTO evaluation_human_scores
+       (run_id, human_score, human_feedback, reviewed_at, reviewer_id, source)
+     VALUES (?, ?, ?, ?, ?, ?)`,
     runId,
     humanScore == null ? null : Number(humanScore),
     humanFeedback || null,
     toIso(reviewedAt),
-    reviewerId || null
+    reviewerId || null,
+    source
   );
 }
 

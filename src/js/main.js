@@ -235,3 +235,16 @@ export async function initApp() {
   bindThemeControls(ctx);
   bindMobileNavigation(ctx);
 }
+
+// Native validation bubbles follow the browser language; the product speaks Indonesian.
+document.addEventListener("invalid", (event) => {
+  const field = event.target;
+  if (field.validity?.valueMissing) field.setCustomValidity("Kolom ini wajib diisi.");
+  else if (field.validity?.typeMismatch && field.type === "email") field.setCustomValidity("Masukkan alamat email yang valid.");
+}, true);
+document.addEventListener("input", (event) => event.target.setCustomValidity?.(""), true);
+
+// The dashboard's primary action opens the same wizard as the sidebar entry.
+document.addEventListener("click", (event) => {
+  if (event.target.closest("#dashboardCreateAssessment")) document.querySelector('.nav-sub-item[data-nav-view="teacherView"]')?.click();
+});

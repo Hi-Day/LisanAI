@@ -133,19 +133,19 @@ export async function renderDashboard(ctx) {
     kpiCard(
       "Pengumpulan",
       scope.length,
-      "submission",
+      "jawaban masuk",
       "Total submission dalam rentang terpilih"
     ),
     kpiCard(
       "Rata-rata Skor",
       avg === null ? "—" : String(avg),
-      "Evaluated",
+      "sudah dinilai",
       "Hanya penilaian tervalidasi (EVALUATED) yang dihitung"
     ),
     kpiCard(
       "Tingkat Penyelesaian",
       `${completionRate}%`,
-      "completed / assigned",
+      "selesai / ditugaskan",
       "Submission tervalidasi dibagi siswa yang ditugaskan"
     ),
     kpiCard(
@@ -651,7 +651,7 @@ function renderTrendChart(el, submissions) {
   el.innerHTML = `
     <div class="chart-legend" aria-hidden="true">
       <span class="legend-item"><span class="legend-line"></span>Rata-rata skor</span>
-      <span class="legend-item"><span class="legend-bar"></span>Jumlah submission</span>
+      <span class="legend-item"><span class="legend-bar"></span>Jumlah jawaban masuk</span>
     </div>
     <svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tren rata-rata skor per minggu">
       ${gridLines}

@@ -34,8 +34,8 @@ function compareBaselineVsHarness(pairs) {
   };
 }
 
-async function saveHumanScore({ runId, humanScore, humanFeedback, reviewerId }) {
-  const run = await researchRepository.getEvaluationRunScore(runId, null);
+async function saveHumanScore({ runId, humanScore, humanFeedback, reviewerId, tenantId = null }) {
+  const run = await researchRepository.getEvaluationRunScore(runId, tenantId);
   if (!run) throw Object.assign(new Error("Evaluation run tidak ditemukan"), { status: 404 });
   await researchRepository.saveHumanScore({ runId, humanScore, humanFeedback, reviewerId });
   return { runId, humanScore };

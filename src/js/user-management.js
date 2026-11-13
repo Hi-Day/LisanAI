@@ -5,7 +5,7 @@ import {
   updateUser,
 } from "./api.js";
 import { setButtonLoading } from "./dom.js";
-import { showToast, showConfirmDialog } from "./toast.js";
+import { showToast, showConfirmDialog, showFormDialog } from "./toast.js";
 import { escapeHtml, roleLabel } from "./utils.js";
 import { loadUsers, refreshSimulatorIfEnabled } from "./app-context.js";
 
@@ -35,13 +35,19 @@ export function bindUserManagementEvents(ctx) {
     if (event.target.classList.contains("edit-user")) {
       const currentUser = ctx.users.find((u) => u.id === id);
       if (!currentUser) return;
-      const newRole = prompt(`Ubah role untuk ${currentUser.name} (student/teacher/admin):`, currentUser.role);
-      if (newRole && ["student", "teacher", "admin"].includes(newRole) && newRole !== currentUser.role) {
-        await updateUser(id, { role: newRole });
-        ctx.users = await loadUsers(ctx);
-        renderUsers(ctx);
-      } else if (newRole) {
-        showToast("Role tidak valid. Harus student, teacher, atau admin.");
+      const edited = await showFormDialog({
+        title: `Ubah peran ${currentUser.name}`,
+        fields: [{ name: "role", label: "Peran", type: "select", value: currentUser.role, required: true, options: [["student", "Siswa"], ["teacher", "Guru"], ["admin", "Admin"]] }],
+      });
+      if (edited && edited.role !== currentUser.role) {
+        try {
+          await updateUser(id, { role: edited.role });
+          ctx.users = await loadUsers(ctx);
+          renderUsers(ctx);
+          showToast("Peran diperbarui.", "success");
+        } catch (error) {
+          showToast(error.message, "error");
+        }
       }
     } else if (event.target.classList.contains("delete-user")) {
       if (!await showConfirmDialog("Hapus user ini?", "Hapus User")) return;

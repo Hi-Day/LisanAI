@@ -99,7 +99,19 @@ export async function saveAssessmentToDatabase(assessment) {
 }
 
 export async function saveSubmissionToDatabase(submission) {
-  await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
+  const data = await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
+  // The server recomputes the final score with the rubric weights; show its result, not a local guess.
+  if (data?.submission) {
+    submission.finalScore = data.submission.finalScore;
+    submission.feedback = data.submission.feedback;
+    if (Array.isArray(data.submission.questionScores) && Array.isArray(submission.questionScores)) {
+      data.submission.questionScores.forEach((saved, index) => {
+        const local = submission.questionScores[index];
+        if (local && saved) Object.assign(local, { score: saved.score, gaps: saved.gaps, complaint: saved.complaint });
+      });
+    }
+  }
+  return data?.submission || submission;
 }
 
 export async function validateScores(submissionIds) {

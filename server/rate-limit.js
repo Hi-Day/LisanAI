@@ -45,13 +45,6 @@ async function assertRateLimitDb(key, options = {}) {
   try {
     const { getDb } = require("./database");
     const db = getDb();
-    await db.exec(
-      `CREATE TABLE IF NOT EXISTS rate_limits (
-        key TEXT PRIMARY KEY,
-        count INTEGER NOT NULL DEFAULT 0,
-        reset_at TEXT NOT NULL
-      )`
-    );
     const resetAt = new Date((Math.floor(now / windowMs) + 1) * windowMs).toISOString();
 
     await db.run(

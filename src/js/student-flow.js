@@ -170,7 +170,7 @@ export function openPreExamModal(ctx, assessment, trigger = null) {
   );
 
   els.preExamModal.classList.remove("hidden");
-  (isOralExam ? els.preExamMicTest : els.preExamStart)?.focus();
+  (isOralExam ? els.preExamMicTest : els.preExamStart)?.focus({ preventScroll: true });
 }
 
 function closePreExamModal(ctx, { returnFocus = true } = {}) {

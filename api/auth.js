@@ -11,7 +11,7 @@ const {
 } = require("../server/auth-service");
 const { ensureDatabase } = require("../server/bootstrap");
 const { parseCookies, readJson, sendJson, setCookie } = require("../server/http-utils");
-const { assertRateLimit } = require("../server/rate-limit");
+const { resolveRateLimiter } = require("../server/rate-limit");
 
 module.exports = async (req, res) => {
   const pathname = req.url ? req.url.split("?")[0] : "";
@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
       const body = await readJson(req);
       const { action, payload } = body;
       if (action === "register") {
-        assertRateLimit(rateLimitKey(req, "register"), { limit: 3, windowMs: 10 * 60_000 });
+        await resolveRateLimiter()(rateLimitKey(req, "register"), { limit: 3, windowMs: 10 * 60_000 });
         const auth = await registerTenantUser(payload);
         const session = await createSession(auth.user.id);
         setSessionCookie(res, session.token, req);
@@ -59,7 +59,8 @@ module.exports = async (req, res) => {
         return sendJson(res, 201, { authenticated: true, tenant: auth.tenant, user: auth.user, csrfToken: createCsrfToken(authContext) });
       }
       if (action === "login") {
-        assertRateLimit(rateLimitKey(req, `login:${payload?.email || ""}`), { limit: 5, windowMs: 60_000 });
+        // Keyed by email only: an IP taken from X-Forwarded-For can be spoofed to reset the counter.
+        await resolveRateLimiter()(`login:${String(payload?.email || "").trim().toLowerCase()}`, { limit: 5, windowMs: 60_000 });
         const auth = await loginUser(payload);
         const session = await createSession(auth.user.id);
         setSessionCookie(res, session.token, req);

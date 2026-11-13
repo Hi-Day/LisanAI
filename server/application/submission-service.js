@@ -1,4 +1,5 @@
 const submissionGateway = require("../database/submission-gateway");
+const { applyTeacherCorrection, questionWeights } = require("../evaluation/teacher-correction");
 
 async function assertCanSubmit(auth, assessmentId, classId = null) {
   return submissionGateway.assertCanSubmitAssessment(auth.tenant.id, auth.user.id, assessmentId, classId);
@@ -9,13 +10,19 @@ async function saveStudentSubmission(auth, submission) {
 }
 
 async function saveTeacherSubmission(auth, submission) {
-  const existing = await submissionGateway.getSubmissionForUpdate(auth, submission.id);
-  // Release state is server-owned: only the validate-scores action may change it.
-  const previous = (() => { try { return JSON.parse(existing.payload || "{}"); } catch { return {}; } })();
-  const { scoreRelease: _clientRelease, ...rest } = submission;
-  const toSave = previous.scoreRelease ? { ...rest, scoreRelease: previous.scoreRelease } : rest;
-  await submissionGateway.saveTeacherSubmission(auth.tenant.id, existing.user_id, toSave);
-  return existing;
+  const existing = await submissionGateway.getSubmissionForUpdate(auth, submission?.id);
+  let previous;
+  try { previous = JSON.parse(existing.payload || "{}"); }
+  catch { throw Object.assign(new Error("Data submission rusak"), { status: 422 }); }
+  // The stored record is the source of truth. Only the lecturer's per-question
+  // corrections are taken over; everything else (evidence, integrity, release
+  // state, recordings) stays as stored, and the final score is recomputed here.
+  const assessment = existing.assessment_id
+    ? await submissionGateway.getAssessmentPayload(auth.tenant.id, existing.assessment_id)
+    : null;
+  const saved = applyTeacherCorrection(previous, submission, questionWeights(assessment, previous.questionScores));
+  await submissionGateway.saveTeacherSubmission(auth.tenant.id, existing.user_id, saved);
+  return { existing, previous, submission: saved };
 }
 
 async function getSubmission(auth, submissionId) {

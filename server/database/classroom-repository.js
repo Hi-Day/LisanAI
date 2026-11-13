@@ -33,7 +33,10 @@ async function getVisibleClasses(db, auth) {
 async function requestJoinClass(db, tenantId, studentId, joinCode, membership) {
   const classroom = await db.get("SELECT * FROM classes WHERE tenant_id = ? AND join_code = ?", tenantId, joinCode);
   if (!classroom) throw Object.assign(new Error("Kode kelas tidak ditemukan"), { status: 404 });
-  await db.run(`INSERT OR REPLACE INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, 'pending', ?, NULL)`, membership.id, tenantId, classroom.id, studentId, membership.requestedAt);
+  // Re-entering a join code must not demote an already approved member back to pending.
+  await db.run(`INSERT INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at) VALUES (?, ?, ?, ?, 'pending', ?, NULL)
+     ON CONFLICT(class_id, student_id) DO UPDATE SET status = 'pending', requested_at = excluded.requested_at, approved_at = NULL
+     WHERE class_memberships.status <> 'approved'`, membership.id, tenantId, classroom.id, studentId, membership.requestedAt);
   return classroom;
 }
 

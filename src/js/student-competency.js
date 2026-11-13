@@ -3,7 +3,7 @@ import { escapeHtml } from "./utils.js";
 let state = { trajectories: [], query: "", status: "ALL", sort: "score" };
 
 function levelLabel(level) {
-  return ({ MASTERED: "Sudah kuat", DEVELOPING: "Sedang berkembang", NEEDS_SUPPORT: "Perlu latihan", INSUFFICIENT_EVIDENCE: "Belum cukup evidence" })[level] || "Belum ada data";
+  return ({ MASTERED: "Sudah kuat", DEVELOPING: "Sedang berkembang", NEEDS_SUPPORT: "Perlu latihan", INSUFFICIENT_EVIDENCE: "Belum cukup bukti" })[level] || "Belum ada data";
 }
 function levelClass(level) { return String(level || "insufficient").toLowerCase().replace(/_/g, "-"); }
 function formatDate(value) {
@@ -37,7 +37,7 @@ function renderSummary(el, trajectories) {
     ["Kompetensi terukur", trajectories.length, "Learning Outcome dengan data", "neutral"],
     ["Rata-rata terkini", average == null ? "—" : average, "Skor terbaru tiap kompetensi", "primary"],
     ["Meningkat", improving, "Kompetensi dengan tren positif", "positive"],
-    ["Perlu perhatian", needSupport, "Masih perlu latihan atau evidence", "attention"],
+    ["Perlu perhatian", needSupport, "Masih perlu latihan atau bukti", "attention"],
   ].map((item) => '<div class="student-kpi-card student-kpi-' + item[3] + '"><span class="kpi-label">' + escapeHtml(item[0]) + '</span><strong class="kpi-value">' + escapeHtml(item[1]) + '</strong><span class="kpi-sub">' + escapeHtml(item[2]) + '</span></div>').join("");
 }
 function filteredTrajectories() {
@@ -59,7 +59,7 @@ function filteredTrajectories() {
 }
 function renderTrajectoryCards(el, trajectories) {
   if (!trajectories.length) {
-    el.innerHTML = '<div class="student-competency-empty"><strong>Tidak ada kompetensi yang cocok.</strong><span>Coba ubah pencarian atau filter.</span></div>';
+    el.innerHTML = '<div class="student-competency-empty"><strong>' + (state.trajectories?.length || state.query || state.status !== "ALL" ? 'Tidak ada kompetensi yang cocok.</strong><span>Coba ubah pencarian atau filter.' : 'Belum ada data kompetensi.</strong><span>Selesaikan penilaian. Perkembangan muncul di sini setelah dosen memvalidasi nilai.') + '</span></div>';
     return;
   }
   el.innerHTML = trajectories.map((item) => {

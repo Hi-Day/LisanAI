@@ -2,13 +2,13 @@ const {
   deleteAssessment,
   getState, saveAssessment,
   updateAssessment,
-  saveQuestionToBank, listQuestionBank, deleteQuestionFromBank,
+  saveQuestionToBank, listQuestionBank, deleteQuestionFromBank, stripSubmissionAudio,
 } = require("../database");
 const submissionService = require("./submission-service");
 const classroomService = require("./classroom-service");
 const scoreValidationService = require("./score-validation-service");
 const {
-  listTenantUsers, createTenantUser, createTenantUsersBatch,
+  listTenantUsers, createTenantUser, createTenantUsersBatch, updateTenantUser, deleteTenantUser,
 } = require("../auth-service");
 const { ensureDatabase } = require("../bootstrap");
 const { readJson, sendJson } = require("../http-utils");
@@ -107,21 +107,23 @@ module.exports = async (req, res) => {
         });
       }
       if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
-      const existing = await submissionService.saveTeacherSubmission(auth, payload);
+      const { existing, previous, submission: saved } = await submissionService.saveTeacherSubmission(auth, payload || {});
       try {
-        const prev = (() => { try { return JSON.parse(existing.payload || "{}"); } catch { return {}; } })();
-        const runId = payload.evaluationRunId || prev.evaluationRunId;
-        if (runId && payload.finalScore !== undefined && payload.finalScore !== null) {
+        const runId = saved.evaluationRunId;
+        if (runId && saved.finalScore !== undefined && saved.finalScore !== null) {
           await recordTeacherScoreChange({
             runId,
-            finalScore: payload.finalScore,
+            finalScore: saved.finalScore,
             tenantId: auth.tenant.id,
             reviewerId: auth.user.id,
-            reviewNote: (payload.questionScores || []).find((qs) => qs && qs.complaint && qs.complaint.status === "resolved") ? "Komplain siswa diterima." : "",
+            reviewNote: (saved.questionScores || []).find((qs) => qs && qs.complaint && qs.complaint.status === "resolved") ? "Komplain siswa diterima." : "",
           });
         }
       } catch (recErr) { console.error("[research] recordTeacherScoreChange failed:", recErr); }
-      return sendJson(res, 200, { submission: payload });
+      // A released score that changed must reach the LMS again; a failure stays in the durable outbox.
+      await scoreValidationService.resyncReleasedScore(auth, existing, previous, saved)
+        .catch((lmsErr) => console.error("[lti] released score resync failed:", lmsErr.message));
+      return sendJson(res, 200, { submission: stripSubmissionAudio(saved) });
     }
 
     if (action === "validate-scores") {
@@ -179,6 +181,16 @@ module.exports = async (req, res) => {
     if (action === "create-user") {
       if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
       return sendJson(res, 201, { user: await createTenantUser(auth.tenant.id, payload) });
+    }
+    if (action === "update-user") {
+      if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
+      // An admin demoting themselves could leave the tenant without any admin.
+      if (id === auth.user.id && payload?.role && payload.role !== "admin") return sendJson(res, 400, { error: "Tidak bisa mengubah peran akun sendiri" });
+      return sendJson(res, 200, { user: await updateTenantUser(auth.tenant.id, id, payload || {}) });
+    }
+    if (action === "delete-user") {
+      if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });
+      await deleteTenantUser(auth.tenant.id, id, auth.user.id); return sendJson(res, 200, { ok: true });
     }
     if (action === "create-users-batch") {
       if (!isAdmin) return sendJson(res, 403, { error: "Forbidden" });

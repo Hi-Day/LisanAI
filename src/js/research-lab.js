@@ -53,7 +53,7 @@ function ensureResearchLab() {
         <h3 id="researchLabTitle">Research Lab — Baseline vs AI Harness</h3>
         <p>Jalankan eksperimen terkontrol pada dataset yang sama. Hasil hanya untuk riset; tidak mengubah nilai resmi mahasiswa.</p>
       </div>
-      <span class="lab-badge">Admin only</span>
+      <span class="lab-badge">Khusus admin</span>
     </div>
     <form id="researchLabForm">
       <div class="lab-form">
@@ -83,8 +83,8 @@ function ensureResearchLab() {
         </label>
       </div>
       <div class="lab-actions">
-        <button type="submit" class="btn btn-primary" id="runResearchLabBtn">Jalankan eksperimen</button>
-        <button type="button" class="btn btn-secondary" id="refreshResearchLabBtn">Muat ulang dataset</button>
+        <button type="submit" class="primary-button" id="runResearchLabBtn">Jalankan eksperimen</button>
+        <button type="button" class="secondary-button" id="refreshResearchLabBtn">Muat ulang dataset</button>
       </div>
       <p class="lab-note">Provider/model dikendalikan dari konfigurasi server. Batas eksperimen UI: 20 sampel dan 3 pengulangan untuk menjaga biaya serta waktu eksekusi.</p>
     </form>

@@ -54,8 +54,8 @@ AI purple (`--ai`) and voice pink (`--voice`) are LisanAI semantics with no BINU
 ## Components
 
 - **Typography:** Open Sans (guide). Buttons use Open Sans Semibold 14px, uppercase.
-- **Primary button:** gradient `#F18700 → #F39F33`, white text, 6px radius, 40px height.
-- **Secondary button:** gradient `#999999 → #B3B3B3`, white text, 6px radius, 40px height.
+- **Primary button:** gradient `#F18700 → #F39F33` (guide), text N110 `#333333`, 6px radius, 40px height.
+- **Secondary button:** N100 `#666666`, white text, 6px radius, 40px height.
 - **Hover/active:** *derived* — `brightness(.92)` / `brightness(.84)`. The guide's hover/click rows were not yet read; replace with exact values.
 - **Text fields:** white, 1px `#CCCCCC`, 6px radius, 40px height.
 - **Cards and panels:** white, 1px `#D9D9D9`, 6px radius, no shadow.
@@ -63,7 +63,16 @@ AI purple (`--ai`) and voice pink (`--voice`) are LisanAI semantics with no BINU
 - **Header:** white with a bottom border.
 - **Login panel gradient:** *derived* `#05658F → #3159A8 → #70439A` (the guide's *layout-login* screen has not been calibrated yet).
 
-## Accessibility exception (owner decision)
+## Accessibility (was: exception by owner decision)
+
+**Current state:** the three pairs below now use the AA-passing alternatives from the same palette,
+applied when the product was prepared for production use: primary button text `#333333` on the guide's
+orange fill (4.9:1 or better), secondary button white on N100 `#666666` (5.7:1), side menu white on BL70
+`#0171A9` (5.3:1) with BL80 hover and BL100 selected. To return to the exact guide values, restore
+`--binus-primary-text`, `--binus-secondary-fill` and the three `--sidebar-*` tokens in
+`public/binus-theme.css`.
+
+**Guide values and why they were replaced:**
 
 The product owner chose to follow the guide exactly for component colors. These pairs are below WCAG 2.1 AA (4.5:1 for normal text):
 

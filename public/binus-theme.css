@@ -1,8 +1,8 @@
 /* BINUS Maya theme layer, loaded after styles.css.
    Source of truth: "BM Design Guide" (Adobe XD) — Atom - Colors, Atom - Button, layout-1.
    Values marked (guide) are read from XD Specs mode; (derived) values fill gaps the guide does not define.
-   Owner decision: component colors follow the guide exactly, including white text on the orange/grey
-   buttons and the #0097DA side menu, which are below WCAG AA (see docs/design/BINUS_MAYA_THEME.md). */
+   Button text, the secondary button fill and the side menu use the guide's AA-passing alternatives
+   from the same palette (see "Accessibility" in docs/design/BINUS_MAYA_THEME.md). */
 
 :root {
   font-family: 'Open Sans', system-ui, -apple-system, sans-serif; /* (guide) */
@@ -32,13 +32,14 @@
 
   /* Buttons (guide: Atom - Button, layout-1) */
   --binus-primary-fill: linear-gradient(90deg, #F18700 0%, #F39F33 100%);
-  --binus-secondary-fill: linear-gradient(90deg, #999999 0%, #B3B3B3 100%);
+  --binus-secondary-fill: #666666;   /* N100: white text 5.7:1 (guide gradient #999→#B3B3B3 gave 2.1–2.9) */
   --binus-button-text: #FFFFFF;
+  --binus-primary-text: #333333;     /* N110 on the guide's orange fill: 4.9:1 or better (white gave 2.1–2.6) */
 
   /* Side menu (guide: layout-1) */
-  --sidebar-bg: #0097DA;
-  --sidebar-hover: #0F7DB6;
-  --sidebar-selected: #075581;
+  --sidebar-bg: #0171A9;       /* BL70: white text 5.3:1 (guide #0097DA gave 3.3) */
+  --sidebar-hover: #016394;    /* BL80 */
+  --sidebar-selected: #014769; /* BL100 */
   --sidebar-text: #FFFFFF;
   --sidebar-line: rgba(255, 255, 255, .28);
 
@@ -115,6 +116,8 @@ body {
 .nav-button.active span { color: inherit; }
 
 .nav-sub { background: transparent; border-left-color: var(--sidebar-line); }
+/* The lecturer's main action must read as clearly as the other menu rows. */
+.nav-sub-item[data-nav-view="teacherView"] { color: var(--sidebar-text); font-weight: 700; }
 
 .nav-button:hover,
 .nav-sub-item:hover {
@@ -163,15 +166,14 @@ html.dark-mode .nav-sub-item.active { color: var(--brand-active); }
   box-shadow: none;
 }
 
-.primary-button { background: var(--binus-primary-fill); }
+.primary-button { background: var(--binus-primary-fill); color: var(--binus-primary-text); }
 .secondary-button { background: var(--binus-secondary-fill); }
 
 /* shortcut: hover/active shades not read from the guide's state rows; darken via filter until they are. */
 .primary-button:hover:not(:disabled),
-.secondary-button:hover:not(:disabled) {
-  color: var(--binus-button-text);
-  filter: brightness(.92);
-}
+.secondary-button:hover:not(:disabled) { filter: brightness(.92); }
+.primary-button:hover:not(:disabled) { background: var(--binus-primary-fill); color: var(--binus-primary-text); }
+.secondary-button:hover:not(:disabled) { background: var(--binus-secondary-fill); color: var(--binus-button-text); }
 
 .primary-button:active:not(:disabled),
 .secondary-button:active:not(:disabled) { filter: brightness(.84); }
@@ -300,7 +302,7 @@ html.dark-mode .data-table thead th {
   color: #fff;
 }
 
-.auth-copy .brand-mark { filter: brightness(0) invert(1); }
+.auth-copy .brand-mark { background: #FFFFFF; border-radius: 6px; padding: 4px; }
 
 .toast,
 .more-menu-dropdown {

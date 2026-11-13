@@ -38,9 +38,9 @@ module.exports = async function researchController(req, res) {
       if (body.action === "save-human-score") {
         const score = Number(payload.humanScore);
         if (!Number.isFinite(score) || score < 0 || score > 100) return sendJson(res, 400, { error: "Skor manusia harus angka 0-100" });
-        return sendJson(res, 200, await research.saveHumanScore({ runId: payload.runId, humanScore: score, humanFeedback: payload.humanFeedback, reviewerId: auth.user.id }));
+        return sendJson(res, 200, await research.saveHumanScore({ runId: payload.runId, humanScore: score, humanFeedback: payload.humanFeedback, reviewerId: auth.user.id, tenantId: auth.tenant.id }));
       }
-      if (body.action === "approve") return sendJson(res, 200, await approveRun({ runId: payload.runId, reviewerId: auth.user.id, humanScore: payload.humanScore, humanFeedback: payload.humanFeedback }));
+      if (body.action === "approve") return sendJson(res, 200, await approveRun({ runId: payload.runId, tenantId: auth.tenant.id, reviewerId: auth.user.id, humanScore: payload.humanScore, humanFeedback: payload.humanFeedback }));
       return sendJson(res, 404, { error: "Action not found" });
     }
     return sendJson(res, 405, { error: "Method not allowed" });

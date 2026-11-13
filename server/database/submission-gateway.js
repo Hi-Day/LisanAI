@@ -12,6 +12,8 @@ module.exports = {
     repository.saveSubmission(getDb(), tenantId, userId, submission, true),
   saveEvaluatedSubmission: (auth, submission) =>
     repository.saveSubmission(getDb(), auth.tenant.id, auth.user.id, submission, true),
+  getAssessmentPayload: (tenantId, assessmentId) =>
+    repository.getAssessmentPayload(getDb(), tenantId, assessmentId),
   getSubmissionDetail: (auth, submissionId) =>
     repository.getSubmissionDetail(getDb(), auth, submissionId),
   saveComplaint: (auth, submissionId, questionIndex, reason) =>

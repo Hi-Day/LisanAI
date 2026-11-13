@@ -1,5 +1,6 @@
 import { DEFAULT_STATE } from "./config.js";
 import { loadStateFromDatabase, saveAssessmentToDatabase, saveSubmissionToDatabase } from "./api.js";
+import { showToast } from "./toast.js";
 
 const LEGACY_STORAGE_KEY = "lisanai-assessment-state";
 
@@ -8,6 +9,9 @@ export async function loadState() {
     const state = await loadStateFromDatabase();
     if (!state.assessments.length && !state.submissions.length) {
       return await migrateLegacyLocalStorage(state);
+    }
+    if (state.submissionsTruncated) {
+      showToast(`Hanya ${state.submissions.length} submission terbaru yang ditampilkan. Submission yang lebih lama tetap tersimpan.`, "info");
     }
     return state;
   } catch (error) {

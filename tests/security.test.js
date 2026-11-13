@@ -365,7 +365,10 @@ test("teacher can correct submissions in their class but not in other classes", 
 
   // 1. Create a submission by the student for the correction assessment
   const submissionId = "sub-to-correct-1";
-  await saveSubmission(tenant.id, student.id, createSubmission(correctionAssessment.id, submissionId));
+  await saveSubmission(tenant.id, student.id, {
+    ...createSubmission(correctionAssessment.id, submissionId),
+    questionScores: [{ question: "Soal 1", score: 80 }, { question: "Soal 2", score: 80 }],
+  });
 
   // Create another teacher and another class/assessment/submission
   const otherTeacher = await createTenantUser(tenant.id, {
@@ -399,8 +402,11 @@ test("teacher can correct submissions in their class but not in other classes", 
   const teacherAuthContext = { sessionId: teacherSession.sessionId, tenant, user: teacher };
   const teacherCsrfToken = createCsrfToken(teacherAuthContext);
 
+  // The lecturer corrects one question. A final score sent by the browser is ignored:
+  // the server recomputes it from the stored score and the question's weight.
   const correctPayload = createSubmission(correctionAssessment.id, submissionId);
-  correctPayload.finalScore = 95; // change score
+  correctPayload.questionScores = [{ score: 100 }, { score: 80 }];
+  correctPayload.finalScore = 5;
 
   const resCorrectionSuccess = await callHandler(databaseApi, {
     method: "POST",
@@ -409,7 +415,8 @@ test("teacher can correct submissions in their class but not in other classes", 
     headers: { ...teacherHeaders, "x-csrf-token": teacherCsrfToken }
   });
   assert.equal(resCorrectionSuccess.statusCode, 200);
-  assert.equal(resCorrectionSuccess.body.submission.finalScore, 95);
+  assert.equal(resCorrectionSuccess.body.submission.finalScore, 90);
+  assert.equal(resCorrectionSuccess.body.submission.questionScores[0].score, 100);
 
   // 3. Now let's try to update otherSubmissionId (which is for otherTeacher's class) as the teacher.
   const incorrectPayload = createSubmission(otherAssessment.id, otherSubmissionId);

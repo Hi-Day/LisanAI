@@ -231,8 +231,8 @@ export async function applyRoleAccess(ctx) {
         <div class="nav-sub nav-group-open">
           <button class="nav-sub-item" data-nav-view="teacherView">✚ Buat Penilaian</button>
           <button class="nav-sub-item" data-nav-assessment-tab="all">Semua Penilaian</button>
-          <button class="nav-sub-item" data-nav-assessment-tab="draft">Draft</button>
-          <button class="nav-sub-item" data-nav-assessment-tab="published">Published</button>
+          <button class="nav-sub-item" data-nav-assessment-tab="draft">Draf</button>
+          <button class="nav-sub-item" data-nav-assessment-tab="published">Terbit</button>
         </div>
       </div>
       <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
@@ -397,7 +397,7 @@ export async function switchView(ctx, viewId, { fromHistory = false } = {}) {
   }
   if (viewId === "notifView") {
     const { clearNotificationBadge } = await import("./notifications.js");
-    clearNotificationBadge();
+    clearNotificationBadge(ctx);
   }
 }
 

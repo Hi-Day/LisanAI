@@ -78,7 +78,7 @@ export async function loadTelemetry(ctx) {
 function setTelemetryLoading(ctx, active) {
   const { els } = ctx;
   if (!els.refreshTelemetryBtn) return;
-  setButtonLoading(els.refreshTelemetryBtn, active, "Memuat…", "🔄 Refresh Telemetry");
+  setButtonLoading(els.refreshTelemetryBtn, active, "Memuat…", "🔄 Muat ulang telemetri");
   els.refreshTelemetryBtn.setAttribute("aria-busy", String(active));
 }
 

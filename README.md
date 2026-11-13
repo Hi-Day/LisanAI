@@ -76,7 +76,7 @@ Platform assessment lisan berbasis AI untuk guru dan siswa dengan multi-tenant, 
    http://127.0.0.1:4173
    ```
 
-   Dokumentasi API publik (Swagger UI): `http://127.0.0.1:4173/api/docs`
+   Spesifikasi API publik (OpenAPI JSON): `http://127.0.0.1:4173/api/openapi.json`
 
 ## Scripts
 
@@ -88,6 +88,7 @@ Platform assessment lisan berbasis AI untuk guru dan siswa dengan multi-tenant, 
 | `npm run check`                 | Syntax check + semua test           |
 | `npm run test:e2e`              | Playwright end-to-end tests         |
 | `node scripts/run-benchmark.js` | Benchmark experiment CLI            |
+| `npm run migrate:audio`         | Sekali jalan setelah upgrade: pindahkan rekaman lama dari payload submission ke tabel `submission_audio` |
 
 ## Testing
 

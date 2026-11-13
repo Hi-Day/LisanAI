@@ -116,8 +116,9 @@ function install() {
   async function generate(mode) {
     const existing = values();
     const count = mode === "add" ? 1 : 3;
-    if (mode === "add" && !topic()) {
-      window.alert("Isi topik atau materi terlebih dahulu.");
+    if (!topic()) {
+      (window.appAlert || window.alert)("Isi topik atau materi terlebih dahulu.");
+      document.getElementById("topic")?.focus();
       return;
     }
     const panel = makeStreamPanel(count, mode);
@@ -135,7 +136,6 @@ function install() {
       else syncList(clean.slice(0, 3));
       panel.querySelector(".assessment-outcome-ai-title strong").textContent = mode === "add" ? "Kompetensi berhasil ditambahkan" : "3 kompetensi selesai dibuat";
       panel.querySelector(".assessment-outcome-ai-spinner")?.remove();
-      window.setTimeout(() => panel.remove(), 900);
     } catch (error) {
       panel.querySelector(".assessment-outcome-ai-title strong").textContent = "AI tidak dapat membuat kompetensi";
       panel.querySelector(".assessment-outcome-ai-title small").textContent = error.message;
@@ -181,7 +181,11 @@ function installStyles() {
 
 function start() {
   installStyles();
-  install();
+  if (install()) return;
+  const observer = new MutationObserver(() => {
+    if (install()) observer.disconnect();
+  });
+  observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });

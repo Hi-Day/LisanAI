@@ -1,5 +1,5 @@
 import { saveSubmissionToDatabase } from "./api.js";
-import { showToast } from "./toast.js";
+import { showToast, showFormDialog } from "./toast.js";
 import { escapeHtml } from "./utils.js";
 import { renderCurrentState } from "./app-context.js";
 
@@ -30,11 +30,14 @@ export function bindComplaintEvents(ctx) {
 
       if (rejectBtn) {
         const newScore = Math.max(0, qs.score - 20);
-        const response = prompt(
-          `Tolak komplain untuk Soal ${questionIndex + 1}?\n\nSkor akan dikurangi 20 poin: ${qs.score} → ${newScore}\n\nTuliskan penjelasan untuk siswa (opsional):`,
-          ""
-        );
-        if (response === null) return;
+        const rejection = await showFormDialog({
+          title: `Tolak komplain Soal ${questionIndex + 1}?`,
+          description: `Skor soal ini dikurangi 20 poin: ${qs.score} → ${newScore}. Mahasiswa akan melihat keputusan dan penjelasan Anda.`,
+          fields: [{ name: "response", label: "Penjelasan untuk mahasiswa", type: "textarea" }],
+          okLabel: "Tolak komplain",
+        });
+        if (!rejection) return;
+        const response = rejection.response;
 
         qs.score = newScore;
         qs.complaint = {
@@ -44,18 +47,18 @@ export function bindComplaintEvents(ctx) {
           resolvedAt: new Date().toISOString(),
         };
       } else {
-        const newScoreStr = prompt(
-          `Re-evaluasi Soal ${questionIndex + 1} (skor saat ini: ${qs.score}):\nMasukkan skor baru (0-100):`,
-          qs.score
-        );
-        if (newScoreStr === null) return;
-        const scoreVal = parseInt(newScoreStr, 10);
-        if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > 100) {
-          showToast("Skor tidak valid. Harus angka 0-100", "error");
-          return;
-        }
-        const response = prompt("Respon untuk siswa (penjelasan keputusan):", "");
-        if (response === null) return;
+        const review = await showFormDialog({
+          title: `Tinjau ulang Soal ${questionIndex + 1}`,
+          description: `Skor soal saat ini: ${qs.score}. Nilai akhir dihitung ulang oleh sistem setelah disimpan.`,
+          fields: [
+            { name: "score", label: "Skor baru (0–100)", type: "number", min: 0, max: 100, value: qs.score, required: true },
+            { name: "response", label: "Penjelasan keputusan untuk mahasiswa", type: "textarea" },
+          ],
+          okLabel: "Simpan keputusan",
+        });
+        if (!review) return;
+        const scoreVal = review.score;
+        const response = review.response;
 
         qs.score = scoreVal;
         qs.complaint = {
@@ -66,9 +69,6 @@ export function bindComplaintEvents(ctx) {
         };
       }
 
-      submission.finalScore = Math.round(
-        submission.questionScores.reduce((acc, curr) => acc + curr.score, 0) / submission.questionScores.length
-      );
 
       try {
         await saveSubmissionToDatabase(submission);

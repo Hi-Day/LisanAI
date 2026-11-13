@@ -59,6 +59,7 @@ async function handleOutboxCron(req, res) {
   }
   await ensureDatabase();
   const result = await processOutcomeOutbox({ limit: 50 });
+  await require("../server/maintenance").purgeExpiredRows().catch((error) => console.error("[maintenance] purge failed:", error.message));
   res.writeHead(200, { "Content-Type": "application/json" });
   return res.end(JSON.stringify({ processed: result.processed, failed: result.results.filter((item) => !item.ok).length }));
 }

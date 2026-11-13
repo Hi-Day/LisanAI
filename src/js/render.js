@@ -139,10 +139,12 @@ export function renderStudentArea(els, state, session) {
 
   if (session.currentAssessmentId) {
     els.studentDashboard?.classList.add("hidden");
+    document.body.classList.add("exam-active");
     els.studentWorkspace?.classList.remove("hidden");
     renderQuestion(els, session.getCurrentAssessment(), session);
   } else {
     els.studentDashboard?.classList.remove("hidden");
+    document.body.classList.remove("exam-active");
     els.studentWorkspace?.classList.add("hidden");
   }
 }
@@ -395,7 +397,7 @@ export function showResult(els, submission, auth = null) {
       toggle.querySelector(".result-details-caret").textContent = expanded ? "▸" : "▾";
     });
   }
-  requestAnimationFrame(() => els.resultPanel.querySelector(".result-close-btn")?.focus());
+  requestAnimationFrame(() => els.resultPanel.querySelector(".result-close-btn")?.focus({ preventScroll: true }));
 }
 
 function buildResultSummary(submission) {
@@ -453,7 +455,8 @@ function renderAnswerMap(els, assessment, answers) {
       const done = hasText || hasAudio;
       const cls = done ? "done" : "unanswered";
       const title = done ? `Soal ${index + 1} sudah dijawab` : `Soal ${index + 1} belum dijawab`;
-      return `<div class="answer-dot ${cls}" title="${title}" aria-label="${title}">${index + 1}</div>`;
+      // Not colour alone: answered questions also carry a check mark.
+      return `<div class="answer-dot ${cls}" title="${title}" aria-label="${title}">${done ? "✓ " : ""}${index + 1}</div>`;
     })
     .join("");
 }
@@ -746,7 +749,7 @@ export function renderObservability(els, data) {
   // ---- Last updated + loading state ----
   if (els.telemetryLastUpdated) {
     els.telemetryLastUpdated.textContent = data?.lastUpdated
-      ? `Last updated ${new Date(data.lastUpdated).toLocaleTimeString("id-ID", {
+      ? `Diperbarui ${new Date(data.lastUpdated).toLocaleTimeString("id-ID", {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
