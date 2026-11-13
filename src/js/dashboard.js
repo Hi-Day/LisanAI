@@ -1,5 +1,6 @@
 import { showToast } from "./toast.js";
 import { escapeHtml, compactText, prettifyId } from "./utils.js";
+import { questionProse, questionTablesHtml } from "./question-text.js";
 import {
   getSubmissionStatus,
   hasValidScore,
@@ -271,7 +272,8 @@ function renderAssessmentDetail(ctx, submission) {
         if (!rubricText) return "";
         return `
           <div class="analytics-panel" style="margin-top:16px;">
-            <h4>Soal ${i + 1}: ${escapeHtml(q.prompt || "")}</h4>
+            <h4>Soal ${i + 1}: ${escapeHtml(questionProse(q.prompt))}</h4>
+            ${questionTablesHtml(q.prompt)}
             ${renderRubricTable(rubricText)}
           </div>`;
       }).filter(Boolean).join("")
@@ -355,7 +357,7 @@ function renderAssessmentOutcomeMap(assessment, submission) {
       <div class="lo-map-row">
         <div class="lo-map-question">
           <strong>Soal ${index + 1}</strong>
-          <span>${escapeHtml(compactText(q.prompt || "", 140))}</span>
+          <span>${escapeHtml(compactText(questionProse(q.prompt), 140))}</span>
         </div>
         <div class="lo-map-target">
           ${los.length

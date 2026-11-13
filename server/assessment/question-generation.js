@@ -10,6 +10,15 @@ const SINGLE_SUBSTANCE_RULES = [
   "Setiap soal cukup satu kalimat tanya dengan satu tanda tanya; konteks boleh ditulis sebagai kalimat informasi di awal.",
 ].join(" ");
 
+// A table is part of the prompt text (Markdown pipe table); the client renders it as a real table.
+const TABLE_RULES = [
+  "Jika soal membutuhkan data terstruktur untuk dianalisis siswa (perbandingan, data numerik, jadwal, hasil pengukuran), tulis data itu DI DALAM field prompt sebagai tabel Markdown.",
+  "Format tabel: setiap baris diawali dan diakhiri tanda |, baris kedua adalah pemisah | --- | --- |, dan baris tabel dipisahkan dengan newline (\\n) di dalam string JSON.",
+  "Maksimal 6 kolom dan 8 baris data. Sel berisi teks atau angka singkat, tanpa HTML.",
+  "Kalimat pertanyaan tetap SATU tugas dan ditulis di luar tabel, sebelum atau sesudah tabel.",
+  "JANGAN membuat tabel bila soal tidak membutuhkan data; sebagian besar soal tidak perlu tabel.",
+].join(" ");
+
 const ORAL_SCENARIO_RULES = [
   "Soal harus dirancang untuk skenario UJIAN LISAN: dijawab langsung, spontan, realtime lewat lisan.",
   "Soal harus mengukur CARA dan PROSES berpikir siswa.",
@@ -63,6 +72,7 @@ function buildMessages(payload) {
     contoh_soal_opsional: payload.examples || "",
     aturan_penulisan_soal: SINGLE_SUBSTANCE_RULES,
     aturan_skenario_ujian_lisan: ORAL_SCENARIO_RULES,
+    aturan_tabel_pada_soal: TABLE_RULES,
     jumlah_soal: count,
   }) }];
 }

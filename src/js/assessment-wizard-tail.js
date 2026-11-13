@@ -2,6 +2,7 @@ import { streamAssessmentAction } from "./api.js";
 import { generateFallbackQuestions, recommendFallbackConfig } from "./fallback-assessment.js";
 import { showToast } from "./toast.js";
 import { compactText, escapeHtml, formatTime } from "./utils.js";
+import { questionProse, splitQuestionText } from "./question-text.js";
 import { renderRubricTable } from "./render.js";
 
 export function renderReviewSummary(ctx) {
@@ -25,7 +26,7 @@ export function renderReviewSummary(ctx) {
     <div class="review-block"><h4>Soal</h4>
       <p class="review-count">${answered} dari ${total} soal sudah diisi.</p>
       ${renderAlignmentCoverage(ctx)}
-      <ol class="review-questions">${ctx.pendingQuestions.map((q, i) => `<li class="${(q.prompt || "").trim() ? "" : "review-empty"}"><strong>Soal ${i + 1}</strong><span>${escapeHtml(compactText(q.prompt || "Belum diisi", 120))}</span>${q.probing ? `<span class="review-probing-badge">⚡ probing aktif</span>` : ""}</li>`).join("")}</ol>
+      <ol class="review-questions">${ctx.pendingQuestions.map((q, i) => `<li class="${(q.prompt || "").trim() ? "" : "review-empty"}"><strong>Soal ${i + 1}</strong><span>${escapeHtml(compactText(questionProse(q.prompt) || "Belum diisi", 120))}</span>${splitQuestionText(q.prompt).tables.length ? `<span class="review-probing-badge">▦ berisi tabel</span>` : ""}${q.probing ? `<span class="review-probing-badge">⚡ probing aktif</span>` : ""}</li>`).join("")}</ol>
     </div>`;
 }
 
