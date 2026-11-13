@@ -179,31 +179,48 @@ function startLtiOutcomeWorker({ intervalMs = 15_000 } = {}) {
   return timer;
 }
 
-async function syncOutcomeForSubmission({ tenantId, userId, assessmentId, submissionId, score }) {
-  if (!assessmentId || !submissionId || !Number.isFinite(Number(score))) return { skipped: true, reason: "missing-assessment-submission-or-score" };
-  const rows = await getDb().all(
-    "SELECT consumer_key, outcome_url, sourced_id FROM lti_outcome_bindings WHERE tenant_id = ? AND user_id = ? AND assessment_id = ? AND sourced_id IS NOT NULL AND outcome_url IS NOT NULL",
+/** Durably queue a validated score for LMS passback; returns how many rows were queued. */
+async function enqueueOutcomeForSubmission({ tenantId, userId, assessmentId, submissionId, score }) {
+  if (!assessmentId || !submissionId || !Number.isFinite(Number(score))) return { queued: 0, reason: "missing-assessment-submission-or-score" };
+  const db = getDb();
+  // shortcut: one outbox row per (submission, consumer) because of the 024 UNIQUE constraint; the most
+  // recently launched resource link wins. Upgrade the constraint if one assessment is linked twice per course.
+  const rows = await db.all(
+    "SELECT consumer_key, outcome_url, sourced_id FROM lti_outcome_bindings WHERE tenant_id = ? AND user_id = ? AND assessment_id = ? AND sourced_id IS NOT NULL AND outcome_url IS NOT NULL ORDER BY updated_at DESC",
     tenantId, userId, assessmentId
   );
-  if (!rows.length) return { skipped: true, reason: "no-lti-outcome-binding" };
-  const db = getDb();
+  if (!rows.length) return { queued: 0, reason: "no-lti-outcome-binding" };
   const now = new Date().toISOString();
+  const seen = new Set();
   let queued = 0;
   for (const row of rows) {
+    if (seen.has(row.consumer_key)) continue;
+    seen.add(row.consumer_key);
     if (!outcomeHostAllowed(row.outcome_url)) {
       console.error("[lti] Refusing to queue an outcome for a non-allowlisted host");
       continue;
     }
     const id = crypto.createHash("sha256").update(submissionId + ":" + row.consumer_key).digest("hex");
+    // A re-validated (corrected) score replaces the queued value and is delivered again.
     await db.run(
-      "INSERT OR IGNORE INTO lti_outcome_outbox (id, submission_id, consumer_key, tenant_id, user_id, assessment_id, outcome_url, sourced_id, score, status, attempts, next_attempt_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?)",
+      `INSERT INTO lti_outcome_outbox (id, submission_id, consumer_key, tenant_id, user_id, assessment_id, outcome_url, sourced_id, score, status, attempts, next_attempt_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?)
+       ON CONFLICT(submission_id, consumer_key) DO UPDATE SET
+         outcome_url = excluded.outcome_url, sourced_id = excluded.sourced_id, score = excluded.score,
+         status = 'pending', attempts = 0, next_attempt_at = NULL, last_error = NULL, sent_at = NULL, updated_at = excluded.updated_at
+       WHERE lti_outcome_outbox.status = 'pending' OR lti_outcome_outbox.score <> excluded.score`,
       id, submissionId, row.consumer_key, tenantId, userId, assessmentId, row.outcome_url, row.sourced_id, Number(score), now, now
     );
     queued += 1;
   }
-  if (!queued) return { skipped: true, reason: "no-valid-outcome-binding" };
-  const delivery = await processOutcomeOutbox({ limit: Math.max(queued, 10) });
-  return { queued, delivery };
+  return queued ? { queued } : { queued: 0, reason: "no-valid-outcome-binding" };
+}
+
+async function syncOutcomeForSubmission(params) {
+  const result = await enqueueOutcomeForSubmission(params);
+  if (!result.queued) return { skipped: true, reason: result.reason };
+  const delivery = await processOutcomeOutbox({ limit: Math.max(result.queued, 10) });
+  return { queued: result.queued, delivery };
 }
 async function processLaunch(parameters, requestUrl, req, res) {
   const verified = verifyLaunch(parameters, requestUrl);
@@ -215,15 +232,11 @@ async function processLaunch(parameters, requestUrl, req, res) {
   if (!ltiUserId || !contextId || !resourceLinkId) throw Object.assign(new Error("LTI launch wajib menyertakan user_id, context_id, dan resource_link_id"), { status: 400 });
   const outcomeUrl = String(parameters.lis_outcome_service_url || "").trim();
   const sourcedId = String(parameters.lis_result_sourcedid || "").trim();
-  const mappedAssessmentId = String(parameters.custom_lisan_assessment_id || "").trim();
   if (Boolean(outcomeUrl) !== Boolean(sourcedId)) {
     throw Object.assign(new Error("LTI Outcomes launch harus menyertakan lis_outcome_service_url dan lis_result_sourcedid bersama-sama"), { status: 400 });
   }
-  if (outcomeUrl && sourcedId) {
-    if (!mappedAssessmentId) {
-      throw Object.assign(new Error("LTI resource belum dipetakan ke assessment LisanAI; konfigurasi custom_lisan_assessment_id pada resource link di BINUS Maya"), { status: 400 });
-    }
-    if (!outcomeHostAllowed(outcomeUrl)) throw Object.assign(new Error("Host Outcomes Service belum diizinkan melalui LTI_OUTCOME_HOSTS"), { status: 400 });
+  if (outcomeUrl && !outcomeHostAllowed(outcomeUrl)) {
+    throw Object.assign(new Error("Host Outcomes Service belum diizinkan melalui LTI_OUTCOME_HOSTS"), { status: 400 });
   }
   const tenantId = String(process.env.LTI_TENANT_ID || "").trim();
   if (!tenantId) throw Object.assign(new Error("LTI_TENANT_ID belum dikonfigurasi"), { status: 503 });
@@ -234,40 +247,239 @@ async function processLaunch(parameters, requestUrl, req, res) {
     throw Object.assign(new Error("LTI launch terdeteksi sebagai replay"), { status: 401 });
   }
   const role = roleFromLti(parameters.roles);
-  const identity = await db.get(
-    "SELECT u.id, u.tenant_id FROM lti_identities i JOIN users u ON u.id = i.user_id WHERE i.consumer_key = ? AND i.lti_user_id = ?",
-    consumerKey, ltiUserId
-  );
-  let appUserId;
-  if (identity) {
-    if (identity.tenant_id !== tenantId) throw Object.assign(new Error("Identitas LTI terhubung ke tenant berbeda"), { status: 403 });
-    const existingRole = await db.get("SELECT role FROM users WHERE id = ?", identity.id);
-    if (!existingRole || existingRole.role !== role) throw Object.assign(new Error("Role LTI berbeda dari role akun yang sudah ditautkan; minta administrator melakukan pemetaan role secara eksplisit"), { status: 403 });
-    appUserId = identity.id;
-  } else {
-    const email = String(parameters.lis_person_contact_email_primary || parameters.lis_person_email_primary || "").trim().toLowerCase()
-      || "lti-" + crypto.createHash("sha256").update(consumerKey + ":" + contextId + ":" + ltiUserId).digest("hex").slice(0, 24) + "@lti.invalid";
-    if (await db.get("SELECT id FROM users WHERE lower(email) = lower(?)", email)) throw Object.assign(new Error("Email LTI sudah terdaftar. Administrator harus menautkan akun secara eksplisit."), { status: 409 });
-    const name = String(parameters.lis_person_name_full || [parameters.lis_person_name_given, parameters.lis_person_name_family].filter(Boolean).join(" ") || ltiUserId).trim().slice(0, 160);
-    const created = await createTenantUser(tenantId, { name, email, password: crypto.randomBytes(32).toString("base64url"), role });
-    appUserId = created.id;
-    await db.run("INSERT INTO lti_identities (consumer_key, context_id, lti_user_id, user_id, created_at) VALUES (?, ?, ?, ?, ?)", consumerKey, contextId, ltiUserId, appUserId, new Date().toISOString());
+  const appUserId = await resolveAppUser(db, { consumerKey, contextId, ltiUserId, tenantId, role, parameters });
+  const target = await resolveLaunchTarget(db, { consumerKey, contextId, resourceLinkId, tenantId, parameters });
+
+  if (target && role === "student") {
+    await enrollLearner(db, tenantId, target.classId, appUserId);
   }
-  if (outcomeUrl && sourcedId) {
+  if (target && outcomeUrl && sourcedId) {
     await db.run(
       "INSERT INTO lti_outcome_bindings (consumer_key, context_id, resource_link_id, lti_user_id, user_id, tenant_id, assessment_id, outcome_url, sourced_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(consumer_key, context_id, resource_link_id, lti_user_id) DO UPDATE SET user_id=excluded.user_id, tenant_id=excluded.tenant_id, assessment_id=excluded.assessment_id, outcome_url=excluded.outcome_url, sourced_id=excluded.sourced_id, updated_at=excluded.updated_at",
-      consumerKey, contextId, resourceLinkId, ltiUserId, appUserId, tenantId, mappedAssessmentId, outcomeUrl, sourcedId, new Date().toISOString()
+      consumerKey, contextId, resourceLinkId, ltiUserId, appUserId, tenantId, target.assessmentId, outcomeUrl, sourcedId, new Date().toISOString()
     );
   }
+
   const session = await createSession(appUserId);
+  setLaunchSessionCookie(req, res, session.token);
+
+  if (!target) {
+    if (role === "teacher") {
+      return sendHtml(res, 200, await renderMappingPage(db, {
+        consumerKey, contextId, resourceLinkId, tenantId, userId: appUserId,
+        resourceTitle: String(parameters.resource_link_title || "").trim().slice(0, 200),
+        consumerSecret: verified.consumerSecret,
+      }));
+    }
+    return sendHtml(res, 409, renderPage(
+      "Penilaian belum terhubung",
+      "<p>Dosen belum menghubungkan materi BINUS Maya ini ke penilaian LisanAI. Coba lagi setelah dosen membuka materi ini sekali dan memilih penilaiannya.</p>"
+        + `<p><a class="secondary-button" href="${escapeAttr(appUrl("/"))}">Buka LisanAI</a></p>`,
+    ));
+  }
+
+  const destination = role === "student"
+    ? appUrl(`/?lti_assessment=${encodeURIComponent(target.assessmentId)}#studentView`)
+    : appUrl("/#scoreValidationView");
+  res.writeHead(303, { Location: destination, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+  return res.end();
+}
+
+function launchError(message, status) {
+  return Object.assign(new Error(message), { status });
+}
+
+/**
+ * Find or create the LisanAI account for an LTI user. An existing account with the same
+ * email is linked when it belongs to the LTI tenant and has the same role (owner decision:
+ * the signed BINUS Maya launch is trusted for institutional email). Otherwise a new account
+ * is created so the user can start right away.
+ */
+async function resolveAppUser(db, { consumerKey, contextId, ltiUserId, tenantId, role, parameters }) {
+  const identity = await db.get(
+    "SELECT u.id, u.tenant_id, u.role FROM lti_identities i JOIN users u ON u.id = i.user_id WHERE i.consumer_key = ? AND i.lti_user_id = ?",
+    consumerKey, ltiUserId
+  );
+  if (identity) {
+    if (identity.tenant_id !== tenantId) throw launchError("Identitas LTI terhubung ke tenant berbeda", 403);
+    if (identity.role !== role) throw launchError("Role LTI berbeda dari role akun yang sudah ditautkan; minta administrator menyesuaikan role akun", 403);
+    return identity.id;
+  }
+
+  const lmsEmail = String(parameters.lis_person_contact_email_primary || parameters.lis_person_email_primary || "").trim().toLowerCase();
+  const now = new Date().toISOString();
+  if (lmsEmail) {
+    const existing = await db.get("SELECT id, tenant_id, role FROM users WHERE lower(email) = lower(?)", lmsEmail);
+    if (existing) {
+      if (existing.tenant_id !== tenantId) throw launchError("Email ini sudah terdaftar di organisasi lain di LisanAI. Hubungi administrator LisanAI.", 409);
+      if (existing.role !== role) throw launchError(`Email ini terdaftar sebagai ${existing.role} di LisanAI, tetapi BINUS Maya mengirim role ${role}. Hubungi administrator LisanAI.`, 409);
+      const linked = await db.get("SELECT lti_user_id FROM lti_identities WHERE user_id = ?", existing.id);
+      if (linked) throw launchError("Akun LisanAI dengan email ini sudah tertaut ke identitas BINUS Maya lain. Hubungi administrator LisanAI.", 409);
+      await db.run("INSERT INTO lti_identities (consumer_key, context_id, lti_user_id, user_id, created_at) VALUES (?, ?, ?, ?, ?)", consumerKey, contextId, ltiUserId, existing.id, now);
+      return existing.id;
+    }
+  }
+
+  const email = lmsEmail
+    || "lti-" + crypto.createHash("sha256").update(consumerKey + ":" + ltiUserId).digest("hex").slice(0, 24) + "@lti.invalid";
+  const name = String(parameters.lis_person_name_full || [parameters.lis_person_name_given, parameters.lis_person_name_family].filter(Boolean).join(" ") || ltiUserId).trim().slice(0, 160);
+  const created = await createTenantUser(tenantId, { name, email, password: crypto.randomBytes(32).toString("base64url"), role });
+  await db.run("INSERT INTO lti_identities (consumer_key, context_id, lti_user_id, user_id, created_at) VALUES (?, ?, ?, ?, ?)", consumerKey, contextId, ltiUserId, created.id, now);
+  return created.id;
+}
+
+/** Assessment and class for this resource link: the lecturer's mapping, or a signed custom parameter. */
+async function resolveLaunchTarget(db, { consumerKey, contextId, resourceLinkId, tenantId, parameters }) {
+  const mapping = await db.get(
+    "SELECT assessment_id, class_id FROM lti_resource_links WHERE consumer_key = ? AND context_id = ? AND resource_link_id = ? AND tenant_id = ?",
+    consumerKey, contextId, resourceLinkId, tenantId
+  );
+  if (mapping) return { assessmentId: mapping.assessment_id, classId: mapping.class_id };
+
+  const customId = String(parameters.custom_lisan_assessment_id || "").trim();
+  if (!customId) return null;
+  const assigned = await db.get(
+    "SELECT class_id FROM assessment_classes WHERE tenant_id = ? AND assessment_id = ? ORDER BY assigned_at ASC LIMIT 1",
+    tenantId, customId
+  );
+  if (!assigned) throw launchError("custom_lisan_assessment_id tidak menunjuk penilaian LisanAI yang dibagikan ke kelas", 400);
+  return { assessmentId: customId, classId: assigned.class_id };
+}
+
+/** LTI learners join the mapped class roster as approved members so they can see and submit. */
+async function enrollLearner(db, tenantId, classId, studentId) {
+  const now = new Date().toISOString();
+  await db.run(
+    `INSERT INTO class_memberships (id, tenant_id, class_id, student_id, status, requested_at, approved_at)
+     VALUES (?, ?, ?, ?, 'approved', ?, ?)
+     ON CONFLICT(class_id, student_id) DO UPDATE SET status = 'approved', approved_at = COALESCE(class_memberships.approved_at, excluded.approved_at)`,
+    "membership_" + crypto.randomUUID().replace(/-/g, ""), tenantId, classId, studentId, now, now
+  );
+}
+
+function setLaunchSessionCookie(req, res, token) {
   const { setCookie } = require("./http-utils");
   const proto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
   const secure = proto === "https" || Boolean(req.socket && req.socket.encrypted);
-  setCookie(res, "lisan_session", session.token, { maxAge: 604800, httpOnly: true, sameSite: "None", secure, path: "/" });
-  const origin = process.env.LTI_PUBLIC_ORIGIN || "https://lisan-ai-assessment.vercel.app";
-  const destination = new URL(String(process.env.LTI_DEFAULT_REDIRECT_URL || "/"), origin);
-  if (destination.origin !== new URL(origin).origin) throw Object.assign(new Error("LTI_DEFAULT_REDIRECT_URL harus same-origin"), { status: 500 });
-  res.writeHead(303, { Location: destination.toString(), "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-  return res.end();
+  setCookie(res, "lisan_session", token, { maxAge: 604800, httpOnly: true, sameSite: "None", secure, path: "/" });
 }
-module.exports = { CLOCK_SKEW_SECONDS, calculateOAuthSignature, normalizeParameters, normalizedBaseUrl, outcomeHostAllowed, parseForm, processLaunch, processOutcomeOutbox, retryDelayMs, roleFromLti, sendBasicOutcome, startLtiOutcomeWorker, syncOutcomeForSubmission, verifyLaunch };
+
+function appOrigin() {
+  return new URL(process.env.LTI_PUBLIC_ORIGIN || "https://lisan-ai-assessment.vercel.app").origin;
+}
+
+function appUrl(pathAndQuery) {
+  return new URL(pathAndQuery, appOrigin()).toString();
+}
+
+// ---- Resource-link mapping (first instructor launch) ----
+
+const MAPPING_TOKEN_TTL_SECONDS = 30 * 60;
+
+function mappingToken({ userId, consumerKey, contextId, resourceLinkId, exp }, consumerSecret) {
+  return crypto.createHmac("sha256", consumerSecret)
+    .update(["lti-map", userId, consumerKey, contextId, resourceLinkId, exp].join("|"))
+    .digest("base64url");
+}
+
+async function listMappableTargets(db, tenantId, teacherId) {
+  return db.all(
+    `SELECT a.id AS assessment_id, a.topic, c.id AS class_id, c.name AS class_name
+       FROM assessment_classes ac
+       JOIN assessments a ON a.id = ac.assessment_id AND a.tenant_id = ac.tenant_id
+       JOIN classes c ON c.id = ac.class_id AND c.tenant_id = ac.tenant_id
+      WHERE ac.tenant_id = ? AND c.teacher_id = ?
+      ORDER BY a.created_at DESC, c.name ASC`,
+    tenantId, teacherId
+  );
+}
+
+async function renderMappingPage(db, { consumerKey, contextId, resourceLinkId, tenantId, userId, resourceTitle, consumerSecret }) {
+  const targets = await listMappableTargets(db, tenantId, userId);
+  if (!targets.length) {
+    return renderPage(
+      "Hubungkan materi ke penilaian",
+      "<p>Belum ada penilaian LisanAI yang dibagikan ke kelas Anda. Buat penilaian dan bagikan ke kelas di LisanAI, lalu buka materi BINUS Maya ini lagi.</p>"
+        + `<p><a class="primary-button" href="${escapeAttr(appUrl("/#teacherView"))}">Buat penilaian di LisanAI</a></p>`,
+    );
+  }
+  const exp = Math.floor(Date.now() / 1000) + MAPPING_TOKEN_TTL_SECONDS;
+  const token = mappingToken({ userId, consumerKey, contextId, resourceLinkId, exp }, consumerSecret);
+  const options = targets.map((item, index) => `
+      <label class="lti-map-option">
+        <input type="radio" name="target" value="${escapeAttr(item.assessment_id + "|" + item.class_id)}" ${index === 0 ? "checked" : ""} required>
+        <span><strong>${escapeHtml(item.topic)}</strong><br><small>Kelas: ${escapeHtml(item.class_name)}</small></span>
+      </label>`).join("");
+  return renderPage(
+    "Hubungkan materi ke penilaian",
+    `<p>Materi BINUS Maya${resourceTitle ? ` <strong>${escapeHtml(resourceTitle)}</strong>` : " ini"} belum terhubung ke penilaian LisanAI. Pilih penilaian dan kelasnya. Mahasiswa yang membuka materi ini akan otomatis masuk ke kelas tersebut, dan nilai yang sudah Anda validasi dikirim kembali ke BINUS Maya.</p>
+    <form method="post" action="${escapeAttr(appUrl("/api/lti?action=map"))}" class="lti-map-form">
+      <fieldset><legend>Penilaian LisanAI</legend>${options}</fieldset>
+      <input type="hidden" name="consumer_key" value="${escapeAttr(consumerKey)}">
+      <input type="hidden" name="context_id" value="${escapeAttr(contextId)}">
+      <input type="hidden" name="resource_link_id" value="${escapeAttr(resourceLinkId)}">
+      <input type="hidden" name="resource_title" value="${escapeAttr(resourceTitle)}">
+      <input type="hidden" name="exp" value="${exp}">
+      <input type="hidden" name="token" value="${escapeAttr(token)}">
+      <button type="submit" class="primary-button">Hubungkan</button>
+    </form>`,
+  );
+}
+
+/** Save the lecturer's choice. Requires the session from the launch and a token signed for that user and link. */
+async function processMapping(form, auth) {
+  if (!auth || auth.user.role !== "teacher") throw launchError("Hanya dosen yang dapat menghubungkan materi BINUS Maya", 403);
+  const tenantId = String(process.env.LTI_TENANT_ID || "").trim();
+  if (!tenantId || auth.tenant.id !== tenantId) throw launchError("Akun ini bukan bagian dari tenant LTI", 403);
+  const consumerKey = String(form.consumer_key || "");
+  const contextId = String(form.context_id || "");
+  const resourceLinkId = String(form.resource_link_id || "");
+  const exp = Number(form.exp);
+  const consumerSecret = getConsumers()[consumerKey];
+  if (typeof consumerSecret !== "string" || !consumerSecret || !contextId || !resourceLinkId) throw launchError("Permintaan pemetaan tidak valid", 400);
+  if (!Number.isInteger(exp) || exp < Math.floor(Date.now() / 1000)) throw launchError("Sesi pemetaan kedaluwarsa; buka materi dari BINUS Maya lagi", 401);
+  const expected = mappingToken({ userId: auth.user.id, consumerKey, contextId, resourceLinkId, exp }, consumerSecret);
+  if (!safeEqual(expected, form.token)) throw launchError("Token pemetaan tidak valid; buka materi dari BINUS Maya lagi", 401);
+
+  const [assessmentId, classId] = String(form.target || "").split("|");
+  const db = getDb();
+  const allowed = (await listMappableTargets(db, tenantId, auth.user.id))
+    .find((item) => item.assessment_id === assessmentId && item.class_id === classId);
+  if (!allowed) throw launchError("Penilaian atau kelas tidak ditemukan pada akun Anda", 403);
+
+  const now = new Date().toISOString();
+  await db.run(
+    `INSERT INTO lti_resource_links (consumer_key, context_id, resource_link_id, tenant_id, assessment_id, class_id, mapped_by, resource_title, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(consumer_key, context_id, resource_link_id) DO UPDATE SET
+       assessment_id = excluded.assessment_id, class_id = excluded.class_id, mapped_by = excluded.mapped_by,
+       resource_title = excluded.resource_title, updated_at = excluded.updated_at`,
+    consumerKey, contextId, resourceLinkId, tenantId, assessmentId, classId, auth.user.id,
+    String(form.resource_title || "").slice(0, 200) || null, now, now
+  );
+  return renderPage(
+    "Materi terhubung",
+    `<p>Materi BINUS Maya ini sekarang terhubung ke <strong>${escapeHtml(allowed.topic)}</strong> (kelas ${escapeHtml(allowed.class_name)}). Mahasiswa dapat membukanya dari BINUS Maya.</p>
+     <p><a class="primary-button" href="${escapeAttr(appUrl("/#scoreValidationView"))}">Buka LisanAI</a></p>`,
+  );
+}
+
+// ---- Minimal server-rendered pages for the LTI flow ----
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+const escapeAttr = escapeHtml;
+
+function renderPage(title, bodyHtml) {
+  return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)} · LisanAI</title>
+<link rel="stylesheet" href="${escapeAttr(appUrl("/styles.css"))}"><link rel="stylesheet" href="${escapeAttr(appUrl("/binus-theme.css"))}">
+</head><body><main class="lti-page"><section class="analytics-panel"><h1>${escapeHtml(title)}</h1>${bodyHtml}</section></main></body></html>`;
+}
+
+function sendHtml(res, status, html) {
+  res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" });
+  return res.end(html);
+}
+module.exports = { CLOCK_SKEW_SECONDS, calculateOAuthSignature, enqueueOutcomeForSubmission, mappingToken, normalizeParameters, normalizedBaseUrl, outcomeHostAllowed, parseForm, processLaunch, processMapping, processOutcomeOutbox, renderPage, sendHtml, retryDelayMs, roleFromLti, sendBasicOutcome, startLtiOutcomeWorker, syncOutcomeForSubmission, verifyLaunch };

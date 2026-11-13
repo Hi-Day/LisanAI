@@ -10,7 +10,11 @@ async function saveStudentSubmission(auth, submission) {
 
 async function saveTeacherSubmission(auth, submission) {
   const existing = await submissionGateway.getSubmissionForUpdate(auth, submission.id);
-  await submissionGateway.saveTeacherSubmission(auth.tenant.id, existing.user_id, submission);
+  // Release state is server-owned: only the validate-scores action may change it.
+  const previous = (() => { try { return JSON.parse(existing.payload || "{}"); } catch { return {}; } })();
+  const { scoreRelease: _clientRelease, ...rest } = submission;
+  const toSave = previous.scoreRelease ? { ...rest, scoreRelease: previous.scoreRelease } : rest;
+  await submissionGateway.saveTeacherSubmission(auth.tenant.id, existing.user_id, toSave);
   return existing;
 }
 

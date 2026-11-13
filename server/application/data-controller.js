@@ -6,6 +6,7 @@ const {
 } = require("../database");
 const submissionService = require("./submission-service");
 const classroomService = require("./classroom-service");
+const scoreValidationService = require("./score-validation-service");
 const {
   listTenantUsers, createTenantUser, createTenantUsersBatch,
 } = require("../auth-service");
@@ -121,6 +122,12 @@ module.exports = async (req, res) => {
         }
       } catch (recErr) { console.error("[research] recordTeacherScoreChange failed:", recErr); }
       return sendJson(res, 200, { submission: payload });
+    }
+
+    if (action === "validate-scores") {
+      if (!isTeacherOrAdmin) return sendJson(res, 403, { error: "Forbidden" });
+      const result = await scoreValidationService.validateScores(auth, payload?.submissionIds);
+      return sendJson(res, 200, result);
     }
 
     if (action === "save-submission-audio") {

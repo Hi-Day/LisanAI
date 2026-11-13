@@ -128,7 +128,7 @@ Configure only the exact BINUS Maya HTTPS origin(s) in `LTI_FRAME_ANCESTORS` if 
 ## Current limitations / explicit blockers
 
 - LTI score passback now uses a local durable outbox with bounded exponential retry. Validate retry timing, duplicate/idempotent behavior, queue monitoring, and gradebook round-trip in the BINUS Maya sandbox before production.
-- Assessment mapping must be confirmed with the LMS administrator; the launch must send the signed `custom_lisan_assessment_id` parameter.
+- Lecturers connect each BINUS Maya content item to an assessment on first launch (`lti_resource_links`); see `docs/LTI-1.1-BINUS-MAYA.md`. Confirm with the LMS administrator how content items behave across course copies.
 - LTI 1.1 is a legacy standard. Prefer LTI 1.3 if BINUS Maya supports it and institutional requirements permit.
 - The current evaluation path uses OpenRouter, an external provider. Review what student content is sent and the provider's terms with the institution before go-live.
 - No campus server deployment or BINUS Maya sandbox test has been performed by this repository change. Do not mark production-ready based on CI alone.

@@ -121,7 +121,8 @@ test("evidence feedback write does not clobber patched audio (data-loss race reg
   assert.ok(stored.evidenceFeedback, "evidenceFeedback must be persisted");
   assert.ok(stored.evidenceQuality, "evidenceQuality must be persisted");
   assert.ok(Array.isArray(stored.competencyState), "competencyState must be persisted");
-  assert.equal(stored.scoreState, "VERIFIED", "scoreState must be persisted");
+  // Feedback is derived from the stored payload (which now carries the probing audio), not the stale snapshot.
+  assert.equal(stored.scoreState, "VERIFIED_AFTER_ADAPTIVE_PROBING", "scoreState must be persisted from the canonical submission");
 });
 
 test("saveSubmissionAudio rejects audio longer than the cap with 400", async () => {

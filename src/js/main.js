@@ -5,6 +5,7 @@ import {
   showApp,
   switchView,
   applyRoleAccess,
+  openLaunchTarget,
   refreshSimulatorIfEnabled,
 } from "./app-context.js";
 import { bindAuthEvents } from "./auth-ui.js";
@@ -20,6 +21,7 @@ const ROLE_FEATURES = {
   },
   teacher: {
     complaints: () => import("./complaints.js"),
+    scoreValidation: () => import("./score-validation.js"),
     assessmentWizard: () => import("./assessment-wizard.js"),
     assessmentUx: () => import("./assessment-ux.js"),
     classManagement: () => import("./class-management.js"),
@@ -58,6 +60,7 @@ function bindTeacherFeatures(ctx, modules) {
   modules.assessmentUx?.enhanceAssessmentWizardUX(ctx);
   modules.classManagement?.bindClassManagementEvents(ctx);
   modules.monitoring?.bindMonitoringEvents(ctx);
+  modules.scoreValidation?.bindScoreValidationEvents(ctx);
   modules.demoData?.bindDemoDataEvents(ctx);
   modules.dashboard?.bindDashboardEvents(ctx);
   modules.questionBank?.bindQuestionBankEvents(ctx);
@@ -186,6 +189,8 @@ function bindMobileNavigation(ctx) {
 }
 
 async function bootstrapAuthenticated(ctx, nextAuth) {
+  // applyRoleAccess switches to the role's default view, which rewrites the hash.
+  const launchHash = window.location.hash;
   try {
     const featuresPromise = loadAuthenticatedFeatures(nextAuth.user.role);
     await bootstrapCoreApp(ctx, nextAuth);
@@ -202,6 +207,7 @@ async function bootstrapAuthenticated(ctx, nextAuth) {
 
     await refreshSimulatorIfEnabled(ctx);
     showApp(ctx);
+    await openLaunchTarget(ctx, launchHash);
   } catch (error) {
     console.error("Authenticated bootstrap failed:", error);
     ctx.features = null;

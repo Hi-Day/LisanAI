@@ -1,5 +1,6 @@
 const { getDb, updateSubmissionFeedback } = require("./database");
 const { applyEvidenceFeedbackLoop } = require("./evidence-feedback-loop");
+const { toStudentView } = require("./score-release");
 
 async function processEvidenceFeedback(auth, submission) {
   const db = getDb();
@@ -45,14 +46,21 @@ async function processEvidenceFeedback(auth, submission) {
     throw Object.assign(new Error("Data assessment rusak"), { status: 422 });
   }
 
-  const enriched = applyEvidenceFeedbackLoop(submission, assessment);
+  // Derive feedback from the stored submission, never from client-supplied scores.
+  let canonical;
+  try {
+    canonical = JSON.parse(existing.payload || "{}");
+  } catch {
+    throw Object.assign(new Error("Data submission rusak"), { status: 422 });
+  }
+  const enriched = applyEvidenceFeedbackLoop(canonical, assessment);
   await updateSubmissionFeedback(auth.tenant.id, submission.id, {
     evidenceFeedback: enriched.evidenceFeedback,
     evidenceQuality: enriched.evidenceQuality,
     competencyState: enriched.competencyState,
     scoreState: enriched.scoreState,
   });
-  return enriched;
+  return auth.user.role === "student" ? toStudentView(enriched) : enriched;
 }
 
 module.exports = { processEvidenceFeedback };

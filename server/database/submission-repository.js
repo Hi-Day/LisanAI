@@ -4,6 +4,7 @@ const SUBMISSION_FETCH_LIMIT = 500;
 const ATTEMPT_EVALUATION_LEASE_MS = 15 * 60 * 1000;
 const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require("../security/assessment-integrity");
 const crypto = require("node:crypto");
+const { isScoreReleased, toStudentView } = require("../score-release");
 
 function randomId(prefix) { return `${prefix}_${crypto.randomUUID().replace(/-/g, "")}`; }
 
@@ -233,6 +234,8 @@ const { materializeSubmission } = require("../competency-materializer");
 
 async function refreshCompetencyState(db, tenantId, studentId, submission) {
   if (!studentId || !submission?.assessmentId) return;
+  // Competency projections are score-derived; unvalidated scores must not reach them.
+  if (!isScoreReleased(submission)) return;
   try {
     await materializeSubmission(db, tenantId, studentId, submission);
   } catch (error) {
@@ -317,7 +320,8 @@ async function getSubmissionDetail(db, auth, submissionId) {
     ) : null;
     if (!classroom || classroom.teacher_id !== auth.user.id) throw Object.assign(new Error("Guru hanya bisa buka submission miliknya"), { status: 403 });
   }
-  return JSON.parse(row.payload);
+  const payload = JSON.parse(row.payload);
+  return auth.user.role === "student" ? toStudentView(payload) : payload;
 }
 
 async function getSubmissionForUpdate(db, auth, submissionId) {
@@ -350,6 +354,7 @@ async function saveComplaint(db, auth, submissionId, questionIndex, reason) {
   const row = await getStudentSubmission(db, auth, submissionId);
   let submission;
   try { submission = JSON.parse(row.payload); } catch { throw Object.assign(new Error("Data submission tidak valid"), { status: 500 }); }
+  if (!isScoreReleased(submission)) throw Object.assign(new Error("Komplain nilai baru dapat diajukan setelah dosen memvalidasi nilai."), { status: 409, code: "SCORE_NOT_RELEASED" });
   const qs = submission.questionScores?.[questionIndex];
   if (!qs) throw Object.assign(new Error("Soal tidak ditemukan"), { status: 400 });
   qs.complaint = { reason: String(reason).trim(), status: "pending", submittedAt: new Date().toISOString() };

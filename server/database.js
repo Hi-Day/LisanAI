@@ -4,6 +4,7 @@ const submission = require("./database/submission-repository");
 const classroom = require("./database/classroom-repository");
 const membership = require("./database/membership-repository");
 const questionBank = require("./database/question-bank-repository");
+const { toStudentView } = require("./score-release");
 
 async function getState(auth) {
   const db = getDb();
@@ -16,7 +17,10 @@ async function getState(auth) {
   const studentView = auth.user.role === "student";
   return {
     assessments: assessments.map((row) => assessment.sanitizeAssessmentForRole(JSON.parse(row.payload), studentView)),
-    submissions: submissions.map((row) => submission.stripSubmissionAudio(JSON.parse(row.payload))),
+    submissions: submissions.map((row) => {
+      const payload = submission.stripSubmissionAudio(JSON.parse(row.payload));
+      return studentView ? toStudentView(payload) : payload;
+    }),
     classes,
     memberships,
   };

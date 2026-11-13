@@ -219,6 +219,8 @@ export function getElements() {
     sysUptime: document.querySelector("#sysUptime"),
     sysNodeVersion: document.querySelector("#sysNodeVersion"),
     refreshTelemetryBtn: document.querySelector("#refreshTelemetryBtn"),
+    scoreValidationList: document.querySelector("#scoreValidationList"),
+    scoreValidationCount: document.querySelector("#scoreValidationCount"),
     complaintView: document.querySelector("#complaintView"),
     complaintList: document.querySelector("#complaintList"),
     complaintCount: document.querySelector("#complaintCount"),

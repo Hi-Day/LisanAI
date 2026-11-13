@@ -43,6 +43,20 @@ export function getSubmissionStatus(submission) {
   return ASSESSMENT_STATUS.NOT_COMPLETED;
 }
 
+/**
+ * Mirrors server/score-release.js: scores are released after lecturer validation.
+ * Legacy submissions without scoreRelease count as released.
+ */
+export function isScoreReleased(submission) {
+  return !submission?.scoreRelease || submission.scoreRelease.status === "released";
+}
+
+export function isAwaitingValidation(submission) {
+  return Boolean(submission) && !isScoreReleased(submission);
+}
+
+export const AWAITING_VALIDATION_LABEL = "Menunggu validasi dosen";
+
 export function isEvaluatedEffective(submission) {
   return getSubmissionStatus(submission) === ASSESSMENT_STATUS.EVALUATED;
 }

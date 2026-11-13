@@ -186,6 +186,8 @@ export async function renderCurrentState(ctx) {
   if (auth.user?.role === "teacher") {
     renderComplaints(ctx);
     updateComplaintBadge(ctx);
+    const { renderScoreValidation } = await import("./score-validation.js");
+    renderScoreValidation(ctx);
   } else if (auth.user?.role === "student") {
     notifyStudentComplaintStatus(ctx);
   }
@@ -236,6 +238,7 @@ export async function applyRoleAccess(ctx) {
       <button class="nav-button" data-view="manageClassView"><span aria-hidden="true">👥</span> Kelas</button>
       <button class="nav-button" data-view="studentProfileView"><span aria-hidden="true">◉</span> Siswa</button>
       <button class="nav-button" data-view="monitorView"><span aria-hidden="true">▤</span> Monitoring</button>
+      <button class="nav-button" data-view="scoreValidationView"><span aria-hidden="true">✔</span> Validasi Nilai <span id="scoreValidationNavBadge" class="nav-badge hidden">0</span></button>
       <button class="nav-button" data-view="questionBankView"><span aria-hidden="true">📦</span> Bank Soal</button>
       <button class="nav-button" data-view="notifView"><span aria-hidden="true">🔔</span> Notifikasi <span id="notifBadge" class="nav-badge hidden">0</span></button>
       <button class="nav-button" data-view="complaintView"><span aria-hidden="true">📩</span> Komplain <span id="complaintNavBadge" class="nav-badge hidden">0</span></button>
@@ -297,12 +300,31 @@ export function setAssessmentTab(ctx, tab) {
   });
 }
 
+/**
+ * Honor the target of an LTI launch redirect: "#<viewId>" opens that view and
+ * "?lti_assessment=<id>" opens the preparation modal of that assessment for a student.
+ * The query string is removed afterwards so a refresh does not reopen it.
+ */
+export async function openLaunchTarget(ctx, launchHash = window.location.hash) {
+  const params = new URLSearchParams(window.location.search);
+  const assessmentId = params.get("lti_assessment");
+  const viewId = String(launchHash || "").slice(1);
+  if (viewId && canAccessView(ctx, viewId)) await switchView(ctx, viewId);
+  if (!assessmentId) return;
+  history.replaceState(history.state, "", window.location.pathname + window.location.hash);
+  if (ctx.auth.user?.role !== "student") return;
+  const button = [...(ctx.els.studentAssessmentGrid?.querySelectorAll(".start-assessment-btn") || [])]
+    .find((item) => item.dataset.id === assessmentId);
+  if (button && !button.disabled) button.click();
+  else showToast("Penilaian dari BINUS Maya belum dibuka untuk Anda atau sudah dikumpulkan.");
+}
+
 export function canAccessView(ctx, viewId) {
   if (!ctx.auth.user) return false;
   const role = ctx.auth.user.role;
   if (role === "student") return viewId === "studentView" || viewId === "studentHistoryView" || viewId === "studentCompetencyView" || viewId === "studentNotifView";
   if (role === "admin") return viewId === "accountView" || viewId === "monitorView" || viewId === "observabilityView" || viewId === "apiKeysView" || viewId === "researchView" || viewId === "questionBankView";
-  if (role === "teacher") return ["dashboardView", "teacherView", "assessmentListView", "assessmentDetailView", "monitorView", "manageClassView", "studentProfileView", "complaintView", "questionBankView", "notifView"].includes(viewId);
+  if (role === "teacher") return ["dashboardView", "teacherView", "assessmentListView", "assessmentDetailView", "monitorView", "scoreValidationView", "manageClassView", "studentProfileView", "complaintView", "questionBankView", "notifView"].includes(viewId);
   return false;
 }
 
@@ -348,6 +370,10 @@ export async function switchView(ctx, viewId, { fromHistory = false } = {}) {
     } else {
       els.studentProfileContent.innerHTML = '<div class="analytics-panel"><div class="empty-state">Belum ada siswa dengan penilaian. Data akan muncul setelah siswa mengumpulkan penilaian.</div></div>';
     }
+  }
+  if (viewId === "scoreValidationView") {
+    const { renderScoreValidation } = await import("./score-validation.js");
+    renderScoreValidation(ctx);
   }
   if (viewId === "studentCompetencyView") {
     const { renderStudentCompetency } = await import("./student-competency.js");

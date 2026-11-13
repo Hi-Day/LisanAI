@@ -1,6 +1,7 @@
 import {
   saveSubmissionAudio,
   createAssessmentAttempt,
+  getSubmissionDetail,
   postJson,
   streamAssessmentAction,
 } from "./api.js";
@@ -24,6 +25,20 @@ export function bindStudentFlowEvents(ctx) {
   ctx.micCheck = createMicCheck({
     volumeIndicator: els.preExamVolume,
     playback: els.preExamPlayback,
+  });
+
+  // "Lihat Hasil" in Riwayat: the teacher handler lives in monitoring.js, which students do not load.
+  els.studentHistoryList?.addEventListener("click", async (e) => {
+    const row = e.target.closest(".view-submission-btn")?.closest(".submission-row");
+    if (!row) return;
+    let submission = ctx.state.submissions.find((item) => item.id === row.dataset.id);
+    if (!submission) return;
+    try {
+      submission = await getSubmissionDetail(submission.id);
+    } catch {
+      // The state copy is the same student view; keep showing it.
+    }
+    showResult(els, submission, ctx.auth);
   });
 
   if (els.studentAssessmentGrid) {

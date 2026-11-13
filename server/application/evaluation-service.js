@@ -6,7 +6,7 @@ const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require(
 const crypto = require("node:crypto");
 const { evaluationHash } = require("../security/evaluation-integrity");
 const { persistEvaluationTrace } = require("../evaluation/trace-persister");
-const { syncOutcomeForSubmission } = require("../lti");
+const { pendingRelease, toStudentView } = require("../score-release");
 
 const ACTIONS = ["evaluate", "generate-probing", "create-attempt"];
 
@@ -84,7 +84,7 @@ async function evaluate(payload, auth, onProgress = null) {
 
   const answerHash = answersHash(answers);
   const attempt = await submissionService.beginAttemptEvaluation(auth, payload.attemptId, answers, assessmentId);
-  if (attempt.existingSubmission) return { ...attempt.existingSubmission, alreadyFinalized: true };
+  if (attempt.existingSubmission) return forViewer({ ...attempt.existingSubmission, alreadyFinalized: true }, auth);
 
   const expectedAttempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
   const submissionId = randomId("sub");
@@ -126,6 +126,8 @@ async function evaluate(payload, auth, onProgress = null) {
     questionScores: result.questionScores,
     feedback: result.feedback,
     status: result.requiresHumanReview ? "NEEDS_REVIEW" : "EVALUATED",
+    // Scores stay hidden from the student until a lecturer validates them (score-release.js).
+    scoreRelease: pendingRelease(),
     verification: result.verification || null,
     criteria: result.criteria || [],
     evaluationRunId: result.evaluationRunId || null,
@@ -158,19 +160,12 @@ async function evaluate(payload, auth, onProgress = null) {
     submissionHash: hashObject(submission),
   });
 
-  // LMS outages must not roll back an already-finalized assessment. Only
-  // scores explicitly published by the trustworthy harness are sent to LTI.
-  if (result.published === true && result.requiresHumanReview !== true && submission.status === "EVALUATED") {
-    syncOutcomeForSubmission({
-      tenantId: auth.tenant.id,
-      userId: auth.user.id,
-      assessmentId,
-      submissionId: submission.id,
-      score: submission.finalScore,
-    }).catch((error) => console.error("[lti] Outcome queue could not persist:", error.message));
-  }
+  // LTI grade passback happens only after lecturer validation (score-validation-service.js).
+  return forViewer(submission, auth);
+}
 
-  return submission;
+function forViewer(submission, auth) {
+  return auth?.user?.role === "student" ? toStudentView(submission) : submission;
 }
 function buildHarnessInsight(evaluation) {
   const criteria = Array.isArray(evaluation.criteria) ? evaluation.criteria : [];

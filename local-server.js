@@ -18,6 +18,21 @@ pricing.refreshCatalog().catch(() => {});
 
 let isDbInitialized = false;
 
+// Same /api routing as production (vercel.json), e.g. /api/database -> api/data.js.
+const API_ROUTES = (JSON.parse(fs.readFileSync(path.join(ROOT, "vercel.json"), "utf8")).routes || [])
+  .filter((route) => String(route.src).startsWith("/api/") && /^\/api\/[^/]+\.js$|^\/api\/\$1\.js$/.test(String(route.dest)))
+  .map((route) => ({ pattern: new RegExp(`^${route.src}$`), dest: route.dest }));
+
+function resolveApiEndpoint(pathname) {
+  for (const route of API_ROUTES) {
+    const match = pathname.match(route.pattern);
+    if (!match) continue;
+    const name = route.dest.replace("$1", match[1] || "").replace(/^\/api\//, "").replace(/\.js$/, "");
+    return /^[a-z0-9-]+$/i.test(name) ? name : null;
+  }
+  return null;
+}
+
 const requestHandler = async (req, res) => {
   try {
     if (!isDbInitialized) {
@@ -51,17 +66,15 @@ const requestHandler = async (req, res) => {
     }
 
     if (url.pathname.startsWith("/api/")) {
-      let endpointName = url.pathname.replace("/api/", "");
-      // Map /api/v1/... to the v1 handler.
-      if (endpointName.startsWith("v1/")) endpointName = "v1";
-      // Map /api/docs/... to the docs handler.
-      if (endpointName.startsWith("docs/")) endpointName = "docs";
+      const endpointName = resolveApiEndpoint(url.pathname);
+      let handler;
       try {
-        const handler = require(`./api/${endpointName}`);
-        return await handler(req, res);
+        handler = endpointName && require(`./api/${endpointName}`);
       } catch (err) {
-        return sendJson(res, 404, { error: "API endpoint not found" });
+        if (err.code !== "MODULE_NOT_FOUND") throw err;
       }
+      if (typeof handler !== "function") return sendJson(res, 404, { error: "API endpoint not found" });
+      return await handler(req, res);
     }
 
     if (req.method !== "GET") {

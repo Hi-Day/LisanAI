@@ -2,6 +2,7 @@ const { parseLearningOutcomes, questionOutcomeMap, questionLearningOutcomesMap }
 const { buildCompetencyTrajectory } = require("../competency-trajectory");
 const { stateToTrajectory } = require("../competency-materializer");
 const competencyRepository = require("../database/competency-repository");
+const { isScoreReleased } = require("../score-release");
 
 function parsePayload(value) {
   try { return JSON.parse(value || "{}"); } catch { return {}; }
@@ -21,6 +22,7 @@ function buildRecords(rows, assessments) {
   const records = [];
   for (const row of rows) {
     const submission = parsePayload(row.payload);
+    if (!isScoreReleased(submission)) continue;
     const assessment = assessmentMap.get(row.assessment_id);
     if (!assessment) continue;
     const outcomes = parseLearningOutcomes(assessment.outcomes ?? assessment.learningOutcomes ?? assessment.learningOutcome);

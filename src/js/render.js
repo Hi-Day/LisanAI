@@ -2,8 +2,10 @@ import { average, compactText, escapeHtml } from "./utils.js";
 import { parseRubricToCriteria } from "./competency-profile.js";
 import { showEmpty } from "./dom.js";
 import {
+  AWAITING_VALIDATION_LABEL,
   getSubmissionStatus,
   hasValidScore,
+  isScoreReleased,
   renderStatusBadge,
 } from "./status.js";
 
@@ -97,9 +99,11 @@ export function renderStudentArea(els, state, session) {
           statusHtml = `<span class="tag badge-published" style="width: fit-content;">Belum dikerjakan</span>`;
         }
 
-        const scoreHtml = latestSubmission
-          ? `<p style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai terakhir: ${latestSubmission.finalScore}</p>`
-          : '';
+        const scoreHtml = !latestSubmission
+          ? ''
+          : Number.isFinite(Number(latestSubmission.finalScore))
+            ? `<p style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--emerald);">Nilai terakhir: ${latestSubmission.finalScore}</p>`
+            : `<p style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--muted);">Nilai: ${AWAITING_VALIDATION_LABEL}</p>`;
 
         if (hasSubmitted && assessment.allowRetakes) {
           buttonText = 'Kerjakan Ulang';
@@ -281,6 +285,20 @@ export function updateEvaluationProgress(els, text) {
  * verification). Always returns a deterministic badge.
  */
 function resolveResultAiBadge(submission) {
+  if (submission.scoreRelease?.status === "released") {
+    return {
+      label: "Divalidasi dosen",
+      cls: "badge-verified",
+      title: "Nilai sudah divalidasi dosen",
+    };
+  }
+  if (!isScoreReleased(submission)) {
+    return {
+      label: "Belum divalidasi",
+      cls: "badge-review",
+      title: "Nilai AI menunggu validasi dosen di menu Validasi Nilai",
+    };
+  }
   const needsReview =
     submission.status === "NEEDS_REVIEW" ||
     submission.verification?.status === "REVIEW";
@@ -304,6 +322,16 @@ export function showResult(els, submission, auth = null) {
   els.resultPanel.dataset.submissionId = submission.id;
   const summary = buildResultSummary(submission);
   const aiBadge = resolveResultAiBadge(submission);
+  const released = isScoreReleased(submission);
+  // Students never receive the number before validation; teachers see it marked as unvalidated.
+  const hasScore = Number.isFinite(Number(submission.finalScore));
+  const scoreBlock = hasScore
+    ? `<span class="summary-score-label">${released ? "Skor akhir" : "Skor AI (belum divalidasi)"}</span>
+          <strong>${submission.finalScore}</strong>
+          <span class="summary-score-sub">dari 100</span>`
+    : `<span class="summary-score-label">Status nilai</span>
+          <strong class="summary-score-pending">${AWAITING_VALIDATION_LABEL}</strong>
+          <span class="summary-score-sub">Nilai muncul setelah dosen memvalidasi. Feedback di bawah sudah bisa dibaca.</span>`;
   els.resultPanel.innerHTML = `
     <div class="result-modal-content">
       <button class="result-close-btn close-result-btn" type="button" aria-label="Tutup hasil penilaian">&times;</button>
@@ -312,14 +340,12 @@ export function showResult(els, submission, auth = null) {
           <h3 style="margin-right: 40px;">Hasil penilaian: ${escapeHtml(submission.assessmentTitle)}</h3>
           <div class="rich-text">${formatRichText(submission.feedback)}</div>
         </div>
-        <div class="score-badge">${submission.finalScore}</div>
+        ${hasScore ? `<div class="score-badge">${submission.finalScore}</div>` : ""}
       </div>
 
       <div class="result-summary">
         <div class="summary-score">
-          <span class="summary-score-label">Skor akhir</span>
-          <strong>${submission.finalScore}</strong>
-          <span class="summary-score-sub">dari 100</span>
+          ${scoreBlock}
           <span class="badge result-ai-badge ${aiBadge.cls}" title="${aiBadge.title}"></span>
         </div>
         <div class="summary-columns">
@@ -345,7 +371,7 @@ export function showResult(els, submission, auth = null) {
         </button>
         <div class="result-details-body hidden">
           <div class="feedback-grid">
-            ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth)).join("")}
+            ${submission.questionScores.map((item, index) => renderFeedbackCard(item, index, auth, released)).join("")}
           </div>
         </div>
       </div>
@@ -454,7 +480,7 @@ function renderSubmissionItem(submission) {
   const date = submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : "-";
   const status = getSubmissionStatus(submission);
   const scoreHtml = hasValidScore(submission)
-    ? `<span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span>`
+    ? scorePillHtml(submission)
     : `<span class="score-muted-text" title="Tidak diterbitkan — evaluasi belum valid">—</span>`;
   return `
     <tr class="submission-row" data-id="${submission.id}">
@@ -501,7 +527,7 @@ export function formatDuration(seconds) {
   return `${s} detik`;
 }
 
-function renderFeedbackCard(item, index, auth) {
+function renderFeedbackCard(item, index, auth, released = true) {
   const audioHtml = item.audio ? `<div style="margin-top: 12px; margin-bottom: 12px;"><audio controls src="${escapeHtml(item.audio)}" style="width: 100%; height: 36px;"></audio></div>` : '';
   
   const isTeacher = auth && auth.user && auth.user.role === 'teacher';
@@ -529,7 +555,8 @@ function renderFeedbackCard(item, index, auth) {
     `;
   }
 
-  const complaintBtn = isStudent && !complaint
+  // A score complaint needs a validated, visible score.
+  const complaintBtn = isStudent && !complaint && released
     ? `<button type="button" class="action-button complaint-btn" data-index="${index}">Komplain</button>`
     : "";
 
@@ -546,7 +573,7 @@ function renderFeedbackCard(item, index, auth) {
   return `
     <article class="feedback-card" data-index="${index}">
       <div style="display: flex; justify-content: space-between; align-items: start;">
-        <strong>Soal ${index + 1} - Skor <span class="qs-score">${item.score}</span>${durationText}</strong>
+        <strong>Soal ${index + 1}${Number.isFinite(Number(item.score)) ? ` - Skor <span class="qs-score">${item.score}</span>` : ""}${durationText}</strong>
         <div style="display: flex; gap: 8px;">
           ${complaintBtn}
           ${respondBtn}
@@ -676,6 +703,15 @@ function buildTrends(submissions) {
     .sort((a, b) => b.latest - a.latest);
 }
 
+/** Score pill, or a pending-validation tag when the score is not (yet) visible. */
+function scorePillHtml(submission) {
+  if (Number.isFinite(Number(submission.finalScore))) {
+    const pending = isScoreReleased(submission) ? "" : ` <span class="tag badge-review" title="${AWAITING_VALIDATION_LABEL}">Belum divalidasi</span>`;
+    return `<span class="metric-pill" style="padding: 4px 12px;">${submission.finalScore}</span>${pending}`;
+  }
+  return `<span class="tag badge-review">${AWAITING_VALIDATION_LABEL}</span>`;
+}
+
 export function renderStudentHistory(els, submissions, currentStudentName) {
   const studentSubmissions = submissions.filter(s => s.studentName === currentStudentName);
   
@@ -690,7 +726,7 @@ export function renderStudentHistory(els, submissions, currentStudentName) {
       <tr class="submission-row" data-id="${sub.id}">
         <td data-label="Topik"><strong>${escapeHtml(sub.assessmentTitle)}</strong></td>
         <td data-label="Tanggal">${date}</td>
-        <td data-label="Skor"><span class="metric-pill" style="padding: 4px 12px;">${sub.finalScore}</span></td>
+        <td data-label="Skor">${scorePillHtml(sub)}</td>
         <td data-label="Aksi">
           <button type="button" class="secondary-button view-submission-btn" style="min-height: 36px; font-size: 0.9rem;">Lihat Hasil</button>
         </td>

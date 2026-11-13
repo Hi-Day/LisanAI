@@ -102,6 +102,10 @@ export async function saveSubmissionToDatabase(submission) {
   await postJson("/api/database", { action: "save-submission", payload: submission }, "Gagal menyimpan submission");
 }
 
+export async function validateScores(submissionIds) {
+  return postJson("/api/database", { action: "validate-scores", payload: { submissionIds } }, "Gagal memvalidasi nilai");
+}
+
 export async function createAssessmentAttempt(assessmentId, classId = null) {
   const idempotencyKey = `client-${assessmentId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const data = await postJson(
