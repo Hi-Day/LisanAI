@@ -65,7 +65,7 @@ async function evaluate(payload, auth, onProgress = null) {
     auth, assessmentId, payload?.classId || payload?.assessment?.deliveryClassId || null,
   );
   const assessment = canonical.assessment;
-  const answers = Array.isArray(payload.answers)
+  let answers = Array.isArray(payload.answers)
     ? payload.answers.map((answer) => String(answer || ""))
     : [];
 
@@ -82,9 +82,13 @@ async function evaluate(payload, auth, onProgress = null) {
     throw Object.assign(new Error("Assessment berubah setelah attempt dimulai"), { status: 409, code: "ASSESSMENT_SNAPSHOT_MISMATCH" });
   }
 
-  const answerHash = answersHash(answers);
   const attempt = await submissionService.beginAttemptEvaluation(auth, payload.attemptId, answers, assessmentId);
   if (attempt.existingSubmission) return forViewer({ ...attempt.existingSubmission, alreadyFinalized: true }, auth);
+  // The answers recorded at the first submit are the official ones, also on a retry.
+  if (Array.isArray(attempt.answers) && attempt.answers.length === assessment.questions.length) {
+    answers = attempt.answers.map((answer) => String(answer || ""));
+  }
+  const answerHash = answersHash(answers);
 
   const expectedAttempt = await submissionService.getAssessmentAttempt(auth, payload.attemptId);
   const submissionId = randomId("sub");
@@ -190,7 +194,8 @@ async function evaluateProbeBaseline(payload, auth) {
 async function buildAdaptiveProbe(payload, auth, onChunk = null) {
   const adaptivePayload = prepareProbingPayload(payload);
   let baseline = null;
-  if (payload.probing === true || payload.question?.probing === true) {
+  // Students never get a baseline: it would reveal an AI score before the lecturer releases it.
+  if (auth?.user?.role !== "student" && (payload.probing === true || payload.question?.probing === true)) {
     try { baseline = await evaluateProbeBaseline(payload, auth); }
     catch (error) { console.warn("[adaptive-probing] baseline evaluation unavailable:", error.message); }
   }

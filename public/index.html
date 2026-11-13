@@ -135,6 +135,7 @@
             <p id="dashboardSubtitle">Ringkasan performa penilaian kelas Anda.</p>
           </div>
           <div class="monitor-filters">
+            <button id="dashboardCreateAssessment" class="primary-button" type="button">+ Buat penilaian</button>
             <select id="dashboardClassFilter" aria-label="Filter berdasarkan kelas">
               <option value="">Semua Kelas</option>
             </select>
@@ -218,8 +219,8 @@
           <div class="monitor-filters">
             <div class="tab-filter" id="assessmentTabFilter" role="tablist" aria-label="Filter status penilaian">
               <button type="button" class="tab-filter-btn active" data-tab="all" role="tab" aria-selected="true">Semua</button>
-              <button type="button" class="tab-filter-btn" data-tab="draft" role="tab" aria-selected="false">Draft</button>
-              <button type="button" class="tab-filter-btn" data-tab="published" role="tab" aria-selected="false">Published</button>
+              <button type="button" class="tab-filter-btn" data-tab="draft" role="tab" aria-selected="false">Draf</button>
+              <button type="button" class="tab-filter-btn" data-tab="published" role="tab" aria-selected="false">Terbit</button>
             </div>
             <button class="primary-button" data-nav-view="teacherView" type="button">✚ Buat Penilaian</button>
             <span class="metric-pill"><strong id="assessmentCount">0</strong> penilaian</span>
@@ -486,7 +487,7 @@
             <p>Simpan dan gunakan ulang soal dari penilaian sebelumnya.</p>
           </div>
           <div class="monitor-filters">
-            <input id="questionBankFilter" type="text" placeholder="Cari berdasarkan topik..." style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem; width: 200px;" />
+            <input id="questionBankFilter" type="text" aria-label="Cari soal berdasarkan topik" placeholder="Cari berdasarkan topik..." style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem; width: 200px;" />
             <span class="metric-pill"><strong id="questionBankCount">0</strong> soal</span>
             <button id="questionBankImportBtn" class="secondary-button" type="button" style="display: none;">Import ke Wizard</button>
           </div>
@@ -515,10 +516,10 @@
                 <div class="notif-tab" style="margin-bottom:0;">
                   <button type="button" class="notif-tab-btn active" data-student-filter="all">Semua</button>
                   <button type="button" class="notif-tab-btn" data-student-filter="tryout">Tryout</button>
-                  <button type="button" class="notif-tab-btn" data-student-filter="assessment">Assessment</button>
+                  <button type="button" class="notif-tab-btn" data-student-filter="assessment">Penilaian</button>
                 </div>
               </div>
-              <select id="studentClassFilter"
+              <select id="studentClassFilter" aria-label="Filter berdasarkan kelas"
                 style="width: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.9rem;">
                 <option value="">Semua Kelas</option>
               </select>
@@ -531,8 +532,8 @@
           <aside id="studentClassPanel" class="preview-panel class-panel">
             <h3>Kelas saya</h3>
             <form id="studentJoinClassForm" class="mini-form">
-              <input id="studentJoinCode" placeholder="Masukkan kode kelas" required />
-              <button class="secondary-button" type="submit">Join</button>
+              <input id="studentJoinCode" aria-label="Kode kelas" placeholder="Masukkan kode kelas" required />
+              <button class="secondary-button" type="submit">Gabung</button>
             </form>
             <div id="studentClassList" class="list-stack empty-state">Belum join kelas.</div>
           </aside>
@@ -583,7 +584,7 @@
               </div>
 
               <label>
-                Transkripsi jawaban
+                Jawaban Anda
                 <textarea id="answerText" rows="7"
                   placeholder="Transkripsi otomatis atau jawaban manual siswa akan muncul di sini"></textarea>
               </label>
@@ -596,7 +597,7 @@
 
             <aside class="session-panel">
               <h3>Ringkasan sesi</h3>
-              <label>
+              <label class="student-name-field">
                 Nama siswa
                 <input id="studentName" placeholder="Contoh: Aisyah Putri" />
               </label>
@@ -631,7 +632,7 @@
           <div id="classPanel" class="form-panel class-panel">
             <h3>Daftar Kelas</h3>
             <form id="classForm" class="mini-form">
-              <input id="className" placeholder="Nama kelas baru" />
+              <input id="className" aria-label="Nama kelas baru" placeholder="Nama kelas baru" />
               <button class="primary-button" type="submit">Buat kelas</button>
             </form>
             <form id="joinClassForm" class="mini-form hidden">
@@ -657,7 +658,7 @@
               </div>
               <div style="margin-top:12px;">
                 <label style="display:block; font-weight:600; margin-bottom:6px;">Atau upload CSV (nama,email,password)</label>
-                <input id="bulkAddCsvFile" type="file" accept=".csv" />
+                <input id="bulkAddCsvFile" type="file" accept=".csv" aria-label="Berkas CSV daftar siswa" />
                 <button id="bulkAddCsvUpload" class="secondary-button" type="button" style="margin-left:8px;">Upload CSV</button>
                 <a id="bulkAddCsvTemplate" href="#" class="secondary-button" style="margin-left:8px;">Download Template</a>
               </div>
@@ -674,7 +675,7 @@
             
             <div style="margin-bottom: 16px;">
               <input 
-                id="memberSearchInput" 
+                id="memberSearchInput" aria-label="Cari anggota kelas" 
                 type="text" 
                 placeholder="Cari siswa (nama/email)..." 
                 style="width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.9rem;"
@@ -769,7 +770,7 @@
             <button id="downloadClassCsvBtn" class="secondary-button"
               style="display: none; align-items: center; gap: 8px; min-height: 38px; height: 38px; padding: 0 16px; border-radius: 8px; font-size: 0.9rem;"
               type="button">
-              <span>📥</span> Download CSV
+              <span aria-hidden="true">📥</span> Unduh CSV
             </button>
             <span class="metric-pill"><strong id="submissionCount">0</strong> submission</span>
           </div>
@@ -777,9 +778,8 @@
 
         <div class="monitor-grid">
           <div class="monitor-top-grid">
-            <div class="analytics-panel"
-              style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-              <h3 style="align-self: flex-start;">Performa kelas</h3>
+            <div class="analytics-panel class-average-panel">
+              <h3>Performa kelas</h3>
               <div class="score-ring" id="classAverage">0</div>
               <p>Rata-rata skor dari seluruh penilaian yang diselesaikan.</p>
             </div>
@@ -850,11 +850,11 @@
         <div class="section-heading">
           <div>
             <h2 id="notifTitle">Notifikasi</h2>
-            <p>Notifikasi real-time saat siswa mengumpulkan penilaian atau mengajukan komplain.</p>
+            <p>Hal yang menunggu tindakan Anda: nilai yang perlu divalidasi dan komplain siswa. Diperbarui otomatis setiap menit.</p>
           </div>
-          <span class="metric-pill"><strong id="notifCount">0</strong> notifikasi</span>
+          <span class="metric-pill"><strong id="notifCount">0</strong> perlu tindakan</span>
         </div>
-        <div id="notifList" class="list-stack empty-state">Belum ada notifikasi. Notifikasi muncul saat siswa mengumpulkan penilaian.</div>
+        <div id="notifList" class="list-stack empty-state" aria-live="polite">Tidak ada yang menunggu tindakan Anda.</div>
       </section>
 
       <section id="observabilityView" class="view" aria-labelledby="observabilityTitle">
@@ -875,7 +875,7 @@
             </select>
             <button class="secondary-button" id="refreshTelemetryBtn" type="button"
               style="display: flex; align-items: center; gap: 8px;">
-              <span>🔄</span> Refresh Telemetry
+              <span aria-hidden="true">🔄</span> Muat ulang telemetri
             </button>
           </div>
         </div>
@@ -1219,7 +1219,7 @@
               <h3>Buat banyak akun (CSV)</h3>
               <p style="color: var(--muted); font-size: 0.9rem; margin-top: -12px;">Format (tanpa header): <strong>nama,
                   email, role (teacher/student), password</strong></p>
-              <input type="file" id="csvFile" accept=".csv" required style="padding: 8px;" />
+              <input type="file" id="csvFile" accept=".csv" required aria-label="Berkas CSV daftar akun" style="padding: 8px;" />
               <button class="secondary-button" type="submit">Upload & Proses CSV</button>
             </form>
           </div>
@@ -1251,10 +1251,10 @@
           <p style="color: var(--muted); font-size: 0.9rem; margin-top: -12px;">
             Gunakan API key untuk mengakses API publik (<code>/api/v1/...</code>) dari sistem eksternal.
             Kirim sebagai header <code>Authorization: Bearer &lt;api_key&gt;</code>.
-            <a href="/api/docs" target="_blank" rel="noopener" style="margin-left: 8px;">📖 Lihat Dokumentasi API</a>
+            <a href="/api/openapi.json" target="_blank" rel="noopener" style="margin-left: 8px;">📖 Lihat Dokumentasi API</a>
           </p>
           <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
-            <input id="apiKeyName" placeholder="Nama API key (contoh: LMS Integration)" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line);" />
+            <input id="apiKeyName" aria-label="Nama API key" placeholder="Nama API key (contoh: LMS Integration)" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line);" />
             <button id="createApiKeyBtn" class="primary-button" type="button">Buat API Key</button>
           </div>
           <div id="apiKeyResult" class="api-key-result hidden" style="margin-bottom: 12px; padding: 12px; border-radius: 8px; background: #fefce8; border: 1px solid #f59e0b;">

@@ -3779,3 +3779,84 @@ html.dark-mode .student-competency-card:hover { box-shadow: 0 8px 24px rgba(0,0,
   color: #991b1b;
   background: #fef2f2;
 }
+
+/* ==========================================================================
+   Production polish (layout and state fixes; colours stay in the theme layer)
+   ========================================================================== */
+
+/* The shell must not keep a transform after its entrance animation: a transformed
+   ancestor makes every position:fixed modal inside it page-relative, so dialogs
+   opened from a scrolled page were cut off at the top. */
+@keyframes shellFade { from { opacity: 0; } to { opacity: 1; } }
+.app-shell { animation: shellFade 0.4s ease-out; }
+
+/* Result card: a status phrase is not a score number. */
+.summary-score .summary-score-pending { font-size: 1.05rem; line-height: 1.3; font-weight: 700; color: var(--warning-strong); }
+
+/* Compact app header: the page title, not the product name, leads each screen. */
+.topbar { margin-bottom: 24px; padding-bottom: 16px; }
+.topbar .eyebrow { display: none; }
+.topbar h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-muted); }
+.account-chip { grid-auto-flow: column; align-items: baseline; gap: 8px; min-width: 0; padding: 8px 12px; }
+html.dark-mode .topbar { background: transparent !important; }
+
+/* Form dialog (replaces native prompt) */
+.form-dialog-field { display: grid; gap: 6px; font-weight: 600; }
+.form-dialog-field input,
+.form-dialog-field textarea,
+.form-dialog-field select { width: 100%; font-weight: 400; }
+.form-dialog-field [aria-invalid="true"] { border-color: var(--danger); }
+.form-dialog-error { color: var(--danger); font-weight: 500; }
+.form-dialog-error:empty { display: none; }
+
+/* Student competency summary cards: label, value and hint stack. */
+.student-kpi-card { display: grid; gap: 4px; align-content: start; }
+.student-kpi-card .kpi-label,
+.student-kpi-card .kpi-sub { position: relative; z-index: 1; }
+
+/* Monitoring: cards size to their content instead of stretching with empty space. */
+.monitor-top-grid { align-items: start; }
+.class-average-panel { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.class-average-panel h3 { justify-self: start; margin: 0; }
+.trend-list { align-content: start; }
+/* The per-student history bars need a sized parent; without it they collapsed to nothing. */
+.trend-point { height: 100%; }
+#dashboardView .monitor-filters { justify-content: flex-end; }
+#dashboardView .monitor-filters select { width: auto; }
+
+/* Notifications */
+.notif-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.notif-item p { margin: 4px 0; color: var(--text-muted); }
+.notif-item small { color: var(--text-muted); }
+
+.sem-badge { flex-shrink: 0; white-space: nowrap; }
+
+/* Exam focus: while a student answers, only the exam is on screen. */
+body.student-mode.exam-active .topbar,
+body.student-mode.exam-active #studentView > .section-heading,
+body.student-mode.exam-active .sidebar .nav,
+body.student-mode.exam-active .sidebar .dark-mode-toggle,
+body.student-mode.exam-active .sidebar .sidebar-settings { display: none; }
+/* A signed-in student is already identified; the name field is for lecturer previews. */
+body.student-mode .student-name-field { display: none; }
+
+/* Login */
+.auth-copy { align-content: center; min-height: 420px; padding: 48px; border-radius: 12px; }
+.auth-copy .brand { margin: 0; padding: 0; border-bottom: 0; }
+.auth-brand { margin-bottom: 8px; }
+
+@media (max-width: 960px) {
+  .auth-view { gap: 20px; padding: 20px; }
+  .auth-copy { min-height: 0; padding: 28px; }
+  .auth-copy h1 { font-size: 1.8rem; }
+}
+
+@media (max-width: 900px) {
+  /* The open menu is a vertical list; it used to lay items out in one clipped row. */
+  .sidebar.nav-open .nav { flex-direction: column; align-items: stretch; gap: 2px; }
+  .sidebar.nav-open .nav-button,
+  .sidebar.nav-open .nav-sub-item { width: 100%; justify-content: flex-start; }
+  .sidebar.nav-open .dark-mode-toggle { align-self: flex-start; }
+  .topbar h1 { display: none; }
+  .account-chip { grid-auto-flow: row; gap: 2px; }
+}

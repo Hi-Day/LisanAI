@@ -30,6 +30,11 @@ export function bindScoreValidationEvents(ctx) {
 
     const validateBtn = event.target.closest(".sv-validate-btn");
     if (validateBtn) {
+      const confirmed = await showConfirmDialog(
+        "Mahasiswa akan langsung melihat nilainya, dan nilai dikirim ke BINUS Maya bila penilaian dibuka dari sana.",
+        "Validasi nilai ini?",
+      );
+      if (!confirmed) return;
       await runValidation(ctx, [validateBtn.dataset.id], validateBtn, "Validasi");
       return;
     }
@@ -70,7 +75,7 @@ async function runValidation(ctx, ids, button, defaultText) {
       submission.status = "EVALUATED";
       submission.scoreRelease = { status: "released", validatedBy: ctx.auth.user.id, validatedAt: new Date().toISOString() };
     }
-    showToast(describeResult(result), "success");
+    showToast(describeResult(result), (result.invalid || []).length ? "error" : "success");
     renderCurrentState(ctx);
     renderScoreValidation(ctx);
   } catch (error) {
@@ -82,6 +87,8 @@ async function runValidation(ctx, ids, button, defaultText) {
 function describeResult(result) {
   const count = (result.validated || []).length;
   let text = count ? `${count} nilai divalidasi dan kini terlihat oleh mahasiswa.` : "Nilai sudah divalidasi sebelumnya.";
+  const invalid = (result.invalid || []).length;
+  if (invalid) text += ` ${invalid} nilai tidak valid dan belum divalidasi; koreksi nilainya lalu validasi lagi.`;
   if (result.queuedForLms) {
     const deliveries = result.lmsDelivery?.results || [];
     const failed = deliveries.filter((item) => !item.ok).length;

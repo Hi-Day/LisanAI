@@ -30,12 +30,18 @@ function buildAttemptSnapshot(assessment) {
   return snapshot;
 }
 
+// Slack for time the browser timer does not count: page render, microphone
+// permission, and the AI generating each follow-up question (client waits up to 15s).
+const DEADLINE_GRACE_SECONDS = 60;
+const PROBING_GRACE_SECONDS = 20;
+
 function attemptDurationSeconds(assessment) {
   const questions = Array.isArray(assessment?.questions) ? assessment.questions : [];
   const perQuestion = Math.max(0, Number(assessment?.timeLimit) || 0);
   if (!perQuestion) return null;
-  const timedSegments = questions.reduce((sum, q) => sum + 1 + (q?.probing ? 1 : 0), 0);
-  return Math.max(perQuestion, timedSegments * perQuestion);
+  const probes = questions.filter((q) => q?.probing).length;
+  const timedSegments = questions.length + probes;
+  return Math.max(perQuestion, timedSegments * perQuestion) + DEADLINE_GRACE_SECONDS + probes * PROBING_GRACE_SECONDS;
 }
 
 async function getCanonicalAssessmentForStudent(db, tenantId, userId, assessmentId, requestedClassId = null) {
@@ -89,7 +95,6 @@ async function createAssessmentAttempt(db, auth, assessmentId, requestedClassId 
   );
   attemptNo = Number(latest?.max_no || 0) + 1;
   if (!allowRetakes && attemptNo > maxAttempts) throw attemptError(`Batas percobaan tercapai (${maxAttempts} dari ${maxAttempts})`, 409, "ATTEMPT_LIMIT_REACHED");
-  if (allowRetakes === false && attemptNo > maxAttempts) throw attemptError("Batas percobaan tercapai", 409, "ATTEMPT_LIMIT_REACHED");
 
   // Bind the attempt to the full canonical assessment hash. The persisted
   // student snapshot remains sanitized (without teacher-only ideal answers),
@@ -154,18 +159,33 @@ async function getAssessmentAttempt(db, auth, attemptId) {
   return row;
 }
 
+function storedAnswers(row) {
+  try { const parsed = JSON.parse(row.answers_json || "null"); return Array.isArray(parsed) ? parsed : null; }
+  catch { return null; }
+}
+
 async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAssessmentId) {
-  const row = await getAssessmentAttempt(db, auth, attemptId);
+  let row = await getAssessmentAttempt(db, auth, attemptId);
   if (row.assessment_id !== expectedAssessmentId) throw attemptError("Attempt tidak cocok dengan assessment", 409, "ATTEMPT_ASSESSMENT_MISMATCH");
   if (row.status === "FINALIZED" && row.submission_id) {
     const existing = await db.get("SELECT payload FROM submissions WHERE id = ? AND tenant_id = ?", row.submission_id, auth.tenant.id);
     if (existing) return { attempt: row, existingSubmission: JSON.parse(existing.payload) };
   }
+  // The first submit is recorded before any AI work. Those answers are the
+  // official ones: an AI failure or a retry after the deadline cannot lose or change them.
+  if (!row.first_submitted_at && ["STARTED", "SUBMITTING"].includes(row.status)) {
+    await db.run(
+      "UPDATE assessment_attempts SET answers_json = ?, first_submitted_at = ? WHERE id = ? AND first_submitted_at IS NULL",
+      JSON.stringify(Array.isArray(answers) ? answers : []), new Date().toISOString(), attemptId,
+    );
+    row = await getAssessmentAttempt(db, auth, attemptId);
+  }
+  const late = Boolean(row.deadline_at) && Date.parse(row.first_submitted_at || new Date().toISOString()) > Date.parse(row.deadline_at);
   if (row.status === "SUBMITTING") {
     const leaseStarted = row.evaluation_started_at ? Date.parse(row.evaluation_started_at) : NaN;
     const leaseExpired = !Number.isFinite(leaseStarted) || Date.now() - leaseStarted > ATTEMPT_EVALUATION_LEASE_MS;
     if (!leaseExpired) throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
-    if (row.deadline_at && Date.now() > Date.parse(row.deadline_at)) {
+    if (late) {
       await db.run("UPDATE assessment_attempts SET status = 'EXPIRED' WHERE id = ? AND status = 'SUBMITTING'", attemptId);
       throw attemptError("Waktu assessment telah habis", 409, "ATTEMPT_EXPIRED");
     }
@@ -173,7 +193,7 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
   }
   if (row.status === "EXPIRED") throw attemptError("Attempt sudah kedaluwarsa", 409, "ATTEMPT_EXPIRED");
   if (row.status === "CANCELLED") throw attemptError("Attempt sudah dibatalkan", 409, "ATTEMPT_CANCELLED");
-  if (row.deadline_at && Date.now() > Date.parse(row.deadline_at)) {
+  if (late) {
     await db.run("UPDATE assessment_attempts SET status = 'EXPIRED' WHERE id = ? AND status IN ('STARTED','SUBMITTING')", attemptId);
     throw attemptError("Waktu assessment telah habis", 409, "ATTEMPT_EXPIRED");
   }
@@ -184,7 +204,7 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
     evaluationStartedAt, attemptId,
   );
   if (!claimed.changes) throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
-  return { attempt: { ...row, status: "SUBMITTING", evaluation_started_at: evaluationStartedAt } };
+  return { attempt: { ...row, status: "SUBMITTING", evaluation_started_at: evaluationStartedAt }, answers: storedAnswers(row) };
 }
 
 async function releaseAttemptEvaluation(db, auth, attemptId) {
@@ -278,8 +298,15 @@ async function saveSubmission(db, tenantId, userId, submission, bypassCheck = fa
     const classId = await assertCanSubmitAssessment(db, tenantId, userId, submission.assessmentId, submission.classId || null);
     if (classId) submission = { ...submission, classId };
   }
-  const insert = (assessmentId) => db.run(`INSERT OR REPLACE INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, submission.id, tenantId, assessmentId, submission.studentName, userId, submission.finalScore, JSON.stringify(submission), submission.submittedAt);
+  // Not INSERT OR REPLACE: REPLACE deletes the old row, which wipes attempt_id and the integrity hashes.
+  const insert = async (assessmentId) => {
+    const result = await db.run(`INSERT INTO submissions (id, tenant_id, assessment_id, student_name, user_id, final_score, payload, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET assessment_id = excluded.assessment_id, student_name = excluded.student_name, user_id = excluded.user_id,
+         final_score = excluded.final_score, payload = excluded.payload, submitted_at = excluded.submitted_at
+       WHERE submissions.tenant_id = excluded.tenant_id`, submission.id, tenantId, assessmentId, submission.studentName, userId, submission.finalScore, JSON.stringify(submission), submission.submittedAt);
+    if (!result.changes) throw Object.assign(new Error("ID submission sudah dipakai"), { status: 409 });
+  };
   try { await insert(submission.assessmentId); }
   catch (err) {
     const msg = String(err.message || err);
@@ -320,8 +347,19 @@ async function getSubmissionDetail(db, auth, submissionId) {
     ) : null;
     if (!classroom || classroom.teacher_id !== auth.user.id) throw Object.assign(new Error("Guru hanya bisa buka submission miliknya"), { status: 403 });
   }
-  const payload = JSON.parse(row.payload);
+  const payload = await attachSubmissionAudio(db, auth.tenant.id, JSON.parse(row.payload));
   return auth.user.role === "student" ? toStudentView(payload) : payload;
+}
+
+async function attachSubmissionAudio(db, tenantId, payload) {
+  const rows = await db.all("SELECT question_index, kind, audio FROM submission_audio WHERE submission_id = ? AND tenant_id = ?", payload.id, tenantId);
+  for (const item of rows) {
+    const qs = Array.isArray(payload.questionScores) ? payload.questionScores[item.question_index] : null;
+    if (!qs) continue;
+    if (item.kind === "probing") qs.probing = { ...(qs.probing || {}), audio: item.audio };
+    else qs.audio = item.audio;
+  }
+  return payload;
 }
 
 async function getSubmissionForUpdate(db, auth, submissionId) {
@@ -342,6 +380,11 @@ async function getSubmissionForUpdate(db, auth, submissionId) {
     if (!classroom || classroom.teacher_id !== auth.user.id) throw Object.assign(new Error("Guru hanya boleh mengoreksi kelas miliknya"), { status: 403 });
   }
   return row;
+}
+
+async function getAssessmentPayload(db, tenantId, assessmentId) {
+  const row = await db.get("SELECT payload FROM assessments WHERE id = ? AND tenant_id = ?", assessmentId, tenantId);
+  try { return row ? JSON.parse(row.payload || "{}") : null; } catch { return null; }
 }
 
 async function getStudentSubmission(db, auth, submissionId) {
@@ -369,18 +412,26 @@ async function updateSubmissionAudio(db, tenantId, submissionId, { index, kind }
     clauses.push("user_id = ?");
     args.push(options.userId);
   }
+  // The recording goes to submission_audio; the payload only keeps a small hasAudio flag,
+  // so list queries never carry megabytes of base64.
+  const audioKind = kind === "probing" ? "probing" : "main";
   let sql;
   let params;
-  if (kind === "probing") {
+  if (audioKind === "probing") {
     const probingPath = "'$.questionScores[' || CAST(? AS INTEGER) || '].probing'";
-    sql = `UPDATE submissions SET payload = json_set(payload, ${probingPath}, json_set(COALESCE(json_extract(payload, ${probingPath}), json('{}')), '$.audio', ?)) WHERE ${clauses.join(" AND ")}`;
-    params = [index, index, audio, ...args];
+    sql = `UPDATE submissions SET payload = json_set(payload, ${probingPath}, json_set(COALESCE(json_extract(payload, ${probingPath}), json('{}')), '$.hasAudio', json('true'))) WHERE ${clauses.join(" AND ")}`;
+    params = [index, index, ...args];
   } else {
-    sql = `UPDATE submissions SET payload = json_set(payload, '$.questionScores[' || CAST(? AS INTEGER) || '].audio', ?) WHERE ${clauses.join(" AND ")}`;
-    params = [index, audio, ...args];
+    sql = `UPDATE submissions SET payload = json_set(payload, '$.questionScores[' || CAST(? AS INTEGER) || '].hasAudio', json('true')) WHERE ${clauses.join(" AND ")}`;
+    params = [index, ...args];
   }
   const result = await db.run(sql, ...params);
   if (!result.changes) throw Object.assign(new Error("Submission tidak ditemukan"), { status: 404 });
+  await db.run(
+    `INSERT INTO submission_audio (submission_id, tenant_id, question_index, kind, audio, created_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(submission_id, question_index, kind) DO UPDATE SET audio = excluded.audio, created_at = excluded.created_at`,
+    submissionId, tenantId, index, audioKind, audio, new Date().toISOString(),
+  );
 }
 
 async function updateSubmissionFeedback(db, tenantId, submissionId, fields) {
@@ -404,10 +455,13 @@ function stripSubmissionAudio(submission) {
   const { audio: rootAudio, ...rest } = submission; const out = { ...rest };
   if (rootAudio !== undefined) out.hasAudio = true;
   if (Array.isArray(out.questionScores)) out.questionScores = out.questionScores.map((item) => {
-    if (!item || item.audio === undefined) return item;
-    const { audio, ...itemRest } = item; void audio; return { ...itemRest, hasAudio: true };
+    if (!item) return item;
+    let next = item;
+    if (next.audio !== undefined) { const { audio, ...itemRest } = next; void audio; next = { ...itemRest, hasAudio: true }; }
+    if (next.probing && next.probing.audio !== undefined) { const { audio, ...probingRest } = next.probing; void audio; next = { ...next, probing: { ...probingRest, hasAudio: true } }; }
+    return next;
   });
   return out;
 }
 
-module.exports = { saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
+module.exports = { SUBMISSION_FETCH_LIMIT, attachSubmissionAudio, getAssessmentPayload, saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };

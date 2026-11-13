@@ -39,21 +39,6 @@ module.exports = async (req, res) => {
     const body = await readJson(req);
     const { action, payload, stream } = body;
 
-    if (action === "create" || action === "decide") {
-      const probingGate = require("../probing-gate");
-      if (action === "create") {
-        const probe = await probingGate.createProbe(auth, payload || {});
-        return sendJson(res, 200, { probe });
-      }
-      const probe = await probingGate.decideProbe(
-        auth,
-        payload?.id,
-        payload?.decision,
-        payload?.editedPrompt,
-        payload?.note,
-      );
-      return sendJson(res, 200, { probe });
-    }
     if (!evaluationService.isSupportedAction(action)) return sendJson(res, 404, { error: "Action not found" });
     if (payload) {
       payload.tenantId = auth.tenant.id;

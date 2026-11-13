@@ -18,6 +18,6 @@ function buildAdaptiveFocus(payload, gap) { return [String(payload.focus || payl
 function prepareProbingPayload(payload) { const gap = detectEvidenceGap(payload.answer); return { ...payload, focus: buildAdaptiveFocus(payload, gap), evidenceGap: gap }; }
 function normalizeProbeResult(probing, payload) {
   const gap = payload.evidenceGap || detectEvidenceGap(payload.answer);
-  return { ...probing, evidenceGap: gap, probeType: gap.type, rationale: gap.rationale, stopRecommended: false, baselineScore: Number.isFinite(Number(payload.baselineScore)) ? Number(payload.baselineScore) : null, baselineEvidence: Array.isArray(payload.baselineEvidence) ? payload.baselineEvidence : [], baselineEvaluationId: payload.baselineEvaluationId || null, baselineEvaluationRunId: payload.baselineEvaluationRunId || null };
+  return { ...probing, evidenceGap: gap, probeType: gap.type, rationale: gap.rationale, stopRecommended: false, baselineScore: payload.baselineScore != null && Number.isFinite(Number(payload.baselineScore)) ? Number(payload.baselineScore) : null, baselineEvidence: Array.isArray(payload.baselineEvidence) ? payload.baselineEvidence : [], baselineEvaluationId: payload.baselineEvaluationId || null, baselineEvaluationRunId: payload.baselineEvaluationRunId || null };
 }
 module.exports = { detectEvidenceGap, normalizeProbeResult, prepareProbingPayload };

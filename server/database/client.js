@@ -37,6 +37,10 @@ async function initDatabase() {
       const rs = await libsqlClient.execute({ sql, args: normalizeParams(params) });
       return { changes: rs.rowsAffected, lastInsertRowid: rs.lastInsertRowid };
     },
+    // All statements commit together or not at all (one libSQL write transaction).
+    async batch(statements) {
+      return libsqlClient.batch(statements.map(([sql, ...args]) => ({ sql, args })), "write");
+    },
     async exec(sql) {
       await libsqlClient.execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
       await libsqlClient.executeMultiple(sql);

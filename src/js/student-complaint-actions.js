@@ -1,6 +1,6 @@
 import { submitComplaint } from "./api.js";
 import { showResult } from "./render.js";
-import { showToast, showConfirmDialog } from "./toast.js";
+import { showToast, showConfirmDialog, showFormDialog } from "./toast.js";
 
 /**
  * Student-only complaint actions for an evaluation result.
@@ -27,14 +27,14 @@ export function bindStudentComplaintActions(ctx) {
     const warning = `⚠️ PERHATIAN\n\nAnda akan mengajukan komplain untuk Soal ${idx + 1} (skor ${questionScore.score}).\n\nJika guru menilai bahwa skor yang diberikan sudah sesuai, maka skor soal ini akan dikurangi 20 poin (menjadi ${Math.max(0, questionScore.score - 20)}).\n\nApakah Anda yakin ingin melanjutkan komplain?`;
     if (!await showConfirmDialog(warning, "Komplain")) return;
 
-    const reason = prompt(
-      `Komplain untuk Soal ${idx + 1} (skor ${questionScore.score}):\nJelaskan alasan Anda merasa nilai kurang sesuai.`
-    );
-    if (reason === null) return;
-    if (!reason.trim()) {
-      showToast("Alasan komplain wajib diisi", "error");
-      return;
-    }
+    const complaint = await showFormDialog({
+      title: `Komplain Soal ${idx + 1}`,
+      description: `Skor soal ini: ${questionScore.score}. Jelaskan mengapa nilai menurut Anda kurang sesuai.`,
+      fields: [{ name: "reason", label: "Alasan komplain", type: "textarea", required: true }],
+      okLabel: "Kirim komplain",
+    });
+    if (!complaint) return;
+    const reason = complaint.reason;
 
     try {
       const result = await submitComplaint(submissionId, idx, reason);

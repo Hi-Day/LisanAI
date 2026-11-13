@@ -23,6 +23,8 @@ async function getState(auth) {
     }),
     classes,
     memberships,
+    // The list is capped; the UI must say so instead of silently hiding older work.
+    submissionsTruncated: !studentView && submissions.length >= submission.SUBMISSION_FETCH_LIMIT,
   };
 }
 

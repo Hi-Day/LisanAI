@@ -117,7 +117,8 @@ function install() {
     const existing = values();
     const count = mode === "add" ? 1 : 3;
     if (!topic()) {
-      window.alert("Isi topik atau materi terlebih dahulu.");
+      (window.appAlert || window.alert)("Isi topik atau materi terlebih dahulu.");
+      document.getElementById("topic")?.focus();
       return;
     }
     const panel = makeStreamPanel(count, mode);

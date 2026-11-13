@@ -1,101 +1,123 @@
 import { showToast } from "./toast.js";
 import { escapeHtml } from "./utils.js";
+import { loadStateFromDatabase } from "./api.js";
+import { isAwaitingValidation } from "./status.js";
 
 /**
- * #4: Real-time notification system using EventSource.
+ * Lecturer notifications: the work that waits for a decision — scores to
+ * validate and student complaints to answer.
  *
- * Teachers receive live notifications when:
- * - A student submits an assessment
- * - A student submits a complaint
- * - An evaluation run completes
+ * The list is derived from the application state and refreshed by a light poll.
+ * (The server has no push channel; an earlier EventSource client never received
+ * events.)
  */
 
-let notifEventSource = null;
-let notifCount = 0;
+const POLL_MS = 60_000;
+let pollTimer = null;
+let knownIds = new Set();
 
-/**
- * Start listening for real-time notifications via SSE.
- * The server endpoint /api/notifications pushes events.
- */
+function collect(submissions) {
+  const items = [];
+  for (const submission of submissions || []) {
+    if (isAwaitingValidation(submission)) {
+      items.push({
+        id: `validation:${submission.id}`,
+        title: "Nilai menunggu validasi",
+        message: `${submission.studentName || "Siswa"} — ${submission.assessmentTitle || "Penilaian"}`,
+        at: submission.submittedAt,
+        view: "scoreValidationView",
+        action: "Buka Validasi Nilai",
+      });
+    }
+    (submission.questionScores || []).forEach((item, index) => {
+      if (item?.complaint?.status !== "pending") return;
+      items.push({
+        id: `complaint:${submission.id}:${index}`,
+        title: "Komplain menunggu jawaban",
+        message: `${submission.studentName || "Siswa"} — ${submission.assessmentTitle || "Penilaian"}, soal ${index + 1}`,
+        at: item.complaint.submittedAt,
+        view: "complaintView",
+        action: "Buka Komplain",
+      });
+    });
+  }
+  return items.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+}
+
+function formatTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function render(ctx, items) {
+  const { els } = ctx;
+  const count = document.getElementById("notifCount");
+  if (count) count.textContent = String(items.length);
+  if (!els.notifList) return;
+  if (!items.length) {
+    els.notifList.className = "list-stack empty-state";
+    els.notifList.textContent = "Tidak ada yang menunggu tindakan Anda.";
+    return;
+  }
+  els.notifList.className = "list-stack";
+  els.notifList.innerHTML = items.map((item) => `
+    <article class="feedback-card notif-item">
+      <div>
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(item.message)}</p>
+        <small>${escapeHtml(formatTime(item.at))}</small>
+      </div>
+      <button type="button" class="secondary-button" data-notif-view="${escapeHtml(item.view)}">${escapeHtml(item.action)}</button>
+    </article>`).join("");
+}
+
+function setBadge(ctx, count) {
+  const badge = ctx.els.notifBadge || document.getElementById("notifBadge");
+  if (!badge) return;
+  badge.textContent = String(count);
+  badge.classList.toggle("hidden", count === 0);
+}
+
+async function poll(ctx) {
+  if (document.hidden) return;
+  let fresh;
+  try { fresh = await loadStateFromDatabase(); }
+  catch { return; } // A failed poll is retried on the next tick; the list keeps its last known content.
+  // Only add what is new; in-progress edits of existing rows in the browser are left untouched.
+  const have = new Set(ctx.state.submissions.map((item) => item.id));
+  for (const submission of fresh.submissions || []) {
+    if (!have.has(submission.id)) ctx.state.submissions.push(submission);
+  }
+  const items = collect(fresh.submissions);
+  const added = items.filter((item) => !knownIds.has(item.id));
+  knownIds = new Set(items.map((item) => item.id));
+  render(ctx, items);
+  if (added.length) {
+    setBadge(ctx, added.length);
+    showToast(added.length === 1 ? `${added[0].title}: ${added[0].message}` : `${added.length} hal baru menunggu tindakan Anda.`, "info");
+  }
+}
+
 export function startNotificationListener(ctx) {
   stopNotificationListener();
-
-  try {
-    notifEventSource = new EventSource("/api/notifications");
-    notifEventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleNotification(ctx, data);
-      } catch {
-        // ignore malformed events
-      }
-    };
-    notifEventSource.onerror = () => {
-      // EventSource auto-reconnects; silently handle.
-    };
-  } catch {
-    // SSE not supported; silently degrade.
-  }
+  const items = collect(ctx.state?.submissions);
+  knownIds = new Set(items.map((item) => item.id));
+  render(ctx, items);
+  ctx.els.notifList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-notif-view]");
+    if (button) document.querySelector(`#mainNav [data-view="${button.dataset.notifView}"]`)?.click();
+  });
+  pollTimer = setInterval(() => poll(ctx), POLL_MS);
 }
 
 export function stopNotificationListener() {
-  if (notifEventSource) {
-    notifEventSource.close();
-    notifEventSource = null;
-  }
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
 }
 
-function handleNotification(ctx, data) {
-  const { type, title, message, assessmentId } = data;
-
-  if (type === "submission" || type === "complaint") {
-    notifCount += 1;
-    updateBadge(ctx);
-    showToast(`${title}: ${message}`, "info");
-
-    // Add to notification list
-    const { els } = ctx;
-    if (els.notifList) {
-      const notif = document.createElement("div");
-      notif.className = "feedback-card";
-      notif.style.borderLeft = "4px solid var(--accent)";
-      notif.innerHTML = `
-        <div style="display:flex; justify-content:space-between; gap:8px;">
-          <div>
-            <strong>${escapeHtml(title)}</strong>
-            <p style="color:var(--muted); font-size:0.9rem; margin:4px 0;">${escapeHtml(message)}</p>
-            <small style="color:var(--muted);">${new Date().toLocaleTimeString("id-ID")}</small>
-          </div>
-          ${assessmentId ? `<button type="button" class="secondary-button" onclick="window.dispatchEvent(new CustomEvent('notif-view-assessment', {detail:{id:'${assessmentId}'}}))" style="flex-shrink:0; font-size:0.85rem;">Lihat</button>` : ""}
-        </div>
-      `;
-      // Remove empty state
-      const empty = els.notifList.querySelector(".empty-state");
-      if (empty) empty.remove();
-      els.notifList.prepend(notif);
-
-      // Keep only last 20 notifications
-      while (els.notifList.children.length > 20) {
-        els.notifList.lastElementChild.remove();
-      }
-    }
-  }
-}
-
-function updateBadge(ctx) {
-  const { els } = ctx;
-  if (els.notifBadge) {
-    els.notifBadge.textContent = String(notifCount);
-    els.notifBadge.classList.toggle("hidden", notifCount === 0);
-  }
-}
-
-export function clearNotificationBadge() {
-  notifCount = 0;
+/** Opening the Notifikasi view shows the current list and clears the "new" badge. */
+export function clearNotificationBadge(ctx) {
   const badge = document.getElementById("notifBadge");
   if (badge) badge.classList.add("hidden");
-}
-
-export function getNotificationCount() {
-  return notifCount;
+  if (ctx?.state) render(ctx, collect(ctx.state.submissions));
 }

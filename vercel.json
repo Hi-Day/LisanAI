@@ -16,11 +16,8 @@
   ],
   "routes": [
     { "src": "/api/v1/(.*)", "dest": "/api/v1.js" },
-    { "src": "/api/docs/(.*)", "dest": "/api/v1.js" },
-    { "src": "/api/docs", "dest": "/api/v1.js" },
     { "src": "/api/apikeys", "dest": "/api/auth.js" },
     { "src": "/api/health", "dest": "/api/data.js" },
-    { "src": "/api/notifications", "dest": "/api/data.js" },
     { "src": "/api/openapi.json", "dest": "/api/openapi.json" },
     { "src": "/api/database", "dest": "/api/data.js" },
     { "src": "/api/data", "dest": "/api/data.js" },

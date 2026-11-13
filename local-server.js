@@ -96,6 +96,8 @@ if (require.main === module) {
     .then(() => {
       isDbInitialized = true;
       startLtiOutcomeWorker();
+      const { purgeExpiredRows } = require("./server/maintenance");
+      setInterval(() => purgeExpiredRows().catch((error) => console.error("[maintenance] purge failed:", error.message)), 60 * 60 * 1000).unref();
       server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
         console.log(`Lisan.ai running at http://127.0.0.1:${PORT}`);
         console.log(`Using OpenRouter model: ${process.env.OPENROUTER_MODEL}`);

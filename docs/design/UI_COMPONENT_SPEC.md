@@ -79,6 +79,16 @@ Use for:
 
 Do not use modal for workflows that require extensive interaction.
 
+## Form Dialog
+
+Use `showFormDialog` (`src/js/toast.js`) whenever the user must enter a value to complete an action,
+for example correcting a score, answering a complaint, or renaming a class. Never use the browser's
+native `prompt()`, `alert()` or `confirm()`.
+
+- State the consequence in the description (what changes, who will see it).
+- Validate next to the field; keep the dialog open and focus the first invalid field.
+- Escape and "Batal" cancel without side effects; focus returns to the trigger.
+
 ## Toast
 
 Use for short-lived feedback.
