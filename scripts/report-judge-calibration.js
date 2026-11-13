@@ -124,12 +124,25 @@ async function main() {
   console.log("Evaluation path: production assessment harness (rubric/evidence/judgment/verification)");
   console.log("Reference warning: fixture labels are synthetic, not lecturer-validated ground truth.");
 
-  const experiment = await runExperiment({
-    dataset: datasetName,
-    mode: "harness",
-    providerName: "openrouter",
-    repeats: 1,
-  });
+  // One empty or malformed model reply used to fail the whole build. The model is routed across several
+  // upstream providers and an occasional bad reply is expected, so the run is retried; every failed
+  // attempt is logged, and the build still fails when all attempts fail.
+  const LIVE_ATTEMPTS = 3;
+  let experiment;
+  for (let attempt = 1; attempt <= LIVE_ATTEMPTS; attempt += 1) {
+    try {
+      experiment = await runExperiment({
+        dataset: datasetName,
+        mode: "harness",
+        providerName: "openrouter",
+        repeats: 1,
+      });
+      break;
+    } catch (error) {
+      console.warn(`Live evaluation attempt ${attempt}/${LIVE_ATTEMPTS} failed: ${String(error.message).slice(0, 200)}`);
+      if (attempt === LIVE_ATTEMPTS) throw error;
+    }
+  }
 
   const rows = experiment.results || [];
   const byId = new Map(rows.map((row) => [row.sampleId, row]));
