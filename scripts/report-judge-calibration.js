@@ -124,11 +124,16 @@ async function main() {
   console.log("Evaluation path: production assessment harness (rubric/evidence/judgment/verification)");
   console.log("Reference warning: fixture labels are synthetic, not lecturer-validated ground truth.");
 
+  // One unusable model reply (empty, truncated or off-topic JSON) used to fail the whole build. The model
+  // is routed across several upstream providers and an occasional bad reply is expected, so a sample is
+  // asked again up to 3 extra times; each failed try is logged, and the build still fails when a sample
+  // never gets a usable reply.
   const experiment = await runExperiment({
     dataset: datasetName,
     mode: "harness",
     providerName: "openrouter",
     repeats: 1,
+    sampleRetries: 3,
   });
 
   const rows = experiment.results || [];
