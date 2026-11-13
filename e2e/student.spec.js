@@ -54,27 +54,54 @@ test.describe("Student assessment flow", () => {
 
     await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+    // Before lecturer validation the student sees feedback but no score.
+    await expect(page.locator("#resultPanel")).toContainText("Menunggu validasi dosen");
+    await expect(page.locator("#resultPanel")).not.toContainText("Skor akhir");
+    await expect(page.locator("#resultPanel .score-badge")).toHaveCount(0);
     const resultAiBadge = page.locator("#resultPanel .result-ai-badge");
     await expect(resultAiBadge).toBeVisible();
-    await expect(resultAiBadge).toHaveText(/^(Dinilai AI|Perlu tinjauan)$/);
+    await expect(resultAiBadge).toHaveText("Belum divalidasi");
     await expect(page.locator("#resultPanel .close-result-btn").first()).toBeVisible();
-
     await page.locator("#resultPanel .close-result-btn").first().click();
-    await page.click("button[data-view='studentCompetencyView']");
-    await expect(page.locator("#studentCompetencyList")).toContainText("Siswa mampu menjelaskan konsep dasar.");
-    await expect(page.locator("#studentCompetencyCount")).not.toHaveText("0");
-    await expect(page.locator("#studentCompetencyList .student-competency-card")).toHaveCount(1);
 
     await page.click("#logoutButton");
     await expect(page.locator("#authView")).toBeVisible({ timeout: 10_000 });
 
+    // Lecturer validates the score in "Validasi Nilai".
     await loginAs(page, "e2e.guru@example.com");
+    await page.click("#mainNav button[data-view='scoreValidationView']");
+    await expect(page.locator("#scoreValidationView")).toBeVisible();
+    await expect(page.locator("#scoreValidationList")).toContainText("Siswa E2E");
+    // Other specs in the run may leave pending submissions too; validate every group.
+    const validateAll = page.locator("#scoreValidationList .sv-validate-all-btn");
+    while (await validateAll.count()) {
+      const groupsBefore = await validateAll.count();
+      await validateAll.first().click();
+      await page.click("#confirmModalOk");
+      await expect(validateAll).toHaveCount(groupsBefore - 1, { timeout: 10_000 });
+    }
+    await expect(page.locator("#scoreValidationList")).toContainText("Semua nilai sudah divalidasi");
+
     await page.click("#mainNav button[data-view='monitorView']");
     await expect(page.locator("#monitorView")).toBeVisible();
     await expect(page.locator("#submissionList")).toContainText("Siswa E2E");
     await expect(page.locator("#submissionList")).toContainText("Ujian Tulis E2E");
     await expect(page.locator("#submissionCount")).not.toHaveText("0");
     await expect(page.locator("#classAverage")).not.toHaveText("—");
+
+    await page.click("#logoutButton");
+    await expect(page.locator("#authView")).toBeVisible({ timeout: 10_000 });
+
+    // After validation the student sees the score and the competency update.
+    await loginAs(page, "e2e.siswa@example.com");
+    await page.click("button[data-view='studentHistoryView']");
+    await page.locator("#studentHistoryList .view-submission-btn").first().click();
+    await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+    await expect(page.locator("#resultPanel .result-ai-badge")).toHaveText("Divalidasi dosen");
+    await page.locator("#resultPanel .close-result-btn").first().click();
+    await page.click("button[data-view='studentCompetencyView']");
+    await expect(page.locator("#studentCompetencyList")).toContainText("Siswa mampu menjelaskan konsep dasar.");
+    await expect(page.locator("#studentCompetencyCount")).not.toHaveText("0");
+    await expect(page.locator("#studentCompetencyList .student-competency-card")).toHaveCount(1);
   });
 });

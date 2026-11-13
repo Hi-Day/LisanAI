@@ -71,7 +71,8 @@ test.describe("Student oral recording flow", () => {
     await page.click("#confirmModalOk");
     await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+    // Scores are released only after lecturer validation; the student sees feedback first.
+    await expect(page.locator("#resultPanel")).toContainText("Menunggu validasi dosen");
 
     // Regression: official score persistence is server-authoritative; the
     // browser must not issue a score-bearing save-submission write. Audio,
@@ -144,7 +145,8 @@ test.describe("Student oral recording flow", () => {
     await page.click("#confirmModalOk");
     await expect(page.locator("#evaluationLoadingModal")).toBeHidden({ timeout: 30_000 });
     await expect(page.locator("#resultPanel")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("#resultPanel")).toContainText("Skor akhir");
+    // Scores are released only after lecturer validation; the student sees feedback first.
+    await expect(page.locator("#resultPanel")).toContainText("Menunggu validasi dosen");
 
     // Score persistence remains server-authoritative. With audio persistence
     // disabled, the browser must not issue either a score-bearing save or an

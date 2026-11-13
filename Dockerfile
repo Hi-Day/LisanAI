@@ -18,6 +18,8 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/api ./api
 COPY --from=build /app/server ./server
 COPY --from=build /app/local-server.js ./local-server.js
+# local-server.js reads the /api route aliases from vercel.json.
+COPY --from=build /app/vercel.json ./vercel.json
 RUN mkdir -p /app/data && chown -R node:node /app
 USER node
 EXPOSE 4173
