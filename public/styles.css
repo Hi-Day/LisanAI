@@ -2843,7 +2843,7 @@ body.admin-mode .student-only { display: none !important; }
 /* ---- KPI cards ---- */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -3317,7 +3317,7 @@ body.admin-mode .student-only { display: none !important; }
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { position: sticky; top: 0; height: auto; flex-direction: column; z-index: 100; }
-  .brand { padding: 12px 20px; border-bottom: 1px solid var(--line); margin: -20px -24px 0; }
+  .brand { padding: 12px 20px; border-bottom: 1px solid var(--line); margin: -20px -20px 0; }
   .hamburger { display: block; }
   .nav, .dark-mode-toggle, .sidebar-settings { display: none; }
   .sidebar.nav-open .nav,
@@ -3829,7 +3829,7 @@ html.dark-mode .topbar { background: transparent !important; }
 .notif-item p { margin: 4px 0; color: var(--text-muted); }
 .notif-item small { color: var(--text-muted); }
 
-.sem-badge { flex-shrink: 0; white-space: nowrap; }
+.sem-badge { flex-shrink: 0; max-width: 100%; }
 
 /* Exam focus: while a student answers, only the exam is on screen. */
 body.student-mode.exam-active .topbar,
@@ -3860,3 +3860,59 @@ body.student-mode .student-name-field { display: none; }
   .topbar h1 { display: none; }
   .account-chip { grid-auto-flow: row; gap: 2px; }
 }
+
+/* ==========================================================================
+   Overflow safety: long names, titles, e-mails, links and answers must wrap
+   inside their box at every width instead of spilling out or being cut off.
+   ========================================================================== */
+
+/* A word longer than its line (e-mail, URL, a long compound) may break anywhere. */
+body { overflow-wrap: anywhere; }
+/* Grid and flex children default to "never narrower than my content"; let text blocks shrink and wrap.
+   :where keeps specificity at zero, so any explicit min-width in this file still wins. */
+:where(div, section, article, aside, header, main, form, fieldset, p, li, ul, ol, dl, dd, dt, details, summary, figure, blockquote, pre) { min-width: 0; }
+/* Controls and table cells never shrink below their longest word (no "Penilai-an" buttons, no
+   one-letter table columns); tables scroll in their container instead. */
+:where(button, label, select, table) { overflow-wrap: break-word; }
+/* A heading beside other items in a row keeps a readable width instead of being squeezed to a sliver. */
+:where(h1, h2, h3, h4, h5) { min-width: min(100%, 10ch); }
+:where(img, video, canvas, svg, iframe, audio, input, select, textarea) { max-width: 100%; }
+:where(img, video) { height: auto; }
+:where(pre) { white-space: pre-wrap; }
+/* Wide tables scroll inside their own container, never the page. */
+.table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Pills, badges and tags stay on one line while it fits, then wrap inside their row. */
+.metric-pill, .badge, .tag, .user-role, .badge-ai, .badge-review, .badge-verified { white-space: normal; max-width: 100%; }
+/* Rows of heading + pill / actions wrap instead of pushing the last item off the page. */
+.section-heading, .panel-head-row, .ob-kpi-top, .item-actions { flex-wrap: wrap; }
+
+/* Account / member rows: text, actions and role sit on one line when it fits and wrap when it does not. */
+.list-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.list-item-main { flex: 1 1 260px; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.list-item-text { flex: 1 1 160px; min-width: 0; }
+.list-item-text p { margin: 2px 0 0; }
+.list-item > div:first-child { flex: 1 1 200px; min-width: 0; }
+.list-item > .item-actions, .list-item-main > .item-actions { margin-top: 0; }
+/* A text column next to fixed-size neighbours keeps a readable width; the row wraps instead of squeezing it. */
+.complaint-item { flex-wrap: wrap; }
+.complaint-main { flex: 1 1 220px; min-width: 0; }
+.competency-row .rubrik-skor { flex-shrink: 0; }
+.sem-badge { white-space: normal; max-width: 100%; }
+.assessment-item > span { flex-shrink: 0; }
+/* Filter rows (title + tabs + select) wrap on narrow screens. */
+.monitor-filters > select, .section-heading select { min-width: 0; }
+.filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.filter-row-spread { justify-content: space-between; margin-bottom: 16px; }
+/* Stacked (column) rows must not wrap: a wrapping column sizes its items to their widest content. */
+@media (max-width: 640px) {
+  .section-heading, .monitor-filters { flex-wrap: nowrap; }
+}
+/* Short screens (laptops at 125-150% zoom): the menu scrolls instead of cutting off its last items. */
+.sidebar { overflow-y: auto; }
+/* The wizard needs the full width before its two columns get cramped. */
+@media (max-width: 1200px) {
+  .teacher-grid { grid-template-columns: 1fr; }
+}
+/* A long name or school wraps the header instead of crushing the product title. */
+.topbar { flex-wrap: wrap; }
+.topbar h1 { white-space: nowrap; }

@@ -178,9 +178,9 @@ export function renderUsers(ctx) {
   els.userList.className = "list-stack";
   els.userList.innerHTML = extraUsers.map((user) => `
     <article class="list-item" data-id="${user.id}">
-      <div style="flex: 1; min-width: 0; display:flex; gap:12px; align-items:center;">
+      <div class="list-item-main">
         <input type="checkbox" class="select-user" data-id="${user.id}" aria-label="Pilih user" />
-        <div style="flex:1; min-width:0;">
+        <div class="list-item-text">
           <strong>${escapeHtml(user.name)}</strong>
           <p>${escapeHtml(user.email)}</p>
         </div>
