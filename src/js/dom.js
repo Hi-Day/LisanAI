@@ -60,6 +60,7 @@ export function getElements() {
     questionProgress: document.querySelector("#questionProgress"),
     activeDifficulty: document.querySelector("#activeDifficulty"),
     activeQuestion: document.querySelector("#activeQuestion"),
+    activeQuestionTables: document.querySelector("#activeQuestionTables"),
     activeHint: document.querySelector("#activeHint"),
     activeOutcome: document.querySelector("#activeOutcome"),
     activeRubric: document.querySelector("#activeRubric"),

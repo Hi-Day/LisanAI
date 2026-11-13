@@ -1,4 +1,5 @@
 import { average, compactText, escapeHtml } from "./utils.js";
+import { questionProse, questionTablesHtml } from "./question-text.js";
 import { parseRubricToCriteria } from "./competency-profile.js";
 import { showEmpty } from "./dom.js";
 import {
@@ -155,7 +156,9 @@ export function renderQuestion(els, assessment, session) {
 
   els.questionProgress.textContent = `Soal ${session.currentQuestionIndex + 1} dari ${assessment.questions.length}`;
   els.activeDifficulty.textContent = assessment.difficulty;
-  els.activeQuestion.textContent = question.prompt;
+  // The heading carries the sentences; a table in the prompt is shown right under it.
+  els.activeQuestion.textContent = questionProse(question.prompt);
+  if (els.activeQuestionTables) els.activeQuestionTables.innerHTML = questionTablesHtml(question.prompt);
   els.activeHint.textContent = "";
   els.activeHint.classList.add("hidden");
 

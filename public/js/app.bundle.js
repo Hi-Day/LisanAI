@@ -60,7 +60,7 @@ import {
   showApp,
   showAuth,
   switchView
-} from "./chunks/chunk-3PRL2TXT.js";
+} from "./chunks/chunk-KC4TALBA.js";
 import {
   loadState
 } from "./chunks/chunk-3TFACZOJ.js";
@@ -77,12 +77,12 @@ import {
 import {
   renderApp,
   renderStudentHistory
-} from "./chunks/chunk-5COPEVEC.js";
+} from "./chunks/chunk-LB7VC6MH.js";
 import "./chunks/chunk-5AH2L77E.js";
 import "./chunks/chunk-3BDSMFGS.js";
 import {
   setButtonLoading
-} from "./chunks/chunk-VS2E6D4X.js";
+} from "./chunks/chunk-GNNF2GDW.js";
 import "./chunks/chunk-3EIGNEHM.js";
 
 // src/js/auth-ui.js
@@ -168,7 +168,7 @@ function bindAuthEvents(ctx) {
     ctx.features = null;
     clearAuthForms(ctx);
     showAuth(ctx);
-    const { refreshSimulatorIfEnabled: refreshSimulatorIfEnabled2 } = await import("./chunks/app-context-6WALWMJP.js");
+    const { refreshSimulatorIfEnabled: refreshSimulatorIfEnabled2 } = await import("./chunks/app-context-6P5WYGRS.js");
     refreshSimulatorIfEnabled2(ctx);
   });
 }
@@ -242,37 +242,37 @@ async function renderRoleState(ctx, modules = {}) {
 // src/js/main.js
 var ROLE_FEATURES = {
   student: {
-    studentFlow: () => import("./chunks/student-flow-DMPMY4KF.js"),
+    studentFlow: () => import("./chunks/student-flow-3TZHXOQS.js"),
     studentClassManagement: () => import("./chunks/student-class-management-NQYHJMOE.js"),
     studentComplaints: () => import("./chunks/student-complaints-GDS3NX64.js"),
-    studentComplaintActions: () => import("./chunks/student-complaint-actions-4GXXZV6N.js"),
-    resultModal: () => import("./chunks/result-modal-MS7CKYTC.js")
+    studentComplaintActions: () => import("./chunks/student-complaint-actions-E7L33V6A.js"),
+    resultModal: () => import("./chunks/result-modal-LDPXSAH4.js")
   },
   teacher: {
-    complaints: () => import("./chunks/complaints-RC2QK3CM.js"),
-    scoreValidation: () => import("./chunks/score-validation-CPF5IZQ5.js"),
-    assessmentWizard: () => import("./chunks/assessment-wizard-NMWCK2GU.js"),
+    complaints: () => import("./chunks/complaints-OY72F3R2.js"),
+    scoreValidation: () => import("./chunks/score-validation-P4MLNSET.js"),
+    assessmentWizard: () => import("./chunks/assessment-wizard-HPTRF2FV.js"),
     assessmentUx: () => import("./chunks/assessment-ux-NBOVU3CX.js"),
-    classManagement: () => import("./chunks/class-management-KNGOZTNU.js"),
-    monitoring: () => import("./chunks/monitoring-JEBIV7H2.js"),
-    demoData: () => import("./chunks/demo-data-LG256DOA.js"),
-    dashboard: () => import("./chunks/dashboard-E3OTFYSY.js"),
-    questionBank: () => import("./chunks/question-bank-O7ZS4K7B.js"),
+    classManagement: () => import("./chunks/class-management-W4WKTNEY.js"),
+    monitoring: () => import("./chunks/monitoring-B7P2UTS2.js"),
+    demoData: () => import("./chunks/demo-data-WGKBAYT5.js"),
+    dashboard: () => import("./chunks/dashboard-YTXRA4C4.js"),
+    questionBank: () => import("./chunks/question-bank-YRAI7GQE.js"),
     notifications: () => import("./chunks/notifications-P2F2SY7Z.js"),
-    simulator: () => import("./chunks/simulator-WPQR55ET.js"),
-    resultModal: () => import("./chunks/result-modal-MS7CKYTC.js")
+    simulator: () => import("./chunks/simulator-OU6F7BAO.js"),
+    resultModal: () => import("./chunks/result-modal-LDPXSAH4.js")
   },
   admin: {
-    userManagement: () => import("./chunks/user-management-MJTTYWHM.js"),
-    monitoring: () => import("./chunks/monitoring-JEBIV7H2.js"),
+    userManagement: () => import("./chunks/user-management-H7ZXR2N4.js"),
+    monitoring: () => import("./chunks/monitoring-B7P2UTS2.js"),
     apiKeys: () => import("./chunks/api-keys-AUL56CMA.js"),
     research: () => import("./chunks/research-E7F4G7JV.js"),
     researchLab: () => import("./chunks/research-lab-S47BPCEW.js"),
-    observability: () => import("./chunks/observability-E4W6NGLW.js"),
-    questionBank: () => import("./chunks/question-bank-O7ZS4K7B.js"),
+    observability: () => import("./chunks/observability-CFPVDUGR.js"),
+    questionBank: () => import("./chunks/question-bank-YRAI7GQE.js"),
     notifications: () => import("./chunks/notifications-P2F2SY7Z.js"),
-    simulator: () => import("./chunks/simulator-WPQR55ET.js"),
-    resultModal: () => import("./chunks/result-modal-MS7CKYTC.js")
+    simulator: () => import("./chunks/simulator-OU6F7BAO.js"),
+    resultModal: () => import("./chunks/result-modal-LDPXSAH4.js")
   }
 };
 async function loadAuthenticatedFeatures(role) {
@@ -336,7 +336,7 @@ function bindGlobalNavigation(ctx) {
     document.querySelectorAll("[data-student-filter]").forEach((button) => {
       button.classList.toggle("active", button === filterButton);
     });
-    const { renderStudentArea } = await import("./chunks/render-JJGHTRNB.js");
+    const { renderStudentArea } = await import("./chunks/render-SRJ5U6WG.js");
     renderStudentArea(ctx.els, ctx.state, ctx.session);
   });
   document.addEventListener("click", (event) => {

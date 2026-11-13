@@ -2,6 +2,7 @@ import { listQuestionBank, saveQuestionToBank, deleteQuestionFromBank } from "./
 import { showToast, showConfirmDialog } from "./toast.js";
 import { showEmpty, setButtonLoading } from "./dom.js";
 import { escapeHtml } from "./utils.js";
+import { questionProse, questionTablesHtml } from "./question-text.js";
 import { renderCurrentState, switchView } from "./app-context.js";
 import { renderRubricTable } from "./render.js";
 
@@ -153,7 +154,8 @@ export async function loadQuestionBank(ctx) {
               <span class="tag badge-published">${escapeHtml(q.difficulty || "Umum")}</span>
               <span class="tag" style="background: var(--accent-light); color: var(--accent);">${escapeHtml(q.topic || "Tanpa topik")}</span>
             </div>
-            <strong>${escapeHtml(q.prompt)}</strong>
+            <strong>${escapeHtml(questionProse(q.prompt))}</strong>
+            ${questionTablesHtml(q.prompt)}
             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 6px;">
               Fokus: ${escapeHtml(q.focus)}${q.outcome ? ` · ${escapeHtml(q.outcome)}` : ""}
               ${q.learningOutcomeId ? `<span class="tag" style="margin-left:4px;">${escapeHtml(q.learningOutcomeId)}</span>` : '<span style="color: var(--danger, #b42318);">· Belum terpetakan ke LO</span>'}
