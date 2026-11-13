@@ -6,6 +6,8 @@ const test = require("node:test");
 
 process.env.TURSO_DATABASE_URL = `file:${path.join(os.tmpdir(), `oralai-production-hardening-${Date.now()}.db`)}`;
 process.env.ENABLE_DEMO_SIMULATION = "false";
+// The AI gateway picks its provider lazily from AI_PROVIDER; mock keeps this file offline.
+process.env.AI_PROVIDER = "mock";
 
 const {
   approveMembership,
@@ -271,7 +273,6 @@ test("one invalid score does not hide the rest of a validation batch", async () 
 });
 
 test("a student never receives a baseline score from probing", async () => {
-  process.env.HARNESS_PROVIDER = "mock";
   const probe = await buildAdaptiveProbe(
     { prompt: "Jelaskan konsep utama.", answer: "Karena begitu.", probing: true, question: { prompt: "Jelaskan konsep utama.", probing: true }, tenantId: ctx.tenant.id, userId: ctx.student.id },
     ctx.studentAuth,
