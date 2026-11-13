@@ -87,7 +87,8 @@ test("generateQuestions slices results to the requested count", async () => {
 });
 
 test("generateQuestions throws when the model returns no questions array", async () => {
-  mockOpenRouter({});
+  // A reply with content but no questions. (An entirely empty reply is retried by the client instead.)
+  mockOpenRouter({ catatan: "tanpa daftar soal" });
   await assert.rejects(
     () => assessmentService.generateQuestions({ topic: "T", count: 1 }),
     /tidak mengembalikan daftar soal/

@@ -60,8 +60,16 @@ function hasCacheTelemetry(usage) {
   );
 }
 
+/** A JSON reply that carries nothing: "", "{}" or "[]". */
+function isEmptyReply(content) {
+  return typeof content !== "string" || /^[\s{}\[\]]*$/.test(content);
+}
+
 async function requestModel(model, messages, schemaHint, gen = {}) {
   let lastError = null;
+  // OpenRouter routes one model across several upstream providers. A provider that answers this
+  // request with an empty reply is left out of the retries, so the retry reaches a different one.
+  const emptyProviders = [];
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
     try {
@@ -75,6 +83,7 @@ async function requestModel(model, messages, schemaHint, gen = {}) {
           top_p: gen.topP ?? 1,
           max_tokens: gen.maxTokens ?? 4000,
           reasoning: { effort: "none", exclude: true },
+          ...(emptyProviders.length ? { provider: { ignore: emptyProviders } } : {}),
           messages: buildMessages(messages, schemaHint),
         }),
       });
@@ -92,7 +101,10 @@ async function requestModel(model, messages, schemaHint, gen = {}) {
       }
 
       const content = data.choices?.[0]?.message?.content;
-      if (!content) throw new Error("Respons model kosong");
+      if (isEmptyReply(content)) {
+        if (data.provider && !emptyProviders.includes(data.provider)) emptyProviders.push(data.provider);
+        throw new Error(`Respons model kosong${data.provider ? ` (penyedia: ${data.provider})` : ""}`);
+      }
       const cacheReadInputTokens = resolveCachedInputTokens(data.usage);
 
       return {
