@@ -152,7 +152,7 @@ function renderComplaintItem(entry, statusClass) {
 
   return `
     <article class="complaint-item ${statusClass}">
-      <div style="flex: 1; min-width: 0;">
+      <div class="complaint-main">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <strong>${escapeHtml(entry.studentName)}</strong>
           <span class="tag">${escapeHtml(entry.assessmentTitle)}</span>

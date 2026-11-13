@@ -60,10 +60,10 @@ import {
   showApp,
   showAuth,
   switchView
-} from "./chunks/chunk-N4EC4ZXY.js";
+} from "./chunks/chunk-3PRL2TXT.js";
 import {
   loadState
-} from "./chunks/chunk-PKDFY347.js";
+} from "./chunks/chunk-3TFACZOJ.js";
 import {
   showToast
 } from "./chunks/chunk-5RMC4JHK.js";
@@ -168,7 +168,7 @@ function bindAuthEvents(ctx) {
     ctx.features = null;
     clearAuthForms(ctx);
     showAuth(ctx);
-    const { refreshSimulatorIfEnabled: refreshSimulatorIfEnabled2 } = await import("./chunks/app-context-RLTTNXWC.js");
+    const { refreshSimulatorIfEnabled: refreshSimulatorIfEnabled2 } = await import("./chunks/app-context-6WALWMJP.js");
     refreshSimulatorIfEnabled2(ctx);
   });
 }
@@ -242,37 +242,37 @@ async function renderRoleState(ctx, modules = {}) {
 // src/js/main.js
 var ROLE_FEATURES = {
   student: {
-    studentFlow: () => import("./chunks/student-flow-KQLD7JV4.js"),
-    studentClassManagement: () => import("./chunks/student-class-management-YWEP23TY.js"),
+    studentFlow: () => import("./chunks/student-flow-DMPMY4KF.js"),
+    studentClassManagement: () => import("./chunks/student-class-management-NQYHJMOE.js"),
     studentComplaints: () => import("./chunks/student-complaints-GDS3NX64.js"),
     studentComplaintActions: () => import("./chunks/student-complaint-actions-4GXXZV6N.js"),
-    resultModal: () => import("./chunks/result-modal-7ZPWWDQM.js")
+    resultModal: () => import("./chunks/result-modal-MS7CKYTC.js")
   },
   teacher: {
-    complaints: () => import("./chunks/complaints-ZWCRKC43.js"),
-    scoreValidation: () => import("./chunks/score-validation-WETXYNB5.js"),
-    assessmentWizard: () => import("./chunks/assessment-wizard-HB6MMWD7.js"),
+    complaints: () => import("./chunks/complaints-RC2QK3CM.js"),
+    scoreValidation: () => import("./chunks/score-validation-CPF5IZQ5.js"),
+    assessmentWizard: () => import("./chunks/assessment-wizard-NMWCK2GU.js"),
     assessmentUx: () => import("./chunks/assessment-ux-NBOVU3CX.js"),
-    classManagement: () => import("./chunks/class-management-YOBX2LF6.js"),
-    monitoring: () => import("./chunks/monitoring-JQBB6IRR.js"),
-    demoData: () => import("./chunks/demo-data-FT4VGG6H.js"),
-    dashboard: () => import("./chunks/dashboard-AQH3HHHT.js"),
-    questionBank: () => import("./chunks/question-bank-EJWGSC6D.js"),
-    notifications: () => import("./chunks/notifications-I6GGFLN3.js"),
-    simulator: () => import("./chunks/simulator-HYYWYCBV.js"),
-    resultModal: () => import("./chunks/result-modal-7ZPWWDQM.js")
+    classManagement: () => import("./chunks/class-management-KNGOZTNU.js"),
+    monitoring: () => import("./chunks/monitoring-JEBIV7H2.js"),
+    demoData: () => import("./chunks/demo-data-LG256DOA.js"),
+    dashboard: () => import("./chunks/dashboard-E3OTFYSY.js"),
+    questionBank: () => import("./chunks/question-bank-O7ZS4K7B.js"),
+    notifications: () => import("./chunks/notifications-P2F2SY7Z.js"),
+    simulator: () => import("./chunks/simulator-WPQR55ET.js"),
+    resultModal: () => import("./chunks/result-modal-MS7CKYTC.js")
   },
   admin: {
-    userManagement: () => import("./chunks/user-management-NSAKYK42.js"),
-    monitoring: () => import("./chunks/monitoring-JQBB6IRR.js"),
+    userManagement: () => import("./chunks/user-management-MJTTYWHM.js"),
+    monitoring: () => import("./chunks/monitoring-JEBIV7H2.js"),
     apiKeys: () => import("./chunks/api-keys-AUL56CMA.js"),
     research: () => import("./chunks/research-E7F4G7JV.js"),
     researchLab: () => import("./chunks/research-lab-S47BPCEW.js"),
     observability: () => import("./chunks/observability-E4W6NGLW.js"),
-    questionBank: () => import("./chunks/question-bank-EJWGSC6D.js"),
-    notifications: () => import("./chunks/notifications-I6GGFLN3.js"),
-    simulator: () => import("./chunks/simulator-HYYWYCBV.js"),
-    resultModal: () => import("./chunks/result-modal-7ZPWWDQM.js")
+    questionBank: () => import("./chunks/question-bank-O7ZS4K7B.js"),
+    notifications: () => import("./chunks/notifications-P2F2SY7Z.js"),
+    simulator: () => import("./chunks/simulator-WPQR55ET.js"),
+    resultModal: () => import("./chunks/result-modal-MS7CKYTC.js")
   }
 };
 async function loadAuthenticatedFeatures(role) {

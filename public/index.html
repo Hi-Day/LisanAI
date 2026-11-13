@@ -510,8 +510,8 @@
 
         <div id="studentDashboard" class="student-dashboard">
           <div class="student-dashboard-main">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <div style="display:flex; gap:8px; align-items:center;">
+            <div class="filter-row filter-row-spread">
+              <div class="filter-row">
                 <h3 style="margin: 0;">Penilaian tersedia</h3>
                 <div class="notif-tab" style="margin-bottom:0;">
                   <button type="button" class="notif-tab-btn active" data-student-filter="all">Semua</button>
@@ -652,7 +652,7 @@
                 Emails (satu per baris)
                 <textarea id="bulkAddEmails" rows="4" style="width:100%; margin-top:6px;"></textarea>
               </label>
-              <div style="display:flex; gap:8px; margin-top:8px;">
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
                 <button id="bulkAddButton" class="primary-button" type="button">Tambahkan ke Kelas</button>
                 <button id="bulkAddClear" class="secondary-button" type="button">Bersihkan</button>
               </div>
