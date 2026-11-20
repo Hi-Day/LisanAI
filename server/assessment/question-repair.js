@@ -1,4 +1,5 @@
 const { call: callOpenRouter, stream: streamOpenRouter } = require("../ai/gateway");
+const { withoutTables, keepTable } = require("./question-table");
 const { parseJson } = require("../ai/response-parser");
 const { enforceRubricAlignment } = require("../harness/alignment");
 const { SINGLE_SUBSTANCE_RULES, ORAL_SCENARIO_RULES } = require("./question-generation");
@@ -10,7 +11,8 @@ const RECALL_ONLY_PATTERN = /\b(?:definisi|pengertian|arti|cirinya|macam-macam|p
 const REASONING_PATTERN = /\b(?:jelaskan|mengapa|kenapa|bandingkan|evaluasi|analisis|uraikan|usulkan|buktikan|prediksi|perkirakan|bagaimana|cara|proses|alasan|akibat|pengaruh|kaitannya)\b/i;
 
 function isMultiPartPrompt(prompt) {
-  const text = String(prompt || "").trim();
+  // A table in the prompt is data, not a task: its numbers and cells must not count as extra questions.
+  const text = withoutTables(prompt);
   if (!text) return false;
   if ((text.match(/\d+[\.\)]/g) || []).length > 1 || (text.match(/\?/g) || []).length > 1) return true;
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
@@ -30,8 +32,11 @@ function isClosedRecallQuestion(prompt) {
 }
 function ensureSentenceEnding(text) { const t = String(text || "").trim(); return /[.!?]$/.test(t) ? t : `${t}.`; }
 function stripToSingleSubstance(prompt) {
-  let text = String(prompt || "").trim();
-  if (!isMultiPartPrompt(text)) return text;
+  if (!isMultiPartPrompt(prompt)) return String(prompt || "").trim();
+  return keepTable(prompt, stripWording(withoutTables(prompt)));
+}
+function stripWording(prose) {
+  let text = prose;
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
   if (sentences.length > 1) {
     const firstTask = sentences.findIndex((s) => s.includes("?") || TASK_VERB_PATTERN.test(s));
@@ -66,7 +71,7 @@ async function repairSingleSubstance(questions, payload) {
   const messages = [{ role: "user", content: JSON.stringify({ tugas: "Tulis ulang soal agar hanya menanyakan SATU substansi. Pertahankan esensi pertanyaan.", topik: payload.topic, learning_outcome: payload.outcomes, aturan: SINGLE_SUBSTANCE_RULES, jumlah_dan_urutan_hasil: "harus sama persis dengan jumlah input", questions_bertingkat: flagged.map((i) => String(questions[i].prompt)) }) }];
   let repaired;
   try { repaired = await callOpenRouter(messages, REPAIR_SCHEMA, { tenantId: payload.tenantId, userId: payload.userId, action: "repair-questions" }); } catch (error) { console.warn("[assessment-repair] AI repair failed:", error.message); }
-  if (Array.isArray(repaired?.questions)) flagged.forEach((index, pos) => { const r = repaired.questions[pos]; if (r && !isMultiPartPrompt(r.prompt)) questions[index] = { ...questions[index], prompt: String(r.prompt).trim(), focus: String(r.focus || questions[index].focus || "").trim(), ideal: String(r.ideal || questions[index].ideal || "").trim() }; });
+  if (Array.isArray(repaired?.questions)) flagged.forEach((index, pos) => { const r = repaired.questions[pos]; if (r && !isMultiPartPrompt(r.prompt)) questions[index] = { ...questions[index], prompt: keepTable(questions[index].prompt, r.prompt), focus: String(r.focus || questions[index].focus || "").trim(), ideal: String(r.ideal || questions[index].ideal || "").trim() }; });
   questions.forEach((q) => { if (isMultiPartPrompt(q.prompt)) q.prompt = stripToSingleSubstance(q.prompt); });
   return questions;
 }
@@ -77,7 +82,7 @@ async function repairOralScenario(questions, payload) {
   const messages = [{ role: "user", content: JSON.stringify({ tugas: "Tulis ulang soal tertutup/hafalan agar cocok untuk ujian lisan yang mengukur proses berpikir spontan.", topik: payload.topic, learning_outcome: payload.outcomes, aturan: ORAL_SCENARIO_RULES, jumlah_dan_urutan_hasil: "harus sama persis dengan jumlah input", questions_tertutup: flagged.map((i) => String(questions[i].prompt)) }) }];
   let repaired;
   try { repaired = await callOpenRouter(messages, ORAL_SCHEMA, { tenantId: payload.tenantId, userId: payload.userId, action: "repair-questions-oral" }); } catch (error) { console.warn("[assessment-repair] oral repair failed:", error.message); }
-  if (Array.isArray(repaired?.questions)) flagged.forEach((index, pos) => { const r = repaired.questions[pos]; if (!r) return; const prompt = String(r.prompt || "").trim(); if (!isClosedRecallQuestion(prompt) && !isMultiPartPrompt(prompt)) questions[index] = { ...questions[index], prompt, focus: String(r.focus || questions[index].focus || "").trim(), ideal: String(r.ideal || questions[index].ideal || "").trim() }; });
+  if (Array.isArray(repaired?.questions)) flagged.forEach((index, pos) => { const r = repaired.questions[pos]; if (!r) return; const prompt = keepTable(questions[index].prompt, r.prompt); if (!isClosedRecallQuestion(prompt) && !isMultiPartPrompt(prompt)) questions[index] = { ...questions[index], prompt, focus: String(r.focus || questions[index].focus || "").trim(), ideal: String(r.ideal || questions[index].ideal || "").trim() }; });
   questions.forEach((q) => { if (isClosedRecallQuestion(q.prompt)) q.prompt = openClosedQuestion(q.prompt); });
   return questions;
 }

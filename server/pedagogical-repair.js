@@ -9,6 +9,7 @@
 // Gateway owns provider fallback + telemetry; `call` returns parsed JSON while
 // `stream` returns { content, parsed }, matching how both results are consumed.
 const { call, stream } = require("./ai/gateway");
+const { keepTable } = require("./assessment/question-table");
 const {
   groundQuestionsAgainstRubric,
   validateQuestionCriterionGrounding,
@@ -66,6 +67,7 @@ function mergeOnlyAffectedQuestions(original, candidate, payload = {}) {
     ? {
         ...question,
         ...proposed[index],
+        prompt: keepTable(question.prompt, proposed[index].prompt),
         id: question.id,
         probing: question.probing,
       }

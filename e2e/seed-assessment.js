@@ -1,6 +1,8 @@
 /** Data penilaian bersama untuk spec E2E (dipakai juga oleh e2e/server.js saat seeding). */
 const ORAL_ID = "e2e-assess-oral";
 const WRITTEN_ID = "e2e-assess-written";
+const TABLE_ID = "e2e-assess-table";
+const TABLE_PROMPT = "Perhatikan data penjualan berikut.\n\n| Bulan | Penjualan (unit) |\n| --- | --- |\n| Januari | 120 |\n| Februari | 95 |\n\nJelaskan mengapa penjualan menurun.";
 
 function assessmentPayload(id, topic, oralExamEnabled) {
   return {
@@ -33,4 +35,4 @@ async function loginAsStudent(page) {
   await page.click("#loginForm button[type='submit']");
 }
 
-module.exports = { ORAL_ID, WRITTEN_ID, assessmentPayload, loginAsStudent };
+module.exports = { ORAL_ID, WRITTEN_ID, TABLE_ID, TABLE_PROMPT, assessmentPayload, loginAsStudent };

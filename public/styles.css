@@ -3916,3 +3916,11 @@ body { overflow-wrap: anywhere; }
 /* A long name or school wraps the header instead of crushing the product title. */
 .topbar { flex-wrap: wrap; }
 .topbar h1 { white-space: nowrap; }
+/* Tables inside a question (student exam, lecturer editor preview, previews). */
+.question-tables:empty, .question-table-preview:empty { display: none; }
+.question-table { margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; }
+.question-table .data-table { margin: 0; font-weight: 400; }
+/* Cell text wraps: a question table must be readable without scrolling when it can fit. */
+.question-table .data-table th, .question-table .data-table td { white-space: normal; text-align: left; vertical-align: top; }
+.question-table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0; }
+.question-table-tools small { color: var(--text-muted); }

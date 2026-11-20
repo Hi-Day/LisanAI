@@ -1,4 +1,5 @@
 const { call: callOpenRouter, stream: streamOpenRouter } = require("../ai/gateway");
+const { keepTable } = require("../assessment/question-table");
 const { parseJson } = require("../ai/response-parser");
 const { parseRubricText } = require("./plugins/rubric");
 const learningOutcomeAlignment = require("./learning-outcome-alignment");
@@ -168,7 +169,7 @@ function mergeCalibration(original, calibrated) {
   for (const entry of calibrated) {
     const idx = Number(entry?.index);
     if (!Number.isInteger(idx) || idx < 0 || idx >= out.length) continue;
-    if (typeof entry.prompt === "string" && String(entry.prompt).trim()) out[idx].prompt = String(entry.prompt).trim();
+    if (typeof entry.prompt === "string" && String(entry.prompt).trim()) out[idx].prompt = keepTable(out[idx].prompt, entry.prompt);
     if (typeof entry.focus === "string" && entry.focus.trim()) out[idx].focus = String(entry.focus).trim();
     if (typeof entry.learningOutcomeId === "string" && entry.learningOutcomeId.trim()) out[idx].learningOutcomeId = entry.learningOutcomeId.trim();
     if (typeof entry.outcome === "string" && entry.outcome.trim()) out[idx].outcome = entry.outcome.trim();

@@ -1,6 +1,7 @@
 import { saveSubmissionToDatabase } from "./api.js";
 import { showToast, showFormDialog } from "./toast.js";
 import { escapeHtml } from "./utils.js";
+import { questionProse, questionTablesHtml } from "./question-text.js";
 import { renderCurrentState } from "./app-context.js";
 
 /**
@@ -158,7 +159,8 @@ function renderComplaintItem(entry, statusClass) {
           <span class="tag">${escapeHtml(entry.assessmentTitle)}</span>
           <span class="tag">Soal ${entry.questionIndex + 1} · Skor ${entry.score}</span>
         </div>
-        <p style="margin-top: 6px;"><b>Soal:</b> ${escapeHtml(entry.question)}</p>
+        <p style="margin-top: 6px;"><b>Soal:</b> ${escapeHtml(questionProse(entry.question))}</p>
+        ${questionTablesHtml(entry.question)}
         <p><b>Jawaban:</b> <i>"${escapeHtml(entry.answer || "Tidak ada jawaban")}"</i></p>
         <div class="complaint-box ${statusClass}" style="margin: 8px 0 0;">
           <strong>📩 Komplain:</strong>
