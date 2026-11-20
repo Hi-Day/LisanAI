@@ -133,3 +133,39 @@ test("harness throws a clear error when model output lacks criteria/questionScor
     /tidak mengandung array 'criteria'/
   );
 });
+// Seen with the live model: criteria keyed by id instead of the `criteria` array, and
+// questionScores[].matched as a boolean. That used to drop the rubric criteria (legacy
+// q1/q2 fallback) and crash on `matched.map`.
+test("harness recovers rubric criteria when the model keys them by id", async () => {
+  const keyedProvider = {
+    name: "keyed",
+    version: "1.0.0",
+    async generate() {
+      return JSON.stringify({
+        concept: { criterionId: "concept", score: 80, evidence: ["jawaban"], rationale: "ok", confidence: 0.9 },
+        application: { score: 70, evidence: ["jawaban"], rationale: "ok", confidence: 0.9 },
+        communication: { score: 60, evidence: ["jawaban"], rationale: "ok", confidence: 0.9 },
+        questionScores: [{ question: "q", answer: "jawaban", score: 70, matched: true }],
+      });
+    },
+  };
+  const harness = createHarness();
+  harness.setProvider(keyedProvider).setParser({ parse });
+  const result = await harness.evaluate({ assessmentId: "x", rubric: RUBRIC, answers: ["jawaban"] });
+  assert.deepEqual(result.criteria.map((c) => c.criterionId), ["concept", "application", "communication"]);
+  assert.deepEqual(result.criteria.map((c) => c.score), [80, 70, 60]);
+});
+
+test("harness does not crash when questionScores[].matched is not an array", async () => {
+  const provider = {
+    name: "legacy",
+    version: "1.0.0",
+    async generate() {
+      return JSON.stringify({ questionScores: [{ question: "q", answer: "jawaban", score: 70, matched: true }] });
+    },
+  };
+  const harness = createHarness();
+  harness.setProvider(provider).setParser({ parse });
+  const result = await harness.evaluate({ assessmentId: "x", rubric: RUBRIC, answers: ["jawaban"] });
+  assert.ok(Array.isArray(result.criteria));
+});

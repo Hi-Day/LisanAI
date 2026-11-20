@@ -116,7 +116,7 @@ async function main() {
   }
 
   const primaryModel = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
-  const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
+  const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b";
   console.log("Mode: LIVE LLM EVALUATION");
   console.log("Provider: OpenRouter (OPENROUTER_API_KEY detected; key value is never logged)");
   console.log(`Configured primary model: ${primaryModel}`);

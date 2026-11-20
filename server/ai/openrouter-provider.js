@@ -31,7 +31,7 @@ class OpenRouterProvider extends AIProvider {
     messages.push({ role: "user", content: request.userMessage || request.prompt || "" });
 
     const primaryModel = request.model || process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
-    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
+    const fallbackModel = process.env.OPENROUTER_FALLBACK_MODEL || "nvidia/nemotron-3-super-120b-a12b";
     const models = [primaryModel, fallbackModel].filter((value, index, array) => array.indexOf(value) === index);
     const gen = { temperature: request.temperature, topP: request.topP, maxTokens: request.maxTokens };
 

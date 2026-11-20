@@ -551,6 +551,14 @@ function defaultPrompt(plan) {
  * harness shape ({ criteria:[...] }).
  */
 function harnessOutput(ctx, parsed, { runId, input }) {
+  // Models sometimes key the criteria by id instead of returning the `criteria` array.
+  if (parsed && !Array.isArray(parsed.criteria)) {
+    const keyed = parsed.criteria && typeof parsed.criteria === "object" ? parsed.criteria : parsed;
+    const recovered = ((ctx.rubric && ctx.rubric.criteria) || [])
+      .filter((c) => keyed[c.id] && typeof keyed[c.id] === "object")
+      .map((c) => ({ ...keyed[c.id], criterionId: c.id }));
+    if (recovered.length) parsed = { ...parsed, criteria: recovered };
+  }
   if (parsed && Array.isArray(parsed.criteria)) {
     return {
       rubric: parsed.rubric || ctx.rubric,
@@ -582,7 +590,8 @@ function harnessOutput(ctx, parsed, { runId, input }) {
   const criteria = qs.map((q, i) => ({
     criterionId: `q${i + 1}`,
     score: q.score,
-    evidence: (q.matched || []).map((m) => ({ text: m, location: "answer" })),
+    // `matched` arrives as a boolean or a string from some models; only quoted text is evidence.
+    evidence: [].concat(q.matched ?? []).filter((m) => typeof m === "string" && m).map((m) => ({ text: m, location: "answer" })),
     rationale: [...(q.strengths || []), ...(q.gaps || [])].join(". "),
     confidence: 0.8,
   }));
