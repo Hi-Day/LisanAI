@@ -212,6 +212,41 @@ test("a first submit after the deadline expires the attempt but keeps the answer
   assert.deepEqual(JSON.parse(row.answers_json), ["terlambat"]);
 });
 
+test("in-progress answers are saved and returned when the exam is reopened", async () => {
+  const item = assessment("assessment-draft", { timeLimit: 60 });
+  await saveAssessment(ctx.teacherAuth, item);
+  const attempt = await submissionService.createAssessmentAttempt(ctx.studentAuth, item.id);
+  assert.equal(attempt.draft, null);
+
+  const draft = { currentQuestionIndex: 0, answers: [{ text: "jawaban sementara", timeLeft: 41, audio: "data:audio/webm;base64,AAAA" }] };
+  await submissionService.saveAttemptDraft(ctx.studentAuth, attempt.id, draft);
+
+  // Reopening the exam returns the same attempt with the saved answers, without audio.
+  const reopened = await submissionService.createAssessmentAttempt(ctx.studentAuth, item.id);
+  assert.equal(reopened.id, attempt.id);
+  assert.equal(reopened.draft.answers[0].text, "jawaban sementara");
+  assert.equal(reopened.draft.answers[0].timeLeft, 41);
+  assert.equal(reopened.draft.answers[0].audio, undefined);
+  assert.ok(reopened.draftSavedAt && reopened.serverNow);
+
+  // A draft never becomes the official answer and cannot be written after the submit.
+  const begun = await submissionService.beginAttemptEvaluation(ctx.studentAuth, attempt.id, ["jawaban resmi"], item.id);
+  assert.deepEqual(begun.answers, ["jawaban resmi"]);
+  await assert.rejects(
+    () => submissionService.saveAttemptDraft(ctx.studentAuth, attempt.id, draft),
+    (error) => error.code === "ATTEMPT_NOT_ACTIVE",
+  );
+});
+
+test("a draft is rejected when it is malformed, oversized, or for someone else's attempt", async () => {
+  const item = assessment("assessment-draft-invalid", { timeLimit: 60 });
+  await saveAssessment(ctx.teacherAuth, item);
+  const attempt = await submissionService.createAssessmentAttempt(ctx.studentAuth, item.id);
+  await assert.rejects(() => submissionService.saveAttemptDraft(ctx.studentAuth, attempt.id, { answers: "x" }), (e) => e.status === 400);
+  await assert.rejects(() => submissionService.saveAttemptDraft(ctx.studentAuth, attempt.id, { answers: [{ text: "a".repeat(300_000) }] }), (e) => e.status === 413);
+  await assert.rejects(() => submissionService.saveAttemptDraft(ctx.teacherAuth, attempt.id, { answers: [] }), (e) => e.status === 403);
+});
+
 test("questions cannot be edited while a student is mid-exam, but other fields can", async () => {
   const item = assessment("assessment-in-progress");
   await saveAssessment(ctx.teacherAuth, item);

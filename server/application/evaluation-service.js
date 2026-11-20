@@ -8,7 +8,7 @@ const { evaluationHash } = require("../security/evaluation-integrity");
 const { persistEvaluationTrace } = require("../evaluation/trace-persister");
 const { pendingRelease, toStudentView } = require("../score-release");
 
-const ACTIONS = ["evaluate", "generate-probing", "create-attempt"];
+const ACTIONS = ["evaluate", "generate-probing", "create-attempt", "save-draft"];
 
 function isSupportedAction(action) {
   return ACTIONS.includes(action);
@@ -207,12 +207,14 @@ async function buildAdaptiveProbe(payload, auth, onChunk = null) {
 async function executeAction(action, payload, auth) {
   if (action === "evaluate") return { evaluation: await evaluate(payload, auth), harness: true };
   if (action === "create-attempt") return { attempt: await createAttempt(payload, auth) };
+  if (action === "save-draft") return submissionService.saveAttemptDraft(auth, payload?.attemptId, payload?.draft);
   return { probing: await buildAdaptiveProbe(payload, auth) };
 }
 
 async function executeStreamingAction(action, payload, auth, onChunk) {
   if (action === "evaluate") return { evaluation: await evaluate(payload, auth, onChunk), harness: true };
   if (action === "create-attempt") return { attempt: await createAttempt(payload, auth) };
+  if (action === "save-draft") return submissionService.saveAttemptDraft(auth, payload?.attemptId, payload?.draft);
   return { probing: await buildAdaptiveProbe(payload, auth, onChunk) };
 }
 

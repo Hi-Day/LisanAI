@@ -138,7 +138,33 @@ async function createAssessmentAttempt(db, auth, assessmentId, requestedClassId 
     assessmentHash,
     rubricHash: snapshotRubricHash,
     assessment: snapshot,
+    draft: null,
+    draftSavedAt: null,
+    serverNow: startedAt.toISOString(),
   };
+}
+
+function attemptDraft(row) {
+  try { return JSON.parse(row.draft_json || "null"); }
+  catch { return null; }
+}
+
+const DRAFT_MAX_CHARS = 200_000;
+
+/** Save in-progress answers. A draft is never scored; the official answers are answers_json. */
+async function saveAttemptDraft(db, auth, attemptId, draft) {
+  if (!draft || !Array.isArray(draft.answers)) throw attemptError("Draf jawaban tidak valid", 400, "DRAFT_INVALID");
+  // Audio stays in the browser; a draft holds text and timer state only.
+  const json = JSON.stringify(draft, (key, value) => (key === "audio" ? undefined : value));
+  if (json.length > DRAFT_MAX_CHARS) throw attemptError("Draf jawaban terlalu besar", 413, "DRAFT_TOO_LARGE");
+  const savedAt = new Date().toISOString();
+  const saved = await db.run(
+    `UPDATE assessment_attempts SET draft_json = ?, draft_saved_at = ?
+      WHERE id = ? AND tenant_id = ? AND user_id = ? AND status = 'STARTED' AND first_submitted_at IS NULL`,
+    json, savedAt, attemptId, auth.tenant.id, auth.user.id,
+  );
+  if (!saved.changes) throw attemptError("Attempt tidak aktif", 409, "ATTEMPT_NOT_ACTIVE");
+  return { savedAt };
 }
 
 function formatAttempt(row) {
@@ -147,6 +173,8 @@ function formatAttempt(row) {
     status: row.status, startedAt: row.started_at, deadlineAt: row.deadline_at,
     assessmentHash: row.assessment_hash, rubricHash: row.rubric_hash,
     submissionId: row.submission_id || null,
+    // serverNow lets the client deduct the time since the draft was saved without trusting its own clock.
+    draft: attemptDraft(row), draftSavedAt: row.draft_saved_at || null, serverNow: new Date().toISOString(),
   };
 }
 
@@ -464,4 +492,4 @@ function stripSubmissionAudio(submission) {
   return out;
 }
 
-module.exports = { SUBMISSION_FETCH_LIMIT, attachSubmissionAudio, getAssessmentPayload, saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
+module.exports = { SUBMISSION_FETCH_LIMIT, attachSubmissionAudio, getAssessmentPayload, saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, saveAttemptDraft, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
