@@ -8,7 +8,10 @@ const { evaluationHash } = require("../security/evaluation-integrity");
 const { persistEvaluationTrace } = require("../evaluation/trace-persister");
 const { pendingRelease, toStudentView } = require("../score-release");
 
-const ACTIONS = ["evaluate", "generate-probing", "create-attempt", "save-draft"];
+const ACTIONS = ["evaluate", "generate-probing", "create-attempt", "save-draft", "process-pending"];
+const PENDING_SWEEP_LIMIT = 3;
+// Stop starting new evaluations after this long, so one sweep fits in one request.
+const PENDING_SWEEP_BUDGET_MS = 20_000;
 
 function isSupportedAction(action) {
   return ACTIONS.includes(action);
@@ -58,6 +61,18 @@ async function createAttempt(payload, auth) {
 }
 
 async function evaluate(payload, auth, onProgress = null) {
+  const progress = { answersRecorded: false };
+  try {
+    return await evaluateAttempt(payload, auth, onProgress, progress);
+  } catch (error) {
+    // Past the first submit the answers are on record, whatever fails afterwards. The caller
+    // tells the student so instead of reporting a lost exam.
+    if (progress.answersRecorded || error.code === "ATTEMPT_EVALUATION_IN_PROGRESS") error.answersRecorded = true;
+    throw error;
+  }
+}
+
+async function evaluateAttempt(payload, auth, onProgress, progress) {
   const assessmentId = String(payload?.assessmentId || payload?.assessment?.id || "").trim();
   if (!assessmentId) throw Object.assign(new Error("assessmentId wajib"), { status: 400 });
 
@@ -83,6 +98,7 @@ async function evaluate(payload, auth, onProgress = null) {
   }
 
   const attempt = await submissionService.beginAttemptEvaluation(auth, payload.attemptId, answers, assessmentId);
+  progress.answersRecorded = true;
   if (attempt.existingSubmission) return forViewer({ ...attempt.existingSubmission, alreadyFinalized: true }, auth);
   // The answers recorded at the first submit are the official ones, also on a retry.
   if (Array.isArray(attempt.answers) && attempt.answers.length === assessment.questions.length) {
@@ -204,7 +220,37 @@ async function buildAdaptiveProbe(payload, auth, onChunk = null) {
   return normalizeProbeResult(probing, enriched);
 }
 
+/**
+ * Finish evaluations nobody is waiting for any more: the AI call failed, or the student's
+ * browser (or the function serving it) went away. Driven by the lecturer dashboard poll.
+ */
+async function processPendingEvaluations(auth) {
+  const pending = await submissionService.listPendingEvaluations(auth, PENDING_SWEEP_LIMIT);
+  const started = Date.now();
+  let processed = 0;
+  let failed = 0;
+  for (const row of pending) {
+    if (Date.now() - started > PENDING_SWEEP_BUDGET_MS) break;
+    // The evaluation is written on behalf of the student who owns the attempt.
+    const studentAuth = { tenant: auth.tenant, user: { id: row.user_id, tenantId: auth.tenant.id, name: row.user_name, role: "student" } };
+    let answers = [];
+    try { answers = JSON.parse(row.answers_json || "[]"); } catch { /* evaluate() rejects a wrong answer count */ }
+    const payload = { assessmentId: row.assessment_id, attemptId: row.id, answers };
+    await submissionService.countEvaluationRetry(auth, row.id);
+    try {
+      await assertCanEvaluate("evaluate", payload, studentAuth);
+      await evaluate(payload, studentAuth);
+      processed += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(`[pending-evaluation] attempt ${row.id} failed: ${error.message}`);
+    }
+  }
+  return { pending: pending.length, processed, failed };
+}
+
 async function executeAction(action, payload, auth) {
+  if (action === "process-pending") return processPendingEvaluations(auth);
   if (action === "evaluate") return { evaluation: await evaluate(payload, auth), harness: true };
   if (action === "create-attempt") return { attempt: await createAttempt(payload, auth) };
   if (action === "save-draft") return submissionService.saveAttemptDraft(auth, payload?.attemptId, payload?.draft);
@@ -212,10 +258,11 @@ async function executeAction(action, payload, auth) {
 }
 
 async function executeStreamingAction(action, payload, auth, onChunk) {
+  if (action === "process-pending") return processPendingEvaluations(auth);
   if (action === "evaluate") return { evaluation: await evaluate(payload, auth, onChunk), harness: true };
   if (action === "create-attempt") return { attempt: await createAttempt(payload, auth) };
   if (action === "save-draft") return submissionService.saveAttemptDraft(auth, payload?.attemptId, payload?.draft);
   return { probing: await buildAdaptiveProbe(payload, auth, onChunk) };
 }
 
-module.exports = { ACTIONS, assertCanEvaluate, buildAdaptiveProbe, executeAction, executeStreamingAction, isSupportedAction, createAttempt };
+module.exports = { ACTIONS, assertCanEvaluate, buildAdaptiveProbe, executeAction, executeStreamingAction, isSupportedAction, createAttempt, processPendingEvaluations };

@@ -1,7 +1,9 @@
 // Bound teacher/admin state payloads to the newest submissions so the state
 // response cannot grow without limit (each row carries a large JSON payload).
 const SUBMISSION_FETCH_LIMIT = 500;
-const ATTEMPT_EVALUATION_LEASE_MS = 15 * 60 * 1000;
+// Longer than the slowest evaluation seen under load (78 s for 200 concurrent students),
+// short enough that an evaluation whose function died is picked up again soon.
+const ATTEMPT_EVALUATION_LEASE_MS = 5 * 60 * 1000;
 const { assessmentSnapshotHash, rubricHash, answersHash, hashObject } = require("../security/assessment-integrity");
 const crypto = require("node:crypto");
 const { isScoreReleased, toStudentView } = require("../score-release");
@@ -233,6 +235,34 @@ async function beginAttemptEvaluation(db, auth, attemptId, answers, expectedAsse
   );
   if (!claimed.changes) throw attemptError("Attempt sedang diproses oleh evaluasi lain", 409, "ATTEMPT_EVALUATION_IN_PROGRESS");
   return { attempt: { ...row, status: "SUBMITTING", evaluation_started_at: evaluationStartedAt }, answers: storedAnswers(row) };
+}
+
+const PENDING_EVALUATION_MAX_RETRIES = 5;
+
+/**
+ * Attempts whose answers are on record but that never got an evaluation: the AI call failed,
+ * or the evaluating request died and its lease ran out. Late first submits are not included.
+ */
+async function listPendingEvaluations(db, tenantId, limit) {
+  const leaseCutoff = new Date(Date.now() - ATTEMPT_EVALUATION_LEASE_MS).toISOString();
+  return db.all(
+    `SELECT a.id, a.assessment_id, a.user_id, a.answers_json, u.name AS user_name
+       FROM assessment_attempts a JOIN users u ON u.id = a.user_id
+      WHERE a.tenant_id = ? AND a.first_submitted_at IS NOT NULL
+        AND (a.deadline_at IS NULL OR a.first_submitted_at <= a.deadline_at)
+        AND a.evaluation_retry_count < ?
+        AND (a.status = 'STARTED'
+          OR (a.status = 'SUBMITTING' AND (a.evaluation_started_at IS NULL OR a.evaluation_started_at < ?)))
+      ORDER BY a.first_submitted_at LIMIT ?`,
+    tenantId, PENDING_EVALUATION_MAX_RETRIES, leaseCutoff, limit,
+  );
+}
+
+async function countEvaluationRetry(db, tenantId, attemptId) {
+  await db.run(
+    "UPDATE assessment_attempts SET evaluation_retry_count = evaluation_retry_count + 1 WHERE id = ? AND tenant_id = ?",
+    attemptId, tenantId,
+  );
 }
 
 async function releaseAttemptEvaluation(db, auth, attemptId) {
@@ -492,4 +522,4 @@ function stripSubmissionAudio(submission) {
   return out;
 }
 
-module.exports = { SUBMISSION_FETCH_LIMIT, attachSubmissionAudio, getAssessmentPayload, saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, saveAttemptDraft, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };
+module.exports = { SUBMISSION_FETCH_LIMIT, attachSubmissionAudio, getAssessmentPayload, saveSubmission, assertCanSubmitAssessment, getVisibleSubmissions, getSubmissionDetail, getSubmissionForUpdate, saveComplaint, stripSubmissionAudio, updateSubmissionAudio, updateSubmissionFeedback, createAssessmentAttempt, saveAttemptDraft, getAssessmentAttempt, beginAttemptEvaluation, releaseAttemptEvaluation, listPendingEvaluations, countEvaluationRetry, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent, assessmentSnapshotHash, rubricHash, answersHash };

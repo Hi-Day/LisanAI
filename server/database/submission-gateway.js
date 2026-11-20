@@ -28,6 +28,10 @@ module.exports = {
     repository.getAssessmentAttempt(getDb(), auth, attemptId),
   beginAttemptEvaluation: (auth, attemptId, answers, assessmentId) =>
     repository.beginAttemptEvaluation(getDb(), auth, attemptId, answers, assessmentId),
+  listPendingEvaluations: (auth, limit) =>
+    repository.listPendingEvaluations(getDb(), auth.tenant.id, limit),
+  countEvaluationRetry: (auth, attemptId) =>
+    repository.countEvaluationRetry(getDb(), auth.tenant.id, attemptId),
   releaseAttemptEvaluation: (auth, attemptId) =>
     repository.releaseAttemptEvaluation(getDb(), auth, attemptId),
   finalizeAssessmentAttempt: (auth, attemptId, submission, hashes) =>

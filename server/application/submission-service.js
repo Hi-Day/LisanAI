@@ -57,6 +57,15 @@ async function saveEvaluatedSubmission(auth, submission) {
   return submissionGateway.saveEvaluatedSubmission(auth, submission);
 }
 
+async function listPendingEvaluations(auth, limit) {
+  if (!["teacher", "admin"].includes(auth.user.role)) throw Object.assign(new Error("Forbidden"), { status: 403 });
+  return submissionGateway.listPendingEvaluations(auth, limit);
+}
+
+async function countEvaluationRetry(auth, attemptId) {
+  return submissionGateway.countEvaluationRetry(auth, attemptId);
+}
+
 async function releaseAttemptEvaluation(auth, attemptId) {
   return submissionGateway.releaseAttemptEvaluation(auth, attemptId);
 }
@@ -98,4 +107,4 @@ async function saveSubmissionAudio(auth, patch = {}) {
   return { ok: true };
 }
 
-module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, saveEvaluatedSubmission, releaseAttemptEvaluation, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, saveAttemptDraft, getAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };
+module.exports = { assertCanSubmit, saveStudentSubmission, saveTeacherSubmission, saveEvaluatedSubmission, releaseAttemptEvaluation, listPendingEvaluations, countEvaluationRetry, getSubmission, saveComplaint, saveSubmissionAudio, createAssessmentAttempt, saveAttemptDraft, getAssessmentAttempt, beginAttemptEvaluation, finalizeAssessmentAttempt, getCanonicalAssessmentForStudent };

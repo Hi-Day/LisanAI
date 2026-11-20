@@ -4,6 +4,14 @@ const { readJson, sendJson } = require("../http-utils");
 const { requireAuthenticatedRequest, requireRoles } = require("../http/request-security");
 const { beginStream, createChunkWriter, endStream, writeEvent } = require("../http/sse");
 
+// Once the answers are on record the student needs to know that, not the provider's error text.
+const ANSWERS_RECORDED_MESSAGE = "Jawaban Anda sudah diterima. Penilaian AI belum selesai dan akan diproses ulang.";
+
+function errorBody(error) {
+  if (error.answersRecorded === true) return { message: ANSWERS_RECORDED_MESSAGE, answersRecorded: true };
+  return { message: error.message || "Server error", answersRecorded: false };
+}
+
 async function handleStreamingAction(res, auth, action, payload) {
   beginStream(res);
   const onChunk = createChunkWriter(res);
@@ -17,7 +25,7 @@ async function handleStreamingAction(res, auth, action, payload) {
     writeEvent(res, { type: "result", data: result });
   } catch (error) {
     console.error(error);
-    writeEvent(res, { type: "error", message: error.message || "Server error" });
+    writeEvent(res, { type: "error", ...errorBody(error) });
   } finally {
     endStream(res);
   }
@@ -57,6 +65,7 @@ module.exports = async (req, res) => {
     return sendJson(res, 200, { ...result, model: process.env.OPENROUTER_MODEL });
   } catch (error) {
     console.error(error);
-    return sendJson(res, error.status || 500, { error: error.message || "Server error" });
+    const { message, answersRecorded } = errorBody(error);
+    return sendJson(res, error.status || 500, { error: message, answersRecorded });
   }
 };
