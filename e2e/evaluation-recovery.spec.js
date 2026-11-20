@@ -7,8 +7,10 @@ test.describe("Evaluation that cannot finish while the student waits", () => {
     await expect(page.locator(`.assessment-card[data-id='${WRITTEN_ID}']`)).toBeVisible({ timeout: 10_000 });
 
     // The server recorded the answers, then the AI evaluation failed.
-    await page.route("**/api/evaluation", (route) => {
+    await page.route("**/api/evaluation", async (route) => {
       if (!/"action":"evaluate"/.test(route.request().postData() || "")) return route.continue();
+      // The submit still reaches the server, so no open attempt is left for the specs that follow.
+      await route.fetch();
       return route.fulfill({
         status: 200,
         contentType: "text/event-stream",
