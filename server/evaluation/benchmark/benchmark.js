@@ -153,7 +153,23 @@ async function runSampleBaseline(provider, parser, sample, opts = {}) {
  *   repeats feeds consistencyMetrics.
  * @returns {Promise<object>}
  */
-async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1, raterMap, sampleLimit }) {
+/**
+ * Run one sample, again when it throws (an unusable model reply), up to `retries` extra times.
+ * Each failed try is logged, so a report never hides how often the model had to be asked again.
+ */
+async function withSampleRetries(run, retries, sampleId) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await run();
+    } catch (error) {
+      if (attempt >= retries) throw error;
+      console.warn(`[benchmark] ${sampleId}: try ${attempt + 1} failed (${String(error.message).slice(0, 120)}); retrying`);
+    }
+  }
+}
+
+async function runExperiment({ dataset, mode, harnessConfig, providerName, assessmentIdPrefix, repeats = 1, raterMap, sampleLimit, sampleRetries = 0 }) {
   const loaded = loadDataset(dataset);
   const requestedLimit = Number(sampleLimit);
   if (Number.isFinite(requestedLimit) && requestedLimit > 0) {
@@ -180,9 +196,9 @@ async function runExperiment({ dataset, mode, harnessConfig, providerName, asses
         harnessInst.setProvider(resolveProvider(providerName)).setParser({ parse });
         for (const sample of loaded.samples) {
           // eslint-disable-next-line no-await-in-loop
-          const r = await runSampleHarness(harnessInst, sample, {
+          const r = await withSampleRetries(() => runSampleHarness(harnessInst, sample, {
             assessmentId: `${assessmentIdPrefix || "bench"}-${m}-${sample.sampleId || "s"}-${rep}`,
-          });
+          }), sampleRetries, sample.sampleId || "sample");
           results.push(r);
           (perRun[m][sample.sampleId] ||= []).push(r.score);
         }

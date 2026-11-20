@@ -141,6 +141,31 @@ test("requestModel retries a 429 then succeeds", async () => {
   assert.ok(result.retries >= 1, `expected retry metadata, got ${result.retries}`);
 });
 
+test("requestModel retries an empty reply and leaves out the provider that gave it", async () => {
+  const sent = [];
+  global.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    sent.push(body.provider || null);
+    // The first upstream provider answers a JSON request with nothing in it.
+    const content = sent.length === 1 ? "{}" : '{"criteria":[]}';
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        provider: sent.length === 1 ? "EmptyCloud" : "GoodCloud",
+        choices: [{ message: { content } }],
+        usage: { prompt_tokens: 10, completion_tokens: 2 },
+      }),
+    };
+  };
+
+  const result = await requestModel("test-model", [{ role: "user", content: "nilai jawaban ini" }], "return valid JSON");
+
+  assert.deepEqual(JSON.parse(result.content), { criteria: [] });
+  assert.deepEqual(sent, [null, { ignore: ["EmptyCloud"] }]);
+  assert.equal(result.retries, 1);
+});
+
 test("AI gateway saves retry_count, cost_usd, and estimated_prefix_cache_savings telemetry", async () => {
   let attempts = 0;
   global.fetch = async () => {
