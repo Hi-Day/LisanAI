@@ -16,6 +16,8 @@ function run(args) {
   const result = spawnSync(npmCommand, args, {
     stdio: "inherit",
     env,
+    // Node refuses to spawn a .cmd file on Windows without a shell (EINVAL).
+    shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;

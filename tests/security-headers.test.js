@@ -292,5 +292,5 @@ test("AI gateway falls back to the fallback model when primary fails", async () 
   );
 
   assert.deepEqual(result, { ok: true });
-  assert.ok(attempts.includes("nvidia/nemotron-3-super-120b-a12b:free"));
+  assert.ok(attempts.includes("nvidia/nemotron-3-super-120b-a12b"));
 });

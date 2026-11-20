@@ -216,7 +216,11 @@ module.exports = {
     const criteria = Array.isArray(rubric) ? rubric : parseRubricCriteria({ rubric });
     if (!criteria.length) return context;
     const covered = new Set();
-    for (const q of questions) {
+    const rawCriteria = Array.isArray(rubric) ? rubric : rubric.criteria || [];
+    for (const [qi, q] of questions.entries()) {
+      // A per-question rubric states which question owns each criterion; that is authoritative.
+      const owned = rawCriteria.filter((c) => Array.isArray(c.sourceIndices) && c.sourceIndices.includes(qi)).map((c) => String(c.id));
+      if (owned.length) q.criteria = owned;
       const ids = Array.isArray(q.criteria) ? q.criteria.map((c) => String(typeof c === "object" ? c.id || c.name : c)) : [];
       const valid = ids.filter((id) => criteria.some((c) => c.id === id || c.name === id)).slice(0, 3);
       if (valid.length) {

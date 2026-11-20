@@ -103,7 +103,7 @@ test("openrouter retries with the configured fallback model when the primary mod
   const originalApiKey = process.env.OPENROUTER_API_KEY;
 
   process.env.OPENROUTER_MODEL = "google/gemini-2.5-flash";
-  process.env.OPENROUTER_FALLBACK_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+  process.env.OPENROUTER_FALLBACK_MODEL = "nvidia/nemotron-3-super-120b-a12b";
   process.env.OPENROUTER_API_KEY = "test-key";
 
   const attempts = [];
@@ -134,7 +134,7 @@ test("openrouter retries with the configured fallback model when the primary mod
       { tenantId: "tenant-fallback", userId: "user-fallback", action: "generate-questions" }
     );
 
-    assert.deepEqual(attempts, ["google/gemini-2.5-flash", "nvidia/nemotron-3-super-120b-a12b:free"]);
+    assert.deepEqual(attempts, ["google/gemini-2.5-flash", "nvidia/nemotron-3-super-120b-a12b"]);
     assert.deepEqual(result, { ok: true });
   } finally {
     global.fetch = originalFetch;

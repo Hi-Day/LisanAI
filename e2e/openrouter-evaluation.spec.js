@@ -20,7 +20,9 @@ test.describe("Student AI evaluation via OpenRouter", () => {
 
     page.on("response", (response) => {
       const url = response.url();
-      if (url.endsWith("/api/evaluation")) evaluationResponses.push(response);
+      // create-attempt also posts to /api/evaluation; only the evaluate call is the one under test.
+      const isEvaluate = /"action":"evaluate"/.test(response.request().postData() || "");
+      if (url.endsWith("/api/evaluation") && isEvaluate) evaluationResponses.push(response);
       if (url.endsWith("/api/assessment")) assessmentResponses.push(response);
     });
 

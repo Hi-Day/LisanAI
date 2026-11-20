@@ -435,3 +435,48 @@ test("LLM judge prompt uses fair score anchors and awards justified partial cred
   assert.match(liveSystemPrompt, /FAIR CALIBRATION/);
   assert.match(liveSystemPrompt, /75–89 = mostly correct with minor omissions/);
 });
+
+// Regression: a real model reply carries no answerIndex. With per-question rubrics the
+// criterion of question 1 was mapped to question 2's criterion by a text heuristic and
+// then dropped from the official final score (40 and 25 stored as 25).
+test("per-question rubric: every question's own criterion counts toward the final score", async () => {
+  const originalFetch = global.fetch;
+  const originalEnv = { provider: process.env.HARNESS_PROVIDER, key: process.env.OPENROUTER_API_KEY };
+  process.env.HARNESS_PROVIDER = "openrouter";
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const answers = ["Fotosintesis itu proses tumbuhan membuat makanan.", "Karena tumbuhan butuh cahaya."];
+  const judgeReply = {
+    criteria: [
+      { criterionId: "sebut_reaktan_dan_produk", score: 40, evidence: [answers[0]], rationale: "Parsial.", confidence: 0.9 },
+      { criterionId: "hubungkan_energi_dan_glukosa", score: 25, evidence: [answers[1]], rationale: "Minimal.", confidence: 0.9 },
+    ],
+  };
+  const polishReply = { transcripts: answers.map((cleanTranscript, index) => ({ index, cleanTranscript, noiseDetected: false })) };
+  global.fetch = async (_url, options) => {
+    const isPolish = String(options.body).includes("cleanTranscript");
+    const content = JSON.stringify(isPolish ? polishReply : judgeReply);
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }], usage: {} }) };
+  };
+  try {
+    const result = await evaluateWithHarness({
+      assessment: {
+        id: "assess-harness-1",
+        topic: "Fotosintesis",
+        questions: [
+          { prompt: "Apa itu fotosintesis?", focus: "konsep", rubric: "Sebut reaktan dan produk." },
+          { prompt: "Mengapa cahaya penting?", focus: "sebab-akibat", rubric: "Hubungkan energi dan glukosa." },
+        ],
+      },
+      answers,
+      studentName: "Siswa",
+      tenantId: "t-harness",
+    });
+    assert.deepEqual(result.questionScores.map((q) => q.score), [40, 25]);
+    assert.equal(result.finalScore, 33, "final = round(40 × 50% + 25 × 50%)");
+    assert.equal(result.rubricAlignment, null, "no criterion may be excluded from the final score");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.HARNESS_PROVIDER = originalEnv.provider;
+    if (originalEnv.key === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = originalEnv.key;
+  }
+});
