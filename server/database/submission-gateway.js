@@ -22,6 +22,8 @@ module.exports = {
     repository.updateSubmissionAudio(getDb(), auth.tenant.id, submissionId, target, audio, options),
   createAssessmentAttempt: (auth, assessmentId, classId, idempotencyKey) =>
     repository.createAssessmentAttempt(getDb(), auth, assessmentId, classId, idempotencyKey),
+  saveAttemptDraft: (auth, attemptId, draft) =>
+    repository.saveAttemptDraft(getDb(), auth, attemptId, draft),
   getAssessmentAttempt: (auth, attemptId) =>
     repository.getAssessmentAttempt(getDb(), auth, attemptId),
   beginAttemptEvaluation: (auth, attemptId, answers, assessmentId) =>

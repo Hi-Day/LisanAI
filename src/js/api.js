@@ -128,6 +128,10 @@ export async function createAssessmentAttempt(assessmentId, classId = null) {
   return data.attempt;
 }
 
+export async function saveAttemptDraft(attemptId, draft) {
+  return postJson("/api/evaluation", { action: "save-draft", payload: { attemptId, draft } }, "Gagal menyimpan jawaban sementara");
+}
+
 export async function saveSubmissionAudio(submissionId, { index, kind, audio }) {
   await postJson(
     "/api/database",

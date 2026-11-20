@@ -1,5 +1,6 @@
 import {
   saveSubmissionAudio,
+  saveAttemptDraft,
   createAssessmentAttempt,
   getSubmissionDetail,
   postJson,
@@ -21,6 +22,9 @@ import { SAVE_SUBMISSION_AUDIO } from "./config.js";
  */
 export function bindStudentFlowEvents(ctx) {
   const { els } = ctx;
+
+  // Typed text reaches the server every few seconds, so a reload loses at most that much.
+  els.answerText?.addEventListener("input", () => scheduleDraftSave(ctx, 3000));
 
   ctx.micCheck = createMicCheck({
     volumeIndicator: els.preExamVolume,
@@ -359,6 +363,7 @@ export async function startExam(ctx, assessmentId) {
   }
   ctx.session.selectAssessment(assessmentId);
   resetProbingState(ctx);
+  restoreDraft(ctx, ctx.assessmentAttempt);
   els.resultPanel.classList.add("hidden");
   await renderStudentState(ctx);
   await startRecorderForCurrentAssessment(ctx);
@@ -376,6 +381,62 @@ export async function startExam(ctx, assessmentId) {
 
   // Warn before closing tab during active exam and enforce focus/fullscreen.
   window.addEventListener("beforeunload", beforeUnloadHandler);
+}
+
+/** Put back the answers saved before a reload, charging the time away to the current question. */
+function restoreDraft(ctx, attempt) {
+  const saved = Array.isArray(attempt?.draft?.answers) ? attempt.draft.answers : [];
+  const answers = ctx.session.currentAnswers;
+  if (!saved.length || !answers.length) return;
+  saved.slice(0, answers.length).forEach((answer, index) => {
+    if (answer) answers[index] = { ...answers[index], ...answer, audio: null };
+  });
+  const qi = Math.min(Math.max(0, Number(attempt.draft.currentQuestionIndex) || 0), answers.length - 1);
+  ctx.session.currentQuestionIndex = qi;
+  const current = answers[qi];
+  const away = Math.max(0, Math.round((Date.parse(attempt.serverNow) - Date.parse(attempt.draftSavedAt)) / 1000)) || 0;
+  if (Number.isFinite(current.timeLeft)) current.timeLeft = Math.max(0, current.timeLeft - away);
+  // A follow-up question that was already shown must not reopen the main answer for editing.
+  if (current.probing && !current.probing.done) {
+    current.timeLeft = 0;
+    delete current.probing;
+  }
+  showToast("Jawaban Anda sebelumnya dipulihkan.", "info");
+}
+
+/** Save soon; an earlier pending save is kept so typing cannot postpone it. */
+function scheduleDraftSave(ctx, delayMs) {
+  const due = Date.now() + delayMs;
+  if (ctx.draftTimer && ctx.draftDue <= due) return;
+  clearTimeout(ctx.draftTimer);
+  ctx.draftDue = due;
+  ctx.draftTimer = setTimeout(() => {
+    ctx.draftTimer = null;
+    persistDraft(ctx);
+  }, delayMs);
+}
+
+/** Send the in-progress answers to the server so a reload or crash does not lose them. */
+async function persistDraft(ctx) {
+  if (!ctx.attemptId || ctx.isEvaluating || !ctx.session.currentAssessmentId) return;
+  const qi = ctx.session.currentQuestionIndex;
+  const typed = ctx.els.answerText?.value || "";
+  const answers = ctx.session.currentAnswers.map((answer, index) => {
+    if (index !== qi || !answer) return answer;
+    return ctx.inProbing ? { ...answer, probing: { ...answer.probing, answer: typed } } : { ...answer, text: typed };
+  });
+  try {
+    await saveAttemptDraft(ctx.attemptId, { currentQuestionIndex: qi, answers });
+    ctx.draftSaveFailed = false;
+  } catch (error) {
+    // Already submitted: the official answers are recorded, so there is nothing left to save.
+    if (error.message === "Attempt tidak aktif") return;
+    // Once per outage, and not while the exam is being submitted.
+    if (!ctx.draftSaveFailed && !ctx.isEvaluating) {
+      showToast("Jawaban belum tersimpan ke server. Periksa koneksi Anda; jawaban tetap ada di halaman ini.", "error");
+    }
+    ctx.draftSaveFailed = true;
+  }
 }
 
 /** Bersihkan status probing agar tidak bocor antar sesi/soal. */
@@ -400,6 +461,7 @@ function advanceAfterAnswer(ctx) {
   }
   ctx.session.goNext();
   renderQuestion(els, assessment, ctx.session);
+  scheduleDraftSave(ctx, 300);
   startRecorderForCurrentAssessment(ctx);
   startQuestionTimer(ctx);
   ctx.questionStartTime = Date.now();
@@ -692,6 +754,7 @@ export async function saveCurrentAnswer(ctx) {
   }
   ctx.recorder.clearAudio();
   ctx.questionStartTime = Date.now();
+  scheduleDraftSave(ctx, 300);
 }
 
 export async function startRecorderForCurrentAssessment(ctx) {
