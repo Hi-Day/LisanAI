@@ -1,6 +1,6 @@
 import { showToast } from "./toast.js";
 import { escapeHtml } from "./utils.js";
-import { loadStateFromDatabase } from "./api.js";
+import { loadStateFromDatabase, processPendingEvaluations } from "./api.js";
 import { isAwaitingValidation } from "./status.js";
 
 /**
@@ -80,6 +80,9 @@ function setBadge(ctx, count) {
 
 async function poll(ctx) {
   if (document.hidden) return;
+  // An open lecturer dashboard also drives evaluations nobody is waiting for any more.
+  // Its result shows up as new submissions on a later poll.
+  if (["teacher", "admin"].includes(ctx.auth?.user?.role)) processPendingEvaluations().catch(() => {});
   let fresh;
   try { fresh = await loadStateFromDatabase(); }
   catch { return; } // A failed poll is retried on the next tick; the list keeps its last known content.

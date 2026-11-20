@@ -973,7 +973,15 @@ export async function handleFinishAssessment(ctx) {
     }
   } catch (error) {
     console.error("[student-evaluation] client evaluation failure", error);
-    showToast(`Gagal menyimpan hasil: ${error.message}`);
+    if (error.answersRecorded || error.cause?.answersRecorded) {
+      // The exam is over for the student: the answers are on record and the evaluation is
+      // finished server-side later. Nothing here can be retried by hand.
+      showToast("Jawaban Anda sudah diterima. Penilaian AI masih diproses; hasilnya muncul di Riwayat setelah selesai.", "info");
+      ctx.session.currentAssessmentId = null;
+      await renderStudentState(ctx);
+    } else {
+      showToast(`Gagal menyimpan hasil: ${error.message}`);
+    }
   } finally {
     ctx.isEvaluating = false;
     els.evaluationLoadingModal?.classList.add("hidden");

@@ -247,6 +247,72 @@ test("a draft is rejected when it is malformed, oversized, or for someone else's
   await assert.rejects(() => submissionService.saveAttemptDraft(ctx.teacherAuth, attempt.id, { answers: [] }), (e) => e.status === 403);
 });
 
+// Official evaluation is fail-closed without the real provider; tests opt into the mock one.
+process.env.E2E_ALLOW_MOCK_EVALUATION = "true";
+
+test("an evaluation the browser never completed is finished by the pending sweep", async () => {
+  const evaluationService = require("../server/application/evaluation-service");
+  const item = assessment("assessment-pending", { timeLimit: 60 });
+  await saveAssessment(ctx.teacherAuth, item);
+  const attempt = await submissionService.createAssessmentAttempt(ctx.studentAuth, item.id);
+  // The student submitted, the AI call failed, and the tab was closed.
+  await submissionService.beginAttemptEvaluation(ctx.studentAuth, attempt.id, ["jawaban yang sudah dikirim"], item.id);
+  await submissionService.releaseAttemptEvaluation(ctx.studentAuth, attempt.id);
+
+  await assert.rejects(() => evaluationService.processPendingEvaluations(ctx.studentAuth), (error) => error.status === 403);
+  const result = await evaluationService.processPendingEvaluations(ctx.teacherAuth);
+  assert.equal(result.processed, 1);
+
+  const row = await getDb().get("SELECT status, submission_id FROM assessment_attempts WHERE id = ?", attempt.id);
+  assert.equal(row.status, "FINALIZED");
+  const stored = await getDb().get("SELECT payload, user_id FROM submissions WHERE id = ?", row.submission_id);
+  assert.equal(stored.user_id, ctx.student.id);
+  assert.equal(JSON.parse(stored.payload).questionScores[0].answer, "jawaban yang sudah dikirim");
+  assert.equal((await evaluationService.processPendingEvaluations(ctx.teacherAuth)).pending, 0);
+});
+
+test("the pending sweep leaves a running evaluation alone, takes over a dead one, and gives up eventually", async () => {
+  const evaluationService = require("../server/application/evaluation-service");
+  const item = assessment("assessment-pending-lease", { timeLimit: 60 });
+  await saveAssessment(ctx.teacherAuth, item);
+  const attempt = await submissionService.createAssessmentAttempt(ctx.studentAuth, item.id);
+  await submissionService.beginAttemptEvaluation(ctx.studentAuth, attempt.id, ["jawaban"], item.id);
+
+  // Still inside its lease: another request is evaluating it right now.
+  assert.equal((await evaluationService.processPendingEvaluations(ctx.teacherAuth)).pending, 0);
+
+  // Retried too often already: it needs a person, not another model call.
+  await getDb().run("UPDATE assessment_attempts SET evaluation_started_at = ?, evaluation_retry_count = 5 WHERE id = ?", new Date(Date.now() - 60 * 60 * 1000).toISOString(), attempt.id);
+  assert.equal((await evaluationService.processPendingEvaluations(ctx.teacherAuth)).pending, 0);
+
+  // The evaluating function died an hour ago: the sweep takes over.
+  await getDb().run("UPDATE assessment_attempts SET evaluation_retry_count = 0 WHERE id = ?", attempt.id);
+  assert.equal((await evaluationService.processPendingEvaluations(ctx.teacherAuth)).processed, 1);
+  const row = await getDb().get("SELECT status, evaluation_retry_count FROM assessment_attempts WHERE id = ?", attempt.id);
+  assert.equal(row.status, "FINALIZED");
+  assert.equal(row.evaluation_retry_count, 1);
+});
+
+test("a failure after the first submit says the answers are on record", async () => {
+  const evaluationService = require("../server/application/evaluation-service");
+  const item = assessment("assessment-recorded", { timeLimit: 60 });
+  await saveAssessment(ctx.teacherAuth, item);
+  const attempt = await submissionService.createAssessmentAttempt(ctx.studentAuth, item.id);
+  const payload = { assessmentId: item.id, attemptId: attempt.id, answers: ["jawaban"] };
+  await submissionService.beginAttemptEvaluation(ctx.studentAuth, attempt.id, ["jawaban"], item.id);
+  // A second request while the first is still evaluating.
+  await assert.rejects(
+    () => evaluationService.executeAction("evaluate", payload, ctx.studentAuth),
+    (error) => error.code === "ATTEMPT_EVALUATION_IN_PROGRESS" && error.answersRecorded === true,
+  );
+  // A request that is rejected before anything is recorded.
+  const other = await submissionService.createAssessmentAttempt(ctx.studentAuth, (await (async () => { const second = assessment("assessment-recorded-2", { timeLimit: 60 }); await saveAssessment(ctx.teacherAuth, second); return second; })()).id);
+  await assert.rejects(
+    () => evaluationService.executeAction("evaluate", { assessmentId: "assessment-recorded-2", attemptId: other.id, answers: [] }, ctx.studentAuth),
+    (error) => error.code === "ANSWER_COUNT_MISMATCH" && error.answersRecorded !== true,
+  );
+});
+
 test("questions cannot be edited while a student is mid-exam, but other fields can", async () => {
   const item = assessment("assessment-in-progress");
   await saveAssessment(ctx.teacherAuth, item);

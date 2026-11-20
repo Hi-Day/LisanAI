@@ -15,7 +15,7 @@ export async function postJson(url, payload, fallbackMessage) {
   if (data.csrfToken) {
     clientCsrfToken = data.csrfToken;
   }
-  if (!response.ok) throw new Error(data.error || fallbackMessage);
+  if (!response.ok) throw Object.assign(new Error(data.error || fallbackMessage), { answersRecorded: data.answersRecorded === true });
   return data;
 }
 
@@ -132,6 +132,11 @@ export async function saveAttemptDraft(attemptId, draft) {
   return postJson("/api/evaluation", { action: "save-draft", payload: { attemptId, draft } }, "Gagal menyimpan jawaban sementara");
 }
 
+/** Lecturer dashboards finish evaluations that failed or whose student left before the result arrived. */
+export async function processPendingEvaluations() {
+  return postJson("/api/evaluation", { action: "process-pending" }, "Gagal memproses evaluasi tertunda");
+}
+
 export async function saveSubmissionAudio(submissionId, { index, kind, audio }) {
   await postJson(
     "/api/database",
@@ -223,7 +228,7 @@ export async function streamAssessmentAction({ action, payload, onChunk, onResul
     } else if (parsed.type === "error") {
       const message = parsed.message || "Terjadi kesalahan";
       if (onError) onError(message);
-      throw new Error(message);
+      throw Object.assign(new Error(message), { answersRecorded: parsed.answersRecorded === true });
     }
   };
 
